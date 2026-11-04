@@ -1,0 +1,415 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1455" viewBox="0 0 1800 1455" role="img" aria-label="AYA SVG V5 Component Board">
+<title>AYA SVG V5 Component Board</title><desc>Komponen SVG AYA untuk Garage Coffee</desc><defs>
+<linearGradient id="board-silver" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFF7F2"/><stop offset=".17" stop-color="#D0C9C7"/><stop offset=".4" stop-color="#F7EEEA"/><stop offset=".63" stop-color="#89868A"/><stop offset=".79" stop-color="#F5E9E6"/><stop offset="1" stop-color="#55545C"/></linearGradient>
+<linearGradient id="board-steel" x1=".16" y1="0" x2=".88" y2="1"><stop offset="0" stop-color="#FCF6F2"/><stop offset=".24" stop-color="#C4BEC0"/><stop offset=".59" stop-color="#655F69"/><stop offset=".79" stop-color="#E8D7D3"/><stop offset="1" stop-color="#625E66"/></linearGradient>
+<linearGradient id="board-cream" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFF7F5"/><stop offset=".57" stop-color="#C3BEC2"/><stop offset="1" stop-color="#716C73"/></linearGradient>
+<linearGradient id="board-visor" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2B272B"/><stop offset=".31" stop-color="#0C0D12"/><stop offset=".74" stop-color="#100D12"/><stop offset="1" stop-color="#24181A"/></linearGradient>
+<linearGradient id="board-red" x1="0" y1="0" x2=".92" y2="1"><stop offset="0" stop-color="#FF6962"/><stop offset=".36" stop-color="#DD242A"/><stop offset=".73" stop-color="#761018"/><stop offset="1" stop-color="#3B1015"/></linearGradient>
+<linearGradient id="board-panel" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#393235"/><stop offset=".4" stop-color="#201E23"/><stop offset="1" stop-color="#151417"/></linearGradient>
+<linearGradient id="board-border" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#968588"/><stop offset=".45" stop-color="#605155"/><stop offset="1" stop-color="#342B30"/></linearGradient>
+<radialGradient id="board-aura"><stop offset="0" stop-color="#F03931" stop-opacity=".55"/><stop offset=".45" stop-color="#E0242C" stop-opacity=".15"/><stop offset="1" stop-color="#D42022" stop-opacity="0"/></radialGradient>
+<filter id="board-shadow" x="-40%" y="-45%" width="190%" height="200%"><feGaussianBlur in="SourceAlpha" stdDeviation="11" result="blur"/><feOffset dy="9" result="off"/><feComponentTransfer><feFuncA type="linear" slope=".7"/></feComponentTransfer><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<filter id="board-glow" x="-110%" y="-110%" width="320%" height="320%"><feGaussianBlur stdDeviation="7" result="bl"/><feMerge><feMergeNode in="bl"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<filter id="board-faceglow" x="-120%" y="-120%" width="340%" height="340%"><feGaussianBlur stdDeviation="3.5" result="bl"/><feMerge><feMergeNode in="bl"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<clipPath id="board-faceclip"><path d="M149 164 C152 118 194 99 258 98 C327 99 360 119 371 159 Q388 218 364 254 C338 283 191 292 157 265 C133 247 134 197 149 164 Z"/></clipPath>
+</defs>
+
+<rect width="1800" height="1455" fill="#100E10"/><rect x="0" width="1800" height="13" fill="#F0443E"/><text x="48" y="78" fill="#F4ECE9" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="54" font-weight="850" text-anchor="start">AYA ASSISTANT</text><text x="49" y="112" fill="#BAA8A7" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="19" font-weight="700" text-anchor="start">GARAGE COFFEE / DIGITAL MENU V5 / SVG UI KIT</text><rect x="1514" y="33" width="233" height="56" rx="20" fill="#281D20" stroke="#ED5049" stroke-width="2"/><text x="1630" y="70" fill="#F4ECE9" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="19" font-weight="750" text-anchor="middle">21 SVG ASSETS</text><text x="48" y="169" fill="#F4ECE9" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="27" font-weight="750" text-anchor="start">01  CHARACTER STATE VARIANTS</text><rect x="48" y="188" width="326" height="419" rx="21" fill="#1D1A1E" stroke="#5A4A4D" stroke-width="2"/><g transform="translate(69 181) scale(.59)"><g class="aya-robot aya-idle">
+
+<ellipse cx="260" cy="444" rx="126" ry="18" fill="#09090C" opacity=".28"/>
+<g filter="url(#board-shadow)">
+<!-- body and shoulders -->
+<g class="aya-body">
+<path d="M185 331 Q203 299 256 304 Q320 305 335 338 L355 406 Q346 445 255 447 Q165 443 163 408 Z" fill="url(#board-silver)" stroke="#686169" stroke-width="5"/>
+<path d="M192 337 Q226 317 314 332" fill="none" stroke="#FFF6F0" stroke-width="9" opacity=".5" stroke-linecap="round"/>
+<path d="M218 337 Q250 325 297 337 L318 411 Q289 430 251 430 Q212 428 195 411 Z" fill="url(#board-cream)" stroke="#9B8D8B" stroke-width="3"/>
+<path d="M234 325 L270 325 L274 345 L230 345Z" fill="#262126"/>
+<g transform="translate(236 356) scale(0.81)"><path d="M0 49 L24 0 L48 49 H35 L29 37 H19 L13 49 Z M24 13 L19 28 H29 Z" fill="#E83F37" fill-rule="evenodd"/><path d="M9 42 L39 42" stroke="#FF8680" stroke-width="2.5" stroke-opacity=".6"/><path d="M27 24 L39 36" stroke="#80111A" stroke-width="2.3"/></g>
+<g><circle cx="151" cy="358" r="47" fill="url(#board-steel)" stroke="#514D55" stroke-width="5"/><circle cx="149" cy="365" r="31" fill="url(#board-cream)" stroke="#AAA1A2" stroke-width="3"/><circle cx="367" cy="359" r="46" fill="url(#board-steel)" stroke="#514D55" stroke-width="5"/><circle cx="369" cy="366" r="31" fill="url(#board-cream)" stroke="#AAA1A2" stroke-width="3"/><circle cx="178" cy="403" r="36" fill="url(#board-silver)" stroke="#8B7C7F" stroke-width="4"/><circle cx="337" cy="403" r="36" fill="url(#board-silver)" stroke="#8B7C7F" stroke-width="4"/></g>
+</g>
+<!-- headphone/headband -->
+<g class="aya-head">
+<path d="M122 160 C133 67 196 34 250 34 C312 31 367 66 389 139" fill="none" stroke="#43383F" stroke-width="32" stroke-linecap="round"/>
+<path d="M123 154 C139 74 188 44 250 42 Q320 34 379 131" fill="none" stroke="url(#board-cream)" stroke-width="22" stroke-linecap="round"/>
+<path d="M137 139 C152 81 198 53 256 50" stroke="#FFF6EF" stroke-width="7" fill="none" opacity=".5" stroke-linecap="round"/>
+<!-- right earpiece sits behind helmet -->
+<ellipse cx="393" cy="204" rx="32" ry="66" fill="url(#board-silver)" stroke="#76676F" stroke-width="5"/>
+<ellipse cx="399" cy="205" rx="13" ry="43" fill="url(#board-steel)" opacity=".8"/>
+<!-- helmet outer shell -->
+<path d="M116 169 C125 100 177 74 252 69 C336 65 394 98 409 165 Q427 240 396 291 Q355 332 256 332 C173 334 115 318 101 279 Q90 232 116 169Z" fill="url(#board-silver)" stroke="#7E7076" stroke-width="4.5"/>
+<path d="M129 152 C150 93 191 83 257 80 C331 79 379 102 394 150" fill="none" stroke="#FFF9F4" stroke-opacity=".65" stroke-width="11" stroke-linecap="round"/>
+<path d="M119 275 Q163 319 250 319 Q356 321 395 279" fill="none" stroke="#B5A6A6" stroke-width="11" opacity=".8"/>
+<!-- red neon visor rim -->
+<path d="M141 155 C153 106 194 91 255 90 C329 89 369 114 382 156 Q402 224 371 270 C349 294 180 309 149 276 Q120 246 141 155Z" fill="#6D0D14" stroke="#EF3E39" stroke-width="8" opacity=".85"/>
+<!-- visor -->
+<path d="M149 164 C152 118 194 99 258 98 C327 99 360 119 371 159 Q388 218 364 254 C338 283 191 292 157 265 C133 247 134 197 149 164 Z" fill="url(#board-visor)" stroke="#211E21" stroke-width="5"/>
+<g clip-path="url(#board-faceclip)"><path d="M147 160 Q177 102 284 100 Q328 101 352 117" stroke="#FFFFFF" opacity=".065" stroke-width="28" fill="none"/><path d="M135 237 Q149 283 198 286" stroke="#F13F39" opacity=".13" stroke-width="24" fill="none"/></g>
+<!-- left ear shell and badge -->
+<ellipse cx="119" cy="213" rx="67" ry="83" fill="url(#board-steel)" stroke="#817478" stroke-width="5"/>
+<ellipse cx="115" cy="217" rx="48" ry="63" fill="#1A161B" stroke="#756363" stroke-width="5"/>
+<ellipse cx="115" cy="217" rx="41" ry="54" fill="#181318" stroke="#3F292C" stroke-width="2"/>
+<g transform="translate(92 188) scale(1.02)"><path d="M0 49 L24 0 L48 49 H35 L29 37 H19 L13 49 Z M24 13 L19 28 H29 Z" fill="#E83F37" fill-rule="evenodd"/><path d="M9 42 L39 42" stroke="#FF8680" stroke-width="2.5" stroke-opacity=".6"/><path d="M27 24 L39 36" stroke="#80111A" stroke-width="2.3"/></g>
+<path d="M87 160 Q113 144 139 162" stroke="#FFF8F5" stroke-width="7" opacity=".36" fill="none" stroke-linecap="round"/>
+<!-- silver seam -->
+<path d="M160 97 L173 106 M308 76 L315 85" stroke="#8C8287" stroke-width="2" opacity=".5"/>
+<!-- face expressions -->
+</g><g class="aya-face">
+<g fill="#FFECEA" filter="url(#board-faceglow)"><rect x="204" y="169" width="15" height="43" rx="8"/><rect x="299" y="168" width="15" height="43" rx="8"/></g><path d="M251 227 Q263 242 278 226" stroke="#FFECE9" stroke-width="7" stroke-linecap="round" fill="none" filter="url(#board-faceglow)"/>
+</g>
+</g>
+
+</g></g><rect x="62" y="507" width="298" height="83" rx="17" fill="#2D2629" stroke="#76585C" stroke-width="1.5"/><text x="211" y="541" fill="#F4ECE9" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="22" font-weight="700" text-anchor="middle">AYA (Idle)</text><text x="211" y="571" fill="#CBBAB8" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="17" font-weight="500" text-anchor="middle">Siap membantu</text><rect x="396" y="188" width="326" height="419" rx="21" fill="#1D1A1E" stroke="#5A4A4D" stroke-width="2"/><g transform="translate(417 181) scale(.59)"><g class="aya-robot aya-listening">
+
+<ellipse cx="260" cy="444" rx="126" ry="18" fill="#09090C" opacity=".28"/>
+<g filter="url(#board-shadow)">
+<!-- body and shoulders -->
+<g class="aya-body">
+<path d="M185 331 Q203 299 256 304 Q320 305 335 338 L355 406 Q346 445 255 447 Q165 443 163 408 Z" fill="url(#board-silver)" stroke="#686169" stroke-width="5"/>
+<path d="M192 337 Q226 317 314 332" fill="none" stroke="#FFF6F0" stroke-width="9" opacity=".5" stroke-linecap="round"/>
+<path d="M218 337 Q250 325 297 337 L318 411 Q289 430 251 430 Q212 428 195 411 Z" fill="url(#board-cream)" stroke="#9B8D8B" stroke-width="3"/>
+<path d="M234 325 L270 325 L274 345 L230 345Z" fill="#262126"/>
+<g transform="translate(236 356) scale(0.81)"><path d="M0 49 L24 0 L48 49 H35 L29 37 H19 L13 49 Z M24 13 L19 28 H29 Z" fill="#E83F37" fill-rule="evenodd"/><path d="M9 42 L39 42" stroke="#FF8680" stroke-width="2.5" stroke-opacity=".6"/><path d="M27 24 L39 36" stroke="#80111A" stroke-width="2.3"/></g>
+<g><circle cx="151" cy="358" r="47" fill="url(#board-steel)" stroke="#514D55" stroke-width="5"/><circle cx="149" cy="365" r="31" fill="url(#board-cream)" stroke="#AAA1A2" stroke-width="3"/><circle cx="367" cy="359" r="46" fill="url(#board-steel)" stroke="#514D55" stroke-width="5"/><circle cx="369" cy="366" r="31" fill="url(#board-cream)" stroke="#AAA1A2" stroke-width="3"/><circle cx="178" cy="403" r="36" fill="url(#board-silver)" stroke="#8B7C7F" stroke-width="4"/><circle cx="337" cy="403" r="36" fill="url(#board-silver)" stroke="#8B7C7F" stroke-width="4"/></g>
+</g>
+<!-- headphone/headband -->
+<g class="aya-head">
+<path d="M122 160 C133 67 196 34 250 34 C312 31 367 66 389 139" fill="none" stroke="#43383F" stroke-width="32" stroke-linecap="round"/>
+<path d="M123 154 C139 74 188 44 250 42 Q320 34 379 131" fill="none" stroke="url(#board-cream)" stroke-width="22" stroke-linecap="round"/>
+<path d="M137 139 C152 81 198 53 256 50" stroke="#FFF6EF" stroke-width="7" fill="none" opacity=".5" stroke-linecap="round"/>
+<!-- right earpiece sits behind helmet -->
+<ellipse cx="393" cy="204" rx="32" ry="66" fill="url(#board-silver)" stroke="#76676F" stroke-width="5"/>
+<ellipse cx="399" cy="205" rx="13" ry="43" fill="url(#board-steel)" opacity=".8"/>
+<!-- helmet outer shell -->
+<path d="M116 169 C125 100 177 74 252 69 C336 65 394 98 409 165 Q427 240 396 291 Q355 332 256 332 C173 334 115 318 101 279 Q90 232 116 169Z" fill="url(#board-silver)" stroke="#7E7076" stroke-width="4.5"/>
+<path d="M129 152 C150 93 191 83 257 80 C331 79 379 102 394 150" fill="none" stroke="#FFF9F4" stroke-opacity=".65" stroke-width="11" stroke-linecap="round"/>
+<path d="M119 275 Q163 319 250 319 Q356 321 395 279" fill="none" stroke="#B5A6A6" stroke-width="11" opacity=".8"/>
+<!-- red neon visor rim -->
+<path d="M141 155 C153 106 194 91 255 90 C329 89 369 114 382 156 Q402 224 371 270 C349 294 180 309 149 276 Q120 246 141 155Z" fill="#6D0D14" stroke="#EF3E39" stroke-width="8" opacity=".85"/>
+<!-- visor -->
+<path d="M149 164 C152 118 194 99 258 98 C327 99 360 119 371 159 Q388 218 364 254 C338 283 191 292 157 265 C133 247 134 197 149 164 Z" fill="url(#board-visor)" stroke="#211E21" stroke-width="5"/>
+<g clip-path="url(#board-faceclip)"><path d="M147 160 Q177 102 284 100 Q328 101 352 117" stroke="#FFFFFF" opacity=".065" stroke-width="28" fill="none"/><path d="M135 237 Q149 283 198 286" stroke="#F13F39" opacity=".13" stroke-width="24" fill="none"/></g>
+<!-- left ear shell and badge -->
+<ellipse cx="119" cy="213" rx="67" ry="83" fill="url(#board-steel)" stroke="#817478" stroke-width="5"/>
+<ellipse cx="115" cy="217" rx="48" ry="63" fill="#1A161B" stroke="#756363" stroke-width="5"/>
+<ellipse cx="115" cy="217" rx="41" ry="54" fill="#181318" stroke="#3F292C" stroke-width="2"/>
+<g transform="translate(92 188) scale(1.02)"><path d="M0 49 L24 0 L48 49 H35 L29 37 H19 L13 49 Z M24 13 L19 28 H29 Z" fill="#E83F37" fill-rule="evenodd"/><path d="M9 42 L39 42" stroke="#FF8680" stroke-width="2.5" stroke-opacity=".6"/><path d="M27 24 L39 36" stroke="#80111A" stroke-width="2.3"/></g>
+<path d="M87 160 Q113 144 139 162" stroke="#FFF8F5" stroke-width="7" opacity=".36" fill="none" stroke-linecap="round"/>
+<!-- silver seam -->
+<path d="M160 97 L173 106 M308 76 L315 85" stroke="#8C8287" stroke-width="2" opacity=".5"/>
+<!-- face expressions -->
+</g><g class="aya-face">
+<g filter="url(#board-faceglow)"><path d="M212 190 v11" stroke="#FFECEA" stroke-width="5.5" stroke-linecap="round" /><path d="M226 176 v35" stroke="#FFECEA" stroke-width="5.5" stroke-linecap="round" /><path d="M240 182 v22" stroke="#FFECEA" stroke-width="5.5" stroke-linecap="round" /><path d="M255 164 v58" stroke="#FFECEA" stroke-width="5.5" stroke-linecap="round" /><path d="M270 182 v22" stroke="#FFECEA" stroke-width="5.5" stroke-linecap="round" /><path d="M284 171 v44" stroke="#FFECEA" stroke-width="5.5" stroke-linecap="round" /><path d="M298 188 v13" stroke="#FFECEA" stroke-width="5.5" stroke-linecap="round" /></g>
+</g>
+</g>
+<g fill="none" stroke="#EF4944" stroke-linecap="round" filter="url(#board-glow)"><path d="M59 165 Q35 196 59 235" stroke-width="4.5"/><path d="M45 150 Q8 197 45 252" stroke-width="3"/><path d="M420 166 Q447 200 420 239" stroke-width="4.5"/><path d="M436 148 Q471 196 437 252" stroke-width="3"/></g>
+</g></g><rect x="410" y="507" width="298" height="83" rx="17" fill="#2D2629" stroke="#76585C" stroke-width="1.5"/><text x="559" y="541" fill="#F4ECE9" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="22" font-weight="700" text-anchor="middle">AYA (Listening)</text><text x="559" y="571" fill="#CBBAB8" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="17" font-weight="500" text-anchor="middle">Mendengarkan...</text><rect x="744" y="188" width="326" height="419" rx="21" fill="#1D1A1E" stroke="#5A4A4D" stroke-width="2"/><g transform="translate(765 181) scale(.59)"><g class="aya-robot aya-thinking">
+
+<ellipse cx="260" cy="444" rx="126" ry="18" fill="#09090C" opacity=".28"/>
+<g filter="url(#board-shadow)">
+<!-- body and shoulders -->
+<g class="aya-body">
+<path d="M185 331 Q203 299 256 304 Q320 305 335 338 L355 406 Q346 445 255 447 Q165 443 163 408 Z" fill="url(#board-silver)" stroke="#686169" stroke-width="5"/>
+<path d="M192 337 Q226 317 314 332" fill="none" stroke="#FFF6F0" stroke-width="9" opacity=".5" stroke-linecap="round"/>
+<path d="M218 337 Q250 325 297 337 L318 411 Q289 430 251 430 Q212 428 195 411 Z" fill="url(#board-cream)" stroke="#9B8D8B" stroke-width="3"/>
+<path d="M234 325 L270 325 L274 345 L230 345Z" fill="#262126"/>
+<g transform="translate(236 356) scale(0.81)"><path d="M0 49 L24 0 L48 49 H35 L29 37 H19 L13 49 Z M24 13 L19 28 H29 Z" fill="#E83F37" fill-rule="evenodd"/><path d="M9 42 L39 42" stroke="#FF8680" stroke-width="2.5" stroke-opacity=".6"/><path d="M27 24 L39 36" stroke="#80111A" stroke-width="2.3"/></g>
+<g><circle cx="151" cy="358" r="47" fill="url(#board-steel)" stroke="#514D55" stroke-width="5"/><circle cx="149" cy="365" r="31" fill="url(#board-cream)" stroke="#AAA1A2" stroke-width="3"/><circle cx="367" cy="359" r="46" fill="url(#board-steel)" stroke="#514D55" stroke-width="5"/><circle cx="369" cy="366" r="31" fill="url(#board-cream)" stroke="#AAA1A2" stroke-width="3"/><circle cx="178" cy="403" r="36" fill="url(#board-silver)" stroke="#8B7C7F" stroke-width="4"/><circle cx="337" cy="403" r="36" fill="url(#board-silver)" stroke="#8B7C7F" stroke-width="4"/></g>
+</g>
+<!-- headphone/headband -->
+<g class="aya-head">
+<path d="M122 160 C133 67 196 34 250 34 C312 31 367 66 389 139" fill="none" stroke="#43383F" stroke-width="32" stroke-linecap="round"/>
+<path d="M123 154 C139 74 188 44 250 42 Q320 34 379 131" fill="none" stroke="url(#board-cream)" stroke-width="22" stroke-linecap="round"/>
+<path d="M137 139 C152 81 198 53 256 50" stroke="#FFF6EF" stroke-width="7" fill="none" opacity=".5" stroke-linecap="round"/>
+<!-- right earpiece sits behind helmet -->
+<ellipse cx="393" cy="204" rx="32" ry="66" fill="url(#board-silver)" stroke="#76676F" stroke-width="5"/>
+<ellipse cx="399" cy="205" rx="13" ry="43" fill="url(#board-steel)" opacity=".8"/>
+<!-- helmet outer shell -->
+<path d="M116 169 C125 100 177 74 252 69 C336 65 394 98 409 165 Q427 240 396 291 Q355 332 256 332 C173 334 115 318 101 279 Q90 232 116 169Z" fill="url(#board-silver)" stroke="#7E7076" stroke-width="4.5"/>
+<path d="M129 152 C150 93 191 83 257 80 C331 79 379 102 394 150" fill="none" stroke="#FFF9F4" stroke-opacity=".65" stroke-width="11" stroke-linecap="round"/>
+<path d="M119 275 Q163 319 250 319 Q356 321 395 279" fill="none" stroke="#B5A6A6" stroke-width="11" opacity=".8"/>
+<!-- red neon visor rim -->
+<path d="M141 155 C153 106 194 91 255 90 C329 89 369 114 382 156 Q402 224 371 270 C349 294 180 309 149 276 Q120 246 141 155Z" fill="#6D0D14" stroke="#EF3E39" stroke-width="8" opacity=".85"/>
+<!-- visor -->
+<path d="M149 164 C152 118 194 99 258 98 C327 99 360 119 371 159 Q388 218 364 254 C338 283 191 292 157 265 C133 247 134 197 149 164 Z" fill="url(#board-visor)" stroke="#211E21" stroke-width="5"/>
+<g clip-path="url(#board-faceclip)"><path d="M147 160 Q177 102 284 100 Q328 101 352 117" stroke="#FFFFFF" opacity=".065" stroke-width="28" fill="none"/><path d="M135 237 Q149 283 198 286" stroke="#F13F39" opacity=".13" stroke-width="24" fill="none"/></g>
+<!-- left ear shell and badge -->
+<ellipse cx="119" cy="213" rx="67" ry="83" fill="url(#board-steel)" stroke="#817478" stroke-width="5"/>
+<ellipse cx="115" cy="217" rx="48" ry="63" fill="#1A161B" stroke="#756363" stroke-width="5"/>
+<ellipse cx="115" cy="217" rx="41" ry="54" fill="#181318" stroke="#3F292C" stroke-width="2"/>
+<g transform="translate(92 188) scale(1.02)"><path d="M0 49 L24 0 L48 49 H35 L29 37 H19 L13 49 Z M24 13 L19 28 H29 Z" fill="#E83F37" fill-rule="evenodd"/><path d="M9 42 L39 42" stroke="#FF8680" stroke-width="2.5" stroke-opacity=".6"/><path d="M27 24 L39 36" stroke="#80111A" stroke-width="2.3"/></g>
+<path d="M87 160 Q113 144 139 162" stroke="#FFF8F5" stroke-width="7" opacity=".36" fill="none" stroke-linecap="round"/>
+<!-- silver seam -->
+<path d="M160 97 L173 106 M308 76 L315 85" stroke="#8C8287" stroke-width="2" opacity=".5"/>
+<!-- face expressions -->
+</g><g class="aya-face">
+<g fill="#FFEDEA" filter="url(#board-faceglow)"><circle cx="220" cy="204" r="7.5"/><circle cx="257" cy="204" r="7.5"/><circle cx="294" cy="204" r="7.5"/></g>
+</g>
+</g>
+<g><path d="M361 75 Q361 49 392 49 H426 Q447 49 447 70 V86 Q447 103 424 103 H405 L393 117 L389 101 Q361 98 361 75Z" fill="#252125" stroke="#B6A2A1" stroke-width="2"/><g fill="#F3BDB6"><circle cx="384" cy="76" r="3.3"/><circle cx="405" cy="76" r="3.3"/><circle cx="426" cy="76" r="3.3"/></g></g>
+</g></g><rect x="758" y="507" width="298" height="83" rx="17" fill="#2D2629" stroke="#76585C" stroke-width="1.5"/><text x="907" y="541" fill="#F4ECE9" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="22" font-weight="700" text-anchor="middle">AYA (Thinking)</text><text x="907" y="571" fill="#CBBAB8" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="17" font-weight="500" text-anchor="middle">Memproses...</text><rect x="1092" y="188" width="326" height="419" rx="21" fill="#1D1A1E" stroke="#5A4A4D" stroke-width="2"/><g transform="translate(1113 181) scale(.59)"><g class="aya-robot aya-speaking">
+
+<ellipse cx="260" cy="444" rx="126" ry="18" fill="#09090C" opacity=".28"/>
+<g filter="url(#board-shadow)">
+<!-- body and shoulders -->
+<g class="aya-body">
+<path d="M185 331 Q203 299 256 304 Q320 305 335 338 L355 406 Q346 445 255 447 Q165 443 163 408 Z" fill="url(#board-silver)" stroke="#686169" stroke-width="5"/>
+<path d="M192 337 Q226 317 314 332" fill="none" stroke="#FFF6F0" stroke-width="9" opacity=".5" stroke-linecap="round"/>
+<path d="M218 337 Q250 325 297 337 L318 411 Q289 430 251 430 Q212 428 195 411 Z" fill="url(#board-cream)" stroke="#9B8D8B" stroke-width="3"/>
+<path d="M234 325 L270 325 L274 345 L230 345Z" fill="#262126"/>
+<g transform="translate(236 356) scale(0.81)"><path d="M0 49 L24 0 L48 49 H35 L29 37 H19 L13 49 Z M24 13 L19 28 H29 Z" fill="#E83F37" fill-rule="evenodd"/><path d="M9 42 L39 42" stroke="#FF8680" stroke-width="2.5" stroke-opacity=".6"/><path d="M27 24 L39 36" stroke="#80111A" stroke-width="2.3"/></g>
+<g><circle cx="151" cy="358" r="47" fill="url(#board-steel)" stroke="#514D55" stroke-width="5"/><circle cx="149" cy="365" r="31" fill="url(#board-cream)" stroke="#AAA1A2" stroke-width="3"/><circle cx="367" cy="359" r="46" fill="url(#board-steel)" stroke="#514D55" stroke-width="5"/><circle cx="369" cy="366" r="31" fill="url(#board-cream)" stroke="#AAA1A2" stroke-width="3"/><circle cx="178" cy="403" r="36" fill="url(#board-silver)" stroke="#8B7C7F" stroke-width="4"/><circle cx="337" cy="403" r="36" fill="url(#board-silver)" stroke="#8B7C7F" stroke-width="4"/></g>
+</g>
+<!-- headphone/headband -->
+<g class="aya-head">
+<path d="M122 160 C133 67 196 34 250 34 C312 31 367 66 389 139" fill="none" stroke="#43383F" stroke-width="32" stroke-linecap="round"/>
+<path d="M123 154 C139 74 188 44 250 42 Q320 34 379 131" fill="none" stroke="url(#board-cream)" stroke-width="22" stroke-linecap="round"/>
+<path d="M137 139 C152 81 198 53 256 50" stroke="#FFF6EF" stroke-width="7" fill="none" opacity=".5" stroke-linecap="round"/>
+<!-- right earpiece sits behind helmet -->
+<ellipse cx="393" cy="204" rx="32" ry="66" fill="url(#board-silver)" stroke="#76676F" stroke-width="5"/>
+<ellipse cx="399" cy="205" rx="13" ry="43" fill="url(#board-steel)" opacity=".8"/>
+<!-- helmet outer shell -->
+<path d="M116 169 C125 100 177 74 252 69 C336 65 394 98 409 165 Q427 240 396 291 Q355 332 256 332 C173 334 115 318 101 279 Q90 232 116 169Z" fill="url(#board-silver)" stroke="#7E7076" stroke-width="4.5"/>
+<path d="M129 152 C150 93 191 83 257 80 C331 79 379 102 394 150" fill="none" stroke="#FFF9F4" stroke-opacity=".65" stroke-width="11" stroke-linecap="round"/>
+<path d="M119 275 Q163 319 250 319 Q356 321 395 279" fill="none" stroke="#B5A6A6" stroke-width="11" opacity=".8"/>
+<!-- red neon visor rim -->
+<path d="M141 155 C153 106 194 91 255 90 C329 89 369 114 382 156 Q402 224 371 270 C349 294 180 309 149 276 Q120 246 141 155Z" fill="#6D0D14" stroke="#EF3E39" stroke-width="8" opacity=".85"/>
+<!-- visor -->
+<path d="M149 164 C152 118 194 99 258 98 C327 99 360 119 371 159 Q388 218 364 254 C338 283 191 292 157 265 C133 247 134 197 149 164 Z" fill="url(#board-visor)" stroke="#211E21" stroke-width="5"/>
+<g clip-path="url(#board-faceclip)"><path d="M147 160 Q177 102 284 100 Q328 101 352 117" stroke="#FFFFFF" opacity=".065" stroke-width="28" fill="none"/><path d="M135 237 Q149 283 198 286" stroke="#F13F39" opacity=".13" stroke-width="24" fill="none"/></g>
+<!-- left ear shell and badge -->
+<ellipse cx="119" cy="213" rx="67" ry="83" fill="url(#board-steel)" stroke="#817478" stroke-width="5"/>
+<ellipse cx="115" cy="217" rx="48" ry="63" fill="#1A161B" stroke="#756363" stroke-width="5"/>
+<ellipse cx="115" cy="217" rx="41" ry="54" fill="#181318" stroke="#3F292C" stroke-width="2"/>
+<g transform="translate(92 188) scale(1.02)"><path d="M0 49 L24 0 L48 49 H35 L29 37 H19 L13 49 Z M24 13 L19 28 H29 Z" fill="#E83F37" fill-rule="evenodd"/><path d="M9 42 L39 42" stroke="#FF8680" stroke-width="2.5" stroke-opacity=".6"/><path d="M27 24 L39 36" stroke="#80111A" stroke-width="2.3"/></g>
+<path d="M87 160 Q113 144 139 162" stroke="#FFF8F5" stroke-width="7" opacity=".36" fill="none" stroke-linecap="round"/>
+<!-- silver seam -->
+<path d="M160 97 L173 106 M308 76 L315 85" stroke="#8C8287" stroke-width="2" opacity=".5"/>
+<!-- face expressions -->
+</g><g class="aya-face">
+<g filter="url(#board-faceglow)"><path d="M195 194 Q208 174 221 194" fill="none" stroke="#FFEDEA" stroke-width="8" stroke-linecap="round"/><path d="M244 196 v9" stroke="#FFECEA" stroke-width="5.8" stroke-linecap="round"/><path d="M256 184 v34" stroke="#FFECEA" stroke-width="5.8" stroke-linecap="round"/><path d="M269 176 v49" stroke="#FFECEA" stroke-width="5.8" stroke-linecap="round"/><path d="M282 185 v31" stroke="#FFECEA" stroke-width="5.8" stroke-linecap="round"/><path d="M294 196 v9" stroke="#FFECEA" stroke-width="5.8" stroke-linecap="round"/></g>
+</g>
+</g>
+<g><path d="M355 68 Q355 46 379 46 H444 Q465 46 465 68 V92 Q465 111 445 111 H395 L375 125 L377 109 Q355 104 355 92Z" fill="#242023" stroke="#BFB5B6" stroke-width="2"/><path d="M380 69 H440 M380 82 H431" stroke="#FFF0E8" stroke-width="4" stroke-linecap="round"/><g stroke="#FF726A" stroke-width="4" stroke-linecap="round" filter="url(#board-faceglow)"><path d="M427 174 V208 M438 165 V217 M450 179 V203"/></g></g>
+</g></g><rect x="1106" y="507" width="298" height="83" rx="17" fill="#2D2629" stroke="#76585C" stroke-width="1.5"/><text x="1255" y="541" fill="#F4ECE9" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="22" font-weight="700" text-anchor="middle">AYA (Speaking)</text><text x="1255" y="571" fill="#CBBAB8" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="17" font-weight="500" text-anchor="middle">Menyampaikan jawaban</text><rect x="1440" y="188" width="326" height="419" rx="21" fill="#1D1A1E" stroke="#5A4A4D" stroke-width="2"/><g transform="translate(1461 181) scale(.59)"><g class="aya-robot aya-happy">
+
+<ellipse cx="260" cy="444" rx="126" ry="18" fill="#09090C" opacity=".28"/>
+<g filter="url(#board-shadow)">
+<!-- body and shoulders -->
+<g class="aya-body">
+<path d="M185 331 Q203 299 256 304 Q320 305 335 338 L355 406 Q346 445 255 447 Q165 443 163 408 Z" fill="url(#board-silver)" stroke="#686169" stroke-width="5"/>
+<path d="M192 337 Q226 317 314 332" fill="none" stroke="#FFF6F0" stroke-width="9" opacity=".5" stroke-linecap="round"/>
+<path d="M218 337 Q250 325 297 337 L318 411 Q289 430 251 430 Q212 428 195 411 Z" fill="url(#board-cream)" stroke="#9B8D8B" stroke-width="3"/>
+<path d="M234 325 L270 325 L274 345 L230 345Z" fill="#262126"/>
+<g transform="translate(236 356) scale(0.81)"><path d="M0 49 L24 0 L48 49 H35 L29 37 H19 L13 49 Z M24 13 L19 28 H29 Z" fill="#E83F37" fill-rule="evenodd"/><path d="M9 42 L39 42" stroke="#FF8680" stroke-width="2.5" stroke-opacity=".6"/><path d="M27 24 L39 36" stroke="#80111A" stroke-width="2.3"/></g>
+<g><circle cx="151" cy="358" r="47" fill="url(#board-steel)" stroke="#514D55" stroke-width="5"/><circle cx="149" cy="365" r="31" fill="url(#board-cream)" stroke="#AAA1A2" stroke-width="3"/><circle cx="367" cy="359" r="46" fill="url(#board-steel)" stroke="#514D55" stroke-width="5"/><circle cx="369" cy="366" r="31" fill="url(#board-cream)" stroke="#AAA1A2" stroke-width="3"/><circle cx="178" cy="403" r="36" fill="url(#board-silver)" stroke="#8B7C7F" stroke-width="4"/><circle cx="337" cy="403" r="36" fill="url(#board-silver)" stroke="#8B7C7F" stroke-width="4"/></g>
+</g>
+<!-- headphone/headband -->
+<g class="aya-head">
+<path d="M122 160 C133 67 196 34 250 34 C312 31 367 66 389 139" fill="none" stroke="#43383F" stroke-width="32" stroke-linecap="round"/>
+<path d="M123 154 C139 74 188 44 250 42 Q320 34 379 131" fill="none" stroke="url(#board-cream)" stroke-width="22" stroke-linecap="round"/>
+<path d="M137 139 C152 81 198 53 256 50" stroke="#FFF6EF" stroke-width="7" fill="none" opacity=".5" stroke-linecap="round"/>
+<!-- right earpiece sits behind helmet -->
+<ellipse cx="393" cy="204" rx="32" ry="66" fill="url(#board-silver)" stroke="#76676F" stroke-width="5"/>
+<ellipse cx="399" cy="205" rx="13" ry="43" fill="url(#board-steel)" opacity=".8"/>
+<!-- helmet outer shell -->
+<path d="M116 169 C125 100 177 74 252 69 C336 65 394 98 409 165 Q427 240 396 291 Q355 332 256 332 C173 334 115 318 101 279 Q90 232 116 169Z" fill="url(#board-silver)" stroke="#7E7076" stroke-width="4.5"/>
+<path d="M129 152 C150 93 191 83 257 80 C331 79 379 102 394 150" fill="none" stroke="#FFF9F4" stroke-opacity=".65" stroke-width="11" stroke-linecap="round"/>
+<path d="M119 275 Q163 319 250 319 Q356 321 395 279" fill="none" stroke="#B5A6A6" stroke-width="11" opacity=".8"/>
+<!-- red neon visor rim -->
+<path d="M141 155 C153 106 194 91 255 90 C329 89 369 114 382 156 Q402 224 371 270 C349 294 180 309 149 276 Q120 246 141 155Z" fill="#6D0D14" stroke="#EF3E39" stroke-width="8" opacity=".85"/>
+<!-- visor -->
+<path d="M149 164 C152 118 194 99 258 98 C327 99 360 119 371 159 Q388 218 364 254 C338 283 191 292 157 265 C133 247 134 197 149 164 Z" fill="url(#board-visor)" stroke="#211E21" stroke-width="5"/>
+<g clip-path="url(#board-faceclip)"><path d="M147 160 Q177 102 284 100 Q328 101 352 117" stroke="#FFFFFF" opacity=".065" stroke-width="28" fill="none"/><path d="M135 237 Q149 283 198 286" stroke="#F13F39" opacity=".13" stroke-width="24" fill="none"/></g>
+<!-- left ear shell and badge -->
+<ellipse cx="119" cy="213" rx="67" ry="83" fill="url(#board-steel)" stroke="#817478" stroke-width="5"/>
+<ellipse cx="115" cy="217" rx="48" ry="63" fill="#1A161B" stroke="#756363" stroke-width="5"/>
+<ellipse cx="115" cy="217" rx="41" ry="54" fill="#181318" stroke="#3F292C" stroke-width="2"/>
+<g transform="translate(92 188) scale(1.02)"><path d="M0 49 L24 0 L48 49 H35 L29 37 H19 L13 49 Z M24 13 L19 28 H29 Z" fill="#E83F37" fill-rule="evenodd"/><path d="M9 42 L39 42" stroke="#FF8680" stroke-width="2.5" stroke-opacity=".6"/><path d="M27 24 L39 36" stroke="#80111A" stroke-width="2.3"/></g>
+<path d="M87 160 Q113 144 139 162" stroke="#FFF8F5" stroke-width="7" opacity=".36" fill="none" stroke-linecap="round"/>
+<!-- silver seam -->
+<path d="M160 97 L173 106 M308 76 L315 85" stroke="#8C8287" stroke-width="2" opacity=".5"/>
+<!-- face expressions -->
+</g><g class="aya-face">
+<g filter="url(#board-faceglow)" stroke="#FFF0EC" fill="none" stroke-linecap="round"><path d="M196 193 Q211 172 228 193" stroke-width="8"/><path d="M284 192 Q299 172 316 193" stroke-width="8"/><path d="M246 228 Q264 259 282 227 Z" fill="#FFF0EC" stroke-width="5" stroke-linejoin="round"/></g>
+</g>
+</g>
+<g transform="translate(376 52)"><path d="M8 20 C8 2 25 -2 34 9 C43 -2 61 3 61 20 C61 40 34 55 34 55 C34 55 8 40 8 20Z" fill="url(#board-red)" stroke="#FFB2AB" stroke-width="3" filter="url(#board-glow)"/><path d="M23 19 Q28 12 34 19 Q40 12 45 19 Q44 27 34 34 Q24 28 23 19Z" fill="#FFF1F0"/><path d="M70 72 L86 63 M67 85 L84 91" stroke="#FF6762" stroke-width="5" stroke-linecap="round"/></g>
+</g></g><rect x="1454" y="507" width="298" height="83" rx="17" fill="#2D2629" stroke="#76585C" stroke-width="1.5"/><text x="1603" y="541" fill="#F4ECE9" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="22" font-weight="700" text-anchor="middle">AYA (Happy)</text><text x="1603" y="571" fill="#CBBAB8" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="17" font-weight="500" text-anchor="middle">Senang membantu</text><text x="48" y="664" fill="#F4ECE9" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="27" font-weight="750" text-anchor="start">02  FLOATING ACCESS / VOICE CONTROLS / QUICK PROMPTS</text><rect x="48" y="683" width="560" height="320" rx="21" fill="#1D1A1E" stroke="#5A4A4D" stroke-width="2"/><circle cx="147" cy="817" r="68" fill="url(#board-red)" stroke="#FF9A91" stroke-width="3"/><circle cx="147" cy="817" r="53" fill="#220F14"/><g transform="translate(96 759) scale(.22)"><g class="aya-robot aya-idle">
+
+<ellipse cx="260" cy="444" rx="126" ry="18" fill="#09090C" opacity=".28"/>
+<g filter="url(#board-shadow)">
+<!-- body and shoulders -->
+<g class="aya-body">
+<path d="M185 331 Q203 299 256 304 Q320 305 335 338 L355 406 Q346 445 255 447 Q165 443 163 408 Z" fill="url(#board-silver)" stroke="#686169" stroke-width="5"/>
+<path d="M192 337 Q226 317 314 332" fill="none" stroke="#FFF6F0" stroke-width="9" opacity=".5" stroke-linecap="round"/>
+<path d="M218 337 Q250 325 297 337 L318 411 Q289 430 251 430 Q212 428 195 411 Z" fill="url(#board-cream)" stroke="#9B8D8B" stroke-width="3"/>
+<path d="M234 325 L270 325 L274 345 L230 345Z" fill="#262126"/>
+<g transform="translate(236 356) scale(0.81)"><path d="M0 49 L24 0 L48 49 H35 L29 37 H19 L13 49 Z M24 13 L19 28 H29 Z" fill="#E83F37" fill-rule="evenodd"/><path d="M9 42 L39 42" stroke="#FF8680" stroke-width="2.5" stroke-opacity=".6"/><path d="M27 24 L39 36" stroke="#80111A" stroke-width="2.3"/></g>
+<g><circle cx="151" cy="358" r="47" fill="url(#board-steel)" stroke="#514D55" stroke-width="5"/><circle cx="149" cy="365" r="31" fill="url(#board-cream)" stroke="#AAA1A2" stroke-width="3"/><circle cx="367" cy="359" r="46" fill="url(#board-steel)" stroke="#514D55" stroke-width="5"/><circle cx="369" cy="366" r="31" fill="url(#board-cream)" stroke="#AAA1A2" stroke-width="3"/><circle cx="178" cy="403" r="36" fill="url(#board-silver)" stroke="#8B7C7F" stroke-width="4"/><circle cx="337" cy="403" r="36" fill="url(#board-silver)" stroke="#8B7C7F" stroke-width="4"/></g>
+</g>
+<!-- headphone/headband -->
+<g class="aya-head">
+<path d="M122 160 C133 67 196 34 250 34 C312 31 367 66 389 139" fill="none" stroke="#43383F" stroke-width="32" stroke-linecap="round"/>
+<path d="M123 154 C139 74 188 44 250 42 Q320 34 379 131" fill="none" stroke="url(#board-cream)" stroke-width="22" stroke-linecap="round"/>
+<path d="M137 139 C152 81 198 53 256 50" stroke="#FFF6EF" stroke-width="7" fill="none" opacity=".5" stroke-linecap="round"/>
+<!-- right earpiece sits behind helmet -->
+<ellipse cx="393" cy="204" rx="32" ry="66" fill="url(#board-silver)" stroke="#76676F" stroke-width="5"/>
+<ellipse cx="399" cy="205" rx="13" ry="43" fill="url(#board-steel)" opacity=".8"/>
+<!-- helmet outer shell -->
+<path d="M116 169 C125 100 177 74 252 69 C336 65 394 98 409 165 Q427 240 396 291 Q355 332 256 332 C173 334 115 318 101 279 Q90 232 116 169Z" fill="url(#board-silver)" stroke="#7E7076" stroke-width="4.5"/>
+<path d="M129 152 C150 93 191 83 257 80 C331 79 379 102 394 150" fill="none" stroke="#FFF9F4" stroke-opacity=".65" stroke-width="11" stroke-linecap="round"/>
+<path d="M119 275 Q163 319 250 319 Q356 321 395 279" fill="none" stroke="#B5A6A6" stroke-width="11" opacity=".8"/>
+<!-- red neon visor rim -->
+<path d="M141 155 C153 106 194 91 255 90 C329 89 369 114 382 156 Q402 224 371 270 C349 294 180 309 149 276 Q120 246 141 155Z" fill="#6D0D14" stroke="#EF3E39" stroke-width="8" opacity=".85"/>
+<!-- visor -->
+<path d="M149 164 C152 118 194 99 258 98 C327 99 360 119 371 159 Q388 218 364 254 C338 283 191 292 157 265 C133 247 134 197 149 164 Z" fill="url(#board-visor)" stroke="#211E21" stroke-width="5"/>
+<g clip-path="url(#board-faceclip)"><path d="M147 160 Q177 102 284 100 Q328 101 352 117" stroke="#FFFFFF" opacity=".065" stroke-width="28" fill="none"/><path d="M135 237 Q149 283 198 286" stroke="#F13F39" opacity=".13" stroke-width="24" fill="none"/></g>
+<!-- left ear shell and badge -->
+<ellipse cx="119" cy="213" rx="67" ry="83" fill="url(#board-steel)" stroke="#817478" stroke-width="5"/>
+<ellipse cx="115" cy="217" rx="48" ry="63" fill="#1A161B" stroke="#756363" stroke-width="5"/>
+<ellipse cx="115" cy="217" rx="41" ry="54" fill="#181318" stroke="#3F292C" stroke-width="2"/>
+<g transform="translate(92 188) scale(1.02)"><path d="M0 49 L24 0 L48 49 H35 L29 37 H19 L13 49 Z M24 13 L19 28 H29 Z" fill="#E83F37" fill-rule="evenodd"/><path d="M9 42 L39 42" stroke="#FF8680" stroke-width="2.5" stroke-opacity=".6"/><path d="M27 24 L39 36" stroke="#80111A" stroke-width="2.3"/></g>
+<path d="M87 160 Q113 144 139 162" stroke="#FFF8F5" stroke-width="7" opacity=".36" fill="none" stroke-linecap="round"/>
+<!-- silver seam -->
+<path d="M160 97 L173 106 M308 76 L315 85" stroke="#8C8287" stroke-width="2" opacity=".5"/>
+<!-- face expressions -->
+</g><g class="aya-face">
+<g fill="#FFECEA" filter="url(#board-faceglow)"><rect x="204" y="169" width="15" height="43" rx="8"/><rect x="299" y="168" width="15" height="43" rx="8"/></g><path d="M251 227 Q263 242 278 226" stroke="#FFECE9" stroke-width="7" stroke-linecap="round" fill="none" filter="url(#board-faceglow)"/>
+</g>
+</g>
+
+</g></g><text x="148" y="938" fill="#E6D7D6" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="17" font-weight="500" text-anchor="middle">Default</text><circle cx="322" cy="817" r="68" fill="url(#board-red)" stroke="#FF9A91" stroke-width="3"/><circle cx="322" cy="817" r="53" fill="#220F14"/><g transform="translate(271 759) scale(.22)"><g class="aya-robot aya-idle">
+
+<ellipse cx="260" cy="444" rx="126" ry="18" fill="#09090C" opacity=".28"/>
+<g filter="url(#board-shadow)">
+<!-- body and shoulders -->
+<g class="aya-body">
+<path d="M185 331 Q203 299 256 304 Q320 305 335 338 L355 406 Q346 445 255 447 Q165 443 163 408 Z" fill="url(#board-silver)" stroke="#686169" stroke-width="5"/>
+<path d="M192 337 Q226 317 314 332" fill="none" stroke="#FFF6F0" stroke-width="9" opacity=".5" stroke-linecap="round"/>
+<path d="M218 337 Q250 325 297 337 L318 411 Q289 430 251 430 Q212 428 195 411 Z" fill="url(#board-cream)" stroke="#9B8D8B" stroke-width="3"/>
+<path d="M234 325 L270 325 L274 345 L230 345Z" fill="#262126"/>
+<g transform="translate(236 356) scale(0.81)"><path d="M0 49 L24 0 L48 49 H35 L29 37 H19 L13 49 Z M24 13 L19 28 H29 Z" fill="#E83F37" fill-rule="evenodd"/><path d="M9 42 L39 42" stroke="#FF8680" stroke-width="2.5" stroke-opacity=".6"/><path d="M27 24 L39 36" stroke="#80111A" stroke-width="2.3"/></g>
+<g><circle cx="151" cy="358" r="47" fill="url(#board-steel)" stroke="#514D55" stroke-width="5"/><circle cx="149" cy="365" r="31" fill="url(#board-cream)" stroke="#AAA1A2" stroke-width="3"/><circle cx="367" cy="359" r="46" fill="url(#board-steel)" stroke="#514D55" stroke-width="5"/><circle cx="369" cy="366" r="31" fill="url(#board-cream)" stroke="#AAA1A2" stroke-width="3"/><circle cx="178" cy="403" r="36" fill="url(#board-silver)" stroke="#8B7C7F" stroke-width="4"/><circle cx="337" cy="403" r="36" fill="url(#board-silver)" stroke="#8B7C7F" stroke-width="4"/></g>
+</g>
+<!-- headphone/headband -->
+<g class="aya-head">
+<path d="M122 160 C133 67 196 34 250 34 C312 31 367 66 389 139" fill="none" stroke="#43383F" stroke-width="32" stroke-linecap="round"/>
+<path d="M123 154 C139 74 188 44 250 42 Q320 34 379 131" fill="none" stroke="url(#board-cream)" stroke-width="22" stroke-linecap="round"/>
+<path d="M137 139 C152 81 198 53 256 50" stroke="#FFF6EF" stroke-width="7" fill="none" opacity=".5" stroke-linecap="round"/>
+<!-- right earpiece sits behind helmet -->
+<ellipse cx="393" cy="204" rx="32" ry="66" fill="url(#board-silver)" stroke="#76676F" stroke-width="5"/>
+<ellipse cx="399" cy="205" rx="13" ry="43" fill="url(#board-steel)" opacity=".8"/>
+<!-- helmet outer shell -->
+<path d="M116 169 C125 100 177 74 252 69 C336 65 394 98 409 165 Q427 240 396 291 Q355 332 256 332 C173 334 115 318 101 279 Q90 232 116 169Z" fill="url(#board-silver)" stroke="#7E7076" stroke-width="4.5"/>
+<path d="M129 152 C150 93 191 83 257 80 C331 79 379 102 394 150" fill="none" stroke="#FFF9F4" stroke-opacity=".65" stroke-width="11" stroke-linecap="round"/>
+<path d="M119 275 Q163 319 250 319 Q356 321 395 279" fill="none" stroke="#B5A6A6" stroke-width="11" opacity=".8"/>
+<!-- red neon visor rim -->
+<path d="M141 155 C153 106 194 91 255 90 C329 89 369 114 382 156 Q402 224 371 270 C349 294 180 309 149 276 Q120 246 141 155Z" fill="#6D0D14" stroke="#EF3E39" stroke-width="8" opacity=".85"/>
+<!-- visor -->
+<path d="M149 164 C152 118 194 99 258 98 C327 99 360 119 371 159 Q388 218 364 254 C338 283 191 292 157 265 C133 247 134 197 149 164 Z" fill="url(#board-visor)" stroke="#211E21" stroke-width="5"/>
+<g clip-path="url(#board-faceclip)"><path d="M147 160 Q177 102 284 100 Q328 101 352 117" stroke="#FFFFFF" opacity=".065" stroke-width="28" fill="none"/><path d="M135 237 Q149 283 198 286" stroke="#F13F39" opacity=".13" stroke-width="24" fill="none"/></g>
+<!-- left ear shell and badge -->
+<ellipse cx="119" cy="213" rx="67" ry="83" fill="url(#board-steel)" stroke="#817478" stroke-width="5"/>
+<ellipse cx="115" cy="217" rx="48" ry="63" fill="#1A161B" stroke="#756363" stroke-width="5"/>
+<ellipse cx="115" cy="217" rx="41" ry="54" fill="#181318" stroke="#3F292C" stroke-width="2"/>
+<g transform="translate(92 188) scale(1.02)"><path d="M0 49 L24 0 L48 49 H35 L29 37 H19 L13 49 Z M24 13 L19 28 H29 Z" fill="#E83F37" fill-rule="evenodd"/><path d="M9 42 L39 42" stroke="#FF8680" stroke-width="2.5" stroke-opacity=".6"/><path d="M27 24 L39 36" stroke="#80111A" stroke-width="2.3"/></g>
+<path d="M87 160 Q113 144 139 162" stroke="#FFF8F5" stroke-width="7" opacity=".36" fill="none" stroke-linecap="round"/>
+<!-- silver seam -->
+<path d="M160 97 L173 106 M308 76 L315 85" stroke="#8C8287" stroke-width="2" opacity=".5"/>
+<!-- face expressions -->
+</g><g class="aya-face">
+<g fill="#FFECEA" filter="url(#board-faceglow)"><rect x="204" y="169" width="15" height="43" rx="8"/><rect x="299" y="168" width="15" height="43" rx="8"/></g><path d="M251 227 Q263 242 278 226" stroke="#FFECE9" stroke-width="7" stroke-linecap="round" fill="none" filter="url(#board-faceglow)"/>
+</g>
+</g>
+
+</g></g><circle cx="380" cy="762" r="16" fill="#FC4D44" stroke="#FFC9C1" stroke-width="2"/><text x="323" y="938" fill="#E6D7D6" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="17" font-weight="500" text-anchor="middle">Attention</text><circle cx="497" cy="817" r="68" fill="url(#board-red)" stroke="#FF9A91" stroke-width="3"/><circle cx="497" cy="817" r="53" fill="#220F14"/><g transform="translate(446 759) scale(.22)"><g class="aya-robot aya-listening">
+
+<ellipse cx="260" cy="444" rx="126" ry="18" fill="#09090C" opacity=".28"/>
+<g filter="url(#board-shadow)">
+<!-- body and shoulders -->
+<g class="aya-body">
+<path d="M185 331 Q203 299 256 304 Q320 305 335 338 L355 406 Q346 445 255 447 Q165 443 163 408 Z" fill="url(#board-silver)" stroke="#686169" stroke-width="5"/>
+<path d="M192 337 Q226 317 314 332" fill="none" stroke="#FFF6F0" stroke-width="9" opacity=".5" stroke-linecap="round"/>
+<path d="M218 337 Q250 325 297 337 L318 411 Q289 430 251 430 Q212 428 195 411 Z" fill="url(#board-cream)" stroke="#9B8D8B" stroke-width="3"/>
+<path d="M234 325 L270 325 L274 345 L230 345Z" fill="#262126"/>
+<g transform="translate(236 356) scale(0.81)"><path d="M0 49 L24 0 L48 49 H35 L29 37 H19 L13 49 Z M24 13 L19 28 H29 Z" fill="#E83F37" fill-rule="evenodd"/><path d="M9 42 L39 42" stroke="#FF8680" stroke-width="2.5" stroke-opacity=".6"/><path d="M27 24 L39 36" stroke="#80111A" stroke-width="2.3"/></g>
+<g><circle cx="151" cy="358" r="47" fill="url(#board-steel)" stroke="#514D55" stroke-width="5"/><circle cx="149" cy="365" r="31" fill="url(#board-cream)" stroke="#AAA1A2" stroke-width="3"/><circle cx="367" cy="359" r="46" fill="url(#board-steel)" stroke="#514D55" stroke-width="5"/><circle cx="369" cy="366" r="31" fill="url(#board-cream)" stroke="#AAA1A2" stroke-width="3"/><circle cx="178" cy="403" r="36" fill="url(#board-silver)" stroke="#8B7C7F" stroke-width="4"/><circle cx="337" cy="403" r="36" fill="url(#board-silver)" stroke="#8B7C7F" stroke-width="4"/></g>
+</g>
+<!-- headphone/headband -->
+<g class="aya-head">
+<path d="M122 160 C133 67 196 34 250 34 C312 31 367 66 389 139" fill="none" stroke="#43383F" stroke-width="32" stroke-linecap="round"/>
+<path d="M123 154 C139 74 188 44 250 42 Q320 34 379 131" fill="none" stroke="url(#board-cream)" stroke-width="22" stroke-linecap="round"/>
+<path d="M137 139 C152 81 198 53 256 50" stroke="#FFF6EF" stroke-width="7" fill="none" opacity=".5" stroke-linecap="round"/>
+<!-- right earpiece sits behind helmet -->
+<ellipse cx="393" cy="204" rx="32" ry="66" fill="url(#board-silver)" stroke="#76676F" stroke-width="5"/>
+<ellipse cx="399" cy="205" rx="13" ry="43" fill="url(#board-steel)" opacity=".8"/>
+<!-- helmet outer shell -->
+<path d="M116 169 C125 100 177 74 252 69 C336 65 394 98 409 165 Q427 240 396 291 Q355 332 256 332 C173 334 115 318 101 279 Q90 232 116 169Z" fill="url(#board-silver)" stroke="#7E7076" stroke-width="4.5"/>
+<path d="M129 152 C150 93 191 83 257 80 C331 79 379 102 394 150" fill="none" stroke="#FFF9F4" stroke-opacity=".65" stroke-width="11" stroke-linecap="round"/>
+<path d="M119 275 Q163 319 250 319 Q356 321 395 279" fill="none" stroke="#B5A6A6" stroke-width="11" opacity=".8"/>
+<!-- red neon visor rim -->
+<path d="M141 155 C153 106 194 91 255 90 C329 89 369 114 382 156 Q402 224 371 270 C349 294 180 309 149 276 Q120 246 141 155Z" fill="#6D0D14" stroke="#EF3E39" stroke-width="8" opacity=".85"/>
+<!-- visor -->
+<path d="M149 164 C152 118 194 99 258 98 C327 99 360 119 371 159 Q388 218 364 254 C338 283 191 292 157 265 C133 247 134 197 149 164 Z" fill="url(#board-visor)" stroke="#211E21" stroke-width="5"/>
+<g clip-path="url(#board-faceclip)"><path d="M147 160 Q177 102 284 100 Q328 101 352 117" stroke="#FFFFFF" opacity=".065" stroke-width="28" fill="none"/><path d="M135 237 Q149 283 198 286" stroke="#F13F39" opacity=".13" stroke-width="24" fill="none"/></g>
+<!-- left ear shell and badge -->
+<ellipse cx="119" cy="213" rx="67" ry="83" fill="url(#board-steel)" stroke="#817478" stroke-width="5"/>
+<ellipse cx="115" cy="217" rx="48" ry="63" fill="#1A161B" stroke="#756363" stroke-width="5"/>
+<ellipse cx="115" cy="217" rx="41" ry="54" fill="#181318" stroke="#3F292C" stroke-width="2"/>
+<g transform="translate(92 188) scale(1.02)"><path d="M0 49 L24 0 L48 49 H35 L29 37 H19 L13 49 Z M24 13 L19 28 H29 Z" fill="#E83F37" fill-rule="evenodd"/><path d="M9 42 L39 42" stroke="#FF8680" stroke-width="2.5" stroke-opacity=".6"/><path d="M27 24 L39 36" stroke="#80111A" stroke-width="2.3"/></g>
+<path d="M87 160 Q113 144 139 162" stroke="#FFF8F5" stroke-width="7" opacity=".36" fill="none" stroke-linecap="round"/>
+<!-- silver seam -->
+<path d="M160 97 L173 106 M308 76 L315 85" stroke="#8C8287" stroke-width="2" opacity=".5"/>
+<!-- face expressions -->
+</g><g class="aya-face">
+<g filter="url(#board-faceglow)"><path d="M212 190 v11" stroke="#FFECEA" stroke-width="5.5" stroke-linecap="round" /><path d="M226 176 v35" stroke="#FFECEA" stroke-width="5.5" stroke-linecap="round" /><path d="M240 182 v22" stroke="#FFECEA" stroke-width="5.5" stroke-linecap="round" /><path d="M255 164 v58" stroke="#FFECEA" stroke-width="5.5" stroke-linecap="round" /><path d="M270 182 v22" stroke="#FFECEA" stroke-width="5.5" stroke-linecap="round" /><path d="M284 171 v44" stroke="#FFECEA" stroke-width="5.5" stroke-linecap="round" /><path d="M298 188 v13" stroke="#FFECEA" stroke-width="5.5" stroke-linecap="round" /></g>
+</g>
+</g>
+<g fill="none" stroke="#EF4944" stroke-linecap="round" filter="url(#board-glow)"><path d="M59 165 Q35 196 59 235" stroke-width="4.5"/><path d="M45 150 Q8 197 45 252" stroke-width="3"/><path d="M420 166 Q447 200 420 239" stroke-width="4.5"/><path d="M436 148 Q471 196 437 252" stroke-width="3"/></g>
+</g></g><text x="498" y="938" fill="#E6D7D6" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="17" font-weight="500" text-anchor="middle">Active</text><rect x="624" y="683" width="548" height="320" rx="21" fill="#1D1A1E" stroke="#5A4A4D" stroke-width="2"/><text x="647" y="722" fill="#F4ECE9" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="25" font-weight="700" text-anchor="start">Microphone States</text><circle cx="724" cy="814" r="52" fill="#343036" stroke="#FF7771" stroke-width="2.5"/><rect x="716" y="792" width="16" height="32" rx="8" fill="none" stroke="#FFF1EF" stroke-width="4"/><path d="M710 815 Q710 835 724 835 Q738 835 738 815 M724 835 V845" stroke="#FFF0ED" stroke-width="3" fill="none"/><text x="724" y="908" fill="#F4ECE9" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="17" font-weight="650" text-anchor="middle">IDLE</text><circle cx="886" cy="814" r="52" fill="url(#board-red)" stroke="#FF7771" stroke-width="2.5"/><rect x="878" y="792" width="16" height="32" rx="8" fill="none" stroke="#FFF1EF" stroke-width="4"/><path d="M872 815 Q872 835 886 835 Q900 835 900 815 M886 835 V845" stroke="#FFF0ED" stroke-width="3" fill="none"/><text x="886" y="908" fill="#F4ECE9" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="17" font-weight="650" text-anchor="middle">LISTEN</text><circle cx="1046" cy="814" r="52" fill="#343036" stroke="#FF7771" stroke-width="2.5"/><rect x="1034" y="802" width="24" height="24" rx="4" fill="#F9F1EF"/><text x="1046" y="908" fill="#F4ECE9" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="17" font-weight="650" text-anchor="middle">STOP</text><rect x="1188" y="683" width="563" height="320" rx="21" fill="#1D1A1E" stroke="#5A4A4D" stroke-width="2"/><text x="1213" y="722" fill="#F4ECE9" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="25" font-weight="700" text-anchor="start">Sample Quick Prompts</text><rect x="1214" y="752" width="508" height="59" rx="13" fill="#352D30" stroke="#795A5A" stroke-width="1.5"/><text x="1236" y="789" fill="#F4ECE9" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="18" font-weight="500" text-anchor="start">Rekomendasi menu kopi favorit</text><path d="M1682 775 l12 7 l-12 7" stroke="#EFE0DE" stroke-width="2" fill="none"/><rect x="1214" y="823" width="508" height="59" rx="13" fill="#352D30" stroke="#795A5A" stroke-width="1.5"/><text x="1236" y="860" fill="#F4ECE9" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="18" font-weight="500" text-anchor="start">Minuman dingin yang segar</text><path d="M1682 846 l12 7 l-12 7" stroke="#EFE0DE" stroke-width="2" fill="none"/><rect x="1214" y="894" width="508" height="59" rx="13" fill="#352D30" stroke="#795A5A" stroke-width="1.5"/><text x="1236" y="931" fill="#F4ECE9" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="18" font-weight="500" text-anchor="start">Menu cocok untuk kerja</text><path d="M1682 917 l12 7 l-12 7" stroke="#EFE0DE" stroke-width="2" fill="none"/><text x="48" y="1065" fill="#F4ECE9" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="27" font-weight="750" text-anchor="start">03  HELP CARD / MESSAGING UI COMPONENTS</text><rect x="48" y="1090" width="801" height="316" rx="21" fill="#1D1A1E" stroke="#5A4A4D" stroke-width="2"/><g transform="translate(44 1097) scale(.53)"><g class="aya-robot aya-happy">
+
+<ellipse cx="260" cy="444" rx="126" ry="18" fill="#09090C" opacity=".28"/>
+<g filter="url(#board-shadow)">
+<!-- body and shoulders -->
+<g class="aya-body">
+<path d="M185 331 Q203 299 256 304 Q320 305 335 338 L355 406 Q346 445 255 447 Q165 443 163 408 Z" fill="url(#board-silver)" stroke="#686169" stroke-width="5"/>
+<path d="M192 337 Q226 317 314 332" fill="none" stroke="#FFF6F0" stroke-width="9" opacity=".5" stroke-linecap="round"/>
+<path d="M218 337 Q250 325 297 337 L318 411 Q289 430 251 430 Q212 428 195 411 Z" fill="url(#board-cream)" stroke="#9B8D8B" stroke-width="3"/>
+<path d="M234 325 L270 325 L274 345 L230 345Z" fill="#262126"/>
+<g transform="translate(236 356) scale(0.81)"><path d="M0 49 L24 0 L48 49 H35 L29 37 H19 L13 49 Z M24 13 L19 28 H29 Z" fill="#E83F37" fill-rule="evenodd"/><path d="M9 42 L39 42" stroke="#FF8680" stroke-width="2.5" stroke-opacity=".6"/><path d="M27 24 L39 36" stroke="#80111A" stroke-width="2.3"/></g>
+<g><circle cx="151" cy="358" r="47" fill="url(#board-steel)" stroke="#514D55" stroke-width="5"/><circle cx="149" cy="365" r="31" fill="url(#board-cream)" stroke="#AAA1A2" stroke-width="3"/><circle cx="367" cy="359" r="46" fill="url(#board-steel)" stroke="#514D55" stroke-width="5"/><circle cx="369" cy="366" r="31" fill="url(#board-cream)" stroke="#AAA1A2" stroke-width="3"/><circle cx="178" cy="403" r="36" fill="url(#board-silver)" stroke="#8B7C7F" stroke-width="4"/><circle cx="337" cy="403" r="36" fill="url(#board-silver)" stroke="#8B7C7F" stroke-width="4"/></g>
+</g>
+<!-- headphone/headband -->
+<g class="aya-head">
+<path d="M122 160 C133 67 196 34 250 34 C312 31 367 66 389 139" fill="none" stroke="#43383F" stroke-width="32" stroke-linecap="round"/>
+<path d="M123 154 C139 74 188 44 250 42 Q320 34 379 131" fill="none" stroke="url(#board-cream)" stroke-width="22" stroke-linecap="round"/>
+<path d="M137 139 C152 81 198 53 256 50" stroke="#FFF6EF" stroke-width="7" fill="none" opacity=".5" stroke-linecap="round"/>
+<!-- right earpiece sits behind helmet -->
+<ellipse cx="393" cy="204" rx="32" ry="66" fill="url(#board-silver)" stroke="#76676F" stroke-width="5"/>
+<ellipse cx="399" cy="205" rx="13" ry="43" fill="url(#board-steel)" opacity=".8"/>
+<!-- helmet outer shell -->
+<path d="M116 169 C125 100 177 74 252 69 C336 65 394 98 409 165 Q427 240 396 291 Q355 332 256 332 C173 334 115 318 101 279 Q90 232 116 169Z" fill="url(#board-silver)" stroke="#7E7076" stroke-width="4.5"/>
+<path d="M129 152 C150 93 191 83 257 80 C331 79 379 102 394 150" fill="none" stroke="#FFF9F4" stroke-opacity=".65" stroke-width="11" stroke-linecap="round"/>
+<path d="M119 275 Q163 319 250 319 Q356 321 395 279" fill="none" stroke="#B5A6A6" stroke-width="11" opacity=".8"/>
+<!-- red neon visor rim -->
+<path d="M141 155 C153 106 194 91 255 90 C329 89 369 114 382 156 Q402 224 371 270 C349 294 180 309 149 276 Q120 246 141 155Z" fill="#6D0D14" stroke="#EF3E39" stroke-width="8" opacity=".85"/>
+<!-- visor -->
+<path d="M149 164 C152 118 194 99 258 98 C327 99 360 119 371 159 Q388 218 364 254 C338 283 191 292 157 265 C133 247 134 197 149 164 Z" fill="url(#board-visor)" stroke="#211E21" stroke-width="5"/>
+<g clip-path="url(#board-faceclip)"><path d="M147 160 Q177 102 284 100 Q328 101 352 117" stroke="#FFFFFF" opacity=".065" stroke-width="28" fill="none"/><path d="M135 237 Q149 283 198 286" stroke="#F13F39" opacity=".13" stroke-width="24" fill="none"/></g>
+<!-- left ear shell and badge -->
+<ellipse cx="119" cy="213" rx="67" ry="83" fill="url(#board-steel)" stroke="#817478" stroke-width="5"/>
+<ellipse cx="115" cy="217" rx="48" ry="63" fill="#1A161B" stroke="#756363" stroke-width="5"/>
+<ellipse cx="115" cy="217" rx="41" ry="54" fill="#181318" stroke="#3F292C" stroke-width="2"/>
+<g transform="translate(92 188) scale(1.02)"><path d="M0 49 L24 0 L48 49 H35 L29 37 H19 L13 49 Z M24 13 L19 28 H29 Z" fill="#E83F37" fill-rule="evenodd"/><path d="M9 42 L39 42" stroke="#FF8680" stroke-width="2.5" stroke-opacity=".6"/><path d="M27 24 L39 36" stroke="#80111A" stroke-width="2.3"/></g>
+<path d="M87 160 Q113 144 139 162" stroke="#FFF8F5" stroke-width="7" opacity=".36" fill="none" stroke-linecap="round"/>
+<!-- silver seam -->
+<path d="M160 97 L173 106 M308 76 L315 85" stroke="#8C8287" stroke-width="2" opacity=".5"/>
+<!-- face expressions -->
+</g><g class="aya-face">
+<g filter="url(#board-faceglow)" stroke="#FFF0EC" fill="none" stroke-linecap="round"><path d="M196 193 Q211 172 228 193" stroke-width="8"/><path d="M284 192 Q299 172 316 193" stroke-width="8"/><path d="M246 228 Q264 259 282 227 Z" fill="#FFF0EC" stroke-width="5" stroke-linejoin="round"/></g>
+</g>
+</g>
+<g transform="translate(376 52)"><path d="M8 20 C8 2 25 -2 34 9 C43 -2 61 3 61 20 C61 40 34 55 34 55 C34 55 8 40 8 20Z" fill="url(#board-red)" stroke="#FFB2AB" stroke-width="3" filter="url(#board-glow)"/><path d="M23 19 Q28 12 34 19 Q40 12 45 19 Q44 27 34 34 Q24 28 23 19Z" fill="#FFF1F0"/><path d="M70 72 L86 63 M67 85 L84 91" stroke="#FF6762" stroke-width="5" stroke-linecap="round"/></g>
+</g></g><text x="311" y="1167" fill="#F4ECE9" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="36" font-weight="750" text-anchor="start">Tanya AYA</text><text x="311" y="1209" fill="#D9CECB" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="21" font-weight="500" text-anchor="start">Butuh rekomendasi menu,</text><text x="311" y="1240" fill="#D9CECB" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="21" font-weight="500" text-anchor="start">informasi, atau navigasi?</text><rect x="311" y="1277" width="472" height="69" rx="19" fill="url(#board-red)" stroke="#FF9890" stroke-width="2"/><text x="547" y="1321" fill="#F4ECE9" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="24" font-weight="740" text-anchor="middle">Tanya Sekarang</text><rect x="865" y="1090" width="886" height="316" rx="21" fill="#1D1A1E" stroke="#5A4A4D" stroke-width="2"/><text x="892" y="1142" fill="#F4ECE9" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="28" font-weight="740" text-anchor="start">Chat Panel Preview</text><rect x="892" y="1160" width="795" height="69" rx="16" fill="#343034" stroke="#786A6B"/><text x="915" y="1204" fill="#F4ECE9" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="22" font-weight="500" text-anchor="start">Hai! Aku AYA. Mau rekomendasi menu?</text><rect x="1100" y="1245" width="587" height="60" rx="17" fill="url(#board-red)"/><text x="1130" y="1283" fill="#F4ECE9" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="21" font-weight="500" text-anchor="start">Rekomendasikan menu kopi creamy.</text><rect x="892" y="1321" width="795" height="64" rx="16" fill="#363135" stroke="#75676C"/><text x="916" y="1362" fill="#B9AFAD" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="20" font-weight="500" text-anchor="start">Tanya AYA tentang menu, promo, dan bantuan...</text>
+</svg>

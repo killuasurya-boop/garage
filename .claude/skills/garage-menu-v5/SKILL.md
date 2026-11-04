@@ -49,6 +49,22 @@ sekadar terinspirasi. Konsekuensinya:
 5. **Istilah**: papan memakai "Keranjang" (00, 05, 06) dan "Daftar Pilihan" (03, layar penuh). Pakai satu: "Daftar
    Pilihan"/"Tambah ke Daftar", kecuali Owner menyatakan lain.
 
+Keputusan Owner 4 Nov 2026 (final):
+- **Mode menu**: menu pelanggan = lihat menu + Daftar Pilihan, pesanan resmi dicatat waiter ("Tunjukkan ke Waiter"),
+  lalu masuk POS dan Bar/Dapur. Alur pesan + bayar sendiri yang sekarang **disimpan sebagai mode** (bukan dihapus),
+  dipilih per outlet lewat Pengaturan. Default saat rilis = perilaku sekarang sampai Owner mengganti modenya
+  (supaya deploy tidak mematikan pemesanan tanpa sengaja).
+- **Merah utama menu = #D43A3A** (Garage Red papan). Dipasang sebagai token menu/AYA; token operasional tidak diubah
+  tanpa keputusan terpisah.
+- **AYA = robot berhelm V5 di SEMUA layar** (menu pelanggan, staf, POS), menggantikan maskot v2. Sumber aset:
+  `docs/design-references/aya-v5/` (5 state, 3 FAB, layer badan/kepala/wajah). Panel chat, quick prompts, kartu
+  bantuan di paket itu = gambar statis, bangun sebagai UI React. AYA boleh berjalan/berlari (kaki & tangan dipisah
+  jadi grup), selalu di jalur aman, tidak menutupi harga/tombol, diam saat reduced-motion.
+
+Masih terbuka: logo "A" di AYA (paket menggambar ulang; ganti vektor resmi bila Owner memberi), tombol "+" kartu
+multi-varian, format harga "mulai", font judul miring, sumber foto produk.
+
+Catatan lama (sudah dijawab di atas):
 Masih perlu konfirmasi Owner (satu kali, lalu catat di DIRECTION.md):
 - Perilaku "Panggil Waiter": hanya memanggil waiter dengan daftar terlampir (permintaan layanan meja), atau membuat
   pesanan? Papan: "Ini bukan proses checkout... staf kami akan datang untuk mengonfirmasi pesanan." `/order` sekarang

@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="940" height="1010" viewBox="0 0 940 1010" role="img" aria-label="AYA Chat Panel UI Layout">
+<title>AYA Chat Panel UI Layout</title><desc>Panel percakapan AYA V5. Nama menu disesuaikan master Garage Coffee, ilustrasi kopi vektor sebagai placeholder, bukan foto produk asli.</desc><defs>
+<linearGradient id="chat-silver" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFF7F2"/><stop offset=".17" stop-color="#D0C9C7"/><stop offset=".4" stop-color="#F7EEEA"/><stop offset=".63" stop-color="#89868A"/><stop offset=".79" stop-color="#F5E9E6"/><stop offset="1" stop-color="#55545C"/></linearGradient>
+<linearGradient id="chat-steel" x1=".16" y1="0" x2=".88" y2="1"><stop offset="0" stop-color="#FCF6F2"/><stop offset=".24" stop-color="#C4BEC0"/><stop offset=".59" stop-color="#655F69"/><stop offset=".79" stop-color="#E8D7D3"/><stop offset="1" stop-color="#625E66"/></linearGradient>
+<linearGradient id="chat-cream" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFF7F5"/><stop offset=".57" stop-color="#C3BEC2"/><stop offset="1" stop-color="#716C73"/></linearGradient>
+<linearGradient id="chat-visor" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2B272B"/><stop offset=".31" stop-color="#0C0D12"/><stop offset=".74" stop-color="#100D12"/><stop offset="1" stop-color="#24181A"/></linearGradient>
+<linearGradient id="chat-red" x1="0" y1="0" x2=".92" y2="1"><stop offset="0" stop-color="#FF6962"/><stop offset=".36" stop-color="#DD242A"/><stop offset=".73" stop-color="#761018"/><stop offset="1" stop-color="#3B1015"/></linearGradient>
+<linearGradient id="chat-panel" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#393235"/><stop offset=".4" stop-color="#201E23"/><stop offset="1" stop-color="#151417"/></linearGradient>
+<linearGradient id="chat-border" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#968588"/><stop offset=".45" stop-color="#605155"/><stop offset="1" stop-color="#342B30"/></linearGradient>
+<radialGradient id="chat-aura"><stop offset="0" stop-color="#F03931" stop-opacity=".55"/><stop offset=".45" stop-color="#E0242C" stop-opacity=".15"/><stop offset="1" stop-color="#D42022" stop-opacity="0"/></radialGradient>
+<filter id="chat-shadow" x="-40%" y="-45%" width="190%" height="200%"><feGaussianBlur in="SourceAlpha" stdDeviation="11" result="blur"/><feOffset dy="9" result="off"/><feComponentTransfer><feFuncA type="linear" slope=".7"/></feComponentTransfer><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<filter id="chat-glow" x="-110%" y="-110%" width="320%" height="320%"><feGaussianBlur stdDeviation="7" result="bl"/><feMerge><feMergeNode in="bl"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<filter id="chat-faceglow" x="-120%" y="-120%" width="340%" height="340%"><feGaussianBlur stdDeviation="3.5" result="bl"/><feMerge><feMergeNode in="bl"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<clipPath id="chat-faceclip"><path d="M149 164 C152 118 194 99 258 98 C327 99 360 119 371 159 Q388 218 364 254 C338 283 191 292 157 265 C133 247 134 197 149 164 Z"/></clipPath>
+</defs>
+
+<rect x="8" y="8" width="924" height="994" rx="27" fill="#151417" stroke="#696065" stroke-width="3"/><rect x="12" y="12" width="916" height="87" rx="24" fill="#282326"/><path d="M12 84 H928" stroke="#695257" stroke-width="2"/><circle cx="57" cy="55" r="27" fill="#393337"/><path d="M63 43 L50 55 L63 67" stroke="#F7EEEB" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/><g transform="translate(95 20) scale(.14)"><g class="aya-robot aya-idle">
+
+<ellipse cx="260" cy="444" rx="126" ry="18" fill="#09090C" opacity=".28"/>
+<g filter="url(#chat-shadow)">
+<!-- body and shoulders -->
+<g class="aya-body">
+<path d="M185 331 Q203 299 256 304 Q320 305 335 338 L355 406 Q346 445 255 447 Q165 443 163 408 Z" fill="url(#chat-silver)" stroke="#686169" stroke-width="5"/>
+<path d="M192 337 Q226 317 314 332" fill="none" stroke="#FFF6F0" stroke-width="9" opacity=".5" stroke-linecap="round"/>
+<path d="M218 337 Q250 325 297 337 L318 411 Q289 430 251 430 Q212 428 195 411 Z" fill="url(#chat-cream)" stroke="#9B8D8B" stroke-width="3"/>
+<path d="M234 325 L270 325 L274 345 L230 345Z" fill="#262126"/>
+<g transform="translate(236 356) scale(0.81)"><path d="M0 49 L24 0 L48 49 H35 L29 37 H19 L13 49 Z M24 13 L19 28 H29 Z" fill="#E83F37" fill-rule="evenodd"/><path d="M9 42 L39 42" stroke="#FF8680" stroke-width="2.5" stroke-opacity=".6"/><path d="M27 24 L39 36" stroke="#80111A" stroke-width="2.3"/></g>
+<g><circle cx="151" cy="358" r="47" fill="url(#chat-steel)" stroke="#514D55" stroke-width="5"/><circle cx="149" cy="365" r="31" fill="url(#chat-cream)" stroke="#AAA1A2" stroke-width="3"/><circle cx="367" cy="359" r="46" fill="url(#chat-steel)" stroke="#514D55" stroke-width="5"/><circle cx="369" cy="366" r="31" fill="url(#chat-cream)" stroke="#AAA1A2" stroke-width="3"/><circle cx="178" cy="403" r="36" fill="url(#chat-silver)" stroke="#8B7C7F" stroke-width="4"/><circle cx="337" cy="403" r="36" fill="url(#chat-silver)" stroke="#8B7C7F" stroke-width="4"/></g>
+</g>
+<!-- headphone/headband -->
+<g class="aya-head">
+<path d="M122 160 C133 67 196 34 250 34 C312 31 367 66 389 139" fill="none" stroke="#43383F" stroke-width="32" stroke-linecap="round"/>
+<path d="M123 154 C139 74 188 44 250 42 Q320 34 379 131" fill="none" stroke="url(#chat-cream)" stroke-width="22" stroke-linecap="round"/>
+<path d="M137 139 C152 81 198 53 256 50" stroke="#FFF6EF" stroke-width="7" fill="none" opacity=".5" stroke-linecap="round"/>
+<!-- right earpiece sits behind helmet -->
+<ellipse cx="393" cy="204" rx="32" ry="66" fill="url(#chat-silver)" stroke="#76676F" stroke-width="5"/>
+<ellipse cx="399" cy="205" rx="13" ry="43" fill="url(#chat-steel)" opacity=".8"/>
+<!-- helmet outer shell -->
+<path d="M116 169 C125 100 177 74 252 69 C336 65 394 98 409 165 Q427 240 396 291 Q355 332 256 332 C173 334 115 318 101 279 Q90 232 116 169Z" fill="url(#chat-silver)" stroke="#7E7076" stroke-width="4.5"/>
+<path d="M129 152 C150 93 191 83 257 80 C331 79 379 102 394 150" fill="none" stroke="#FFF9F4" stroke-opacity=".65" stroke-width="11" stroke-linecap="round"/>
+<path d="M119 275 Q163 319 250 319 Q356 321 395 279" fill="none" stroke="#B5A6A6" stroke-width="11" opacity=".8"/>
+<!-- red neon visor rim -->
+<path d="M141 155 C153 106 194 91 255 90 C329 89 369 114 382 156 Q402 224 371 270 C349 294 180 309 149 276 Q120 246 141 155Z" fill="#6D0D14" stroke="#EF3E39" stroke-width="8" opacity=".85"/>
+<!-- visor -->
+<path d="M149 164 C152 118 194 99 258 98 C327 99 360 119 371 159 Q388 218 364 254 C338 283 191 292 157 265 C133 247 134 197 149 164 Z" fill="url(#chat-visor)" stroke="#211E21" stroke-width="5"/>
+<g clip-path="url(#chat-faceclip)"><path d="M147 160 Q177 102 284 100 Q328 101 352 117" stroke="#FFFFFF" opacity=".065" stroke-width="28" fill="none"/><path d="M135 237 Q149 283 198 286" stroke="#F13F39" opacity=".13" stroke-width="24" fill="none"/></g>
+<!-- left ear shell and badge -->
+<ellipse cx="119" cy="213" rx="67" ry="83" fill="url(#chat-steel)" stroke="#817478" stroke-width="5"/>
+<ellipse cx="115" cy="217" rx="48" ry="63" fill="#1A161B" stroke="#756363" stroke-width="5"/>
+<ellipse cx="115" cy="217" rx="41" ry="54" fill="#181318" stroke="#3F292C" stroke-width="2"/>
+<g transform="translate(92 188) scale(1.02)"><path d="M0 49 L24 0 L48 49 H35 L29 37 H19 L13 49 Z M24 13 L19 28 H29 Z" fill="#E83F37" fill-rule="evenodd"/><path d="M9 42 L39 42" stroke="#FF8680" stroke-width="2.5" stroke-opacity=".6"/><path d="M27 24 L39 36" stroke="#80111A" stroke-width="2.3"/></g>
+<path d="M87 160 Q113 144 139 162" stroke="#FFF8F5" stroke-width="7" opacity=".36" fill="none" stroke-linecap="round"/>
+<!-- silver seam -->
+<path d="M160 97 L173 106 M308 76 L315 85" stroke="#8C8287" stroke-width="2" opacity=".5"/>
+<!-- face expressions -->
+</g><g class="aya-face">
+<g fill="#FFECEA" filter="url(#chat-faceglow)"><rect x="204" y="169" width="15" height="43" rx="8"/><rect x="299" y="168" width="15" height="43" rx="8"/></g><path d="M251 227 Q263 242 278 226" stroke="#FFECE9" stroke-width="7" stroke-linecap="round" fill="none" filter="url(#chat-faceglow)"/>
+</g>
+</g>
+
+</g></g><text x="176" y="52" fill="#F4ECE9" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="27" font-weight="750" text-anchor="start">AYA Assistant</text><circle cx="184" cy="72" r="7" fill="#46C76A"/><text x="203" y="78" fill="#C7C1C2" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="18" font-weight="500" text-anchor="start">Online</text><rect x="745" y="32" width="41" height="44" rx="11" fill="#353136" stroke="#70666A" stroke-width="1.6"/><path d="M754 46 H761 L769 41 V65 L761 59 H754Z M774 45 Q783 54 774 63" stroke="#EAE1E0" stroke-width="2" fill="none" stroke-linejoin="round"/><rect x="809" y="32" width="41" height="44" rx="11" fill="#353136" stroke="#70666A" stroke-width="1.6"/><circle cx="828" cy="45" r="2.6" fill="#EAE1E0"/><circle cx="828" cy="54" r="2.6" fill="#EAE1E0"/><circle cx="828" cy="63" r="2.6" fill="#EAE1E0"/><rect x="871" y="32" width="41" height="44" rx="11" fill="#353136" stroke="#70666A" stroke-width="1.6"/><path d="M882 45 L899 62 M899 45 L882 62" stroke="#EAE1E0" stroke-width="2.5"/><g transform="translate(12 121) scale(.126)"><g class="aya-robot aya-idle">
+
+<ellipse cx="260" cy="444" rx="126" ry="18" fill="#09090C" opacity=".28"/>
+<g filter="url(#chat-shadow)">
+<!-- body and shoulders -->
+<g class="aya-body">
+<path d="M185 331 Q203 299 256 304 Q320 305 335 338 L355 406 Q346 445 255 447 Q165 443 163 408 Z" fill="url(#chat-silver)" stroke="#686169" stroke-width="5"/>
+<path d="M192 337 Q226 317 314 332" fill="none" stroke="#FFF6F0" stroke-width="9" opacity=".5" stroke-linecap="round"/>
+<path d="M218 337 Q250 325 297 337 L318 411 Q289 430 251 430 Q212 428 195 411 Z" fill="url(#chat-cream)" stroke="#9B8D8B" stroke-width="3"/>
+<path d="M234 325 L270 325 L274 345 L230 345Z" fill="#262126"/>
+<g transform="translate(236 356) scale(0.81)"><path d="M0 49 L24 0 L48 49 H35 L29 37 H19 L13 49 Z M24 13 L19 28 H29 Z" fill="#E83F37" fill-rule="evenodd"/><path d="M9 42 L39 42" stroke="#FF8680" stroke-width="2.5" stroke-opacity=".6"/><path d="M27 24 L39 36" stroke="#80111A" stroke-width="2.3"/></g>
+<g><circle cx="151" cy="358" r="47" fill="url(#chat-steel)" stroke="#514D55" stroke-width="5"/><circle cx="149" cy="365" r="31" fill="url(#chat-cream)" stroke="#AAA1A2" stroke-width="3"/><circle cx="367" cy="359" r="46" fill="url(#chat-steel)" stroke="#514D55" stroke-width="5"/><circle cx="369" cy="366" r="31" fill="url(#chat-cream)" stroke="#AAA1A2" stroke-width="3"/><circle cx="178" cy="403" r="36" fill="url(#chat-silver)" stroke="#8B7C7F" stroke-width="4"/><circle cx="337" cy="403" r="36" fill="url(#chat-silver)" stroke="#8B7C7F" stroke-width="4"/></g>
+</g>
+<!-- headphone/headband -->
+<g class="aya-head">
+<path d="M122 160 C133 67 196 34 250 34 C312 31 367 66 389 139" fill="none" stroke="#43383F" stroke-width="32" stroke-linecap="round"/>
+<path d="M123 154 C139 74 188 44 250 42 Q320 34 379 131" fill="none" stroke="url(#chat-cream)" stroke-width="22" stroke-linecap="round"/>
+<path d="M137 139 C152 81 198 53 256 50" stroke="#FFF6EF" stroke-width="7" fill="none" opacity=".5" stroke-linecap="round"/>
+<!-- right earpiece sits behind helmet -->
+<ellipse cx="393" cy="204" rx="32" ry="66" fill="url(#chat-silver)" stroke="#76676F" stroke-width="5"/>
+<ellipse cx="399" cy="205" rx="13" ry="43" fill="url(#chat-steel)" opacity=".8"/>
+<!-- helmet outer shell -->
+<path d="M116 169 C125 100 177 74 252 69 C336 65 394 98 409 165 Q427 240 396 291 Q355 332 256 332 C173 334 115 318 101 279 Q90 232 116 169Z" fill="url(#chat-silver)" stroke="#7E7076" stroke-width="4.5"/>
+<path d="M129 152 C150 93 191 83 257 80 C331 79 379 102 394 150" fill="none" stroke="#FFF9F4" stroke-opacity=".65" stroke-width="11" stroke-linecap="round"/>
+<path d="M119 275 Q163 319 250 319 Q356 321 395 279" fill="none" stroke="#B5A6A6" stroke-width="11" opacity=".8"/>
+<!-- red neon visor rim -->
+<path d="M141 155 C153 106 194 91 255 90 C329 89 369 114 382 156 Q402 224 371 270 C349 294 180 309 149 276 Q120 246 141 155Z" fill="#6D0D14" stroke="#EF3E39" stroke-width="8" opacity=".85"/>
+<!-- visor -->
+<path d="M149 164 C152 118 194 99 258 98 C327 99 360 119 371 159 Q388 218 364 254 C338 283 191 292 157 265 C133 247 134 197 149 164 Z" fill="url(#chat-visor)" stroke="#211E21" stroke-width="5"/>
+<g clip-path="url(#chat-faceclip)"><path d="M147 160 Q177 102 284 100 Q328 101 352 117" stroke="#FFFFFF" opacity=".065" stroke-width="28" fill="none"/><path d="M135 237 Q149 283 198 286" stroke="#F13F39" opacity=".13" stroke-width="24" fill="none"/></g>
+<!-- left ear shell and badge -->
+<ellipse cx="119" cy="213" rx="67" ry="83" fill="url(#chat-steel)" stroke="#817478" stroke-width="5"/>
+<ellipse cx="115" cy="217" rx="48" ry="63" fill="#1A161B" stroke="#756363" stroke-width="5"/>
+<ellipse cx="115" cy="217" rx="41" ry="54" fill="#181318" stroke="#3F292C" stroke-width="2"/>
+<g transform="translate(92 188) scale(1.02)"><path d="M0 49 L24 0 L48 49 H35 L29 37 H19 L13 49 Z M24 13 L19 28 H29 Z" fill="#E83F37" fill-rule="evenodd"/><path d="M9 42 L39 42" stroke="#FF8680" stroke-width="2.5" stroke-opacity=".6"/><path d="M27 24 L39 36" stroke="#80111A" stroke-width="2.3"/></g>
+<path d="M87 160 Q113 144 139 162" stroke="#FFF8F5" stroke-width="7" opacity=".36" fill="none" stroke-linecap="round"/>
+<!-- silver seam -->
+<path d="M160 97 L173 106 M308 76 L315 85" stroke="#8C8287" stroke-width="2" opacity=".5"/>
+<!-- face expressions -->
+</g><g class="aya-face">
+<g fill="#FFECEA" filter="url(#chat-faceglow)"><rect x="204" y="169" width="15" height="43" rx="8"/><rect x="299" y="168" width="15" height="43" rx="8"/></g><path d="M251 227 Q263 242 278 226" stroke="#FFECE9" stroke-width="7" stroke-linecap="round" fill="none" filter="url(#chat-faceglow)"/>
+</g>
+</g>
+
+</g></g><rect x="93" y="119" width="737" height="151" rx="20" fill="#383438" stroke="#5C5254" stroke-width="1.6"/><text x="116" y="153" fill="#F1E9E7" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="22" font-weight="500" text-anchor="start">Hai! Aku AYA, asisten Garage Coffee.</text><text x="116" y="180" fill="#F1E9E7" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="22" font-weight="500" text-anchor="start">Aku bisa bantu rekomendasi menu,</text><text x="116" y="207" fill="#F1E9E7" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="22" font-weight="500" text-anchor="start">informasi, dan navigasi.</text><text x="116" y="234" fill="#F1E9E7" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="22" font-weight="500" text-anchor="start">Mau mulai dari mana?</text><text x="35" y="318" fill="#FFD1CC" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="18" font-weight="750" text-anchor="start">✦  COBA TANYAKAN</text><rect x="36" y="334" width="231" height="53" rx="17" fill="url(#chat-red)" stroke="#FC8E88" stroke-width="2"/><text x="151.5" y="367" fill="#F4ECE9" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="18" font-weight="500" text-anchor="middle">Rekomendasi menu</text><rect x="282" y="334" width="164" height="53" rx="17" fill="#3C383B" stroke="#756B6D" stroke-width="1.5"/><text x="364.0" y="367" fill="#F4ECE9" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="18" font-weight="500" text-anchor="middle">Menu dingin</text><rect x="461" y="334" width="174" height="53" rx="17" fill="#3C383B" stroke="#756B6D" stroke-width="1.5"/><text x="548.0" y="367" fill="#F4ECE9" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="18" font-weight="500" text-anchor="middle">Menu terbaru</text><rect x="650" y="334" width="153" height="53" rx="17" fill="#3C383B" stroke="#756B6D" stroke-width="1.5"/><text x="726.5" y="367" fill="#F4ECE9" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="18" font-weight="500" text-anchor="middle">Lainnya</text><rect x="290" y="414" width="615" height="63" rx="18" fill="url(#chat-red)" stroke="#F86D64" stroke-width="1.5"/><text x="322" y="454" fill="#F4ECE9" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="20" font-weight="500" text-anchor="start">Rekomendasikan menu kopi creamy.</text><g transform="translate(10 494) scale(.126)"><g class="aya-robot aya-happy">
+
+<ellipse cx="260" cy="444" rx="126" ry="18" fill="#09090C" opacity=".28"/>
+<g filter="url(#chat-shadow)">
+<!-- body and shoulders -->
+<g class="aya-body">
+<path d="M185 331 Q203 299 256 304 Q320 305 335 338 L355 406 Q346 445 255 447 Q165 443 163 408 Z" fill="url(#chat-silver)" stroke="#686169" stroke-width="5"/>
+<path d="M192 337 Q226 317 314 332" fill="none" stroke="#FFF6F0" stroke-width="9" opacity=".5" stroke-linecap="round"/>
+<path d="M218 337 Q250 325 297 337 L318 411 Q289 430 251 430 Q212 428 195 411 Z" fill="url(#chat-cream)" stroke="#9B8D8B" stroke-width="3"/>
+<path d="M234 325 L270 325 L274 345 L230 345Z" fill="#262126"/>
+<g transform="translate(236 356) scale(0.81)"><path d="M0 49 L24 0 L48 49 H35 L29 37 H19 L13 49 Z M24 13 L19 28 H29 Z" fill="#E83F37" fill-rule="evenodd"/><path d="M9 42 L39 42" stroke="#FF8680" stroke-width="2.5" stroke-opacity=".6"/><path d="M27 24 L39 36" stroke="#80111A" stroke-width="2.3"/></g>
+<g><circle cx="151" cy="358" r="47" fill="url(#chat-steel)" stroke="#514D55" stroke-width="5"/><circle cx="149" cy="365" r="31" fill="url(#chat-cream)" stroke="#AAA1A2" stroke-width="3"/><circle cx="367" cy="359" r="46" fill="url(#chat-steel)" stroke="#514D55" stroke-width="5"/><circle cx="369" cy="366" r="31" fill="url(#chat-cream)" stroke="#AAA1A2" stroke-width="3"/><circle cx="178" cy="403" r="36" fill="url(#chat-silver)" stroke="#8B7C7F" stroke-width="4"/><circle cx="337" cy="403" r="36" fill="url(#chat-silver)" stroke="#8B7C7F" stroke-width="4"/></g>
+</g>
+<!-- headphone/headband -->
+<g class="aya-head">
+<path d="M122 160 C133 67 196 34 250 34 C312 31 367 66 389 139" fill="none" stroke="#43383F" stroke-width="32" stroke-linecap="round"/>
+<path d="M123 154 C139 74 188 44 250 42 Q320 34 379 131" fill="none" stroke="url(#chat-cream)" stroke-width="22" stroke-linecap="round"/>
+<path d="M137 139 C152 81 198 53 256 50" stroke="#FFF6EF" stroke-width="7" fill="none" opacity=".5" stroke-linecap="round"/>
+<!-- right earpiece sits behind helmet -->
+<ellipse cx="393" cy="204" rx="32" ry="66" fill="url(#chat-silver)" stroke="#76676F" stroke-width="5"/>
+<ellipse cx="399" cy="205" rx="13" ry="43" fill="url(#chat-steel)" opacity=".8"/>
+<!-- helmet outer shell -->
+<path d="M116 169 C125 100 177 74 252 69 C336 65 394 98 409 165 Q427 240 396 291 Q355 332 256 332 C173 334 115 318 101 279 Q90 232 116 169Z" fill="url(#chat-silver)" stroke="#7E7076" stroke-width="4.5"/>
+<path d="M129 152 C150 93 191 83 257 80 C331 79 379 102 394 150" fill="none" stroke="#FFF9F4" stroke-opacity=".65" stroke-width="11" stroke-linecap="round"/>
+<path d="M119 275 Q163 319 250 319 Q356 321 395 279" fill="none" stroke="#B5A6A6" stroke-width="11" opacity=".8"/>
+<!-- red neon visor rim -->
+<path d="M141 155 C153 106 194 91 255 90 C329 89 369 114 382 156 Q402 224 371 270 C349 294 180 309 149 276 Q120 246 141 155Z" fill="#6D0D14" stroke="#EF3E39" stroke-width="8" opacity=".85"/>
+<!-- visor -->
+<path d="M149 164 C152 118 194 99 258 98 C327 99 360 119 371 159 Q388 218 364 254 C338 283 191 292 157 265 C133 247 134 197 149 164 Z" fill="url(#chat-visor)" stroke="#211E21" stroke-width="5"/>
+<g clip-path="url(#chat-faceclip)"><path d="M147 160 Q177 102 284 100 Q328 101 352 117" stroke="#FFFFFF" opacity=".065" stroke-width="28" fill="none"/><path d="M135 237 Q149 283 198 286" stroke="#F13F39" opacity=".13" stroke-width="24" fill="none"/></g>
+<!-- left ear shell and badge -->
+<ellipse cx="119" cy="213" rx="67" ry="83" fill="url(#chat-steel)" stroke="#817478" stroke-width="5"/>
+<ellipse cx="115" cy="217" rx="48" ry="63" fill="#1A161B" stroke="#756363" stroke-width="5"/>
+<ellipse cx="115" cy="217" rx="41" ry="54" fill="#181318" stroke="#3F292C" stroke-width="2"/>
+<g transform="translate(92 188) scale(1.02)"><path d="M0 49 L24 0 L48 49 H35 L29 37 H19 L13 49 Z M24 13 L19 28 H29 Z" fill="#E83F37" fill-rule="evenodd"/><path d="M9 42 L39 42" stroke="#FF8680" stroke-width="2.5" stroke-opacity=".6"/><path d="M27 24 L39 36" stroke="#80111A" stroke-width="2.3"/></g>
+<path d="M87 160 Q113 144 139 162" stroke="#FFF8F5" stroke-width="7" opacity=".36" fill="none" stroke-linecap="round"/>
+<!-- silver seam -->
+<path d="M160 97 L173 106 M308 76 L315 85" stroke="#8C8287" stroke-width="2" opacity=".5"/>
+<!-- face expressions -->
+</g><g class="aya-face">
+<g filter="url(#chat-faceglow)" stroke="#FFF0EC" fill="none" stroke-linecap="round"><path d="M196 193 Q211 172 228 193" stroke-width="8"/><path d="M284 192 Q299 172 316 193" stroke-width="8"/><path d="M246 228 Q264 259 282 227 Z" fill="#FFF0EC" stroke-width="5" stroke-linejoin="round"/></g>
+</g>
+</g>
+<g transform="translate(376 52)"><path d="M8 20 C8 2 25 -2 34 9 C43 -2 61 3 61 20 C61 40 34 55 34 55 C34 55 8 40 8 20Z" fill="url(#chat-red)" stroke="#FFB2AB" stroke-width="3" filter="url(#chat-glow)"/><path d="M23 19 Q28 12 34 19 Q40 12 45 19 Q44 27 34 34 Q24 28 23 19Z" fill="#FFF1F0"/><path d="M70 72 L86 63 M67 85 L84 91" stroke="#FF6762" stroke-width="5" stroke-linecap="round"/></g>
+</g></g><rect x="95" y="490" width="804" height="373" rx="20" fill="#323035" stroke="#65585D" stroke-width="1.5"/><text x="119" y="527" fill="#F4ECE9" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="22" font-weight="580" text-anchor="start">Pilihan kopi creamy di Garage Coffee:</text><rect x="117" y="549" width="228" height="272" rx="16" fill="#1A171A" stroke="#897572" stroke-width="1.4"/><rect x="125" y="557" width="212" height="183" rx="11" fill="#39271E"/><ellipse cx="231" cy="713" rx="78" ry="11" fill="#130F0F" opacity=".35"/><path d="M183 608 H279 L267 704 Q231 716 195 704 Z" fill="#B77845" stroke="#F7D2AB" stroke-width="3"/><path d="M193 647 H268 L262 690 H200Z" fill="#E6C8A7" opacity=".9"/><path d="M183 619 H279" stroke="#FBE2C9" stroke-width="12" stroke-linecap="round"/><path d="M200 625 L196 667" stroke="#F3E0C7" stroke-opacity=".37" stroke-width="7"/><path d="M215 625 L212 667" stroke="#F3E0C7" stroke-opacity=".37" stroke-width="7"/><path d="M230 625 L228 667" stroke="#F3E0C7" stroke-opacity=".37" stroke-width="7"/><path d="M245 625 L244 667" stroke="#F3E0C7" stroke-opacity=".37" stroke-width="7"/><path d="M260 625 L260 667" stroke="#F3E0C7" stroke-opacity=".37" stroke-width="7"/><rect x="199" y="662" width="64" height="26" rx="9" fill="#181417" opacity=".88"/><text x="231" y="681" fill="#E7DDD9" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="12" font-weight="800" text-anchor="middle">GARAGE</text><text x="129" y="773" fill="#F4ECE9" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="18" font-weight="700" text-anchor="start">Hazelnut Latte</text><text x="129" y="800" fill="#C3B9B8" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="16" font-weight="500" text-anchor="start">Aroma kacang</text><rect x="369" y="549" width="228" height="272" rx="16" fill="#1A171A" stroke="#897572" stroke-width="1.4"/><rect x="377" y="557" width="212" height="183" rx="11" fill="#39271E"/><ellipse cx="483" cy="713" rx="78" ry="11" fill="#130F0F" opacity=".35"/><path d="M435 608 H531 L519 704 Q483 716 447 704 Z" fill="#B77845" stroke="#F7D2AB" stroke-width="3"/><path d="M445 647 H520 L514 690 H452Z" fill="#E6C8A7" opacity=".9"/><path d="M435 619 H531" stroke="#FBE2C9" stroke-width="12" stroke-linecap="round"/><path d="M452 625 L448 667" stroke="#F3E0C7" stroke-opacity=".37" stroke-width="7"/><path d="M467 625 L464 667" stroke="#F3E0C7" stroke-opacity=".37" stroke-width="7"/><path d="M482 625 L480 667" stroke="#F3E0C7" stroke-opacity=".37" stroke-width="7"/><path d="M497 625 L496 667" stroke="#F3E0C7" stroke-opacity=".37" stroke-width="7"/><path d="M512 625 L512 667" stroke="#F3E0C7" stroke-opacity=".37" stroke-width="7"/><rect x="451" y="662" width="64" height="26" rx="9" fill="#181417" opacity=".88"/><text x="483" y="681" fill="#E7DDD9" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="12" font-weight="800" text-anchor="middle">GARAGE</text><text x="381" y="773" fill="#F4ECE9" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="18" font-weight="700" text-anchor="start">Vanila Latte</text><text x="381" y="800" fill="#C3B9B8" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="16" font-weight="500" text-anchor="start">Rasa lembut</text><rect x="621" y="549" width="228" height="272" rx="16" fill="#1A171A" stroke="#897572" stroke-width="1.4"/><rect x="629" y="557" width="212" height="183" rx="11" fill="#39271E"/><ellipse cx="735" cy="713" rx="78" ry="11" fill="#130F0F" opacity=".35"/><path d="M687 608 H783 L771 704 Q735 716 699 704 Z" fill="#B77845" stroke="#F7D2AB" stroke-width="3"/><path d="M697 647 H772 L766 690 H704Z" fill="#E6C8A7" opacity=".9"/><path d="M687 619 H783" stroke="#FBE2C9" stroke-width="12" stroke-linecap="round"/><path d="M704 625 L700 667" stroke="#F3E0C7" stroke-opacity=".37" stroke-width="7"/><path d="M719 625 L716 667" stroke="#F3E0C7" stroke-opacity=".37" stroke-width="7"/><path d="M734 625 L732 667" stroke="#F3E0C7" stroke-opacity=".37" stroke-width="7"/><path d="M749 625 L748 667" stroke="#F3E0C7" stroke-opacity=".37" stroke-width="7"/><path d="M764 625 L764 667" stroke="#F3E0C7" stroke-opacity=".37" stroke-width="7"/><rect x="703" y="662" width="64" height="26" rx="9" fill="#181417" opacity=".88"/><text x="735" y="681" fill="#E7DDD9" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="12" font-weight="800" text-anchor="middle">GARAGE</text><text x="633" y="773" fill="#F4ECE9" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="18" font-weight="700" text-anchor="start">Palm Sugar</text><text x="633" y="800" fill="#C3B9B8" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="16" font-weight="500" text-anchor="start">Gula aren</text><path d="M35 891 H906" stroke="#5D5255" stroke-width="1.5"/><circle cx="56" cy="951" r="32" fill="#393438" stroke="#7F7174" stroke-width="2"/><path d="M56 935 V967 M40 951 H72" stroke="#FAECE7" stroke-width="4" stroke-linecap="round"/><rect x="99" y="914" width="603" height="75" rx="23" fill="#373337" stroke="#776F70" stroke-width="2"/><text x="120" y="963" fill="#C0B5B4" fill-opacity="1" font-family="Inter, Arial, Helvetica, sans-serif" font-size="20" font-weight="500" text-anchor="start">Tanya AYA tentang menu atau bantuan...</text><circle cx="766" cy="951" r="34" fill="url(#chat-red)" stroke="#FF7771" stroke-width="2.5"/><rect x="755" y="932" width="22" height="31" rx="11" fill="none" stroke="#FFF1EE" stroke-width="3"/><path d="M748 955 Q748 972 765 972 Q783 972 783 955 M765 972 V979" fill="none" stroke="#FFF1EE" stroke-width="3"/><circle cx="858" cy="951" r="34" fill="url(#chat-red)" stroke="#FF7771" stroke-width="2.5"/><path d="M844 953 L874 940 L863 969 L856 957 Z" fill="none" stroke="#FFF1EE" stroke-width="3" stroke-linejoin="round"/>
+</svg>

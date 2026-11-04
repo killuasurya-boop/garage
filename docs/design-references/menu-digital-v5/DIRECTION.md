@@ -72,3 +72,8 @@ Gunakan token `--garage-*`/`--gos-*`; jangan tambah hex baru kecuali glow/gradas
 Owner: papan komponen (`boards/`) adalah desain komponennya sendiri; ikuti detailnya. Lihat skill
 `.claude/skills/garage-menu-v5/` (keputusan, SPEC) dan jangan memakai tabel "Yang TIDAK boleh disalin" untuk menolak
 gaya, hanya untuk teks/data/logo (harga, nama menu, logo, alamat tetap dari sumber resmi).
+
+## Keputusan Owner 4 Nov 2026
+- Menu pelanggan: Daftar Pilihan + waiter. Alur pesan/bayar sendiri disimpan sebagai mode per outlet.
+- Merah utama menu: #D43A3A.
+- AYA robot V5 dipakai di semua layar (aset: `docs/design-references/aya-v5/`).

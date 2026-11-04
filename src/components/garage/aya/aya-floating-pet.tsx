@@ -71,8 +71,14 @@ export function AyaFloatingPet({
   corner = "bottom-right",
   mood,
   openSignal = 0,
+  guide = null,
+  onGuideExit,
   children,
 }: {
+  /** Panduan aktif: Aya terbang ke titik ini, menunjuk (state guiding), balon tetap terbuka. */
+  guide?: { x: number; y: number; faceLeft: boolean; bubble?: "above" | "below" } | null;
+  /** Dipanggil bila customer menutup balon/menyeret Aya saat panduan berjalan. */
+  onGuideExit?: () => void;
   /** Kunci penyimpanan per layar, mis. "order" / "staff". */
   scope: string;
   /** Buka balon otomatis sekali per sesi (sambutan). */
@@ -103,6 +109,13 @@ export function AyaFloatingPet({
   const [expression, setExpression] = useState<AyaExpression>("default");
   const [effect, setEffect] = useState<AyaEffect | null>(null);
   const [landing, setLanding] = useState(false);
+  const guideRef = useRef(guide);
+  const guiding = guide !== null;
+  const guideKey = guide ? `${Math.round(guide.x)},${Math.round(guide.y)},${guide.faceLeft}` : "";
+  // Customer menutup/menyeret Aya di tengah panduan → panduan berhenti.
+  const exitGuide = useCallback(() => {
+    if (guiding) onGuideExit?.();
+  }, [guiding, onGuideExit]);
 
   const drag = useRef<{ startX: number; startY: number; originX: number; originY: number; moved: boolean; lastX: number; lastY: number; lastT: number; speed: number } | null>(null);
   const lastActive = useRef(0);
@@ -175,9 +188,40 @@ export function AyaFloatingPet({
     window.setTimeout(() => settleRef.current(), 1750);
   }, []);
 
+  // Panduan: terbang ke samping tombol yang dibahas lalu menunjuk; selesai → kembali santai.
+  useEffect(() => {
+    guideRef.current = guide;
+  });
+  const prevGuideKey = useRef("");
+  useEffect(() => {
+    const was = prevGuideKey.current;
+    prevGuideKey.current = guideKey;
+    if (!ready) return;
+    const target = guideRef.current;
+    if (!target) {
+      if (was) {
+        setPose("idle");
+        setExpression(restRef.current);
+      }
+      return;
+    }
+    lastActive.current = Date.now();
+    setOpen(true);
+    const spot = clampPetPosition({ x: target.x, y: target.y }, viewport());
+    if (prefersReducedMotion()) {
+      setPos(spot);
+      posRef.current = spot;
+      setFacingLeft(target.faceLeft);
+      setPose("idle");
+      setExpression("centil");
+      return;
+    }
+    flyTo(spot);
+  }, [ready, guideKey, flyTo]);
+
   // Terbang sendiri tiap 18–35 detik bila dibiarkan; mengantuk setelah 2 menit tanpa sentuhan.
   useEffect(() => {
-    if (!ready || hidden || prefersReducedMotion()) return;
+    if (!ready || hidden || guiding || prefersReducedMotion()) return;
     // Tanpa roam Aya tetap bisa mengantuk, tapi tidak pindah tempat sendiri.
     let timer = 0;
     const schedule = () => {
@@ -195,7 +239,7 @@ export function AyaFloatingPet({
     };
     schedule();
     return () => window.clearTimeout(timer);
-  }, [ready, hidden, open, flyTo, roam]);
+  }, [ready, hidden, open, flyTo, roam, guiding]);
 
   /** Efek lucu sesaat (hati, pusing, …) lalu hilang sendiri. */
   function flash(next: AyaEffect, ms: number) {
@@ -209,11 +253,20 @@ export function AyaFloatingPet({
     // Mendarat: squash & stretch sekali.
     setLanding(true);
     window.setTimeout(() => setLanding(false), 450);
+    const guideNow = guideRef.current;
+    if (guideNow) {
+      // Mendarat di samping tombol: hadap ke tombol & menunjuk.
+      setFacingLeft(guideNow.faceLeft);
+      setPose("idle");
+      setExpression("centil");
+      return;
+    }
     // Sesekali joget setelah mendarat.
     if (Math.random() < 0.35) {
       setPose("dance");
       setExpression("happy");
       window.setTimeout(() => {
+        if (guideRef.current) return;
         setPose("idle");
         setExpression(restRef.current);
       }, 2100);
@@ -251,6 +304,7 @@ export function AyaFloatingPet({
     if (!state.moved) {
       state.moved = true;
       setDragging(true);
+      exitGuide();
       setOpen(false);
       setPose("fly");
       setExpression("surprised");
@@ -284,6 +338,7 @@ export function AyaFloatingPet({
       return;
     }
     // Ketuk = buka/tutup balon + reaksi (hati kecil).
+    if (open) exitGuide();
     setOpen((current) => !current);
     setPose("wave");
     setExpression("happy");
@@ -303,20 +358,23 @@ export function AyaFloatingPet({
       setPos(next);
       savePos(next);
     } else if (event.key === "Escape") {
+      exitGuide();
       setOpen(false);
     }
   }
 
   const close = useCallback(() => {
+    exitGuide();
     setOpen(false);
     setPose("idle");
     setExpression(rest);
-  }, [rest]);
+  }, [rest, exitGuide]);
   const hide = useCallback(() => {
+    exitGuide();
     setOpen(false);
     setHidden(true);
     writeJson("session", hiddenKey, true);
-  }, [hiddenKey]);
+  }, [hiddenKey, exitGuide]);
 
   if (!ready || hidden) return null;
 
@@ -324,7 +382,8 @@ export function AyaFloatingPet({
   const vp = viewport();
   const bubbleWidth = Math.min(300, vp.width - 24);
   const bubbleX = Math.min(Math.max(12, pos.x + PET_SIZE / 2 - bubbleWidth / 2), vp.width - bubbleWidth - 12) - pos.x;
-  const bubbleAbove = pos.y > vp.height / 2;
+  // Saat memandu, balon menjauhi tombol yang ditunjuk (dihitung petSpotBeside).
+  const bubbleAbove = guide?.bubble ? guide.bubble === "above" : pos.y > vp.height / 2;
 
   return (
     <div
@@ -348,7 +407,7 @@ export function AyaFloatingPet({
           if (event.detail === 0) setOpen((current) => !current);
         }}
       >
-        <AyaCharacter expression={expression} pose={pose} effect={effect} landing={landing} role={scope === "order" ? "customer" : "staff"} />
+        <AyaCharacter expression={expression} pose={pose} effect={effect} landing={landing} look={guiding ? "right" : "center"} role={scope === "order" ? "customer" : "staff"} />
       </button>
       {open ? (
         <div

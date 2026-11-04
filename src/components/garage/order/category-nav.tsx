@@ -113,6 +113,7 @@ export function CategoryNav({
           className="h-11 w-full rounded-md border border-garage-line bg-garage-bg-2 pl-10 pr-11 text-base text-white outline-none transition-colors placeholder:text-garage-mute focus:border-garage-amber [&::-webkit-search-cancel-button]:hidden"
           placeholder="Cari menu atau paket…"
           aria-label="Cari menu"
+          data-aya-anchor="search"
         />
         {query ? (
           <button

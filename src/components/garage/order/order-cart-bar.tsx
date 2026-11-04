@@ -36,6 +36,7 @@ export function OrderCartBar({
       ) : null}
       <button
         type="button"
+        data-aya-anchor="checkout"
         onClick={onOpen}
         className="garage-press mx-auto flex h-14 w-full max-w-lg cursor-pointer items-center justify-between gap-3 rounded-lg bg-garage-red px-4 text-white shadow-[0_12px_32px_rgba(0,0,0,0.45)] transition-colors hover:bg-garage-red-bright"
       >

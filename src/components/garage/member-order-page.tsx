@@ -7,7 +7,6 @@ import {
   AlertTriangle,
   Banknote,
   Bike,
-  Check,
   ChefHat,
   ChevronUp,
   CheckCircle2,
@@ -62,6 +61,8 @@ import { decodeDaftar, encodeDaftar, readSavedCart, savedCartKey, writeSavedCart
 import { QuickViewV5 } from "@/components/garage/order/v5/quick-view-v5";
 import { DaftarListV5, DaftarSheetV5, DaftarSummaryV5, ShowToWaiterSheetV5 } from "@/components/garage/order/v5/daftar-pilihan-v5";
 import { useMenuFavorites } from "@/components/garage/order/v5/use-menu-favorites";
+import { flyToList, playMenuSfx } from "@/components/garage/order/v5/menu-feedback";
+import { MENU_TOAST_MS, MenuToastStackV5, SuccessCheckV5, pushMenuToast, type MenuToast } from "@/components/garage/order/v5/toast-v5";
 import { OrderHelpSheet } from "@/components/garage/order/order-help-sheet";
 import {
   CustomerTablePicker,
@@ -674,7 +675,6 @@ function V5CardSlot({
   );
 }
 
-export type LastAdded = { name: string; stamp: number };
 /** Sumber "Menu Pilihan": unggulan admin → promo → terlaris. */
 type HeroKind = "featured" | "promo" | "best";
 
@@ -781,15 +781,38 @@ export function MemberOrderPage({
   }, [eventContext]);
   // false = kasir belum buka shift → menu tetap bisa dilihat, tapi order belum bisa dikirim.
   const [orderingOpen, setOrderingOpen] = useState(initialOrderingOpen !== false);
-  // Konfirmasi singkat "X masuk keranjang" di bar keranjang mobile (hilang setelah 2,2 dtk).
-  const [lastAdded, setLastAdded] = useState<LastAdded | null>(null);
-  const lastAddedTimerRef = useRef<number | null>(null);
-  useEffect(
-    () => () => {
-      if (lastAddedTimerRef.current) window.clearTimeout(lastAddedTimerRef.current);
+  // Toast bertingkat papan 06 (sukses / stok terbatas / gagal), hilang sendiri atau ditutup.
+  const [toasts, setToasts] = useState<MenuToast[]>([]);
+  const toastTimersRef = useRef(new Map<number, number>());
+  const toastSeqRef = useRef(0);
+  const dismissToast = useCallback((id: number) => {
+    const timer = toastTimersRef.current.get(id);
+    if (timer) window.clearTimeout(timer);
+    toastTimersRef.current.delete(id);
+    setToasts((list) => list.filter((toast) => toast.id !== id));
+  }, []);
+  const showToast = useCallback(
+    (toast: Omit<MenuToast, "id">) => {
+      const id = ++toastSeqRef.current;
+      setToasts((list) => pushMenuToast(list, { ...toast, id }));
+      toastTimersRef.current.set(id, window.setTimeout(() => dismissToast(id), MENU_TOAST_MS[toast.tone]));
     },
-    [],
+    [dismissToast],
   );
+  useEffect(() => {
+    const timers = toastTimersRef.current;
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
+  }, []);
+  // Tombol terakhir yang ditekan = asal titik "terbang ke Daftar".
+  const lastPressRef = useRef<{ el: Element; at: number } | null>(null);
+  useEffect(() => {
+    const onDown = (event: PointerEvent) => {
+      const el = event.target instanceof Element ? event.target.closest("button") : null;
+      if (el) lastPressRef.current = { el, at: performance.now() };
+    };
+    window.addEventListener("pointerdown", onDown, { capture: true, passive: true });
+    return () => window.removeEventListener("pointerdown", onDown, { capture: true });
+  }, []);
   const [query, setQuery] = useState(() =>
     (initialSearchQuery ?? readInitialSearchQuery()).trim().slice(0, 80),
   );
@@ -1480,10 +1503,12 @@ export function MemberOrderPage({
       if (mainEventMenu && displayVariant?.eventPrice) setMenuItems(current => current.map(row => row.id === item.id ? item : row));
       const variant = item.variants.find((entry) => entry.id === variantId);
       const name = variant && item.variants.length > 1 ? `${item.name} (${variant.label})` : item.name;
-      setLastAdded({ name, stamp: Date.now() });
-      if (lastAddedTimerRef.current) window.clearTimeout(lastAddedTimerRef.current);
-      lastAddedTimerRef.current = window.setTimeout(() => setLastAdded(null), 2200);
+      showToast({ tone: "success", title: name, detail: "masuk Daftar Pilihan" });
+      if (item.stock === "limited") showToast({ tone: "warning", title: "Stok terbatas", detail: `${item.name} tinggal sedikit.` });
+      const press = lastPressRef.current;
+      if (press && press.el.isConnected && performance.now() - press.at < 800) flyToList(press.el);
     }
+    if (delta !== 0) playMenuSfx(delta > 0 ? "add" : "remove", { staff: Boolean(staffOrder) });
 
     const key = cartKey(itemId, variantId);
     setCart((current) => {
@@ -1701,7 +1726,10 @@ export function MemberOrderPage({
       }
       const result = await postJson<CustomerOrderCreateResponse>("/api/customer/orders", attemptedSubmission?.payload ?? orderPayload, attemptedSubmission?.key);
       adoptCustomerOrder(result, attemptedSubmission);
+      playMenuSfx("checkout-success", { staff: Boolean(staffOrder) });
     } catch (error) {
+      playMenuSfx("checkout-error", { staff: Boolean(staffOrder) });
+      showToast({ tone: "error", title: "Pesanan gagal dikirim.", detail: error instanceof Error ? error.message : undefined });
       if (attemptedSubmission && checkoutNeedsRecovery(error instanceof ApiError ? error.status : undefined)) {
         setUncertainSubmission(attemptedSubmission);
         setMessage("Konfirmasi pesanan belum diterima. Periksa pesanan sebelumnya sebelum mengirim lagi agar pesanan tidak ganda.");
@@ -1778,6 +1806,11 @@ export function MemberOrderPage({
     window.scrollTo({ top: Math.max(0, window.scrollY + el.getBoundingClientRect().top - 120), behavior: reduce ? "auto" : "smooth" });
   }
 
+  function toggleFavorite(itemId: string) {
+    playMenuSfx(favorites.has(itemId) ? "favorite-off" : "favorite-on", { staff: Boolean(staffOrder) });
+    favorites.toggle(itemId);
+  }
+
   // Kartu V5 = komponen terpisah yang menerima aksi sebagai prop (bukan closure di render).
   const renderV5Card = (item: MenuItem, index: number) => (
     <V5CardSlot
@@ -1788,7 +1821,7 @@ export function MemberOrderPage({
       cartQty={itemCartQty(item, cart)}
       popular={bestSellerSet.has(item.id)}
       favorite={favorites.ids.includes(item.id)}
-      onToggleFavorite={favorites.toggle}
+      onToggleFavorite={toggleFavorite}
       onAdd={add}
       onOpen={openMenuItem}
     />
@@ -1847,6 +1880,7 @@ export function MemberOrderPage({
     else {
       setDetailVariant(variantId ?? null);
       setDetailItem(item);
+      playMenuSfx("quickview-open", { staff: Boolean(staffOrder) });
     }
   }
 
@@ -2641,8 +2675,9 @@ export function MemberOrderPage({
                   return (
                     <>
                       <div className="flex items-start gap-3">
-                        <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-[#86efac]" />
+                        <SuccessCheckV5 className="mt-0.5 size-9 shrink-0" />
                         <div className="min-w-0 flex-1">
+                          <p className="gm5-title text-lg leading-tight text-[#86efac]">Berhasil!</p>
                           <p className="text-base font-bold text-white">
                             <span className="font-mono tabular-nums">{lastOrder.order.orderNo}</span> menunggu
                             validasi kasir
@@ -2760,7 +2795,7 @@ export function MemberOrderPage({
             </div>
 
             {loading ? (
-              <div className={`${MENU_GRID_CLASS} pt-5`}>
+              <div className={`${MENU_GRID_CLASS} gm5-skeleton pt-5`} role="status" aria-label="Memuat menu">
                 {Array.from({ length: 6 }).map((_, index) => (
                   <MenuCardSkeleton key={index} />
                 ))}
@@ -2875,18 +2910,7 @@ export function MemberOrderPage({
         </div>
       </div>
 
-      {lastAdded ? (
-        <p
-          key={lastAdded.stamp}
-          role="status"
-          className="garage-toast-in fixed inset-x-4 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-40 mx-auto flex max-w-sm items-center gap-2 rounded-full border border-[color:var(--gm5-line)] bg-[#161416]/95 px-4 py-2.5 text-sm text-[#ede6dc] shadow-[0_12px_30px_rgba(0,0,0,0.5)] lg:hidden"
-        >
-          <Check className="size-4 shrink-0 text-[#86efac]" aria-hidden />
-          <span className="line-clamp-2 min-w-0 break-words">
-            <strong className="font-semibold text-white">{lastAdded.name}</strong> masuk Daftar Pilihan
-          </span>
-        </p>
-      ) : null}
+      <MenuToastStackV5 toasts={toasts} onDismiss={dismissToast} />
       <BottomNavV5 active={navTab} listCount={itemCount} listTotal={waiterList ? subtotal : total} onSelect={onBottomNav} staff={Boolean(staffOrder)} />
 
       {showScrollTop ? (
@@ -2914,7 +2938,10 @@ export function MemberOrderPage({
         notes={cartNotes}
         onAdjust={add}
         onNote={setLineNote}
-        onClose={() => setDetailItem(null)}
+        onClose={() => {
+          setDetailItem(null);
+          playMenuSfx("quickview-close", { staff: Boolean(staffOrder) });
+        }}
       />
       <DaftarSheetV5
         open={daftarOpen}
@@ -2961,7 +2988,8 @@ export function MemberOrderPage({
         const key = cartKey(itemId, variantId);
         setCart((current) => ({ ...current, [key]: (current[key] ?? 0) + 1 }));
         setBundleEntry(null);
-        setLastAdded({ name: bundleEntry.name, stamp: Date.now() });
+        showToast({ tone: "success", title: bundleEntry.name, detail: "masuk Daftar Pilihan" });
+        playMenuSfx("add", { staff: Boolean(staffOrder) });
       }} /> : null}
 
       {!staffOrder ? (

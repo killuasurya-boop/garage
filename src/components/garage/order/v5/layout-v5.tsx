@@ -211,8 +211,8 @@ export function SidebarV5({
           {favoriteCount ? <span className="gm5-count">{favoriteCount}</span> : null}
         </button>
         <button type="button" className="gm5-side-item" onClick={onOpenList}>
-          <ClipboardList className="size-5" aria-hidden /> <span className="flex-1">Daftar Pilihan</span>
-          {listCount ? <span className="gm5-count">{listCount}</span> : null}
+          <ClipboardList className="size-5" data-gm5-list-target aria-hidden /> <span className="flex-1">Daftar Pilihan</span>
+          {listCount ? <span className="gm5-count gm5-pulse" key={listCount}>{listCount}</span> : null}
         </button>
       </nav>
       <a href={GARAGE_INSTAGRAM.href} target="_blank" rel="noopener noreferrer" className="gm5-panel gm5-panel-red flex items-center gap-3 p-4 hover:brightness-110">
@@ -266,9 +266,9 @@ export function BottomNavV5({
             onClick={() => onSelect(tab)}
             data-aya-anchor={tab === "list" ? "checkout" : undefined}
           >
-            <span className="relative">
+            <span className="relative" data-gm5-list-target={tab === "list" ? "" : undefined}>
               <Icon className="size-[22px]" aria-hidden />
-              {tab === "list" && listCount ? <span className="gm5-count gm5-pop absolute -right-3 -top-2.5" key={listCount}>{listCount}</span> : null}
+              {tab === "list" && listCount ? <span className="gm5-count gm5-pulse absolute -right-3 -top-2.5" key={listCount}>{listCount}</span> : null}
             </span>
             {tab === "list" && listCount ? (
               <span className="whitespace-nowrap font-mono text-[11px] font-bold leading-tight tabular-nums">{rupiah.format(listTotal)}</span>

@@ -176,7 +176,7 @@ export function DaftarSheetV5({
       <SheetContent side="bottom" className="gm5 inset-x-0 bottom-0 z-[90] mx-auto flex max-h-[90svh] w-full max-w-2xl flex-col overflow-hidden rounded-t-[20px] border border-[color:var(--gm5-line)] bg-[#0e0e0e] p-0 text-white">
         <SheetHeader className="border-b border-white/10 p-4 pr-12 text-left">
           <SheetTitle className="gm5-title gm5-section-title font-menu-display text-xl font-bold text-white">
-            Daftar Pilihan {count ? <span className="gm5-count">{count}</span> : null}
+            Daftar Pilihan {count ? <span className="gm5-count gm5-pulse" key={count}>{count}</span> : null}
           </SheetTitle>
           <SheetDescription className="sr-only">Menu yang kamu pilih, jumlah, catatan, dan total.</SheetDescription>
         </SheetHeader>

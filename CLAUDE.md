@@ -512,6 +512,14 @@ Use these automatically when the task calls for them; do not wait to be asked. D
 
 Skills (`.claude/skills/`): `ui-ux-pro-max` (style/palette/layout ideas), `frontend-design` (hierarchy, type, restraint,
 copy; never a rebrand), `web-design-guidelines` (audit UI code, output `file:line`).
+Animation skills (owner, Nov 2026: customer surfaces = cinematic, operational screens = fast and restrained):
+`animate`, `emil-design-eng`, `review-animations`, `improve-animations`, `animation-vocabulary` (Emil Kowalski, craft rules);
+`motion-design` (LottieFiles, choreography/timing tables); `micro-interaction`, `page-transition-animation`,
+`60fps-animation`, `accessible-animation`, `svg-animation`, `lottie-animation` (iart-ai); `gsap-core`, `gsap-timeline`,
+`gsap-scrolltrigger`, `gsap-react`, `gsap-performance`, `gsap-plugins`, `gsap-utils` (official GreenSock).
+Use `framer-motion` (installed) and CSS first. GSAP/Lottie are NOT dependencies yet: ask the owner before adding one.
+Skipped on purpose: glassmorphism (heavy blur conflicts with the motion policy) and AI image-generation skills that need
+API keys. Licenses: `.claude/skills/_licenses/`.
 
 MCP servers (free, no API key; config template `.claude/mcp-ui.example.json`, copy to `.mcp.json` which is gitignored
 because it can hold secrets; versions pinned):

@@ -7,11 +7,20 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 
 import { AyaCharacter, type AyaExpression, type AyaPose } from "@/components/garage/aya/aya-character";
+import type { AyaEffect } from "@/components/garage/aya/aya-mascot";
 import { AYA_NAME } from "@/lib/garage-ai-persona";
 
 const PET_SIZE = 72;
 const EDGE = 8;
 const DRAG_THRESHOLD = 6;
+/** Dilepas saat diseret lebih cepat dari ini (px/ms) → Aya pusing sebentar. */
+export const DIZZY_SPEED = 1.6;
+
+/** Kecepatan seret terhalus (px/ms) — rata-rata bergerak agar satu sentakan tidak langsung "pusing". */
+export function nextDragSpeed(previous: number, distancePx: number, elapsedMs: number) {
+  if (elapsedMs <= 0) return previous;
+  return previous * 0.6 + (distancePx / elapsedMs) * 0.4;
+}
 
 type Point = { x: number; y: number };
 
@@ -92,8 +101,10 @@ export function AyaFloatingPet({
   const [open, setOpen] = useState(false);
   const [pose, setPose] = useState<AyaPose>("idle");
   const [expression, setExpression] = useState<AyaExpression>("default");
+  const [effect, setEffect] = useState<AyaEffect | null>(null);
+  const [landing, setLanding] = useState(false);
 
-  const drag = useRef<{ startX: number; startY: number; originX: number; originY: number; moved: boolean } | null>(null);
+  const drag = useRef<{ startX: number; startY: number; originX: number; originY: number; moved: boolean; lastX: number; lastY: number; lastT: number; speed: number } | null>(null);
   const lastActive = useRef(0);
   const posRef = useRef(pos);
   const settleRef = useRef<() => void>(() => {});
@@ -186,9 +197,18 @@ export function AyaFloatingPet({
     return () => window.clearTimeout(timer);
   }, [ready, hidden, open, flyTo, roam]);
 
+  /** Efek lucu sesaat (hati, pusing, …) lalu hilang sendiri. */
+  function flash(next: AyaEffect, ms: number) {
+    setEffect(next);
+    window.setTimeout(() => setEffect((current) => (current === next ? null : current)), ms);
+  }
+
   function settle() {
     if (drag.current) return;
     setMoving(false);
+    // Mendarat: squash & stretch sekali.
+    setLanding(true);
+    window.setTimeout(() => setLanding(false), 450);
     // Sesekali joget setelah mendarat.
     if (Math.random() < 0.35) {
       setPose("dance");
@@ -214,7 +234,10 @@ export function AyaFloatingPet({
   function onPointerDown(event: PointerEvent<HTMLButtonElement>) {
     if (event.button !== 0) return;
     event.currentTarget.setPointerCapture(event.pointerId);
-    drag.current = { startX: event.clientX, startY: event.clientY, originX: posRef.current.x, originY: posRef.current.y, moved: false };
+    drag.current = {
+      startX: event.clientX, startY: event.clientY, originX: posRef.current.x, originY: posRef.current.y, moved: false,
+      lastX: event.clientX, lastY: event.clientY, lastT: event.timeStamp, speed: 0,
+    };
     setMoving(false);
     lastActive.current = Date.now();
   }
@@ -232,6 +255,10 @@ export function AyaFloatingPet({
       setPose("fly");
       setExpression("surprised");
     }
+    state.speed = nextDragSpeed(state.speed, Math.hypot(event.clientX - state.lastX, event.clientY - state.lastY), event.timeStamp - state.lastT);
+    state.lastX = event.clientX;
+    state.lastY = event.clientY;
+    state.lastT = event.timeStamp;
     setFacingLeft(dx < 0);
     const next = clampPetPosition({ x: state.originX + dx, y: state.originY + dy }, viewport());
     posRef.current = next;
@@ -245,13 +272,22 @@ export function AyaFloatingPet({
     if (state.moved) {
       setDragging(false);
       savePos(posRef.current);
+      if (state.speed > DIZZY_SPEED && !prefersReducedMotion()) {
+        // Dilempar kencang → pusing sebentar, baru tenang lagi.
+        setPose("idle");
+        setExpression("grumpy");
+        flash("dizzy", 2700);
+        window.setTimeout(() => settleRef.current(), 2700);
+        return;
+      }
       settle();
       return;
     }
-    // Ketuk = buka/tutup balon + reaksi.
+    // Ketuk = buka/tutup balon + reaksi (hati kecil).
     setOpen((current) => !current);
     setPose("wave");
     setExpression("happy");
+    flash("hearts", 1500);
     window.setTimeout(() => setPose("idle"), 1800);
   }
 
@@ -312,7 +348,7 @@ export function AyaFloatingPet({
           if (event.detail === 0) setOpen((current) => !current);
         }}
       >
-        <AyaCharacter expression={expression} pose={pose} role={scope === "order" ? "customer" : "staff"} />
+        <AyaCharacter expression={expression} pose={pose} effect={effect} landing={landing} role={scope === "order" ? "customer" : "staff"} />
       </button>
       {open ? (
         <div

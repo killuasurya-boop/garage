@@ -1,7 +1,7 @@
 // Adapter API lama Aya (ekspresi + pose D-07) ke maskot V2 (keputusan Owner OD-02): semua
 // pemanggil lama — pet melayang, companion staf, sapaan /order, avatar — otomatis memakai
 // karakter V2 tanpa diubah satu per satu. Kode baru sebaiknya langsung memakai AyaMascot.
-import { AyaMascot, type AyaAudience, type AyaMotion, type AyaState } from "@/components/garage/aya/aya-mascot";
+import { AyaMascot, type AyaAudience, type AyaEffect, type AyaMotion, type AyaState } from "@/components/garage/aya/aya-mascot";
 
 export type AyaExpression = "default" | "happy" | "centil" | "grumpy" | "sleepy" | "alert" | "thinking" | "surprised";
 export type AyaPose = "idle" | "wave" | "dance" | "cross" | "fly";
@@ -40,6 +40,8 @@ export function AyaCharacter({
   className = "",
   title,
   role,
+  effect,
+  landing = false,
 }: {
   expression?: AyaExpression;
   pose?: AyaPose;
@@ -48,11 +50,16 @@ export function AyaCharacter({
   /** Kosong = dekoratif (aria-hidden). */
   title?: string;
   role?: AyaAudience;
+  /** Efek lucu sesaat; kosong = otomatis (mengantuk → zzz, sukses → kilau). */
+  effect?: AyaEffect | null;
+  /** Baru mendarat → squash & stretch sekali. */
+  landing?: boolean;
 }) {
   return (
     <AyaMascot
       state={ayaStateForExpression(expression)}
-      motion={ayaMotionForPose(pose)}
+      motion={landing && pose === "idle" ? "land" : ayaMotionForPose(pose)}
+      effect={effect ?? (expression === "sleepy" ? "zzz" : null)}
       crop={crop}
       className={`${expression === "sleepy" ? "aya-sleepy " : ""}${className}`}
       title={title}

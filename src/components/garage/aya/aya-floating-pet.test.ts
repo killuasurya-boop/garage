@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { clampPetPosition, pickRoamTarget } from "@/components/garage/aya/aya-floating-pet";
+import { DIZZY_SPEED, clampPetPosition, nextDragSpeed, pickRoamTarget } from "@/components/garage/aya/aya-floating-pet";
 
 const phone = { width: 390, height: 844 };
 
@@ -19,5 +19,20 @@ describe("Aya melayang — posisi", () => {
       expect(target.x).toBeGreaterThanOrEqual(8);
       expect(target.x).toBeLessThanOrEqual(390 - 72 - 8);
     }
+  });
+
+  it("pusing hanya bila dilempar kencang, bukan karena satu sentakan", () => {
+    // Seret pelan & stabil 0,5 px/ms → tidak pusing.
+    let speed = 0;
+    for (let i = 0; i < 10; i += 1) speed = nextDragSpeed(speed, 8, 16);
+    expect(speed).toBeLessThan(DIZZY_SPEED);
+    // Satu sentakan kecil di tengah seret pelan → tetap tidak pusing.
+    expect(nextDragSpeed(speed, 24, 16)).toBeLessThan(DIZZY_SPEED);
+    // Dilempar kencang beberapa frame (± 3 px/ms) → pusing.
+    speed = 0;
+    for (let i = 0; i < 5; i += 1) speed = nextDragSpeed(speed, 48, 16);
+    expect(speed).toBeGreaterThan(DIZZY_SPEED);
+    // Waktu nol tidak membuat kecepatan meledak.
+    expect(nextDragSpeed(0.7, 30, 0)).toBe(0.7);
   });
 });

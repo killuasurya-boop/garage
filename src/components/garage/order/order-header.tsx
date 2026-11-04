@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, BellRing, Clock, LogIn, MapPin, UserRound, Wallet } from "lucide-react";
 
+import { OrderHero3D } from "@/components/garage/order/order-hero-3d";
 import { GARAGE_LOCATION } from "@/lib/garage-location";
 
 // Header ringkas menu digital: satu baris (logo · meja · bantuan · login) + satu baris
@@ -100,6 +101,22 @@ export function OrderHeader({
           )}
         </div>
       </div>
+
+      {staff ? null : (
+        // Pita sambutan gaya Argon (kartu bergradasi + potongan miring + bayangan lembut) dalam
+        // palet Garage. Pendek (±96px) supaya daftar menu tetap terlihat di layar pertama HP.
+        <div className="relative mt-3 overflow-hidden rounded-lg bg-gradient-to-br from-garage-bg-3 via-garage-bg-2 to-garage-red/25 shadow-[0_15px_35px_-12px_rgba(0,0,0,0.65),0_5px_15px_rgba(0,0,0,0.3)] ring-1 ring-garage-line-2 [clip-path:polygon(0_0,100%_0,100%_86%,0_100%)]">
+          <div className="flex items-center gap-3 py-3 pr-1 pb-5 pl-4">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold uppercase tracking-wider text-garage-amber">Selamat datang di Garage Coffee</p>
+              <p className="mt-0.5 break-words text-lg leading-tight font-bold text-white">
+                {dineIn ? `Pesan dari ${tableLabel}` : `Pesan · ${channelLabel}`}
+              </p>
+            </div>
+            <OrderHero3D className="size-20 shrink-0 sm:size-24" />
+          </div>
+        </div>
+      )}
 
       <ul className="mt-1 flex flex-wrap items-center gap-x-3 text-[13px] text-garage-dim">
         <li className="inline-flex items-center gap-1.5">

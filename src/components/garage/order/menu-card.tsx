@@ -158,7 +158,7 @@ export function MenuCard({
 
   return (
     <article
-      className={`garage-menu-card group relative flex min-w-0 flex-col overflow-hidden rounded-lg border bg-garage-bg-2 transition-[border-color,transform] duration-200 motion-safe:hover:-translate-y-0.5 ${
+      className={`garage-menu-card group relative flex min-w-0 flex-col overflow-hidden rounded-lg border bg-garage-bg-2 shadow-[0_4px_6px_rgba(0,0,0,0.25),0_1px_3px_rgba(0,0,0,0.35)] transition-[border-color,transform,box-shadow] duration-200 hover:shadow-[0_14px_26px_-8px_rgba(0,0,0,0.6),0_4px_10px_rgba(0,0,0,0.3)] motion-safe:hover:-translate-y-0.5 ${
         cartQty > 0 ? "border-garage-red/70" : "border-garage-line hover:border-garage-line-2"
       }`}
     >

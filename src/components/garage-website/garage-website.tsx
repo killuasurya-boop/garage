@@ -9,9 +9,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { SiteAsset } from "@/lib/site-assets";
 import type { PublicEvent } from "@/lib/event-format";
 import { GrandOpeningBanner } from "@/components/garage-website/grand-opening-banner";
-import { CinematicHero } from "@/components/garage-website/cinematic/cinematic-hero";
-import { ScrollProgress, SiteSoundToggle } from "@/components/garage-website/cinematic/site-chrome";
-import { playSiteSfx } from "@/components/garage-website/cinematic/site-sfx";
 import {
   Award,
   ChevronDown,
@@ -686,18 +683,14 @@ function Nav() {
   const condensed = y > 80;
   // Desktop: 5 tujuan utama saja agar nav tidak sesak. Halaman sekunder
   // (Franchise, Karier) ada di drawer HP & footer.
-  // Cinematic UI V1 (mockup Owner Nov 2026): Home · Menu · Promo · About · Contact.
   const items = [
-  ["Home", "#beranda"],
   ["Menu", "#menu", true],
-  ["Promo", "#promo"],
-  ["About", "#about"],
-  ["Contact", "#location"]];
-  const mobileItems = [
-  ...items,
   ["Live Outlet", "#live-status"],
   ["Member", "#membership"],
   ["Event", "#events"],
+  ["Lokasi", "#location"]];
+  const mobileItems = [
+  ...items,
   ["Cara Pesan", "#cara-pesan"],
   ["Lacak Pesanan", "#tracking-order"],
   ["Franchise", "/franchise"],
@@ -869,14 +862,12 @@ function Nav() {
             >
               <span>Cek Meja</span><ArrowRight size={12} />
             </button>
-            <SiteSoundToggle className="nav-sound" />
             <Link
               href={DIGITAL_MENU_URL}
-              className="btn btn-primary nav-order-cta"
-              style={{ padding: "10px 16px", fontSize: 11 }}
-              onClick={() => playSiteSfx("sweep")}
+              className="btn btn-primary"
+              style={{ padding: "9px 14px", fontSize: 10 }}
             >
-              <CartGlyph /><span>Pesan Sekarang</span>
+              <span>Pesan</span><ArrowRight size={12} />
             </Link>
             <button
               className="mob-toggle"
@@ -1797,23 +1788,6 @@ function Nav() {
 }
 
 // ---------------- HERO ----------------
-// Hero sinematik (Cinematic Laser UI V1): foto produk dari menu live yang sama dengan menu digital.
-function CinematicHeroSlot({ landingHero }) {
-  const { rows } = useLiveMenu();
-  // Foto hero Pengaturan tidak dipakai di mockup baru (dan aset lama masih memuat merek "& Motor").
-  void landingHero;
-  return <CinematicHero rows={rows} menuHref={DIGITAL_MENU_URL} aboutHref="#about" />;
-}
-
-function CartGlyph() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="9" cy="20" r="1.4" /><circle cx="18" cy="20" r="1.4" /><path d="M2.5 3.5h3l2.4 11.2a1.6 1.6 0 0 0 1.6 1.3h8.4a1.6 1.6 0 0 0 1.6-1.2L21.5 7H6.6" />
-    </svg>
-  );
-}
-
-// Hero lama (sebelum Cinematic UI V1) — tidak dipakai lagi, disimpan untuk rollback cepat.
 function Hero({ landingHero }) {
   const y = useScrollY();
   const biz = useBiz();
@@ -6205,8 +6179,7 @@ function GarageWebsiteRoot({
       <div className="bg-vignette" />
       <PromoBar />
       <Nav />
-      <ScrollProgress />
-      <CinematicHeroSlot landingHero={landingHero} />
+      <Hero landingHero={landingHero} />
       {featuredEvent ? <GrandOpeningBanner event={featuredEvent} /> : null}
       {/* 1. Pesan: menu, promo, unggulan, cara pesan */}
       <Menu />

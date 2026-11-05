@@ -9,6 +9,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { SiteAsset } from "@/lib/site-assets";
 import type { PublicEvent } from "@/lib/event-format";
 import { GrandOpeningBanner } from "@/components/garage-website/grand-opening-banner";
+import { GarageEmblemCanvas } from "@/components/garage-3d/garage-emblem-canvas";
 import {
   Award,
   ChevronDown,
@@ -1823,6 +1824,8 @@ function Hero({ landingHero }) {
           <div className="garage-headlight" />
           <div className="garage-redline" />
           <div className="garage-engine-glow" />
+          {/* Emblem Garage 3D + laser (Three.js, dimuat malas; mati bila hemat data / reduced-motion → gambar diam). */}
+          <div className="hero-3d" aria-hidden="true"><GarageEmblemCanvas variant="landing" /></div>
           <div style={{ position: "absolute", inset: 0 }}>
             {particles.map((p, i) =>
             <span
@@ -2172,6 +2175,7 @@ function Hero({ landingHero }) {
         <div className="garage-headlight" />
         <div className="garage-redline" />
         <div className="garage-engine-glow" />
+        <div className="hero-3d" aria-hidden="true"><GarageEmblemCanvas variant="landing" /></div>
         {/* particles */}
         <div style={{ position: "absolute", inset: 0 }}>
           {particles.map((p, i) =>

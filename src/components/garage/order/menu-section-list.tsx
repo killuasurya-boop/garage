@@ -1,5 +1,7 @@
 "use client";
 
+import type { ReactNode } from "react";
+
 import type { MenuItem } from "@/lib/garage-api-types";
 
 import { MENU_GRID_CLASS, MenuCard } from "./menu-card";
@@ -36,7 +38,14 @@ export function MenuSectionList({
   bestSellerSet,
   onAdd,
   onOpen,
+  renderItem,
+  gridClassName = MENU_GRID_CLASS,
+  v5 = false,
 }: {
+  /** Menu V5: kartu & grid sendiri, judul bergaris merah. Kosong = kartu lama. */
+  renderItem?: (item: MenuItem, index: number) => ReactNode;
+  gridClassName?: string;
+  v5?: boolean;
   groups: MenuGroup[];
   cart: Record<string, number>;
   bestSellerSet: Set<string>;
@@ -56,9 +65,9 @@ export function MenuSectionList({
             data-order-section={group.category}
             className="scroll-mt-[124px] pt-7"
           >
-            <div className="flex items-center gap-2.5 border-b border-garage-line pb-2.5">
-              {categoryIcon(group.category, "size-5 text-garage-amber")}
-              <h2 className="garage-display text-[22px] leading-none tracking-wide text-white">
+            <div className={`flex items-center gap-2.5 pb-2.5 ${v5 ? "" : "border-b border-garage-line"}`}>
+              {v5 ? null : categoryIcon(group.category, "size-5 text-garage-amber")}
+              <h2 className={v5 ? "gm5-title gm5-section-title text-[22px] leading-none text-white" : "garage-display text-[22px] leading-none tracking-wide text-white"}>
                 {group.category}
               </h2>
               <span className="ml-auto font-mono text-xs font-semibold tabular-nums text-garage-dim">
@@ -77,8 +86,8 @@ export function MenuSectionList({
                     {section.name}
                   </p>
                 ) : null}
-                <div className={`${MENU_GRID_CLASS} ${showSubheads ? "" : "mt-4"}`}>
-                  {section.items.map((item) => (
+                <div className={`${gridClassName} ${showSubheads ? "" : "mt-4"}`}>
+                  {section.items.map((item, index) => renderItem ? renderItem(item, index) : (
                     <MenuCard
                       key={item.id}
                       item={item}

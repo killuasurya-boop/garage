@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ create: vi.fn() }));
-vi.mock("@/lib/garage-service", () => ({ createCustomerOrder: mocks.create, getCustomerOrderData: vi.fn(), TableClaimError: class extends Error {} }));
+const mocks = vi.hoisted(() => ({ create: vi.fn(), menuMode: vi.fn() }));
+vi.mock("@/lib/garage-service", () => ({ createCustomerOrder: mocks.create, getCustomerOrderData: vi.fn(), getDigitalMenuMode: mocks.menuMode, TableClaimError: class extends Error {} }));
 vi.mock("@/lib/server-auth", () => ({ requirePermission: vi.fn() }));
 vi.mock("@/lib/member-auth", () => ({ requireMemberAuth: vi.fn() }));
 vi.mock("@/lib/garage-courier", () => ({ sweepUnpaidOrdersLazily: vi.fn() }));
@@ -11,7 +11,7 @@ import { POST } from "@/app/api/customer/orders/route";
 const eventId = "2aa9ee27-02b7-41c1-97d4-29aeaa20fdd5";
 const entryId = "9f70befd-19b3-4d73-8b8d-c40c342695ad";
 const regularItem = { itemId: "coffee", variantId: "cold", qty: 1 };
-beforeEach(() => { vi.clearAllMocks(); mocks.create.mockResolvedValue({ order: { id: "order" } }); });
+beforeEach(() => { vi.clearAllMocks(); mocks.create.mockResolvedValue({ order: { id: "order" } }); mocks.menuMode.mockResolvedValue("self_order"); });
 function request(body: object, key = "mixed-checkout-12345") {
   return new Request("http://localhost/api/customer/orders", { method: "POST", headers: { "Content-Type": "application/json", ...(key ? { "X-Idempotency-Key": key } : {}) }, body: JSON.stringify({ orderType: "takeaway", guestName: "Tamu Uji", ...body }) });
 }
@@ -66,6 +66,13 @@ describe("mixed event checkout request boundary", () => {
   it("rejects unscoped event packages and combined selections above the limit", async () => {
     expect((await POST(request({ items: [regularItem], eventItems: [{ entryId, qty: 1 }] }))).status).toBe(400);
     expect((await POST(request({ eventId, items: Array.from({ length: 40 }, () => regularItem), eventItems: [{ entryId, qty: 1 }] }))).status).toBe(400);
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+  it("mode Daftar Pilihan (waiter_list): checkout pelanggan ditolak 403 tanpa membuat pesanan", async () => {
+    mocks.menuMode.mockResolvedValue("waiter_list");
+    const response = await POST(request({ items: [regularItem] }));
+    expect(response.status).toBe(403);
+    expect((await response.json()).error.code).toBe("DIGITAL_MENU_VIEW_ONLY");
     expect(mocks.create).not.toHaveBeenCalled();
   });
 });

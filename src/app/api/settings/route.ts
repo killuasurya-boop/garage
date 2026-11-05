@@ -62,6 +62,7 @@ const patchSchema = z.object({
   garageLat: z.number().min(-90).max(90).optional(),
   garageLng: z.number().min(-180).max(180).optional(),
   tableHoldMinutes: z.number().int().min(2).max(15).optional(),
+  digitalMenuMode: z.enum(["self_order", "waiter_list"]).optional(),
   tableIdleWarnHours: z.number().int().min(1).max(12).optional(),
   garageWhatsapp: z.string().trim().regex(/^(\+?62|0)8\d{7,12}$/, "Nomor WhatsApp tidak valid").optional(),
   bankAccountsText: z.string().max(1000).optional(),

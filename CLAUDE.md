@@ -461,6 +461,11 @@ Scroll direction:
   benar?"), server hold `table_sessions.held_until` (`tableHoldMinutes`, FOR UPDATE
   in tx). Occupied tables only via 4-digit `join_code` (cleared when emptied).
   `/api/customer/orders` sets `enforceTableClaim`; staff orders don't.
+- Digital menu mode (Menu V5, owner 4 Nov 2026) = setting `digitalMenuMode` per outlet (`src/lib/digital-menu-mode.ts`):
+  `self_order` (default, flow above) or `waiter_list` (customer builds a Daftar Pilihan → "Tunjukkan ke Waiter" QR =
+  `/order?table=NN&mode=waiter&daftar=<base64url ids/qty/notes, no prices>`; waiter's Pesankan opens prefilled, validated
+  against the current menu). `/api/customer/orders` returns 403 `DIGITAL_MENU_VIEW_ONLY` in `waiter_list`; delivery is off and
+  no table hold is needed in that mode. Staff orders are unaffected. Daftar Pilihan is kept in sessionStorage per outlet & table.
 
 ## Event Menu Rules
 
@@ -504,6 +509,44 @@ Scroll direction:
   (`~/.garage-ops/backup-public.asc`, made once by `scripts/setup-backup-key.sh`) and deletes plaintext; opening needs the Owner's
   private key + passphrase (`scripts/restore-from-encrypted.sh --check|--drill|--out`). Never store the private key or passphrase
   in the repo, OneDrive, logs or scripts; never type them for the Owner.
+
+## UI/UX Tooling (skills + free MCP)
+
+Use these automatically when the task calls for them; do not wait to be asked. Design rules above (Garage palette,
+`design-system/MASTER.md`, member contract) always win over any skill or MCP output.
+
+Skills (`.claude/skills/`): `ui-ux-pro-max` (style/palette/layout ideas), `frontend-design` (hierarchy, type, restraint,
+copy; never a rebrand), `web-design-guidelines` (audit UI code, output `file:line`).
+Digital menu (`/order`) V5: skill `garage-menu-v5` is mandatory; the UI must closely match the boards in
+`docs/design-references/menu-digital-v5/` (owner, Nov 2026). Open questions it lists must be answered by the owner first.
+Animation skills (owner, Nov 2026: customer surfaces = cinematic, operational screens = fast and restrained):
+`animate`, `emil-design-eng`, `review-animations`, `improve-animations`, `animation-vocabulary` (Emil Kowalski, craft rules);
+`motion-design` (LottieFiles, choreography/timing tables); `micro-interaction`, `page-transition-animation`,
+`60fps-animation`, `accessible-animation`, `svg-animation`, `lottie-animation` (iart-ai); `gsap-core`, `gsap-timeline`,
+`gsap-scrolltrigger`, `gsap-react`, `gsap-performance`, `gsap-plugins`, `gsap-utils` (official GreenSock).
+Use `framer-motion` (installed) and CSS first. GSAP/Lottie are NOT dependencies yet: ask the owner before adding one.
+Skipped on purpose: glassmorphism (heavy blur conflicts with the motion policy) and auto-invoking AI image-generation
+skills. Licenses: `.claude/skills/_licenses/`.
+Image generation (owner, Nov 2026): MCP `mcp-image` (pinned 0.18.2, template `.claude/mcp-ui.example.json`) needs
+`GEMINI_API_KEY` from the environment/secrets, never in a file or chat. Use it ONLY when the owner asks for an image
+(it spends API quota; never auto-generate). Output goes to `docs/design-handoff/assets-incoming/generated/`, then follow
+`docs/design-handoff/README.md` (no text/prices/logos inside images, logo and AYA only from official assets).
+
+MCP servers (free, no API key; config template `.claude/mcp-ui.example.json`, copy to `.mcp.json` which is gitignored
+because it can hold secrets; versions pinned):
+- `shadcn`: before writing a new UI component, search the shadcn registry (`search_items_in_registries`,
+  `view_items_in_registries`) and prefer adding/adapting an existing one. Style is `radix-nova` in `components.json`.
+- `context7`: before using Next.js, Tailwind v4, shadcn/Radix, Drizzle or Better Auth APIs, look up current docs
+  (`resolve-library-id` then `query-docs`) instead of relying on memory.
+- `playwright`: visual QA after UI changes. Screenshot desktop 1366x900 and mobile 390x844, check console errors,
+  horizontal overflow, clipped money/status text. Take screenshots, read them, fix, repeat.
+- `chrome-devtools`: debugging only (layout, CSS, network, Lighthouse a11y/perf) when Playwright shows a problem.
+  Do not run both browsers on the same task without reason.
+
+Theme workflow: pick the theme/direction from the brief and the Garage system first (or propose it and state any
+deviation before building), then use `shadcn` for parts, `context7` for API accuracy, `playwright` to verify.
+In a cloud session the preinstalled Chromium is at `/opt/pw-browsers/chromium` (pass `--executable-path` plus
+`--no-sandbox` if the default browser is not found). Never put tokens in `.claude/mcp-ui.example.json`.
 
 ## Verification
 

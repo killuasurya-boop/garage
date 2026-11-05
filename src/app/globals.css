@@ -53,6 +53,15 @@
   --color-garage-red-bright: var(--garage-red-bright);
   --color-garage-amber: var(--garage-amber);
   --color-garage-success: var(--garage-success);
+  /* Menu Digital V5 (Owner, Nov 2026; papan docs/design-references/menu-digital-v5/boards/00). */
+  --color-menu-red: var(--menu-red);
+  --color-menu-red-bright: var(--menu-red-bright);
+  --color-menu-charcoal: var(--menu-charcoal);
+  --color-menu-steel: var(--menu-steel);
+  --color-menu-smoke: var(--menu-smoke);
+  --color-menu-silver: var(--menu-silver);
+  --color-menu-cream: var(--menu-cream);
+  --font-menu-display: var(--font-montserrat), "Montserrat", "Space Grotesk", ui-sans-serif, sans-serif;
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -79,6 +88,15 @@
   --garage-red-bright: #ff2a3a;
   --garage-red-deep: #8b0f1a;
   --garage-amber: #f5a742;
+  /* Menu Digital V5 + AYA (Owner, 4 Nov 2026): merah utama #D43A3A. Merah ini untuk tombol, glow, garis
+     dan teks besar (merah di charcoal 4,1:1 = lolos AA teks besar saja; teks putih di merah 4,7:1 lolos AA). */
+  --menu-red: #d43a3a;
+  --menu-red-bright: #e8524f;
+  --menu-charcoal: #0e0e0e;
+  --menu-steel: #2a2a2a;
+  --menu-smoke: #4a4a4a;
+  --menu-silver: #c8c8c8;
+  --menu-cream: #ede6dc;
   --garage-panel: #16161b;
   --garage-panel-soft: #202026;
   --garage-surface: var(--garage-bg-1);

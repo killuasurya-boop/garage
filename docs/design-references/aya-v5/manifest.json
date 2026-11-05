@@ -1,0 +1,66 @@
+{
+  "product": "AYA Assistant SVG UI Kit",
+  "version": "5.0-vector-reconstruction",
+  "brand": "Garage Coffee",
+  "source_reference": "Gambar komponen Digital Menu V5 yang dikirim pengguna. Ini rekonstruksi vektor, bukan ekspor file desain asli.",
+  "characterStates": [
+    "idle",
+    "listening",
+    "thinking",
+    "speaking",
+    "happy"
+  ],
+  "floatingStates": [
+    "default",
+    "attention",
+    "active"
+  ],
+  "svgAssets": [
+    "svg/aya-audio-toggle.svg",
+    "svg/aya-body.svg",
+    "svg/aya-chat-panel.svg",
+    "svg/aya-compact-help-card.svg",
+    "svg/aya-component-board.svg",
+    "svg/aya-face-happy.svg",
+    "svg/aya-face-idle.svg",
+    "svg/aya-face-listening.svg",
+    "svg/aya-face-speaking.svg",
+    "svg/aya-face-thinking.svg",
+    "svg/aya-floating-active.svg",
+    "svg/aya-floating-attention.svg",
+    "svg/aya-floating-default.svg",
+    "svg/aya-happy.svg",
+    "svg/aya-head-shell.svg",
+    "svg/aya-idle.svg",
+    "svg/aya-listening.svg",
+    "svg/aya-quick-prompts.svg",
+    "svg/aya-speaking.svg",
+    "svg/aya-thinking.svg",
+    "svg/aya-voice-controls.svg"
+  ],
+  "icons": [
+    "icons/chat.svg",
+    "icons/chevron-right.svg",
+    "icons/close.svg",
+    "icons/coffee.svg",
+    "icons/heart.svg",
+    "icons/microphone.svg",
+    "icons/mute.svg",
+    "icons/plus.svg",
+    "icons/send.svg",
+    "icons/sparkles.svg",
+    "icons/stars.svg",
+    "icons/volume.svg"
+  ],
+  "colors": {
+    "red": "#F0443E",
+    "background": "#0D0D11",
+    "text": "#F8F1EB"
+  },
+  "notes": [
+    "Transparent SVGs use no embedded raster images.",
+    "Each SVG is standalone and can be imported using img src or inline.",
+    "Avoid presenting chat illustration as real product photography.",
+    "Customer digital menu is view-only; orders are entered by waiter."
+  ]
+}

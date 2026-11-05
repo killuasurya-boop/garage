@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Anton, Inter, JetBrains_Mono, Space_Grotesk } from "next/font/google";
+import { Anton, Inter, JetBrains_Mono, Montserrat, Space_Grotesk } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { GarageToastProvider } from "@/components/garage/garage-toast";
 import { GarageThemeProvider } from "@/components/garage/theme/garage-theme-provider";
@@ -23,6 +23,16 @@ const spaceGrotesk = Space_Grotesk({
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
+});
+
+// Menu Digital V5 (Owner, Nov 2026): judul/hero menu memakai sans tebal miring (Montserrat 800 italic).
+const montserrat = Montserrat({
+  variable: "--font-montserrat",
+  subsets: ["latin"],
+  weight: ["700", "800"],
+  style: ["normal", "italic"],
+  // Hanya dipakai menu digital → jangan dipreload di semua halaman (POS/KDS tetap ringan).
+  preload: false,
 });
 
 const jetBrainsMono = JetBrains_Mono({
@@ -76,7 +86,7 @@ export default function RootLayout({
   return (
     <html
       lang="id"
-      className={`${anton.variable} ${spaceGrotesk.variable} ${jetBrainsMono.variable} ${inter.variable} dark h-full antialiased`}
+      className={`${anton.variable} ${spaceGrotesk.variable} ${jetBrainsMono.variable} ${inter.variable} ${montserrat.variable} dark h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">
         <GarageThemeProvider>

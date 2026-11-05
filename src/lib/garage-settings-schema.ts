@@ -733,9 +733,20 @@ export const SETTINGS_CATEGORIES: SettingCategory[] = [
   {
     id: "tables",
     label: "Meja & Menu Digital",
-    description: "Kunci meja saat pelanggan memilih meja di menu digital & peringatan meja lupa ditutup.",
+    description: "Mode menu digital, kunci meja saat pelanggan memilih meja & peringatan meja lupa ditutup.",
     icon: "Armchair",
     fields: [
+      {
+        key: "digitalMenuMode",
+        label: "Mode menu digital",
+        type: "select",
+        defaultValue: DEFAULT_APP_SETTINGS.digitalMenuMode,
+        options: [
+          { value: "self_order", label: "Pelanggan pesan & bayar sendiri" },
+          { value: "waiter_list", label: "Daftar Pilihan → dicatat waiter" },
+        ],
+        hint: "Daftar Pilihan: pelanggan menyusun pilihan lalu menunjukkannya ke waiter (QR); checkout dari HP pelanggan ditutup. Delivery ikut nonaktif.",
+      },
       {
         key: "tableHoldMinutes",
         label: "Lama kunci meja",

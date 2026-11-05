@@ -114,6 +114,8 @@ export const API_ROUTE_CATALOG: ApiRouteEntry[] = [
   {"path":"/api/control/access-requests","methods":["GET"],"note":"Owner Access Approval Center (I3, PRD V4.0 §06.6, SYS-01): daftar pengajuan."},
   {"path":"/api/control/cash-opening","methods":["GET","POST"],"note":""},
   {"path":"/api/control/cash-oversight","methods":["GET"],"note":""},
+  {"path":"/api/control/decision-center/{id}","methods":["GET","POST"],"note":""},
+  {"path":"/api/control/decision-center","methods":["GET"],"note":""},
   {"path":"/api/control/risk/{id}/case","methods":["POST"],"note":""},
   {"path":"/api/control/risk/{id}","methods":["PATCH"],"note":""},
   {"path":"/api/control/risk","methods":["GET","POST"],"note":""},

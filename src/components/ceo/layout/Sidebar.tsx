@@ -13,6 +13,7 @@ import {
   ChefHat,
   ChevronLeft,
   ClipboardCheck,
+  Gavel,
   LayoutDashboard,
   Rocket,
   Lock,
@@ -35,6 +36,7 @@ import { GlowDot } from "../ui/GlowDot";
 /** Menu Control Center (dipakai sidebar & pencarian topbar). */
 export const controlNav = [
   { href: "/control", label: "Ringkasan", icon: LayoutDashboard },
+  { href: "/control/decision", label: "Decision Center", icon: Gavel },
   { href: "/control/onboarding", label: "Onboarding", icon: Rocket },
   { href: "/control/briefing", label: "Briefing", icon: Sparkles },
   { href: "/control/financial", label: "Keuangan", icon: PiggyBank },

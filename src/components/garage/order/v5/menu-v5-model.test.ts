@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { MenuItem } from "@/lib/garage-api-types";
 
-import { availableChips, cardBadge, cardPrice, categoryPhoto, filterByChip, heroCtaLabel, notePlaceholder, variantSummary } from "./menu-v5-model";
+import { availableChips, cardBadge, cardBadges, cardPrice, categoryPhoto, filterByChip, heroCtaLabel, isSignature, isUnggulan, notePlaceholder, variantSummary } from "./menu-v5-model";
 import { decodeDaftar, encodeDaftar, restoreCart } from "./saved-cart";
 import { toggleFavoriteIds } from "./use-menu-favorites";
 
@@ -40,8 +40,19 @@ describe("Menu V5 — aturan tampilan dari data", () => {
     expect(variantSummary(indomie)).toBe("5 pilihan");
   });
 
-  it("satu badge per kartu; habis tanpa badge (pakai overlay)", () => {
-    expect(cardBadge(latte, true)).toBe("signature");
+  it("Signature (tag) dan Unggulan (featured) berbeda; maks. dua badge", () => {
+    const sig = menu({ id: "s", name: "Kopi Garage", tags: ["Signature"] });
+    expect(isSignature(sig)).toBe(true);
+    expect(isUnggulan(sig)).toBe(false);
+    expect(isSignature(latte)).toBe(false);
+    expect(isUnggulan(latte)).toBe(true);
+    expect(cardBadges(menu({ id: "x", name: "X", tags: ["signature"], featured: true }), true)).toEqual(["signature", "unggulan"]);
+    expect(filterByChip([sig, latte], "signature", new Set(), [])).toEqual([sig]);
+    expect(filterByChip([sig, latte], "unggulan", new Set(), [])).toEqual([latte]);
+  });
+
+  it("badge utama per kartu; habis tanpa badge (pakai overlay)", () => {
+    expect(cardBadge(latte, true)).toBe("unggulan");
     expect(cardBadge(americano, true)).toBe("best");
     expect(cardBadge(nasi, false)).toBe("limited");
     expect(cardBadge(habis, true)).toBeNull();
@@ -49,8 +60,8 @@ describe("Menu V5 — aturan tampilan dari data", () => {
 
   it("chip filter hanya muncul bila datanya ada (tanpa fitur palsu)", () => {
     const items = [americano, latte, choco, nasi];
-    expect(availableChips(items, new Set(), [])).toEqual(["all", "signature"]);
-    expect(availableChips(items, new Set(["a"]), ["c"])).toEqual(["all", "signature", "best", "favorite"]);
+    expect(availableChips(items, new Set(), [])).toEqual(["all", "unggulan"]);
+    expect(availableChips(items, new Set(["a"]), ["c"])).toEqual(["all", "unggulan", "best", "favorite"]);
     expect(filterByChip(items, "best", new Set(["a"]), [])).toEqual([americano]);
     expect(filterByChip(items, "favorite", new Set(), ["c", "n"])).toEqual([choco, nasi]);
     expect(filterByChip(items, "all", new Set(), [])).toBe(items);

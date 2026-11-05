@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="480" viewBox="0 0 480 480" role="img" aria-label="AYA aya-head Independent Layer">
+<title>AYA aya-head Independent Layer</title><desc>Komponen SVG AYA untuk Garage Coffee</desc><defs>
+<linearGradient id="lyidle-silver" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFF7F2"/><stop offset=".17" stop-color="#D0C9C7"/><stop offset=".4" stop-color="#F7EEEA"/><stop offset=".63" stop-color="#89868A"/><stop offset=".79" stop-color="#F5E9E6"/><stop offset="1" stop-color="#55545C"/></linearGradient>
+<linearGradient id="lyidle-steel" x1=".16" y1="0" x2=".88" y2="1"><stop offset="0" stop-color="#FCF6F2"/><stop offset=".24" stop-color="#C4BEC0"/><stop offset=".59" stop-color="#655F69"/><stop offset=".79" stop-color="#E8D7D3"/><stop offset="1" stop-color="#625E66"/></linearGradient>
+<linearGradient id="lyidle-cream" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFF7F5"/><stop offset=".57" stop-color="#C3BEC2"/><stop offset="1" stop-color="#716C73"/></linearGradient>
+<linearGradient id="lyidle-visor" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2B272B"/><stop offset=".31" stop-color="#0C0D12"/><stop offset=".74" stop-color="#100D12"/><stop offset="1" stop-color="#24181A"/></linearGradient>
+<linearGradient id="lyidle-red" x1="0" y1="0" x2=".92" y2="1"><stop offset="0" stop-color="#FF6962"/><stop offset=".36" stop-color="#DD242A"/><stop offset=".73" stop-color="#761018"/><stop offset="1" stop-color="#3B1015"/></linearGradient>
+<linearGradient id="lyidle-panel" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#393235"/><stop offset=".4" stop-color="#201E23"/><stop offset="1" stop-color="#151417"/></linearGradient>
+<linearGradient id="lyidle-border" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#968588"/><stop offset=".45" stop-color="#605155"/><stop offset="1" stop-color="#342B30"/></linearGradient>
+<radialGradient id="lyidle-aura"><stop offset="0" stop-color="#F03931" stop-opacity=".55"/><stop offset=".45" stop-color="#E0242C" stop-opacity=".15"/><stop offset="1" stop-color="#D42022" stop-opacity="0"/></radialGradient>
+<filter id="lyidle-shadow" x="-40%" y="-45%" width="190%" height="200%"><feGaussianBlur in="SourceAlpha" stdDeviation="11" result="blur"/><feOffset dy="9" result="off"/><feComponentTransfer><feFuncA type="linear" slope=".7"/></feComponentTransfer><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<filter id="lyidle-glow" x="-110%" y="-110%" width="320%" height="320%"><feGaussianBlur stdDeviation="7" result="bl"/><feMerge><feMergeNode in="bl"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<filter id="lyidle-faceglow" x="-120%" y="-120%" width="340%" height="340%"><feGaussianBlur stdDeviation="3.5" result="bl"/><feMerge><feMergeNode in="bl"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<clipPath id="lyidle-faceclip"><path d="M149 164 C152 118 194 99 258 98 C327 99 360 119 371 159 Q388 218 364 254 C338 283 191 292 157 265 C133 247 134 197 149 164 Z"/></clipPath>
+</defs>
+
+<g xmlns="http://www.w3.org/2000/svg" class="aya-head">
+<path d="M122 160 C133 67 196 34 250 34 C312 31 367 66 389 139" fill="none" stroke="#43383F" stroke-width="32" stroke-linecap="round"/>
+<path d="M123 154 C139 74 188 44 250 42 Q320 34 379 131" fill="none" stroke="url(#lyidle-cream)" stroke-width="22" stroke-linecap="round"/>
+<path d="M137 139 C152 81 198 53 256 50" stroke="#FFF6EF" stroke-width="7" fill="none" opacity=".5" stroke-linecap="round"/>
+<!-- right earpiece sits behind helmet -->
+<ellipse cx="393" cy="204" rx="32" ry="66" fill="url(#lyidle-silver)" stroke="#76676F" stroke-width="5"/>
+<ellipse cx="399" cy="205" rx="13" ry="43" fill="url(#lyidle-steel)" opacity=".8"/>
+<!-- helmet outer shell -->
+<path d="M116 169 C125 100 177 74 252 69 C336 65 394 98 409 165 Q427 240 396 291 Q355 332 256 332 C173 334 115 318 101 279 Q90 232 116 169Z" fill="url(#lyidle-silver)" stroke="#7E7076" stroke-width="4.5"/>
+<path d="M129 152 C150 93 191 83 257 80 C331 79 379 102 394 150" fill="none" stroke="#FFF9F4" stroke-opacity=".65" stroke-width="11" stroke-linecap="round"/>
+<path d="M119 275 Q163 319 250 319 Q356 321 395 279" fill="none" stroke="#B5A6A6" stroke-width="11" opacity=".8"/>
+<!-- red neon visor rim -->
+<path d="M141 155 C153 106 194 91 255 90 C329 89 369 114 382 156 Q402 224 371 270 C349 294 180 309 149 276 Q120 246 141 155Z" fill="#6D0D14" stroke="#EF3E39" stroke-width="8" opacity=".85"/>
+<!-- visor -->
+<path d="M149 164 C152 118 194 99 258 98 C327 99 360 119 371 159 Q388 218 364 254 C338 283 191 292 157 265 C133 247 134 197 149 164 Z" fill="url(#lyidle-visor)" stroke="#211E21" stroke-width="5"/>
+<g clip-path="url(#lyidle-faceclip)"><path d="M147 160 Q177 102 284 100 Q328 101 352 117" stroke="#FFFFFF" opacity=".065" stroke-width="28" fill="none"/><path d="M135 237 Q149 283 198 286" stroke="#F13F39" opacity=".13" stroke-width="24" fill="none"/></g>
+<!-- left ear shell and badge -->
+<ellipse cx="119" cy="213" rx="67" ry="83" fill="url(#lyidle-steel)" stroke="#817478" stroke-width="5"/>
+<ellipse cx="115" cy="217" rx="48" ry="63" fill="#1A161B" stroke="#756363" stroke-width="5"/>
+<ellipse cx="115" cy="217" rx="41" ry="54" fill="#181318" stroke="#3F292C" stroke-width="2"/>
+<g transform="translate(92 188) scale(1.02)"><path d="M0 49 L24 0 L48 49 H35 L29 37 H19 L13 49 Z M24 13 L19 28 H29 Z" fill="#E83F37" fill-rule="evenodd"/><path d="M9 42 L39 42" stroke="#FF8680" stroke-width="2.5" stroke-opacity=".6"/><path d="M27 24 L39 36" stroke="#80111A" stroke-width="2.3"/></g>
+<path d="M87 160 Q113 144 139 162" stroke="#FFF8F5" stroke-width="7" opacity=".36" fill="none" stroke-linecap="round"/>
+<!-- silver seam -->
+<path d="M160 97 L173 106 M308 76 L315 85" stroke="#8C8287" stroke-width="2" opacity=".5"/>
+<!-- face expressions -->
+</g>
+</svg>

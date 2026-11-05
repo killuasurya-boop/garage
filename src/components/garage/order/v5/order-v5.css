@@ -206,8 +206,27 @@
     line-height: 1.2;
     white-space: nowrap;
   }
-  .gm5-badge-best { background: linear-gradient(180deg, var(--menu-red-bright), var(--menu-red)); color: #fff; }
-  .gm5-badge-signature { background: #1f6b3a; color: #e9ffe9; }
+  /* Signature = merah brand (khas Garage); Unggulan = emas/amber bergaris (rekomendasi admin);
+     Best Seller = silver (data penjualan). Ketiganya beda warna DAN ikon, bukan hanya warna. */
+  .gm5-badge-signature {
+    background: linear-gradient(180deg, var(--menu-red-bright), var(--menu-red) 60%, #8f2323);
+    color: #fff;
+    border: 1px solid color-mix(in srgb, #ffd2cf 45%, var(--menu-red));
+    box-shadow: 0 2px 10px color-mix(in srgb, var(--menu-red) 45%, transparent);
+    letter-spacing: 0.02em;
+  }
+  .gm5-badge-unggulan {
+    background: color-mix(in srgb, #f5c451 16%, #17130c);
+    color: #ffd978;
+    border: 1px solid #c99a2e;
+  }
+  .gm5-badge-best { background: linear-gradient(180deg, #e9e9e9, #b9b9b9); color: #141414; }
+  .gm5-badge-row .gm5-badge { animation: gm5-badge-in 180ms ease-out both; }
+  .gm5-badge-row .gm5-badge:nth-child(2) { animation-delay: 60ms; }
+  @keyframes gm5-badge-in {
+    from { opacity: 0; transform: translateY(-3px) scale(0.96); }
+    to { opacity: 1; transform: none; }
+  }
   .gm5-badge-promo { background: #f5a742; color: #1a1205; }
   .gm5-badge-limited { background: color-mix(in srgb, #f5a742 22%, #1a1617); color: #ffd79e; border: 1px solid #b97a2c; }
   .gm5-badge-soldout { background: #2a2a2a; color: #f1f1f1; border: 1px solid #5a5a5a; }
@@ -594,3 +613,180 @@
 }
 @keyframes gm5-wave { from { transform: scaleY(0.35); } to { transform: scaleY(1.6); } }
 @keyframes gm5-emblem-in { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .gm5 .gm5-badge-row .gm5-badge { animation: none; }
+}
+
+/* ===========================================================================
+   Tanya AYA V5 (master prompt §2): panel non-modal, mini-bar, kontrol suara,
+   sorotan navigasi pintar (§8), welcome fullscreen (§9), pilih meja info (§3).
+   =========================================================================== */
+@layer components {
+  /* HP: bottom sheet. Tablet: panel melayang. Desktop: kanan bawah, bisa diperbesar. */
+  .gm5-aya-panel {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: min(78dvh, 680px);
+    border-radius: 20px 20px 0 0;
+    box-shadow: 0 -18px 48px rgba(0, 0, 0, 0.6);
+    transition: height 220ms ease-out, width 220ms ease-out;
+  }
+  .gm5-aya-panel[data-expanded="true"] { height: calc(100dvh - 12px); }
+  /* Tablet: navigasi bawah masih tampil → panel melayang di atasnya. */
+  @media (min-width: 768px) {
+    .gm5-aya-panel {
+      left: auto;
+      right: 16px;
+      bottom: calc(5.5rem + env(safe-area-inset-bottom));
+      width: min(428px, calc(100vw - 32px));
+      height: min(640px, calc(100dvh - 7rem));
+      border-radius: 20px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(212, 58, 58, 0.12);
+    }
+    .gm5-aya-panel[data-expanded="true"] { width: min(560px, calc(100vw - 32px)); height: calc(100dvh - 7rem); }
+  }
+  @media (min-width: 1024px) {
+    .gm5-aya-panel { width: 428px; bottom: 16px; height: min(600px, calc(100dvh - 32px)); }
+    .gm5-aya-panel[data-expanded="true"] { width: min(600px, 44vw); height: calc(100dvh - 32px); }
+  }
+
+  .gm5-aya-mini {
+    right: 12px;
+    bottom: calc(5.75rem + env(safe-area-inset-bottom));
+    max-width: calc(100vw - 24px);
+  }
+  @media (min-width: 1024px) { .gm5-aya-mini { right: 16px; bottom: 16px; } }
+
+  .gm5-aya-hero::before {
+    content: "";
+    position: absolute;
+    inset: 12% 8% 4%;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, rgba(212, 58, 58, 0.28), transparent);
+    pointer-events: none;
+  }
+
+  .gm5-close-btn { border: 1px solid rgba(255, 255, 255, 0.16); }
+  .gm5-close-btn:hover { background: color-mix(in srgb, var(--menu-red) 28%, transparent); border-color: var(--menu-red); }
+  .gm5-stop-btn { border: 1px solid var(--menu-red-bright); color: #fff; background: color-mix(in srgb, var(--menu-red) 30%, transparent); }
+
+  .gm5-live-dot { width: 10px; height: 10px; border-radius: 999px; background: var(--menu-red-bright); box-shadow: 0 0 0 2px #141214; }
+  .gm5-speak-bars { display: inline-flex; height: 12px; align-items: center; gap: 2px; }
+  .gm5-speak-bars i { display: block; width: 2px; height: 60%; border-radius: 1px; background: var(--menu-red-bright); }
+
+  .gm5-mini-link {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+    gap: 4px;
+    padding: 0 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #cfc9c4;
+    cursor: pointer;
+  }
+  .gm5-mini-link:hover { color: #fff; }
+
+  .gm5-switch {
+    appearance: none;
+    position: relative;
+    width: 46px;
+    height: 26px;
+    flex-shrink: 0;
+    border-radius: 999px;
+    background: #3a3436;
+    cursor: pointer;
+    transition: background 120ms ease-out;
+  }
+  .gm5-switch::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 20px;
+    height: 20px;
+    border-radius: 999px;
+    background: #f1ece8;
+    transition: transform 120ms ease-out;
+  }
+  .gm5-switch:checked { background: var(--menu-red); }
+  .gm5-switch:checked::after { transform: translateX(20px); }
+  .gm5-switch:focus-visible, .gm5-range:focus-visible { outline: 2px solid var(--menu-red-bright); outline-offset: 2px; }
+  .gm5-range { accent-color: var(--menu-red); height: 28px; }
+  .gm5-chip-row { scrollbar-width: none; }
+  .gm5-chip-row::-webkit-scrollbar { display: none; }
+
+  /* Sorotan navigasi AYA: cincin merah di sekitar bagian yang dituju. */
+  [data-aya-spotlight="true"] {
+    position: relative;
+    border-radius: 16px;
+    box-shadow: 0 0 0 3px var(--menu-red-bright), 0 0 0 8px color-mix(in srgb, var(--menu-red) 28%, transparent), 0 0 36px color-mix(in srgb, var(--menu-red) 45%, transparent) !important;
+    scroll-margin-top: 140px;
+  }
+  /* Di atas mini-bar AYA (yang di atas navigasi bawah HP) supaya tidak bertumpuk. */
+  .gm5-aya-guidebar {
+    left: 12px;
+    right: 12px;
+    bottom: calc(10.25rem + env(safe-area-inset-bottom));
+  }
+  @media (min-width: 768px) { .gm5-aya-guidebar { left: auto; right: 16px; width: 380px; } }
+  @media (min-width: 1024px) { .gm5-aya-guidebar { bottom: 5.25rem; } }
+
+  /* Welcome overlay */
+  .gm5-welcome {
+    background:
+      radial-gradient(60% 45% at 50% 30%, color-mix(in srgb, var(--menu-red) 26%, transparent), transparent 70%),
+      radial-gradient(90% 60% at 50% 120%, color-mix(in srgb, var(--menu-red) 14%, transparent), transparent 60%),
+      #0b0a0b;
+  }
+  .gm5-welcome-title { font-size: clamp(1.6rem, 6vw, 2.75rem); line-height: 1.08; letter-spacing: 0.01em; }
+
+  /* Pilih meja (info) */
+  .gm5-table-btn {
+    display: flex;
+    min-height: 56px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-radius: 14px;
+    border: 1px solid var(--gm5-line);
+    background: linear-gradient(180deg, #211e20, #161416);
+    color: #fff;
+    cursor: pointer;
+  }
+  .gm5-table-btn:hover { border-color: color-mix(in srgb, var(--menu-red) 65%, #3a3436); }
+  .gm5-table-btn[aria-pressed="true"] {
+    border-color: #fff;
+    background: linear-gradient(180deg, var(--menu-red-bright), var(--menu-red) 60%, #a42a2a);
+    box-shadow: 0 0 0 2px #fff, 0 8px 22px color-mix(in srgb, var(--menu-red) 40%, transparent);
+  }
+  .gm5-table-btn:focus-visible { outline: 2px solid var(--menu-red-bright); outline-offset: 2px; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .gm5-aya-panel { animation: gm5-sheet-up 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  @media (min-width: 768px) { .gm5-aya-panel { animation-name: gm5-panel-in; } }
+  .gm5-aya-mini, .gm5-aya-guidebar { animation: gm5-pop 180ms ease-out both; }
+  .gm5-aya-backdrop { animation: gm5-fade 180ms ease-out both; }
+  .gm5-speak-bars i { animation: gm5-wave 520ms ease-in-out infinite alternate; }
+  .gm5-speak-bars i:nth-child(2) { animation-delay: 120ms; }
+  .gm5-speak-bars i:nth-child(3) { animation-delay: 240ms; }
+  .gm5-speak-bars i:nth-child(4) { animation-delay: 60ms; }
+  .gm5-live-dot { animation: gm5-loading 1.2s ease-in-out infinite; }
+  [data-aya-spotlight="true"] { animation: gm5-spot 1.2s ease-in-out 2; }
+  .gm5-welcome-card { animation: gm5-rise 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .gm5-table-btn { transition: transform 120ms ease-out, border-color 120ms ease-out; }
+  .gm5-table-btn:active { transform: scale(0.96); transition-duration: 80ms; transition-timing-function: ease-in; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gm5-aya-panel { transition: none; }
+}
+@keyframes gm5-sheet-up { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes gm5-panel-in { from { transform: translateY(14px) scale(0.98); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes gm5-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes gm5-spot {
+  0%, 100% { box-shadow: 0 0 0 3px var(--menu-red-bright), 0 0 0 8px color-mix(in srgb, var(--menu-red) 28%, transparent), 0 0 36px color-mix(in srgb, var(--menu-red) 45%, transparent); }
+  50% { box-shadow: 0 0 0 3px var(--menu-red-bright), 0 0 0 14px color-mix(in srgb, var(--menu-red) 12%, transparent), 0 0 48px color-mix(in srgb, var(--menu-red) 55%, transparent); }
+}

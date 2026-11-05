@@ -78,6 +78,20 @@ Status lanjutan: F5 (animasi + efek suara, `menu-feedback.ts`, `toast-v5.tsx`) d
 = jawaban berbasis aturan dari data menu, TANPA AI (D-07); panel `aya-chat-v5.tsx` dengan saran cepat, contoh pertanyaan, kartu menu,
 mic bawaan browser, suara `speakAya`) selesai. Rating ★ dan "menu terbaru" di papan 04 tidak dipasang: datanya tidak ada.
 
+Status 5 Nov 2026 (master prompt "Premium Interactive Menu & AYA 3D"):
+- Signature ≠ Unggulan: Signature = tag produk "Signature" (merah + mahkota), Unggulan = `featured` admin (emas + bintang),
+  Best Seller = data penjualan (silver). Maks. 2 badge per kartu (`cardBadges`). Chip/quick prompt hanya bila datanya ada.
+- Tanya AYA = panel non-modal (`aya-chat-v5.tsx`): HP bottom sheet, tablet panel melayang di atas bottom nav, desktop kanan
+  bawah; Tutup / Minimalkan (mini-bar) / Perbesar, Stop bicara, pengaturan suara+volume, error + Coba lagi, riwayat sesi
+  (`aya-chat-history.ts`, id menu saja), aman keyboard HP (visualViewport). Tetap tanpa AI (D-07).
+- Navigasi pintar: jawaban membawa `nav` (kategori/chip/bantuan); "tunjukkan …" = pindah otomatis + sorot
+  (`aya-nav-guide.tsx`, Batalkan → kembali & tidak otomatis lagi sesi itu).
+- AYA 3D = `aya-stage-3d.tsx` (lazy `three@0.180.0`): layer resmi V5 (`public/garage-brand/aya/v5/layers/`) berlapis + wajah
+  kanvas dari koordinat layer wajah; 10 state (`aya-presence.ts`); fallback 2D (tanpa WebGL / hemat data / ≤2 core).
+  Bukan GLB (paket V5 hanya SVG).
+- Welcome fullscreen (`welcome-v5.tsx`, sekali per sesi tab) + `FullscreenExitV5`; Pilih Meja info-saja di mode
+  `waiter_list` (`table-info-v5.tsx`, hanya GET meja aktif, tidak menahan meja).
+
 Rencana fase: F1 fondasi (token #D43A3A, font, AYA V5 di semua layar + rig jalan/lari) -> F2 layout menu
 (header, sidebar, hero, ubin, chip, kartu, panel kanan, bottom nav) -> F3 Quick View + Daftar Pilihan + mode outlet
 + Tunjukkan ke Waiter -> F4 AYA chat/voice/quick prompts -> F5 state, toast, efek suara, QA penuh.

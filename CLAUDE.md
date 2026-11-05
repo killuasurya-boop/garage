@@ -466,6 +466,9 @@ Scroll direction:
   `/order?table=NN&mode=waiter&daftar=<base64url ids/qty/notes, no prices>`; waiter's Pesankan opens prefilled, validated
   against the current menu). `/api/customer/orders` returns 403 `DIGITAL_MENU_VIEW_ONLY` in `waiter_list`; delivery is off and
   no table hold is needed in that mode. Staff orders are unaffected. Daftar Pilihan is kept in sessionStorage per outlet & table.
+- Menu V5 customer extras (5 Nov 2026): table pick in `waiter_list` = info only (`table-info-v5.tsx`, GET only, never holds/occupies);
+  Signature = product tag "Signature", Unggulan = `featured` (never the same badge); AYA 3D = lazy `three` (`aya-stage-3d.tsx`, official
+  V5 layers, 2D fallback); AYA chat stays rule-based (no AI key in frontend). Details: skill `garage-menu-v5`.
 
 ## Event Menu Rules
 

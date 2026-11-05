@@ -19,11 +19,12 @@ export function heroCtaLabel({ waiterList, orderingOpen, staff = false }: { wait
   return orderingOpen ? "Pesan Sekarang" : "Lihat Menu";
 }
 
-export type MenuChip = "all" | "signature" | "best" | "promo" | "favorite";
+export type MenuChip = "all" | "signature" | "unggulan" | "best" | "promo" | "favorite";
 
 export const CHIP_LABEL: Record<MenuChip, string> = {
   all: "Semua",
   signature: "Signature",
+  unggulan: "Unggulan",
   best: "Best Seller",
   promo: "Promo",
   favorite: "Favorit Saya",
@@ -52,23 +53,46 @@ export function variantSummary(item: MenuItem): string {
   return "";
 }
 
-export type CardBadge = "promo" | "signature" | "best" | "limited" | "event" | null;
+// Signature ≠ Unggulan (master prompt V5 §5):
+// - Signature = menu khas Garage: tag produk "Signature" (Kelola Produk → tag) atau kategori/seksi bernama Signature.
+// - Unggulan  = rekomendasi yang diatur admin: `featured` (tombol "Unggulan" di Kelola Menu Digital).
+// - Best Seller = data penjualan nyata (bestSellerIds), bukan klaim.
+const SIGNATURE = /\bsignature\b/i;
 
-/** Satu badge per kartu (foto tetap bersih). Habis memakai overlay sendiri. */
+export function isSignature(item: Pick<MenuItem, "tags" | "category" | "section">) {
+  return item.tags.some((tag) => SIGNATURE.test(tag)) || SIGNATURE.test(item.category) || SIGNATURE.test(item.section ?? "");
+}
+
+export function isUnggulan(item: Pick<MenuItem, "featured">) {
+  return Boolean(item.featured);
+}
+
+export type CardBadge = "promo" | "signature" | "unggulan" | "best" | "limited" | "event" | null;
+export type CardBadgeKind = Exclude<CardBadge, null>;
+
+/** Maks. dua badge per kartu (foto tetap bersih). Habis memakai overlay sendiri. */
+export function cardBadges(item: MenuItem, popular: boolean): CardBadgeKind[] {
+  if (item.stock === "sold_out") return [];
+  const list: CardBadgeKind[] = [];
+  if (item.tags.includes("Menu Event")) list.push("event");
+  if (itemHasPromo(item)) list.push("promo");
+  if (isSignature(item)) list.push("signature");
+  if (isUnggulan(item)) list.push("unggulan");
+  if (popular) list.push("best");
+  if (item.stock === "limited") list.push("limited");
+  return list.slice(0, 2);
+}
+
+/** Badge utama (yang paling penting) — dipakai kartu ringkas. */
 export function cardBadge(item: MenuItem, popular: boolean): CardBadge {
-  if (item.stock === "sold_out") return null;
-  if (item.tags.includes("Menu Event")) return "event";
-  if (itemHasPromo(item)) return "promo";
-  if (item.featured) return "signature";
-  if (popular) return "best";
-  if (item.stock === "limited") return "limited";
-  return null;
+  return cardBadges(item, popular)[0] ?? null;
 }
 
 /** Filter chip: hanya chip yang punya data yang ditampilkan (tanpa chip kosong / fitur palsu). */
 export function availableChips(items: MenuItem[], bestSellerIds: ReadonlySet<string>, favoriteIds: readonly string[]): MenuChip[] {
   const chips: MenuChip[] = ["all"];
-  if (items.some((item) => item.featured)) chips.push("signature");
+  if (items.some(isSignature)) chips.push("signature");
+  if (items.some(isUnggulan)) chips.push("unggulan");
   if (items.some((item) => bestSellerIds.has(item.id))) chips.push("best");
   if (items.some(itemHasPromo)) chips.push("promo");
   if (favoriteIds.length) chips.push("favorite");
@@ -83,7 +107,9 @@ export function filterByChip(
 ): MenuItem[] {
   switch (chip) {
     case "signature":
-      return items.filter((item) => item.featured);
+      return items.filter(isSignature);
+    case "unggulan":
+      return items.filter(isUnggulan);
     case "best":
       return items.filter((item) => bestSellerIds.has(item.id));
     case "promo":

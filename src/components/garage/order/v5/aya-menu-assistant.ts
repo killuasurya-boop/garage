@@ -8,7 +8,11 @@
 // =============================================================================
 import { menuGroupForCategory, type MenuItem } from "@/lib/garage-api-types";
 
+import { GARAGE_LOCATION } from "@/lib/garage-location";
+import { GARAGE_SOCIALS } from "@/lib/garage-socials";
+
 import { itemHasPromo } from "../order-ui";
+import { isSignature, isUnggulan } from "./menu-v5-model";
 
 export type AyaIntent =
   | "recommend"
@@ -25,34 +29,65 @@ export type AyaIntent =
   | "nonCoffee"
   | "howTo"
   | "staff"
+  | "signature"
+  | "unggulan"
+  | "location"
+  | "social"
+  | "table"
   | "greeting";
 
 export type AyaAction = "guide" | "staff";
+
+/** Target navigasi halaman (Smart Page Navigation, master prompt §8). */
+export type AyaNav =
+  | { kind: "category"; category: string; label: string }
+  | { kind: "chip"; chip: "signature" | "unggulan" | "best" | "promo"; label: string }
+  | { kind: "help"; label: string };
+
+export type AyaLink = { label: string; href: string };
 
 export type AyaAnswer = {
   intents: AyaIntent[];
   text: string;
   items: MenuItem[];
   action?: AyaAction;
+  /** Navigasi yang ditawarkan (tombol) — `autoNav` = pelanggan memintanya langsung ("tunjukkan …"). */
+  nav?: AyaNav;
+  autoNav?: boolean;
+  /** Tautan resmi (lokasi, media sosial) — dari garage-location / garage-socials, tidak pernah karangan. */
+  links?: AyaLink[];
   /** true = tidak ada menu yang cocok (jawaban berisi saran lain). */
   empty?: boolean;
 };
 
-export type AyaContext = { items: readonly MenuItem[]; bestSellerIds?: readonly string[] };
+export type AyaContext = {
+  items: readonly MenuItem[];
+  bestSellerIds?: readonly string[];
+  /** Mode menu outlet: "waiter_list" = pesanan dicatat waiter; "self_order" = pesan sendiri. */
+  mode?: "waiter_list" | "self_order";
+  /** Meja yang sedang dilihat pelanggan (info saja), mis. "Meja 07". */
+  tableLabel?: string | null;
+};
 
-export type AyaPromptIcon = "cup" | "snow" | "bean" | "heart" | "star" | "tag" | "utensils";
+export type AyaPromptIcon = "cup" | "snow" | "bean" | "heart" | "star" | "tag" | "utensils" | "crown" | "help" | "table" | "pin" | "camera";
 export type AyaPrompt = { id: string; label: string; query: string; icon: AyaPromptIcon };
 
-/** Chip "Coba tanyakan" (papan 04 §4). Promo hanya muncul bila ada menu promo. */
+/**
+ * Chip "Coba tanyakan" (papan 04 §4 + master prompt §2). Chip yang butuh data (Coffee, Signature, Unggulan, Promo)
+ * hanya muncul bila datanya ada — tidak ada tombol ke hal yang kosong.
+ */
 export function ayaQuickPrompts(ctx: AyaContext): AyaPrompt[] {
-  const prompts: AyaPrompt[] = [
-    { id: "rekomendasi", label: "Rekomendasi menu", query: "Rekomendasi menu favorit", icon: "cup" },
-    { id: "dingin", label: "Menu dingin", query: "Menu minuman dingin yang segar", icon: "snow" },
-    { id: "makan", label: "Makan kenyang", query: "Makanan yang bikin kenyang", icon: "utensils" },
-  ];
-  if (ctx.items.some((item) => available(item) && itemHasPromo(item))) {
-    prompts.push({ id: "promo", label: "Promo", query: "Ada promo apa hari ini?", icon: "tag" });
-  }
+  const pool = ctx.items.filter(available);
+  const prompts: AyaPrompt[] = [];
+  if (pool.some((item) => item.category === "Coffee")) prompts.push({ id: "lihat-kopi", label: "Lihat Menu Coffee", query: "Tunjukkan menu kopi", icon: "bean" });
+  prompts.push({ id: "rekomendasi", label: "Rekomendasi Minuman", query: "Rekomendasi minuman favorit", icon: "cup" });
+  if (pool.some(isSignature)) prompts.push({ id: "signature", label: "Menu Signature", query: "Mana menu signature?", icon: "crown" });
+  if (pool.some(isUnggulan)) prompts.push({ id: "unggulan", label: "Menu Unggulan", query: "Tunjukkan menu unggulan", icon: "star" });
+  if (pool.some(itemHasPromo)) prompts.push({ id: "promo", label: "Promo", query: "Ada promo apa hari ini?", icon: "tag" });
+  prompts.push({ id: "cara-pesan", label: "Bagaimana Cara Memesan?", query: "Bagaimana cara pesan?", icon: "help" });
+  prompts.push({ id: "meja", label: "Informasi Meja", query: "Informasi meja saya", icon: "table" });
+  prompts.push({ id: "lokasi", label: "Lokasi Garage Coffee", query: "Di mana lokasi Garage Coffee?", icon: "pin" });
+  prompts.push({ id: "instagram", label: "Instagram Garage Coffee", query: "Instagram Garage Coffee apa?", icon: "camera" });
   return prompts;
 }
 
@@ -82,8 +117,13 @@ export function normalizeAyaText(text: string) {
 }
 
 const INTENT_PATTERNS: Array<[AyaIntent, RegExp]> = [
-  ["staff", /\b(waiter|pelayan|kasir|staf|staff|panggil|bantuan orang)\b/],
   ["howTo", /\b(cara (pesan|order|bayar|memesan)|gimana (pesan|order|cara)|bagaimana (pesan|cara|memesan)|pesannya gimana)\b/],
+  ["staff", /\b(panggil (waiter|pelayan|staf|staff|kasir)|bantuan orang|minta bantuan|butuh bantuan)\b/],
+  ["location", /\b(lokasi|alamat|di ?mana (garage|tempat|kafe|cafe|lokasinya)|maps|google map|rute|arah ke)\b/],
+  ["social", /\b(instagram|insta|ig|tiktok|sosmed|sosial media|media sosial|facebook|fb|youtube)\b/],
+  ["table", /\b(meja|table)\b/],
+  ["signature", /\b(signature|khas|ciri khas)\b/],
+  ["unggulan", /\b(unggulan|andalan)\b/],
   ["nonCoffee", /\b(non[ -]?kopi|non[ -]?coffee|bukan kopi|tanpa kopi|teh|tea|matcha|coklat|cokelat|chocolate)\b/],
   ["cold", /\b(dingin|es|segar|seger|ice|iced|cold|adem)\b/],
   ["hot", /\b(panas|hangat|anget|hot)\b/],
@@ -109,6 +149,15 @@ export function detectAyaIntents(query: string): AyaIntent[] {
   return intents.includes("nonCoffee") ? intents.filter((intent) => intent !== "coffee") : intents;
 }
 
+/** "tunjukkan / lihat / buka / mana …" = pelanggan minta dibawa ke bagian itu. */
+const SHOW_VERB = /\b(tunjuk\w*|lihat\w*|buka\w*|mana|tampil\w*|antar\w*|ke bagian)\b/;
+const CATEGORY_NAV: Array<[AyaIntent, string, string]> = [
+  ["coffee", "Coffee", "menu Coffee"],
+  ["nonCoffee", "Non-Coffee", "menu Non-Coffee"],
+  ["food", "Makanan", "menu Makanan"],
+  ["snack", "Cemilan", "menu Cemilan"],
+];
+
 function available(item: MenuItem) {
   return item.stock !== "sold_out" && item.showInDigitalMenu !== false && item.status !== "archived";
 }
@@ -127,6 +176,8 @@ const FEATURE: Partial<Record<AyaIntent, (item: MenuItem, text: string) => boole
   food: (item) => item.category === "Makanan",
   snack: (item) => item.category === "Cemilan",
   promo: (item) => itemHasPromo(item),
+  signature: (item) => isSignature(item),
+  unggulan: (item) => isUnggulan(item),
   coffee: (item) => item.category === "Coffee",
   nonCoffee: (item) => item.category === "Non-Coffee",
 };
@@ -184,6 +235,15 @@ export function answerAya(query: string, ctx: AyaContext): AyaAnswer {
     return { intents, text: "Halo juga! Mau AYA bantu cari menu? Coba ketik misalnya “kopi creamy dingin” atau pilih saran di bawah.", items: [] };
   }
   if (intents.includes("howTo")) {
+    if (ctx.mode === "waiter_list") {
+      return {
+        intents,
+        text: "Pesanan di Garage dicatat oleh waiter yang bertugas. Pilih menu dengan tombol +, lalu buka Daftar Pilihan dan ketuk “Tunjukkan ke Waiter”. Butuh waiter sekarang? Ketuk tombol di bawah.",
+        items: [],
+        action: "staff",
+        nav: { kind: "help", label: "Panggil waiter" },
+      };
+    }
     return {
       intents,
       text: "Gampang! Ketuk + pada menu untuk memasukkannya ke Daftar Pilihan, atur jumlah dan catatan, lalu buka Daftar Pilihan untuk lanjut. Mau AYA tunjukkan langkahnya satu per satu?",
@@ -193,6 +253,41 @@ export function answerAya(query: string, ctx: AyaContext): AyaAnswer {
   }
   if (intents.includes("staff")) {
     return { intents, text: "Siap, kamu bisa langsung minta bantuan staf Garage lewat tombol di bawah.", items: [], action: "staff" };
+  }
+  if (intents.includes("location")) {
+    return {
+      intents,
+      text: `Garage Coffee ada di ${GARAGE_LOCATION.address}. Ketuk tombol di bawah untuk membuka rute di Google Maps.`,
+      items: [],
+      links: [{ label: "Buka rute di Google Maps", href: GARAGE_LOCATION.directionsUrl }],
+    };
+  }
+  if (intents.includes("social")) {
+    const ig = GARAGE_SOCIALS.find((social) => social.id === "instagram");
+    const wantsIgOnly = /\b(instagram|insta|ig)\b/.test(normalizeAyaText(query));
+    const list = wantsIgOnly && ig ? [ig] : GARAGE_SOCIALS;
+    return {
+      intents,
+      text: wantsIgOnly && ig
+        ? `Instagram resmi Garage Coffee: ${ig.handle}. Ikuti untuk info promo dan menu terbaru, ya!`
+        : `Akun resmi Garage Coffee: ${GARAGE_SOCIALS.map((social) => `${social.label} ${social.handle}`).join(", ")}.`,
+      items: [],
+      links: list.map((social) => ({ label: `${social.label} ${social.handle}`, href: social.href })),
+    };
+  }
+  if (intents.includes("table") && !intents.some((intent) => FEATURE[intent])) {
+    const table = ctx.tableLabel?.trim();
+    const known = table && /\d/.test(table);
+    const order = ctx.mode === "waiter_list"
+      ? "Nomor meja ini hanya penanda supaya waiter tahu kamu duduk di mana — memilihnya tidak membuat pesanan."
+      : "Nomor meja dipakai supaya pesananmu diantar ke tempat yang benar.";
+    return {
+      intents,
+      text: known
+        ? `Kamu sedang melihat menu untuk ${table}. ${order} Salah meja? Ketuk nomor meja di bagian atas untuk mengubahnya.`
+        : `Nomor mejamu belum tercatat. Ketuk “Meja” di bagian atas atau pindai QR di meja. ${order}`,
+      items: [],
+    };
   }
 
   const filters = intents.filter((intent) => FEATURE[intent]);
@@ -222,6 +317,7 @@ export function answerAya(query: string, ctx: AyaContext): AyaAnswer {
       const rank = best.get(item.id);
       if (rank !== undefined) score += 2 + Math.max(0, 1 - rank / 20);
       if (item.featured) score += 1;
+      if (isSignature(item)) score += 1;
       if (itemHasPromo(item)) score += 0.5;
       return { item, score, hits };
     })
@@ -230,10 +326,21 @@ export function answerAya(query: string, ctx: AyaContext): AyaAnswer {
     .sort((a, b) => b.score - a.score || a.item.name.localeCompare(b.item.name, "id"));
 
   const items = scored.slice(0, MAX_RESULTS).map((entry) => entry.item);
+  const wantsShow = SHOW_VERB.test(normalizeAyaText(query));
+  const nav = navFor(intents);
   const onlyRecommend = intents.length > 0 && intents.every((intent) => intent === "recommend");
 
   if (!items.length) {
     const fallback = recommendations(pool, best);
+    if (intents.includes("signature") || intents.includes("unggulan")) {
+      const which = intents.includes("signature") ? "Signature" : "Unggulan";
+      return {
+        intents,
+        text: `Saat ini belum ada menu yang ditandai ${which} oleh tim Garage. Ini menu favorit yang bisa kamu coba:`,
+        items: fallback,
+        empty: true,
+      };
+    }
     const what = filters.length ? describe(filters) : `“${query.trim().slice(0, 40)}”`;
     return {
       intents,
@@ -252,17 +359,34 @@ export function answerAya(query: string, ctx: AyaContext): AyaAnswer {
 
   const anyBest = items.some((item) => best.has(item.id));
   const label = filters.length ? describe(filters) : "menu yang cocok";
-  const lead = intents.includes("work")
-    ? "Biar tetap melek dan fokus, coba kopi ini:"
-    : intents.includes("promo")
-      ? "Ini menu yang sedang promo:"
-      : `Siap! Ini ${label}${anyBest ? " pilihan favorit" : ""} dari Garage Coffee:`;
-  return { intents, text: lead, items };
+  const lead = intents.includes("signature")
+    ? "Ini menu Signature — racikan khas Garage Coffee:"
+    : intents.includes("unggulan")
+      ? "Ini menu Unggulan yang direkomendasikan tim Garage:"
+      : intents.includes("work")
+        ? "Biar tetap melek dan fokus, coba kopi ini:"
+        : intents.includes("promo")
+          ? "Ini menu yang sedang promo:"
+          : `Siap! Ini ${label}${anyBest ? " pilihan favorit" : ""} dari Garage Coffee:`;
+  const navText = nav && wantsShow ? ` AYA bawa kamu ke ${nav.label}, ya.` : "";
+  return { intents, text: lead.replace(/:$/, navText ? `.${navText} Beberapa pilihannya:` : ":"), items, nav, autoNav: Boolean(nav && wantsShow) };
 }
 
-/** Rekomendasi umum: unggulan admin → terlaris → promo → urutan menu. */
+/** Bagian halaman yang cocok dengan maksud: satu kategori, atau filter Signature/Unggulan/Promo. */
+function navFor(intents: AyaIntent[]): AyaNav | undefined {
+  if (intents.includes("signature")) return { kind: "chip", chip: "signature", label: "menu Signature" };
+  if (intents.includes("unggulan")) return { kind: "chip", chip: "unggulan", label: "menu Unggulan" };
+  // Ciri rasa (dingin, manis …) = lintas kategori → jangan pindah halaman, cukup kartu hasil.
+  if (intents.some((intent) => ["cold", "hot", "bold", "sweet", "creamy", "work"].includes(intent))) return undefined;
+  const cats = CATEGORY_NAV.filter(([intent]) => intents.includes(intent));
+  if (cats.length === 1) return { kind: "category", category: cats[0][1], label: cats[0][2] };
+  if (intents.includes("promo")) return { kind: "chip", chip: "promo", label: "menu Promo" };
+  return undefined;
+}
+
+/** Rekomendasi umum: Signature → Unggulan admin → terlaris → promo → urutan menu. */
 export function recommendations(pool: readonly MenuItem[], best: ReadonlyMap<string, number>) {
-  const featured = pool.filter((item) => item.featured);
+  const featured = [...pool.filter(isSignature), ...pool.filter((item) => item.featured)];
   const bestSellers = pool.filter((item) => best.has(item.id)).sort((a, b) => best.get(a.id)! - best.get(b.id)!);
   const promo = pool.filter(itemHasPromo);
   const seen = new Set<string>();

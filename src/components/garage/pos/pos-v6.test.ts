@@ -101,3 +101,29 @@ describe("POS V6 — preferensi Theme Studio", () => {
     expect(loadCashierPosSettings()).toMatchObject({ textSize: "normal", productView: "visual", showPhotos: true, sidebarMode: "full", reducedMotion: false });
   });
 });
+
+import { contrastRatio, customThemeIssues, onColor, sanitizeThemeCustom, themeCustomCss } from "./pos-v6-theme-custom";
+
+describe("POS V6 — warna lanjutan Owner/Manajer", () => {
+  it("hanya hex & radius 8–20 yang diterima", () => {
+    expect(sanitizeThemeCustom({ primary: "#B5121B", surface: "red", radius: 99, background: "#fff" })).toEqual({ primary: "#b5121b", radius: 20 });
+    expect(sanitizeThemeCustom(null)).toEqual({});
+  });
+
+  it("kontras kurang = ditolak, aman = diterima", () => {
+    expect(customThemeIssues({ primary: "#b5121b", surface: "#ffffff", background: "#f8f6f4" })).toEqual([]);
+    expect(customThemeIssues({ surface: "#333333" }).length).toBeGreaterThan(0);
+    expect(customThemeIssues({ primary: "#ffe0e0", surface: "#ffffff" }).length).toBeGreaterThan(0);
+  });
+
+  it("teks tombol otomatis putih/gelap sesuai warna utama; CSS hanya untuk tema terang", () => {
+    expect(onColor("#b5121b")).toBe("#ffffff");
+    expect(onColor("#f5c451")).toBe("#1a1a1a");
+    expect(contrastRatio("#ffffff", "#000000")).toBeCloseTo(21, 0);
+    const css = themeCustomCss({ primary: "#1f5fd1", radius: 10 });
+    expect(css).toContain("--pos-accent:#1f5fd1 !important");
+    expect(css).toContain("--pos-radius:10px");
+    expect(css).toContain(':not([data-cashier-theme="garage-default"])');
+    expect(themeCustomCss({})).toBe("");
+  });
+});

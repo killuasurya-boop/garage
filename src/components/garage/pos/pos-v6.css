@@ -1025,3 +1025,152 @@
   :is(.garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) :is(.cashier-pos-surface, [data-slot="dialog-content"], [data-slot="sheet-content"]), [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]))
     button:not([disabled]):is([class*="bg-[#d11a2a]/12"], [class*="bg-[#d11a2a]/14"], [class*="bg-[#d11a2a]/18"], [class*="bg-[#d11a2a]/20"], [class*="bg-[#d11a2a]/22"])[class*="bg-[#d11a2a]/"][class*="bg-[#d11a2a]/"] * { color: inherit !important; }
 }
+
+/* ------------------------------------------------------------------ Order QR (papan 06) */
+@layer components {
+  :is(.cashier-pos-surface, [data-cashier-theme-scope]) .pos-v6-order.pos-v6-order {
+    border-radius: 14px !important;
+    border-color: var(--pos-border, #34343c) !important;
+    background: var(--pos-surface, #15151b) !important;
+    box-shadow: 0 1px 2px rgba(20, 10, 10, 0.05), 0 6px 16px rgba(20, 10, 10, 0.05) !important;
+    border-left: 4px solid var(--pos-warning, #f5a742) !important;
+  }
+  :is(.cashier-pos-surface, [data-cashier-theme-scope]) .pos-v6-order[data-status="paid"] { border-left-color: var(--pos-success, #22c55e) !important; }
+  :is(.cashier-pos-surface, [data-cashier-theme-scope]) .pos-v6-order :is(.pos-v6-order-table).pos-v6-order-table {
+    border-radius: 12px !important;
+    border-color: var(--pos-accent, #d11a2a) !important;
+    background: var(--pos-accent, #d11a2a) !important;
+    color: var(--pos-accent-fg, #fff) !important;
+  }
+  :is(.cashier-pos-surface, [data-cashier-theme-scope]) .pos-v6-order .pos-v6-order-total.pos-v6-order-total { color: var(--pos-price, #fff) !important; font-size: 20px; }
+  :is(.cashier-pos-surface, [data-cashier-theme-scope]) .pos-v6-order .pos-v6-order-actions :is(button) { min-height: 44px; font-size: 13px; font-weight: 700; border-radius: 10px; }
+}
+@layer components {
+  /* Radius kustom (Theme Studio lanjutan); default = nilai design system. */
+  .garage-shell .cashier-pos-surface .pos-v6-card { border-radius: var(--pos-radius, 14px); }
+  .garage-shell .cashier-pos-surface .pos-v6-cat { border-radius: calc(var(--pos-radius, 14px) - 2px); }
+  .garage-shell .cashier-pos-surface .pos-v6-bill.pos-v6-bill.pos-v6-bill { border-radius: calc(var(--pos-radius, 14px) + 2px) !important; }
+}
+@layer components {
+  .pos-v6-color-field {
+    display: flex;
+    min-height: 52px;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 10px;
+    border-radius: 10px;
+    border: 1px solid var(--pos-border);
+    background: var(--pos-surface-muted);
+    color: var(--pos-text);
+    cursor: pointer;
+  }
+  .pos-v6-color-field input[type="color"] { width: 40px; height: 40px; border: 0; border-radius: 8px; background: none; cursor: pointer; }
+  .pos-v6-custom-preview { border: 1px solid var(--pos-border); }
+  .pos-v6-custom-issues { color: #a3121a; }
+  .pos-v6-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+}
+
+/* ------------------------------------------------------------------ Penjualan Langsung (Quick Retail) V6 */
+@layer components {
+  [data-slot="dialog-content"].pos-v6-qr.pos-v6-qr {
+    background: var(--pos-bg, #111116) !important;
+    border-color: var(--pos-border, #34343c) !important;
+    color: var(--pos-text, #f4f4f5) !important;
+    border-radius: 18px;
+  }
+  .pos-v6-qr.pos-v6-qr .pos-v6-qr-search {
+    min-height: 52px;
+    border-color: var(--pos-border, #4a4a54) !important;
+    background: var(--pos-surface, rgba(255, 255, 255, 0.06)) !important;
+    color: var(--pos-accent, #f5a742);
+  }
+  .pos-v6-qr.pos-v6-qr .pos-v6-qr-search:focus-within { border-color: var(--pos-accent, #d11a2a) !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--pos-accent, #d11a2a) 18%, transparent); }
+  .pos-v6-qr.pos-v6-qr .pos-v6-qr-search input { color: var(--pos-text, #fff) !important; }
+  .pos-v6-qr.pos-v6-qr .pos-v6-qr-tab.pos-v6-qr-tab {
+    border-color: var(--pos-border, #4a4a54) !important;
+    background: var(--pos-surface, rgba(255, 255, 255, 0.05)) !important;
+    color: var(--pos-text, #d0d0d6) !important;
+  }
+  .pos-v6-qr.pos-v6-qr .pos-v6-qr-tab.pos-v6-qr-tab[data-active="true"] {
+    border-color: var(--pos-accent, #d11a2a) !important;
+    background: var(--pos-accent, #d11a2a) !important;
+    color: var(--pos-accent-fg, #fff) !important;
+  }
+  .pos-v6-qr.pos-v6-qr .pos-v6-qr-tab[data-active="true"] svg { color: currentColor !important; }
+  .pos-v6-qr.pos-v6-qr .pos-v6-qr-card.pos-v6-qr-card {
+    border-color: var(--pos-border, #4a4a54) !important;
+    background: var(--pos-surface, rgba(255, 255, 255, 0.05)) !important;
+    box-shadow: 0 1px 2px rgba(20, 10, 10, 0.05), 0 6px 16px rgba(20, 10, 10, 0.05);
+    border-radius: var(--pos-radius, 14px) !important;
+  }
+  .pos-v6-qr .pos-v6-qr-card[data-sold-out="true"] { opacity: 0.55; }
+  .pos-v6-qr.pos-v6-qr .pos-v6-qr-photo.pos-v6-qr-photo { background: var(--pos-surface-muted, #17171c) !important; color: var(--pos-muted, #6b6b75); }
+  .pos-v6-qr.pos-v6-qr :is(.pos-v6-qr-name) { color: var(--pos-text, #fff) !important; }
+  .pos-v6-qr.pos-v6-qr :is(.pos-v6-qr-price) { color: var(--pos-price, #ffd08a) !important; }
+  .pos-v6-qr.pos-v6-qr .pos-v6-qr-add.pos-v6-qr-add {
+    border: 1px solid var(--pos-border, #4a4a54) !important;
+    background: var(--pos-surface-muted, #17171c) !important;
+    overflow: hidden;
+  }
+  .pos-v6-qr.pos-v6-qr .pos-v6-qr-plus { background: var(--pos-accent, #d11a2a); color: var(--pos-accent-fg, #fff); }
+  .pos-v6-qr.pos-v6-qr .pos-v6-qr-add:hover:not(:disabled) .pos-v6-qr-plus { background: var(--pos-accent-hover, #ff2a3a); }
+  .pos-v6-qr.pos-v6-qr .pos-v6-qr-variant.pos-v6-qr-variant {
+    border-color: var(--pos-border, #4a4a54) !important;
+    background: var(--pos-surface-muted, #17171c) !important;
+    color: var(--pos-text, #e4e4ea) !important;
+  }
+  .pos-v6-qr.pos-v6-qr .pos-v6-qr-cart.pos-v6-qr-cart {
+    border-color: var(--pos-border, #34343c) !important;
+    background: var(--pos-surface, rgba(255, 255, 255, 0.04)) !important;
+    color: var(--pos-text, #f4f4f5) !important;
+  }
+  .pos-v6-qr .pos-v6-qr-carthead { color: var(--pos-text, #fff); }
+  .pos-v6-qr .pos-v6-qr-line { background: var(--pos-surface-muted, rgba(255, 255, 255, 0.03)); }
+  .pos-v6-qr.pos-v6-qr .pos-v6-qr-step.pos-v6-qr-step {
+    border-color: var(--pos-border, #4a4a54) !important;
+    background: var(--pos-surface, transparent) !important;
+    color: var(--pos-accent, #e4e4ea) !important;
+  }
+  .pos-v6-qr.pos-v6-qr .pos-v6-qr-sum { border-color: var(--pos-border, #34343c) !important; color: var(--pos-text-2, #d0d0d6); }
+  .pos-v6-qr.pos-v6-qr .pos-v6-qr-total { background: var(--pos-total-bg, rgba(209, 26, 42, 0.14)); color: var(--pos-text, #fff); }
+  .pos-v6-qr.pos-v6-qr .pos-v6-qr-total dd { color: var(--pos-total-fg, var(--pos-accent, #ffd08a)) !important; }
+  .pos-v6-qr.pos-v6-qr .pos-v6-qr-pay.pos-v6-qr-pay {
+    background: linear-gradient(180deg, color-mix(in srgb, var(--pos-accent, #d11a2a) 88%, #fff), var(--pos-accent, #d11a2a)) !important;
+    color: var(--pos-accent-fg, #fff) !important;
+    box-shadow: 0 8px 20px color-mix(in srgb, var(--pos-accent, #d11a2a) 30%, transparent) !important;
+  }
+  .pos-v6-qr.pos-v6-qr .pos-v6-qr-pay:disabled { opacity: 0.55; box-shadow: none !important; }
+  .pos-v6-qr.pos-v6-qr .pos-v6-qr-sticky { background: var(--pos-surface, #111116) !important; border-color: var(--pos-border, #34343c) !important; }
+  .pos-v6-qr.pos-v6-qr .pos-v6-cash.pos-v6-cash { border: 1px solid var(--pos-border, #34343c); background: var(--pos-surface, #15151b) !important; }
+  .pos-v6-qr.pos-v6-qr .pos-v6-cash .pos-v6-cash-label { color: var(--pos-text, #fff) !important; }
+  .pos-v6-qr.pos-v6-qr .pos-v6-cash-input.pos-v6-cash-input {
+    border: 1.5px solid var(--pos-border, #4a4a54) !important;
+    border-radius: 12px !important;
+    background: var(--pos-surface, rgba(255, 255, 255, 0.06)) !important;
+    color: var(--pos-text, #fff) !important;
+  }
+  .pos-v6-qr.pos-v6-qr .pos-v6-quickcash.pos-v6-quickcash {
+    border-color: var(--pos-border, #4a4a54) !important;
+    background: var(--pos-surface-muted, rgba(255, 255, 255, 0.05)) !important;
+    color: var(--pos-text, #e4e4ea) !important;
+  }
+  .pos-v6-qr.pos-v6-qr .pos-v6-quickcash.pos-v6-quickcash[data-selected="true"] {
+    border-color: var(--pos-accent, #d11a2a) !important;
+    background: var(--pos-accent-soft, rgba(209, 26, 42, 0.18)) !important;
+    color: var(--pos-accent, #ffb4bd) !important;
+  }
+  /* Tombol pembuka di toolbar katalog */
+  .garage-shell .cashier-pos-surface .pos-v6-qr-open.pos-v6-qr-open {
+    min-height: 44px;
+    border-radius: 12px !important;
+    border-color: var(--pos-border, #f5a742) !important;
+    background: var(--pos-surface, rgba(245, 167, 66, 0.1)) !important;
+    color: var(--pos-text, #ffd79a) !important;
+    font-size: 13px;
+  }
+  .garage-shell .cashier-pos-surface .pos-v6-qr-open svg { color: var(--pos-accent, #f5a742) !important; }
+}
+@layer components {
+  .pos-v6-qr.pos-v6-qr .pos-v6-qr-search input.pos-v6-qr-search-input,
+  .pos-v6-qr.pos-v6-qr .pos-v6-qr-search input[aria-label="Scan barcode atau cari produk"] { background: transparent !important; border: 0 !important; box-shadow: none !important; }
+}

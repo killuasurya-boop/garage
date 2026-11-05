@@ -19,7 +19,7 @@ import {
   type PosV6CardBadge,
 } from "@/components/garage/pos/pos-v6";
 import { isSignature, isUnggulan } from "@/components/garage/order/v5/menu-v5-model";
-import { PosV6ThemeStudio } from "@/components/garage/pos/pos-v6-theme-studio";
+import { PosV6ThemeCustomStyle, PosV6ThemeStudio } from "@/components/garage/pos/pos-v6-theme-studio";
 import {
 AlertTriangle,
 Archive,
@@ -4657,7 +4657,9 @@ export function PosView({
         </aside>
       ) : null}
 
+      <PosV6ThemeCustomStyle />
       <PosV6ThemeStudio
+        canCustomize={canManagePosSettings}
         open={themeStudioOpen}
         onOpenChange={setThemeStudioOpen}
         theme={cashierTheme}
@@ -6347,10 +6349,11 @@ export function PosView({
                 return (
                   <article
                     key={order.id}
-                    className="rounded-md border border-[#34343c] bg-[#15151b]/84 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+                    className="pos-v6-order rounded-md border border-[#34343c] bg-[#15151b]/84 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+                    data-status={order.status}
                   >
                     <div className="grid grid-cols-[48px_minmax(0,1fr)] gap-3 sm:grid-cols-[48px_minmax(0,1fr)_auto] sm:items-center">
-                      <span className="garage-mono flex size-12 shrink-0 items-center justify-center rounded-md border border-[#d11a2a]/55 bg-[#d11a2a]/18 text-lg font-black text-white">
+                      <span className="pos-v6-order-table garage-mono flex size-12 shrink-0 items-center justify-center rounded-md border border-[#d11a2a]/55 bg-[#d11a2a]/18 text-lg font-black text-white">
                         {compactTableNumber(order.tableLabel)}
                       </span>
                       <div className="min-w-0">
@@ -6390,7 +6393,7 @@ export function PosView({
                           </Badge>
                         </div>
                       </div>
-                      <p className="col-span-2 text-left text-lg font-black text-white sm:col-span-1 sm:text-right">
+                      <p className="pos-v6-order-total col-span-2 text-left font-mono text-lg font-black tabular-nums text-white sm:col-span-1 sm:text-right">
                         {currency.format(order.total)}
                       </p>
                     </div>
@@ -6434,7 +6437,7 @@ export function PosView({
                         Bukti transfer ✓ · Lihat
                       </a>
                     ) : null}
-                    <div className="mt-3 flex flex-wrap gap-2">
+                    <div className="pos-v6-order-actions mt-3 flex flex-wrap gap-2">
                       <Button
                         type="button"
                         size="sm"
@@ -7933,6 +7936,7 @@ export function PosView({
                   qrisImageReady={qrisImageReady}
                   makeKey={makeIdempotencyKey}
                   onCompleted={handleQuickRetailCompleted}
+                  theme={isCashierKiosk ? cashierTheme : undefined}
                   renderComplete={(receipt, startNew, close) => (
                     <PaymentCompletePanel
                       receipt={receipt}

@@ -50,7 +50,10 @@ export function PosQuickRetail({
   makeKey,
   onCompleted,
   renderComplete,
+  theme,
 }: {
+  /** Tema kasir aktif (POS V6) — dialog ikut tema. */
+  theme?: string;
   shiftOpen: boolean;
   menuItems: MenuItem[];
   settings: AppSettings;
@@ -228,7 +231,7 @@ export function PosQuickRetail({
         variant="outline"
         disabled={!shiftOpen}
         onClick={() => setOpen(true)}
-        className="garage-press h-9 gap-1.5 border-[#f5a742]/55 bg-[#f5a742]/10 px-3 text-xs font-bold text-[#ffd79a] hover:bg-[#f5a742]/20"
+        className="pos-v6-qr-open garage-press h-9 gap-1.5 border-[#f5a742]/55 bg-[#f5a742]/10 px-3 text-xs font-bold text-[#ffd79a] hover:bg-[#f5a742]/20"
         data-testid="quick-retail-open"
       >
         <ShoppingBag className="size-4" />
@@ -242,7 +245,10 @@ export function PosQuickRetail({
           if (!next && receipt) resetSale();
         }}
       >
-        <DialogContent className="garage-scroll max-h-[94svh] overflow-y-auto border-[#34343c] bg-[#111116] max-w-[calc(100%-1.5rem)] sm:max-w-4xl">
+        <DialogContent
+          data-cashier-theme-scope={theme}
+          className="pos-v6-qr garage-scroll max-h-[94svh] overflow-y-auto border-[#34343c] bg-[#111116] max-w-[calc(100%-1.5rem)] sm:max-w-5xl"
+        >
           <DialogHeader className="text-left">
             <DialogTitle className="flex items-center gap-2">
               <ShoppingBag className="size-5 text-[#f5a742]" />
@@ -266,7 +272,7 @@ export function PosQuickRetail({
                     event.preventDefault();
                     submitSearch();
                   }}
-                  className="flex items-center gap-2 rounded-md border border-[#4a4a54] bg-white/[0.06] px-3"
+                  className="pos-v6-qr-search flex items-center gap-2 rounded-xl border px-3"
                 >
                   <ScanLine className="size-4 shrink-0 text-[#f5a742]" />
                   <Input
@@ -296,11 +302,8 @@ export function PosQuickRetail({
                             role="tab"
                             aria-selected={activeTab === name}
                             onClick={() => setTab(name)}
-                            className={`garage-press flex h-10 shrink-0 items-center gap-1.5 rounded-full border px-4 text-sm font-semibold ${
-                              activeTab === name
-                                ? "border-[#f5a742] bg-[#f5a742]/20 text-white"
-                                : "border-[#4a4a54] bg-white/[0.05] text-[#d0d0d6]"
-                            }`}
+                            data-active={activeTab === name}
+                            className="pos-v6-qr-tab garage-press flex h-11 shrink-0 items-center gap-1.5 rounded-xl border px-4 text-sm font-semibold"
                           >
                             {name === QUICK_RETAIL_FAVORITE_TAB ? <Star className="size-3.5 text-[#f5a742]" /> : null}
                             {name}
@@ -315,16 +318,15 @@ export function PosQuickRetail({
                         return (
                           <li
                             key={item.id}
-                            className={`flex min-w-0 flex-col overflow-hidden rounded-lg border bg-white/[0.05] ${
-                              soldOut ? "border-[#34343c] opacity-50" : "border-[#4a4a54]"
-                            }`}
+                            data-sold-out={soldOut}
+                            className="pos-v6-qr-card flex min-w-0 flex-col overflow-hidden rounded-xl border"
                           >
                             <button
                               type="button"
                               disabled={soldOut || !single}
                               onClick={() => single && addLine(item, single.id)}
                               aria-label={single ? `Tambah ${item.name}` : item.name}
-                              className="garage-press relative block aspect-[4/3] w-full bg-[#17171c] disabled:cursor-default"
+                              className="pos-v6-qr-photo garage-press relative block aspect-[4/3] w-full disabled:cursor-default"
                             >
                               {item.imageUrl ? (
                                 // Sama dengan kartu produk POS: <img> biasa (foto upload/eksternal, lazy).
@@ -346,18 +348,20 @@ export function PosQuickRetail({
                               ) : null}
                             </button>
                             <div className="flex flex-1 flex-col gap-1.5 p-2">
-                              <p className="line-clamp-2 break-words text-sm font-semibold leading-tight text-white">{item.name}</p>
+                              <p className="pos-v6-qr-name line-clamp-2 break-words text-sm font-bold leading-tight">{item.name}</p>
                               {single ? (
                                 <button
                                   type="button"
                                   disabled={soldOut}
                                   onClick={() => addLine(item, single.id)}
-                                  className="garage-press mt-auto flex min-h-11 items-center justify-between gap-1 rounded-md border border-[#4a4a54] bg-[#17171c] px-2.5 text-[#e4e4ea] hover:border-[#f5a742] disabled:opacity-40"
+                                  className="pos-v6-qr-add garage-press mt-auto flex min-h-11 items-center justify-between gap-1 rounded-lg pl-2.5 disabled:opacity-40"
                                 >
-                                  <span className="garage-mono text-base font-bold text-[#ffd08a]">
+                                  <span className="pos-v6-qr-price font-mono text-base font-extrabold tabular-nums">
                                     {currency.format(unitPriceOf(item, single.price))}
                                   </span>
-                                  <Plus className="size-4 shrink-0" />
+                                  <span className="pos-v6-qr-plus grid size-11 shrink-0 place-items-center rounded-lg">
+                                    <Plus className="size-5" strokeWidth={2.75} />
+                                  </span>
                                 </button>
                               ) : (
                                 <div className="mt-auto flex flex-col gap-1">
@@ -367,10 +371,10 @@ export function PosQuickRetail({
                                       type="button"
                                       disabled={soldOut}
                                       onClick={() => addLine(item, variant.id)}
-                                      className="garage-press flex min-h-11 items-center justify-between gap-1 rounded-md border border-[#4a4a54] bg-[#17171c] px-2.5 text-sm text-[#e4e4ea] hover:border-[#f5a742] disabled:opacity-40"
+                                      className="pos-v6-qr-variant garage-press flex min-h-11 items-center justify-between gap-1 rounded-lg border px-2.5 text-sm disabled:opacity-40"
                                     >
                                       <span className="min-w-0 truncate font-semibold">{variant.label}</span>
-                                      <span className="garage-mono shrink-0 font-bold text-[#ffd08a]">
+                                      <span className="pos-v6-qr-price shrink-0 font-mono font-bold tabular-nums">
                                         {currency.format(unitPriceOf(item, variant.price))}
                                       </span>
                                     </button>
@@ -390,35 +394,46 @@ export function PosQuickRetail({
               </section>
 
               <section ref={paySectionRef} className="min-w-0 scroll-mt-4 space-y-3" aria-label="Keranjang & pembayaran">
-                <div className="rounded-md border border-[#34343c] bg-white/[0.04] p-3">
+                <div className="pos-v6-qr-cart rounded-xl border p-3">
+                  <p className="pos-v6-qr-carthead mb-2 flex items-center gap-2 text-sm font-bold">
+                    <ShoppingBag className="size-4" aria-hidden /> Pesanan ({cartLines.reduce((sum, line) => sum + line.qty, 0)})
+                  </p>
                   {cartLines.length === 0 ? (
                     <p className="text-sm text-[#d0d0d6]">Keranjang kosong. Scan atau pilih produk.</p>
                   ) : (
                     <ul className="garage-scroll max-h-48 space-y-2 overflow-y-auto pr-1">
                       {cartLines.map((line) => (
-                        <li key={`${line.itemId}:${line.variantId}`} className="flex items-center gap-2">
+                        <li key={`${line.itemId}:${line.variantId}`} className="pos-v6-qr-line flex items-center gap-2 rounded-lg p-1.5">
+                          <span className="pos-v6-line-thumb size-11" aria-hidden>
+                            {line.item.imageUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element -- foto produk dari storage
+                              <img src={line.item.imageUrl} alt="" loading="lazy" />
+                            ) : (
+                              <Package className="size-5" />
+                            )}
+                          </span>
                           <div className="min-w-0 flex-1">
-                            <p className="break-words text-sm font-semibold text-white">
+                            <p className="pos-v6-qr-name break-words text-sm font-semibold">
                               {line.item.name}
                               {line.variant.label !== "Regular" ? ` · ${line.variant.label}` : ""}
                             </p>
-                            <p className="garage-mono text-xs text-[#d0d0d6]">{currency.format(line.total)}</p>
+                            <p className="pos-v6-qr-price font-mono text-sm font-bold tabular-nums">{currency.format(line.total)}</p>
                           </div>
                           <div className="flex shrink-0 items-center gap-1">
                             <button
                               type="button"
                               aria-label={line.qty === 1 ? `Hapus ${line.item.name}` : `Kurangi ${line.item.name}`}
                               onClick={() => changeQty(line, -1)}
-                              className="garage-press flex size-11 items-center justify-center rounded-md border border-[#4a4a54] text-[#e4e4ea]"
+                              className="pos-v6-qr-step garage-press flex size-11 items-center justify-center rounded-lg border"
                             >
                               {line.qty === 1 ? <Trash2 className="size-4" /> : <Minus className="size-4" />}
                             </button>
-                            <span className="garage-mono w-7 text-center text-base font-bold text-white">{line.qty}</span>
+                            <span className="pos-v6-qr-name w-7 text-center font-mono text-base font-bold">{line.qty}</span>
                             <button
                               type="button"
                               aria-label={`Tambah ${line.item.name}`}
                               onClick={() => changeQty(line, 1)}
-                              className="garage-press flex size-11 items-center justify-center rounded-md border border-[#4a4a54] text-[#e4e4ea]"
+                              className="pos-v6-qr-step garage-press flex size-11 items-center justify-center rounded-lg border"
                             >
                               <Plus className="size-4" />
                             </button>
@@ -427,26 +442,26 @@ export function PosQuickRetail({
                       ))}
                     </ul>
                   )}
-                  <dl className="mt-3 space-y-1 border-t border-[#34343c] pt-2 text-sm">
-                    <div className="flex justify-between gap-2 text-[#d0d0d6]">
+                  <dl className="pos-v6-qr-sum mt-3 space-y-1 border-t pt-2 text-sm">
+                    <div className="flex justify-between gap-2">
                       <dt>Subtotal</dt>
                       <dd className="garage-mono">{currency.format(subtotal)}</dd>
                     </div>
                     {service > 0 ? (
-                      <div className="flex justify-between gap-2 text-[#d0d0d6]">
+                      <div className="flex justify-between gap-2">
                         <dt>Service</dt>
                         <dd className="garage-mono">{currency.format(service)}</dd>
                       </div>
                     ) : null}
                     {tax > 0 ? (
-                      <div className="flex justify-between gap-2 text-[#d0d0d6]">
+                      <div className="flex justify-between gap-2">
                         <dt>Pajak</dt>
                         <dd className="garage-mono">{currency.format(tax)}</dd>
                       </div>
                     ) : null}
-                    <div className="flex justify-between gap-2 pt-1">
-                      <dt className="font-bold text-white">Total</dt>
-                      <dd className="garage-mono text-lg font-black text-[#ffd08a]">{currency.format(total)}</dd>
+                    <div className="pos-v6-qr-total flex items-center justify-between gap-2 rounded-xl px-3 py-2.5">
+                      <dt className="font-bold">Total Tagihan</dt>
+                      <dd className="font-mono text-2xl font-extrabold tabular-nums">{currency.format(total)}</dd>
                     </div>
                   </dl>
                 </div>
@@ -464,11 +479,8 @@ export function PosQuickRetail({
                         setTender(method);
                         setError(null);
                       }}
-                      className={`garage-press flex h-12 items-center justify-center gap-2 rounded-md border text-sm font-bold disabled:opacity-40 ${
-                        tender === method
-                          ? "border-[#d11a2a] bg-[#d11a2a] text-white"
-                          : "border-[#4a4a54] bg-white/[0.05] text-[#e4e4ea]"
-                      }`}
+                      data-active={tender === method}
+                      className="pos-v6-method garage-press disabled:opacity-40"
                     >
                       {method === "Cash" ? <Banknote className="size-4" /> : <QrCode className="size-4" />}
                       {method === "Cash" ? "Tunai" : "QRIS"}
@@ -477,14 +489,15 @@ export function PosQuickRetail({
                 </div>
 
                 {tender === "Cash" ? (
-                  <div className="space-y-1.5">
+                  <div className="pos-v6-cash space-y-1.5 rounded-xl p-3">
+                    <p className="pos-v6-cash-label text-[13px] font-bold">Uang Diterima</p>
                     <Input
                       inputMode="numeric"
                       value={cash ? Number(cash).toLocaleString("id-ID") : ""}
                       onChange={(event) => setCash(event.target.value.replace(/[^\d]/g, "").slice(0, 10))}
                       placeholder="Uang diterima (wajib)"
                       aria-label="Uang diterima"
-                      className="h-11 border-[#4a4a54] bg-white/[0.06] text-base font-semibold"
+                      className="pos-v6-cash-input h-12 text-right font-mono text-xl font-bold tabular-nums"
                     />
                     <div className="grid grid-cols-3 gap-1.5">
                       {/* Uang pas selalu tombol pertama, lalu nominal cepat di atas total. */}
@@ -493,32 +506,32 @@ export function PosQuickRetail({
                           key={amount}
                           type="button"
                           onClick={() => setCash(String(amount))}
-                          className={`garage-press h-11 rounded-md border text-sm font-bold tabular-nums ${
-                            cashValue === amount
-                              ? "border-[#f5a742] bg-[#f5a742]/20 text-white"
-                              : "border-[#4a4a54] bg-white/[0.05] text-[#e4e4ea]"
-                          }`}
+                          data-selected={cashValue === amount}
+                          className="pos-v6-quickcash garage-press h-11 rounded-lg border text-sm font-bold tabular-nums"
                         >
                           {amount === total ? "Uang pas" : currency.format(amount)}
                         </button>
                       ))}
                     </div>
-                    {cash !== "" && cashValue < total ? (
-                      <p className="text-sm font-semibold text-[#ffc2c8]">Kurang {currency.format(total - cashValue)}.</p>
-                    ) : cash !== "" && cashValue > total ? (
-                      <p className="rounded-md border-2 border-[#f5a742]/70 bg-[#f5a742]/12 p-2 text-center text-sm font-bold text-white">
-                        Kembalian <span className="garage-mono text-xl">{currency.format(cashValue - total)}</span>
-                      </p>
+                    {cash !== "" ? (
+                      <div className="pos-v6-change flex items-center justify-between gap-3 rounded-xl border p-3" data-state={cashValue >= total ? "ok" : "short"} role="status" aria-live="polite">
+                        <span className="pos-v6-change-label text-[13px] font-extrabold uppercase tracking-wide">
+                          {cashValue >= total ? "Kembalian" : "Uang kurang"}
+                        </span>
+                        <span className="pos-v6-change-value font-mono text-2xl font-extrabold tabular-nums">
+                          {currency.format(Math.abs(cashValue - total))}
+                        </span>
+                      </div>
                     ) : null}
                   </div>
                 ) : (
-                  <div className="space-y-2 rounded-md border border-[#34343c] bg-white/[0.04] p-3">
+                  <div className="pos-v6-paypanel space-y-2 rounded-xl p-3">
                     {qrisImageReady ? (
                       <div className="mx-auto w-fit rounded-md bg-white p-2">
                         <Image src={qrisImagePath} alt="QRIS resmi Garage" width={150} height={150} className="size-[150px] object-contain" />
                       </div>
                     ) : null}
-                    <p className="flex gap-2 text-sm font-semibold text-[#ffd08a]">
+                    <p className="pos-v6-warn flex gap-2 text-sm font-semibold">
                       <AlertTriangle className="mt-0.5 size-4 shrink-0" />
                       Pastikan status BERHASIL di notifikasi merchant/bank. Screenshot pelanggan saja tidak cukup.
                     </p>
@@ -527,7 +540,7 @@ export function PosQuickRetail({
                       onChange={(event) => setReference(event.target.value.slice(0, 80))}
                       placeholder={settings.qrisReferenceRequired ? "No. Ref / RRN QRIS (wajib)" : "No. Ref / RRN QRIS (opsional)"}
                       aria-label="Referensi QRIS"
-                      className="h-11 border-[#4a4a54] bg-white/[0.06]"
+                      className="pos-v6-cash-input h-11"
                     />
                   </div>
                 )}
@@ -542,7 +555,7 @@ export function PosQuickRetail({
                   type="button"
                   onClick={() => void pay()}
                   disabled={!canPay}
-                  className="garage-press h-12 w-full bg-[#d11a2a] text-base font-bold text-white hover:bg-[#ff2a3a]"
+                  className="pos-v6-qr-pay garage-press h-13 min-h-[52px] w-full rounded-xl text-base font-bold"
                   data-testid="quick-retail-pay"
                 >
                   {busy
@@ -559,17 +572,17 @@ export function PosQuickRetail({
 
               {/* HP/tablet kecil: total & tombol ke pembayaran selalu terlihat saat memilih produk. */}
               {cartLines.length > 0 ? (
-                <div className="sticky bottom-0 z-10 -mx-4 -mb-4 flex items-center gap-3 border-t border-[#34343c] bg-[#111116] px-4 py-3 md:hidden">
+                <div className="pos-v6-qr-sticky sticky bottom-0 z-10 -mx-4 -mb-4 flex items-center gap-3 border-t px-4 py-3 md:hidden">
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-semibold text-[#d0d0d6]">
                       {cartLines.reduce((sum, line) => sum + line.qty, 0)} item
                     </p>
-                    <p className="garage-mono text-xl font-black text-[#ffd08a]">{currency.format(total)}</p>
+                    <p className="pos-v6-qr-price font-mono text-xl font-black tabular-nums">{currency.format(total)}</p>
                   </div>
                   <Button
                     type="button"
                     onClick={() => paySectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
-                    className="garage-press h-12 bg-[#d11a2a] px-5 text-base font-bold text-white hover:bg-[#ff2a3a]"
+                    className="pos-v6-qr-pay garage-press h-12 rounded-xl px-5 text-base font-bold"
                   >
                     Bayar
                   </Button>

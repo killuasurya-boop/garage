@@ -64,6 +64,8 @@ teks ≥ 7:1, teks redup/harga/tombol/total/kembalian ≥ 4,5:1 untuk keempat te
 | 05 Pembayaran | Pemilih metode berikon; `CashPaymentPanel` (Uang Diterima, nominal cepat + Uang Pas, Kembalian); `QrisPaymentPanel` (QR + total + verifikasi + ref); `BankTransferPaymentPanel`/`EWalletPaymentPanel` (pilih akun, nomor bisa disalin, total) | `pos/pos-checkout-panels.tsx` | Selesai |
 | 06 Operasional | Lembar Operasional QR, peta meja (palet status resmi Owner dipertahankan) | `pos-view.tsx` | Kontras tema terang diperbaiki; tata letak lama |
 | 07 Shift | Layar "Shift Belum Dibuka" ber-header V6, `PosV6ShiftInfo` (kasir/perangkat/tanggal/jam), grid pecahan berwarna uang Rupiah, Tutup Shift (blind count tetap) | `pos-view.tsx`, `cash-denomination-grid.tsx` | Selesai (aturan keuangan tidak diubah) |
+| Penjualan Langsung | Dialog Quick Retail ikut tema: cari/scan besar, tab kategori, kartu produk V6, keranjang + foto, Total Tagihan, Tunai/QRIS, kartu Kembalian | `pos/pos-quick-retail.tsx` | Selesai (logika bayar, idempotensi, tender guard tidak diubah) |
+| 06 Order QR | Kartu order: badge meja aksen, garis status (kuning = menunggu, hijau = lunas), total berwarna harga, tombol 44 px | `pos-view.tsx` | Selesai |
 | 08 Theme Studio | `PosV6ThemeStudio`, `CashierThemePresetGrid` (kartu pratinjau) | `pos/pos-v6-theme-studio.tsx`, `garage-app-pickers.tsx` | Selesai (preferensi perangkat) |
 
 Badge kartu: **Promo** (harga promo dari data) > **Signature** (tag produk "Signature") > **Unggulan** (`featured`).
@@ -92,7 +94,9 @@ Diuji: 1920×1080, 1440×900, 1366×900, 1280×720, 1024×768, 768×1024, 390×8
 Per perangkat (`localStorage garage:pos:cashier-settings` + `garage-cashier-theme`), langsung diterapkan, tersimpan
 otomatis: Tema, Ukuran teks, Katalog (Visual/Ringkas/Daftar), Posisi keranjang, Sidebar, Foto produk, Kurangi gerakan,
 Layar penuh, Reset default. Tidak menyentuh keranjang/transaksi/server.
-Belum ada: pengaturan warna kustom Owner (primary/background/radius) dan default tema per outlet — butuh keputusan Owner.
+Lanjutan (Owner/Manajer saja): warna utama, latar, permukaan, garis, radius sudut, pratinjau, kembalikan ke warna tema.
+Disimpan per perangkat (`garage:pos:theme-custom:v1`, `pos-v6-theme-custom.ts`), hanya tema terang; nilai yang gagal
+kontras WCAG AA tidak bisa diterapkan. Belum ada: default tema per outlet (butuh keputusan Owner).
 
 ## 8. Aksesibilitas
 
@@ -106,4 +110,5 @@ Belum ada: pengaturan warna kustom Owner (primary/background/radius) dan default
 - [x] E2E 5 alur kritis (login, POS tunai/QRIS, tutup shift, laporan Owner, Kelola Staff)
 - [x] Screenshot 4 tema + 8 ukuran layar + Theme Studio + pembayaran tunai/QRIS
 - [ ] Uji perangkat nyata (tablet kasir, printer thermal) oleh Owner
-- [ ] Visual regression otomatis (belum ada baseline di repo)
+- [x] E2E tema: `e2e/pos-v6-theme.spec.ts` (ganti tema tanpa mengubah keranjang, bertahan setelah refresh, F9 hanya membuka bayar)
+- [ ] Visual regression berbasis piksel (belum ada baseline di repo)

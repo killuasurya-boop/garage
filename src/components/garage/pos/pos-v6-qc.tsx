@@ -24,6 +24,38 @@ function subscribeOnline(fn: () => void) {
   };
 }
 
+function subscribeScreen(fn: () => void) {
+  window.addEventListener("resize", fn);
+  document.addEventListener("fullscreenchange", fn);
+  return () => {
+    window.removeEventListener("resize", fn);
+    document.removeEventListener("fullscreenchange", fn);
+  };
+}
+
+/** Snapshot layar (string supaya stabil untuk useSyncExternalStore). */
+export function useScreenInfo() {
+  const raw = useSyncExternalStore(
+    subscribeScreen,
+    () => `${window.innerWidth}x${window.innerHeight}|${document.fullscreenElement ? 1 : 0}|${window.devicePixelRatio || 1}`,
+    () => "0x0|0|1",
+  );
+  const [size, fs, dpr] = raw.split("|");
+  const [width, height] = size.split("x").map(Number);
+  return { width, height, fullscreen: fs === "1", dpr: Number(dpr) };
+}
+
+export function screenCheck(info: { width: number; height: number; fullscreen: boolean }): { state: QcState; detail: string } {
+  if (!info.width) return { state: "unknown", detail: "Memeriksa layar…" };
+  const layout = info.width >= 1280 ? "sidebar + katalog + keranjang" : info.width >= 768 ? "tablet (menu lewat tombol Menu Kasir)" : "HP (keranjang di laci bawah)";
+  const tips: string[] = [];
+  if (!info.fullscreen) tips.push("belum layar penuh");
+  if (info.height < 640) tips.push("tinggi layar sempit — perkecil ukuran teks di Theme Studio");
+  if (info.width < 768) tips.push("layar HP — pakai tablet untuk kasir");
+  const detail = `${info.width}×${info.height} px · ${info.width > info.height ? "mendatar" : "tegak"} · tata letak ${layout}${tips.length ? ` · ${tips.join(", ")}` : ""}.`;
+  return { state: tips.length ? "warn" : "ok", detail };
+}
+
 export function useBrowserOnline() {
   return useSyncExternalStore(subscribeOnline, () => navigator.onLine, () => true);
 }
@@ -107,9 +139,11 @@ export function PosV6QcPanel({
   kitchenReady,
   onOpenShift,
   onOpenQr,
+  onOpenPending,
   onOpenKitchen,
   onOpenSoldOut,
   onReload,
+  onToggleFullscreen,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -126,11 +160,14 @@ export function PosV6QcPanel({
   kitchenReady: number;
   onOpenShift: () => void;
   onOpenQr: () => void;
+  onOpenPending: () => void;
   onOpenKitchen: () => void;
   onOpenSoldOut: () => void;
   onReload: () => void;
+  onToggleFullscreen?: () => void;
 }) {
   const health = useServerHealth(open);
+  const screen = screenCheck(useScreenInfo());
   const print = useSyncExternalStore(subscribePrintHealth, getPrintHealth, getPrintHealthServer);
   const [printerMode, setPrinterMode] = useState<string>("");
   useEffect(() => {
@@ -196,6 +233,12 @@ export function PosV6QcPanel({
               detail={menuCount > 0 ? `${menuCount} produk dimuat${soldOutCount ? ` · ${soldOutCount} ditandai habis` : ""}.` : "Menu belum dimuat. Muat ulang POS."}
               action={menuCount > 0 ? (soldOutCount ? btn("Lihat habis", onOpenSoldOut) : undefined) : btn("Muat ulang", onReload)}
             />
+            <Row
+              state={screen.state}
+              title="Cek layar"
+              detail={screen.detail}
+              action={onToggleFullscreen ? btn("Layar penuh", onToggleFullscreen) : undefined}
+            />
             <Row state={qrisReady ? "ok" : "warn"} title="QRIS resmi" detail={qrisReady ? "Gambar QRIS merchant siap ditampilkan." : "Gambar QRIS belum tersedia — pembayaran QRIS dinonaktifkan."} />
           </ul>
         </section>
@@ -204,7 +247,7 @@ export function PosV6QcPanel({
           <h3 id="qc-queue" className="pos-v6-studio-h">Antrean yang perlu tindakan</h3>
           <ul className="space-y-1.5">
             <Row state={qrWaiting ? "warn" : "ok"} title="Order QR/Waiter menunggu" detail={qrWaiting ? `${qrWaiting} order menunggu Terima/Final Bayar.` : "Tidak ada."} action={qrWaiting ? btn("Buka", onOpenQr) : undefined} />
-            <Row state={unpaidQr ? "warn" : "ok"} title="Tagihan belum lunas" detail={unpaidQr ? `${unpaidQr} order belum lunas — selesaikan lewat Final Bayar setelah pembayaran terverifikasi.` : "Tidak ada."} action={unpaidQr ? btn("Buka", onOpenQr) : undefined} />
+            <Row state={unpaidQr ? "warn" : "ok"} title="Tagihan belum lunas" detail={unpaidQr ? `${unpaidQr} tagihan belum lunas (Cash & QRIS dipisah) — tagih lalu Final Bayar setelah uang/mutasi diterima.` : "Tidak ada."} action={unpaidQr ? btn("Buka", onOpenPending) : undefined} />
             <Row state={kitchenReady ? "warn" : "ok"} title="Pesanan siap antar" detail={kitchenReady ? `${kitchenReady} tiket Bar/Dapur siap diantar.` : "Tidak ada."} action={kitchenReady ? btn("Buka", onOpenKitchen) : undefined} />
           </ul>
         </section>

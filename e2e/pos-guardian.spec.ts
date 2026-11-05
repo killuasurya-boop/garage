@@ -13,6 +13,8 @@ test("Guardian: bayar tunai lewat dialog — tidak ada isi otomatis, kurang dito
   await login(page, "kasir2@garage.id");
   await expect(page).toHaveURL(/\/pos/);
   const start = page.getByRole("button", { name: "Mulai Shift Kasir" });
+  // Tunggu POS atau layar "Shift Belum Dibuka" tampil dulu (tanpa ini cek bisa terlalu cepat).
+  await expect(start.or(page.locator("section.cashier-pos-surface[data-pos-v6]"))).toBeVisible({ timeout: 90_000 });
   if (await start.isVisible().catch(() => false)) {
     await start.click();
     const dialog = page.getByRole("dialog");

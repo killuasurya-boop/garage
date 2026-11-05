@@ -256,6 +256,13 @@ Scroll direction:
   `--pos-*` tokens in `globals.css`, AA contrast enforced by `pos-v6.test.ts`. Theme Studio = per-device prefs (`CashierPosSettings`:
   productView/showPhotos/sidebarMode/reducedMotion/textSize). Cashier topbar never shows omzet/expected cash (blind count).
   Legacy cashier CSS lives in `@layer components` with `!important`: V6 overrides must stay in the same layer with higher specificity.
+- Belum Bayar (owner, Nov 2026): one place for every unpaid order of the staff outlet, all dates
+  (`GET /api/customer/orders?scope=unpaid`). Pure rules in `src/lib/pos-pending-bills.ts` (Cash pending vs QRIS/Transfer/
+  E-Wallet pending, age 30/60 min/yesterday, one next action, priority); UI `pos/pos-v6-pending.tsx` (sheet + detail popup with
+  name/WA/items + `PosV6FinalizeDialog`). "Bayar nanti" stores `paymentMethod: "Cash"` only as a placeholder: payment
+  metadata `staffOrder: true` → shown as "Belum dipilih". Final Bayar cash amount is REQUIRED (empty ≠ uang pas). Only bill
+  totals are shown, never drawer cash. Nav "Belum Bayar" (F6), sidebar collapse `[`, always-on red edge line (off with reduced
+  motion), POS links/`window.open` to internal pages open in `PosV6ModuleSheet` (no new tab; PDFs via `?inline=1`).
 - Browser-dialog printing uses `browserColumns` (huruf Besar → 24 col on 58 mm) with tall
   TOTAL/Kembali lines; cashier can print Bar/Dapur chits manually (`printKitchenChits`).
 - Production Hub V4 (owner, Nov 2026, no migration): UI `src/components/garage/production-hub/` (portal over the shell,

@@ -66,6 +66,8 @@ teks ≥ 7:1, teks redup/harga/tombol/total/kembalian ≥ 4,5:1 untuk keempat te
 | 07 Shift | Layar "Shift Belum Dibuka" ber-header V6, `PosV6ShiftInfo` (kasir/perangkat/tanggal/jam), grid pecahan berwarna uang Rupiah, Tutup Shift (blind count tetap) | `pos-view.tsx`, `cash-denomination-grid.tsx` | Selesai (aturan keuangan tidak diubah) |
 | Penjualan Langsung | Dialog Quick Retail ikut tema: cari/scan besar, tab kategori, kartu produk V6, keranjang + foto, Total Tagihan, Tunai/QRIS, kartu Kembalian | `pos/pos-quick-retail.tsx` | Selesai (logika bayar, idempotensi, tender guard tidak diubah) |
 | 06 Order QR | Kartu order: badge meja aksen, garis status (kuning = menunggu, hijau = lunas), total berwarna harga, tombol 44 px | `pos-view.tsx` | Selesai |
+| Belum Bayar | `PosV6PendingBills` (tab Cash pending / QRIS & Transfer / Lewat 30 mnt, cari), kartu ringkas (meja · nama · WA · isi · total · umur · metode), `PosV6PendingBillDetail` (popup detail), `PosV6FinalizeDialog` (tunai wajib isi) | `pos/pos-v6-pending.tsx`, logika `src/lib/pos-pending-bills.ts` | Selesai (Nov 2026) |
+| Modul popup | `PosV6ModuleSheet`: Riwayat Penjualan, Riwayat/Laporan Shift, Petty Cash, Catatan Kejadian, PDF/halaman internal tanpa tab baru | `pos/pos-v6-module-sheet.tsx` | Selesai; wa.me tetap aplikasi luar |
 | 08 Theme Studio | `PosV6ThemeStudio`, `CashierThemePresetGrid` (kartu pratinjau) | `pos/pos-v6-theme-studio.tsx`, `garage-app-pickers.tsx` | Selesai (preferensi perangkat) |
 
 Badge kartu: **Promo** (harga promo dari data) > **Signature** (tag produk "Signature") > **Unggulan** (`featured`).
@@ -78,6 +80,12 @@ Hati di kartu = favorit perangkat ini (sudah sering ditap), bukan klaim terlaris
 - Kategori aktif / tab aktif / nav aktif = isi aksen + teks putih.
 - Bayar: disabled saat keranjang kosong; dialog pembayaran tetap memakai alur 5 langkah dan idempotency lama.
 - Kurangi gerakan: preferensi POS (`data-pos-reduced-motion`) + `prefers-reduced-motion` perangkat.
+
+### Sidebar & gerak (Owner, Nov 2026)
+- Tombol ciut/lebar di kepala sidebar (shortcut `[`), lebar 248 ↔ 80 px beranimasi 220 ms; mode ciut = ikon modul 48 px + badge + tooltip.
+- Garis merah tepi sidebar selalu menyala (background-position 5,5 dtk + napas opacity) — deviasi atas permintaan Owner; mati saat
+  "Kurangi gerakan" / `prefers-reduced-motion`. Ikon modul: hover terangkat + kilau merah, aktif = denyut merah pelan, badge = pop.
+- Layar penuh: tombol tetap di topbar, "Layar penuh otomatis" (Theme Studio, default nyala: sentuhan pertama), baris "Cek layar" di QC Kasir.
 
 ## 6. Responsif
 

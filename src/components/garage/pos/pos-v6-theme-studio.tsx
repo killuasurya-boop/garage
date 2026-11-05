@@ -233,6 +233,7 @@ export function PosV6ThemeStudio({
           />
           <Toggle label="Foto produk" detail="Matikan untuk katalog lebih padat di perangkat lambat." checked={settings.showPhotos} onChange={(showPhotos) => onSettingsChange({ showPhotos })} />
           <Toggle label="Kurangi gerakan" detail="Animasi POS dimatikan (pengaturan perangkat juga dihormati)." checked={settings.reducedMotion} onChange={(reducedMotion) => onSettingsChange({ reducedMotion })} />
+          <Toggle label="Layar penuh otomatis" detail="Sentuhan pertama di POS langsung masuk layar penuh (kiosk)." checked={settings.autoFullscreen} onChange={(autoFullscreen) => onSettingsChange({ autoFullscreen })} />
         </section>
 
         {canCustomize ? (

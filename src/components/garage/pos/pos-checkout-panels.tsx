@@ -1219,10 +1219,11 @@ export function OpenBillSavedPanel({
         <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-[#ffd08a]">Tagihan disimpan · belum bayar</p>
         <p className="mt-2 text-lg font-bold text-white">{who}</p>
         <p className="garage-display mt-1 text-4xl font-bold tabular-nums text-white">{currency.format(bill.total)}</p>
-        <p className="mt-1 font-mono text-sm text-[#e5e2dc]">{bill.orderNo}</p>
+        {/* Token tema (bukan warna tetap) supaya terbaca di tema terang & gelap. */}
+        <p className="mt-1 font-mono text-sm font-semibold" style={{ color: "var(--pos-text-2, #e5e2dc)" }}>{bill.orderNo}</p>
       </div>
-      <p className="rounded-md border border-[#4a4a54] bg-white/[0.04] p-3 text-sm leading-relaxed text-[#e5e2dc]">
-        Pesanan sudah masuk Bar/Dapur. Saat pelanggan selesai, buka <b>Pesanan Pelanggan</b> atau detail meja lalu tekan{" "}
+      <p className="rounded-md border border-[#4a4a54] bg-white/[0.04] p-3 text-sm leading-relaxed" style={{ color: "var(--pos-text-2, #e5e2dc)" }}>
+        Pesanan sudah masuk Bar/Dapur. Saat pelanggan selesai, buka menu <b>Belum Bayar</b> (F6) lalu tekan <b>Ambil uang</b> /{" "}
         <b>Final Bayar</b> untuk memilih Cash/QRIS/Transfer — kembalian tampil di sana. Voucher, poin, dan diskon dipakai saat Final Bayar.
       </p>
       <div className="flex flex-col gap-2 sm:flex-row">

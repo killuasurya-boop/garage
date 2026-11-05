@@ -521,6 +521,8 @@ export type CashierPosSettings = {
   sidebarMode: PosSidebarMode;
   /** Kurangi gerak di POS (selain prefers-reduced-motion perangkat). */
   reducedMotion: boolean;
+  /** Sentuhan pertama di POS langsung masuk layar penuh (browser wajib gesture). */
+  autoFullscreen: boolean;
 };
 
 export const defaultCashierPosSettings: CashierPosSettings = {
@@ -534,6 +536,7 @@ export const defaultCashierPosSettings: CashierPosSettings = {
   showPhotos: true,
   sidebarMode: "full",
   reducedMotion: false,
+  autoFullscreen: true,
 };
 
 function isCashierPosSettings(value: unknown): value is Partial<CashierPosSettings> {
@@ -566,6 +569,7 @@ export function loadCashierPosSettings(): CashierPosSettings {
       showPhotos: parsed.showPhotos !== false,
       sidebarMode: parsed.sidebarMode === "compact" ? "compact" : "full",
       reducedMotion: parsed.reducedMotion === true,
+      autoFullscreen: parsed.autoFullscreen !== false,
     };
   } catch {
     return defaultCashierPosSettings;

@@ -82,6 +82,9 @@ Users,
 Volume2,
 Wallet,
 ClipboardList,
+HandCoins,
+Maximize2,
+Minimize2,
 X
 } from "lucide-react";
 import dynamic from "next/dynamic";
@@ -96,7 +99,8 @@ useDeferredValue,
 useEffect,
 useMemo,
 useRef,
-useState
+useState,
+type MouseEvent
 } from "react";
 
 import {
@@ -259,6 +263,9 @@ import {
 import { PosCartSplitDialog, type CartSplitLine } from "@/components/garage/pos-cart-split-dialog";
 import { PosEventBundles, type PosBundleSaved } from "@/components/garage/pos/pos-event-bundles";
 import { PosQuickRetail } from "@/components/garage/pos/pos-quick-retail";
+import { moduleViewForPath, PosV6ModuleSheet, type PosModuleView } from "@/components/garage/pos/pos-v6-module-sheet";
+import { PosV6FinalizeDialog, PosV6PendingBillDetail, PosV6PendingBills } from "@/components/garage/pos/pos-v6-pending";
+import { pendingBillsView, type PendingBill } from "@/lib/pos-pending-bills";
 import { componentLabel, groupOrderLines } from "@/lib/order-package-lines";
 import {
   idempotencyAttemptFor,
@@ -279,7 +286,6 @@ import { BillRow, chitStationFor, formatReceiptDate, PaymentStep, OpenBillSaved 
 import {
   PosClearCartDialog,
   PosConfirmDialog,
-  PosFinalizeOrderDialog,
   PosManualDiscountDialog,
   PosMemberCreateDialog,
   PosParkBillDialog,
@@ -924,6 +930,32 @@ export function PosView({
   const [themeStudioOpen, setThemeStudioOpen] = useState(false);
   // GOD++ Fase 4: panel QC Kasir.
   const [qcOpen, setQcOpen] = useState(false);
+  // Tagihan Belum Bayar (owner, Nov 2026): daftar khusus semua order belum lunas (outlet ini, semua tanggal).
+  const [pendingOpen, setPendingOpen] = useState(false);
+  const [pendingOrders, setPendingOrders] = useState<CustomerOrder[]>([]);
+  const [pendingLoading, setPendingLoading] = useState(false);
+  const [pendingError, setPendingError] = useState<string | null>(null);
+  const [pendingDetail, setPendingDetail] = useState<CustomerOrder | null>(null);
+  // Modul jadi popup (Owner, Nov 2026): halaman internal dibuka di dalam POS, bukan tab baru.
+  const [moduleView, setModuleView] = useState<PosModuleView | null>(null);
+  const [pendingClock, setPendingClock] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setPendingClock(Date.now()), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
+  const loadPendingBills = useCallback(async () => {
+    setPendingLoading(true);
+    setPendingError(null);
+    try {
+      const rows = await garageApi.get<CustomerOrder[]>("/api/customer/orders?scope=unpaid", { cache: "no-store" });
+      setPendingOrders(rows);
+      setPendingDetail((current) => (current ? rows.find((row) => row.id === current.id) ?? null : null));
+    } catch (error) {
+      setPendingError(error instanceof Error ? error.message : "Tagihan belum bayar gagal dimuat.");
+    } finally {
+      setPendingLoading(false);
+    }
+  }, []);
   const posShortcutRef = useRef<(key: string) => boolean | void>(() => false);
   // Hapus invoice belum lunas: Owner/Manajer saja (server juga menolak role lain).
   const canDeleteInvoice = me.role === "Owner" || me.role === "Manajer";
@@ -974,7 +1006,8 @@ export function PosView({
   useEffect(() => {
     if (!posVisible) return;
     const onKey = (event: KeyboardEvent) => {
-      if (!/^F([1-4]|9)$/.test(event.key) || event.altKey || event.ctrlKey || event.metaKey) return;
+      if (!/^(F([1-4]|6|9)|\[)$/.test(event.key) || event.altKey || event.ctrlKey || event.metaKey) return;
+      if (event.key === "[" && (event.target as HTMLElement | null)?.closest?.("input, textarea, select, [contenteditable='true']")) return;
       if (document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]')) return;
       if (posShortcutRef.current(event.key) !== false) event.preventDefault();
     };
@@ -1208,7 +1241,6 @@ export function PosView({
   const waitingCustomerOrderCount = customerOrders.filter(
     (order) => order.status === "pending_cashier" || order.status === "awaiting_payment",
   ).length;
-  const unpaidCustomerOrderCount = customerOrders.filter((order) => paymentStatusOf(order) === "pending").length;
   const showQrNotice =
     waitingCustomerOrderCount > 0 && dismissedQrNoticeKey !== customerOrderNoticeKey;
   const qrNoticeIsNew =
@@ -1899,6 +1931,31 @@ export function PosView({
     }
   }, [cashierPosSettings.qrSoundMode, playQrOrderNotificationSound, settings.qrSoundOn]);
 
+  // Tagihan Belum Bayar: dimuat berkala (60 dtk) + saat antrean QR berubah, supaya badge & pengingat akurat.
+  useEffect(() => {
+    if (!posVisible) return;
+    const first = window.setTimeout(() => void loadPendingBills(), 0);
+    const id = window.setInterval(() => void loadPendingBills(), 60_000);
+    return () => {
+      window.clearTimeout(first);
+      window.clearInterval(id);
+    };
+  }, [posVisible, loadPendingBills, customerOrders]);
+  const pendingSummary = useMemo(() => pendingBillsView(pendingOrders, pendingClock), [pendingOrders, pendingClock]);
+  // Pengingat: satu bunyi bila ada tagihan yang BARU lewat 30 mnt (sekali per tagihan).
+  const pendingAlertedRef = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    const overdue = pendingSummary.bills.filter((bill) => bill.overdue).map((bill) => bill.order.id);
+    if (pendingAlertedRef.current === null) {
+      // Muatan pertama: tagihan lama tidak dibunyikan.
+      if (pendingOrders.length) pendingAlertedRef.current = new Set(overdue);
+      return;
+    }
+    const fresh = overdue.filter((id) => !pendingAlertedRef.current?.has(id));
+    for (const id of fresh) pendingAlertedRef.current.add(id);
+    if (fresh.length) playQrOrderNotificationSound();
+  }, [pendingSummary, pendingOrders.length, playQrOrderNotificationSound]);
+
   const loadQrControlInsights = useCallback(async (options: { silent?: boolean } = {}) => {
     if (!options.silent) {
       setQrInsightsLoading(true);
@@ -2219,6 +2276,19 @@ export function PosView({
     };
   }, [syncFullscreenState]);
 
+  // Layar penuh otomatis (Owner, Nov 2026): browser hanya mengizinkan fullscreen dari gesture,
+  // jadi sentuhan pertama di POS dipakai sekali per muat halaman. Kasir tetap bisa keluar.
+  useEffect(() => {
+    if (!isCashierKiosk || !posVisible || !cashierPosSettings.autoFullscreen) return;
+    if (typeof document === "undefined" || document.fullscreenElement || !document.documentElement.requestFullscreen) return;
+    const enter = () => {
+      if (document.fullscreenElement) return;
+      document.documentElement.requestFullscreen().catch(() => undefined);
+    };
+    window.addEventListener("pointerdown", enter, { once: true, capture: true });
+    return () => window.removeEventListener("pointerdown", enter, { capture: true });
+  }, [cashierPosSettings.autoFullscreen, isCashierKiosk, posVisible]);
+
   useEffect(() => {
     if (!isCashierKiosk || cashierPosSettings.autoLockDelay === "off" || locked) {
       return;
@@ -2361,7 +2431,8 @@ export function PosView({
       const methodChanged = payMethod !== orderMethod;
       const finalCashReceived =
         action === "paid" && payMethod === "Cash"
-          ? options.cashReceived ?? order.cashReceived ?? order.cashDeposited ?? order.total
+          ? // GOD++ / Owner Nov 2026: tidak pernah menganggap uang pas diam-diam — nominal wajib dari kasir/waiter.
+            options.cashReceived ?? order.cashDeposited ?? order.cashReceived ?? undefined
           : options.cashReceived;
       const finalCashDeposited =
         action === "paid" && payMethod === "Cash"
@@ -2467,6 +2538,54 @@ export function PosView({
     void decideCustomerOrder(target, "reject", { reason });
   }
 
+
+  function openModulePath(path: string, title?: string) {
+    const view = moduleViewForPath(path, title);
+    if (view) {
+      setCashierMenuOpen(false);
+      setModuleView(view);
+    } else {
+      window.open(path, "_blank", "noopener");
+    }
+  }
+
+  // Tautan target=_blank di dalam POS (termasuk dialog/sheet yang di-portal) → popup modul.
+  // Tautan luar (wa.me, dll.), unduhan, dan klik dengan Ctrl/Cmd tetap perilaku browser.
+  function interceptNewTabLinks(event: MouseEvent<HTMLElement>) {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const anchor = (event.target as HTMLElement | null)?.closest?.('a[target="_blank"]') as HTMLAnchorElement | null;
+    if (!anchor || anchor.dataset.external === "true" || anchor.hasAttribute("download")) return;
+    let url: URL;
+    try {
+      url = new URL(anchor.href, window.location.href);
+    } catch {
+      return;
+    }
+    if (url.origin !== window.location.origin) return;
+    event.preventDefault();
+    openModulePath(`${url.pathname}${url.search}${url.hash}`, anchor.textContent?.trim() || "Dokumen");
+  }
+
+  function toggleSidebarMode() {
+    updateCashierPosSettings({ sidebarMode: cashierPosSettings.sidebarMode === "compact" ? "full" : "compact" });
+  }
+
+  function openPendingBills() {
+    setQcOpen(false);
+    setPendingOpen(true);
+    void loadPendingBills();
+  }
+
+  // Aksi utama per tagihan: terima dulu (order QR yang belum diterima) atau Final Bayar.
+  function handlePendingPrimary(bill: PendingBill) {
+    setPendingDetail(null);
+    if (bill.next.kind === "accept_first" && canAcceptCustomerOrder(bill.order)) {
+      void decideCustomerOrder(bill.order, "accept");
+      return;
+    }
+    openFinalizeDialog(bill.order);
+  }
+
   function openFinalizeDialog(order: CustomerOrder) {
     const method = customerOrderPaymentMethod(order);
     setFinalizeMethod(
@@ -2482,6 +2601,15 @@ export function PosView({
   }
 
   const finalizeCashValue = Number(finalizeCash.replace(/[^\d]/g, "")) || 0;
+  const finalizeHandoverNote = finalizeOrderTarget
+    ? finalizeOrderTarget.items
+        .filter((line) => {
+          const menu = line.menuItemId ? menuItemsById.get(line.menuItemId) : undefined;
+          return menu ? chitStationFor(menu) === "Langsung" : false;
+        })
+        .map((line) => `${line.qty}× ${line.itemName}`)
+        .join(", ") || null
+    : null;
   const finalizeCashShort =
     Boolean(finalizeOrderTarget) &&
     finalizeMethod === "Cash" &&
@@ -2492,11 +2620,13 @@ export function PosView({
 
   function confirmFinalizeOrder() {
     if (!finalizeOrderTarget || finalizeCashShort || finalizeReferenceMissing) return;
+    // Tunai wajib diisi (Owner, Nov 2026): kosong ≠ uang pas.
+    if (finalizeMethod === "Cash" && finalizeCash === "") return;
     const target = finalizeOrderTarget;
     setFinalizeOrderTarget(null);
     void decideCustomerOrder(target, "paid", {
       paymentMethod: finalizeMethod,
-      cashReceived: finalizeMethod === "Cash" && finalizeCash !== "" ? finalizeCashValue : undefined,
+      cashReceived: finalizeMethod === "Cash" ? finalizeCashValue : undefined,
       paymentReference: finalizeMethod === "Cash" ? undefined : finalizeReference,
     });
   }
@@ -3634,6 +3764,7 @@ export function PosView({
       orderType,
       tableLabel: orderType === "dine-in" ? tableLabel : undefined,
       customerName: openBillName || undefined,
+      customerPhone: posCustomerMode === "member" ? undefined : guestPhone.trim() || undefined,
       items: cart.map((line) => ({
         itemId: line.itemId,
         variantId: line.variantId,
@@ -3945,6 +4076,8 @@ export function PosView({
       else if (key === "F2") openQrWork("incoming");
       else if (key === "F3") openQrWork("table_map");
       else if (key === "F4") setReceiptHistoryOpen(true);
+      else if (key === "F6") openPendingBills();
+      else if (key === "[") toggleSidebarMode();
       else if (key === "F9") {
         if (!cartLines.length) return false;
         resetPaymentDialog();
@@ -4221,8 +4354,9 @@ export function PosView({
       data-pos-photos={cashierPosSettings.showPhotos ? "on" : "off"}
       data-pos-sidebar={cashierPosSettings.sidebarMode}
       data-pos-reduced-motion={cashierPosSettings.reducedMotion ? "on" : undefined}
+      onClickCapture={interceptNewTabLinks}
       className={`cashier-pos-surface relative flex h-full min-h-0 flex-col gap-2 pb-0 ${
-        isCashierKiosk ? (cashierPosSettings.sidebarMode === "compact" ? "xl:pl-[92px]" : "xl:pl-[260px]") : ""
+        isCashierKiosk ? `pos-v6-main-shift ${cashierPosSettings.sidebarMode === "compact" ? "xl:pl-[92px]" : "xl:pl-[260px]"}` : ""
       }`}
     >
       <PosChatInbox
@@ -4384,7 +4518,7 @@ export function PosView({
                 className="garage-press h-11 justify-start gap-2 border-[#f5a742]/45 bg-[#f5a742]/12 px-3 text-sm text-[#ffd08a] hover:bg-[#f5a742]/20"
                 onClick={() => {
                   setCashierMenuOpen(false);
-                  window.open("/shift", "_blank");
+                  openModulePath("/shift");
                 }}
               >
                 <FileText className="size-4" />
@@ -4396,7 +4530,7 @@ export function PosView({
                 className="garage-press h-11 justify-start gap-2 border-[#f5a742]/45 bg-[#f5a742]/12 px-3 text-sm text-[#ffd08a] hover:bg-[#f5a742]/20"
                 onClick={() => {
                   setCashierMenuOpen(false);
-                  window.open("/sales-history", "_blank");
+                  openModulePath("/sales-history");
                 }}
               >
                 <ReceiptText className="size-4" />
@@ -4566,6 +4700,17 @@ export function PosView({
           aria-label="Navigasi kasir"
         >
           <div className="pos-v6-sidebar-brand">
+            <button
+              type="button"
+              className="pos-v6-sidebar-toggle"
+              onClick={toggleSidebarMode}
+              aria-label={cashierPosSettings.sidebarMode === "compact" ? "Lebarkan sidebar ( [ )" : "Ciutkan sidebar ( [ )"}
+              aria-expanded={cashierPosSettings.sidebarMode !== "compact"}
+              title={cashierPosSettings.sidebarMode === "compact" ? "Lebarkan sidebar  [" : "Ciutkan sidebar  ["}
+              data-testid="pos-sidebar-toggle"
+            >
+              {cashierPosSettings.sidebarMode === "compact" ? <PanelLeftOpen className="size-4" aria-hidden /> : <PanelLeftClose className="size-4" aria-hidden />}
+            </button>
             <PosV6Brand theme={cashierTheme} compact={cashierPosSettings.sidebarMode === "compact" ? "icon" : true} />
             {cashierPosSettings.sidebarMode === "compact" ? null : (
               <p className="pos-v6-sidebar-caption">
@@ -4582,6 +4727,14 @@ export function PosView({
                 shortcut="F2"
                 count={waitingCustomerOrderCount}
                 onClick={() => openQrWork("incoming")}
+              />
+              <PosV6NavItem
+                icon={HandCoins}
+                label="Belum Bayar"
+                shortcut="F6"
+                testId="pos-pending-open"
+                count={pendingSummary.counts.all}
+                onClick={openPendingBills}
               />
               <PosV6NavItem icon={LayoutGrid} label="Meja" shortcut="F3" onClick={() => openQrWork("table_map")} />
               <PosV6NavItem
@@ -4639,10 +4792,10 @@ export function PosView({
               />
             </PosV6NavGroup>
             <PosV6NavGroup label="Riwayat & Kas">
-              <PosV6NavItem icon={ReceiptText} label="Riwayat Penjualan" onClick={() => window.open("/sales-history", "_blank")} />
-              <PosV6NavItem icon={FileText} label="Riwayat & Laporan Shift" onClick={() => window.open("/shift", "_blank")} />
-              <PosV6NavItem icon={Wallet} label="Petty Cash" testId="pos-menu-petty" onClick={() => window.open("/shift?tab=petty", "_blank")} />
-              <PosV6NavItem icon={ClipboardList} label="Catatan Kejadian" testId="pos-menu-incident" onClick={() => window.open("/shift?tab=incident", "_blank")} />
+              <PosV6NavItem icon={ReceiptText} label="Riwayat Penjualan" onClick={() => openModulePath("/sales-history")} />
+              <PosV6NavItem icon={FileText} label="Riwayat & Laporan Shift" onClick={() => openModulePath("/shift")} />
+              <PosV6NavItem icon={Wallet} label="Petty Cash" testId="pos-menu-petty" onClick={() => openModulePath("/shift?tab=petty")} />
+              <PosV6NavItem icon={ClipboardList} label="Catatan Kejadian" testId="pos-menu-incident" onClick={() => openModulePath("/shift?tab=incident")} />
             </PosV6NavGroup>
             <PosV6NavGroup label="Lainnya">
               <PosV6NavItem
@@ -4675,7 +4828,7 @@ export function PosView({
               <PosV6NavItem
                 icon={cashierPosSettings.sidebarMode === "compact" ? PanelLeftOpen : PanelLeftClose}
                 label={cashierPosSettings.sidebarMode === "compact" ? "Perlebar sidebar" : "Ringkas sidebar"}
-                onClick={() => updateCashierPosSettings({ sidebarMode: cashierPosSettings.sidebarMode === "compact" ? "full" : "compact" })}
+                onClick={toggleSidebarMode}
               />
               <PosV6NavItem
                 icon={LogOut}
@@ -4687,6 +4840,11 @@ export function PosView({
             </div>
           </div>
         </aside>
+      ) : null}
+      {isCashierKiosk ? (
+        // Garis merah "selalu menyala" di tepi sidebar (permintaan Owner): 1 elemen, hanya background-position,
+        // mati otomatis saat Kurangi gerakan / prefers-reduced-motion.
+        <span className="pos-v6-sidebar-glow" data-mode={cashierPosSettings.sidebarMode} aria-hidden />
       ) : null}
 
       <PosV6ThemeCustomStyle />
@@ -4702,7 +4860,9 @@ export function PosView({
         soldOutCount={soldOutIds.size}
         qrisReady={qrisImageReady}
         qrWaiting={waitingCustomerOrderCount}
-        unpaidQr={unpaidCustomerOrderCount}
+        unpaidQr={pendingSummary.counts.all}
+        onOpenPending={openPendingBills}
+        onToggleFullscreen={() => void (isFullscreen ? releasePosFullscreenGuard({ exitFullscreen: true }) : requestPosFullscreen())}
         kitchenReady={kitchenTickets.length}
         onOpenShift={() => {
           setQcOpen(false);
@@ -4849,7 +5009,7 @@ export function PosView({
                       type="button"
                       className="garage-press h-9 px-3 text-xs"
                       onClick={() =>
-                        window.open(`/api/finance/cash-sessions/${cashSession.id}/report`, "_blank")
+                        openModulePath(`/api/finance/cash-sessions/${cashSession.id}/report`, "Laporan Shift PDF")
                       }
                     >
                       <FileText className="mr-2 size-3.5" />
@@ -5107,7 +5267,7 @@ export function PosView({
                       type="button"
                       variant="outline"
                       className="garage-press h-11 justify-start border-[#4a4a54] bg-white/[0.055]"
-                      onClick={() => window.open("/order?source=qr_takeaway", "_blank")}
+                      onClick={() => openModulePath("/order?source=qr_takeaway", "Preview Menu Digital")}
                     >
                       <QrCode className="mr-2 size-4" />
                       Preview Menu Digital
@@ -5361,22 +5521,45 @@ export function PosView({
       />
 
       {/* Konfirmasi Final Bayar (menutup pembayaran, susah-dibalik). */}
-      <PosFinalizeOrderDialog
-        finalizeOrderTarget={finalizeOrderTarget}
-        setFinalizeOrderTarget={setFinalizeOrderTarget}
-        menuItemsById={menuItemsById}
-        setFinalizeMethod={setFinalizeMethod}
+      <PosV6FinalizeDialog
+        target={finalizeOrderTarget}
+        theme={cashierTheme}
+        onClose={() => setFinalizeOrderTarget(null)}
+        method={finalizeMethod}
+        setMethod={setFinalizeMethod}
+        cash={finalizeCash}
+        setCash={setFinalizeCash}
+        reference={finalizeReference}
+        setReference={setFinalizeReference}
+        qrisImagePath={paymentBrandConfig.qrisImagePath}
         qrisImageReady={qrisImageReady}
-        finalizeMethod={finalizeMethod}
-        finalizeCash={finalizeCash}
-        setFinalizeCash={setFinalizeCash}
-        finalizeCashValue={finalizeCashValue}
-        finalizeCashShort={finalizeCashShort}
-        finalizeReference={finalizeReference}
-        setFinalizeReference={setFinalizeReference}
-        confirmFinalizeOrder={confirmFinalizeOrder}
-        finalizeReferenceMissing={finalizeReferenceMissing}
-        settings={settings}
+        setQrisImageReady={setQrisImageReady}
+        referenceRequired={settings.qrisReferenceRequired}
+        handoverNote={finalizeHandoverNote}
+        onConfirm={confirmFinalizeOrder}
+      />
+
+      <PosV6ModuleSheet view={moduleView} onClose={() => setModuleView(null)} role={me.role} />
+
+      {/* Tagihan Belum Bayar: daftar + popup detail (Owner, Nov 2026). */}
+      <PosV6PendingBills
+        open={pendingOpen}
+        onOpenChange={setPendingOpen}
+        theme={cashierTheme}
+        orders={pendingOrders}
+        loading={pendingLoading}
+        error={pendingError}
+        onReload={() => void loadPendingBills()}
+        onOpenDetail={setPendingDetail}
+        onPrimary={handlePendingPrimary}
+      />
+      <PosV6PendingBillDetail
+        order={pendingDetail}
+        theme={cashierTheme}
+        onClose={() => setPendingDetail(null)}
+        onPrimary={handlePendingPrimary}
+        onPrint={(order) => void printProvisionalBill({ id: order.id, orderNo: order.orderNo })}
+        printing={Boolean(pendingDetail && provisionalBillBusyId === pendingDetail.id)}
       />
 
       {/* Dialog konfirmasi/alasan in-app reusable (pengganti window.confirm/prompt). */}
@@ -5455,6 +5638,24 @@ export function PosView({
             tone={shiftOpen ? "good" : "danger"}
             onClick={prepareShiftDialog}
             className={`${shiftOpen ? "garage-shift-open hidden md:inline-flex" : "garage-shift-closed"} ${isCashierKiosk ? "xl:hidden" : ""}`}
+          />
+          <PosV6TopbarButton
+            icon={isFullscreen ? Minimize2 : Maximize2}
+            label={isFullscreen ? "Keluar layar penuh" : "Layar penuh"}
+            short={isFullscreen ? "Keluar" : "Penuh"}
+            onClick={() => void (isFullscreen ? releasePosFullscreenGuard({ exitFullscreen: true }) : requestPosFullscreen())}
+            ariaLabel={isFullscreen ? "Keluar layar penuh" : "Masuk layar penuh"}
+            className="hidden sm:inline-flex"
+          />
+          <PosV6TopbarButton
+            icon={HandCoins}
+            label="Belum Bayar"
+            short="Tagih"
+            tone={pendingSummary.counts.overdue ? "danger" : pendingSummary.counts.all ? "warn" : undefined}
+            count={pendingSummary.counts.all}
+            onClick={openPendingBills}
+            ariaLabel="Buka tagihan belum bayar"
+            className={isCashierKiosk ? "xl:hidden" : ""}
           />
           <PosV6TopbarButton
             icon={ClipboardList}
@@ -5811,6 +6012,28 @@ export function PosView({
                 : "Pilih shift dan isi uang modal awal."}
             </DialogDescription>
           </DialogHeader>
+          {shiftOpen && pendingSummary.counts.all ? (
+            <div className="rounded-md border border-[#f5a742]/60 bg-[#f5a742]/12 p-3 text-sm" role="alert" data-testid="close-shift-pending">
+              <p className="font-bold text-[#ffd08a]">
+                Masih ada {pendingSummary.counts.all} tagihan belum bayar: {pendingSummary.counts.cash} Cash pending ·{" "}
+                {pendingSummary.counts.digital} QRIS/Transfer/E-Wallet pending.
+              </p>
+              <p className="mt-1 text-[#e4e4ea]">
+                Tagih atau serahkan ke shift berikutnya dulu. Uang yang belum di-Final Bayar tidak termasuk hitungan laci.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                className="garage-press mt-2 h-10 border-[#f5a742]/60 bg-transparent text-sm"
+                onClick={() => {
+                  setShiftDialogOpen(false);
+                  openPendingBills();
+                }}
+              >
+                <HandCoins className="mr-2 size-4" /> Lihat Belum Bayar
+              </Button>
+            </div>
+          ) : null}
           {shiftOpen ? (
             <CloseShiftForm
               key={closeFormKey}

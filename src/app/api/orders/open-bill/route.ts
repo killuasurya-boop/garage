@@ -15,6 +15,8 @@ const openBillSchema = z
     orderType: z.enum(["dine-in", "takeaway"]),
     tableLabel: z.string().trim().max(40).optional(),
     customerName: z.string().trim().max(60).optional(),
+    // No WA opsional (Tagihan Belum Bayar menampilkan kontak untuk ditagih).
+    customerPhone: z.string().trim().max(20).optional(),
     customerNote: z.string().trim().max(240).optional(),
     items: z
       .array(
@@ -59,7 +61,7 @@ export async function POST(request: Request) {
   if (cache?.kind === "pending") return fail(409, "OPEN_BILL_IN_PROGRESS", "Tagihan masih diproses.");
 
   try {
-    const { orderType, tableLabel, customerName, customerNote, items, eventId, eventItems } = body.data;
+    const { orderType, tableLabel, customerName, customerPhone, customerNote, items, eventId, eventItems } = body.data;
     const table =
       orderType === "dine-in" && tableLabel
         ? tableLabel.toLowerCase().startsWith("meja")
@@ -73,6 +75,7 @@ export async function POST(request: Request) {
       customerMode: "guest",
       // Nama tamu saja (meja tampil terpisah di tiket); kosong → antrian #.
       guestName: customerName?.replace(/·/g, " ").trim().slice(0, 80) || "Guest Customer",
+      guestPhone: customerPhone?.replace(/[^\d+]/g, "") || undefined,
       customerNote,
       source: orderType === "dine-in" ? "qr_table" : "qr_takeaway",
       staffOrder: true,

@@ -20,6 +20,7 @@ import {
 } from "@/components/garage/pos/pos-v6";
 import { isSignature, isUnggulan } from "@/components/garage/order/v5/menu-v5-model";
 import { PosV6ThemeCustomStyle, PosV6ThemeStudio } from "@/components/garage/pos/pos-v6-theme-studio";
+import { PosV6ConnectionChip, PosV6QcPanel } from "@/components/garage/pos/pos-v6-qc";
 import {
 AlertTriangle,
 Archive,
@@ -228,7 +229,8 @@ import { PosShiftSalesSummary } from "@/components/garage/pos-shift-sales-summar
 import { PosInvoiceDeleteDialog, type InvoiceDeleteTarget } from "@/components/garage/pos-invoice-delete-dialog";
 import { PAYMENT_STATUS_LABEL, paymentStatusOf, type PaymentStatus } from "@/lib/payment-status";
 import { quickCashOptions } from "@/lib/pos-cash";
-import { cashConfirmLabel, normalizePaymentReference } from "@/lib/tender-guard";
+import { normalizePaymentReference } from "@/lib/tender-guard";
+import { finalPayLabel } from "@/lib/pos-final-pay-label";
 import { menuShortcodes, shortcodeMatchRank } from "@/lib/menu-shortcode";
 import { buildCashMovementSlipContent } from "@/lib/management-slips";
 import { CashDrawerDialog, type CashMovementRecorded } from "@/components/garage/cash-drawer-dialog";
@@ -258,7 +260,13 @@ import { PosCartSplitDialog, type CartSplitLine } from "@/components/garage/pos-
 import { PosEventBundles, type PosBundleSaved } from "@/components/garage/pos/pos-event-bundles";
 import { PosQuickRetail } from "@/components/garage/pos/pos-quick-retail";
 import { componentLabel, groupOrderLines } from "@/lib/order-package-lines";
-import { idempotencyAttemptFor, type IdempotencyAttempt } from "@/lib/idempotency-client";
+import {
+  idempotencyAttemptFor,
+  isUncertainSubmitError,
+  markAttemptAfterError,
+  UNCERTAIN_SUBMIT_MESSAGE,
+  type IdempotencyAttempt,
+} from "@/lib/idempotency-client";
 import {
   PosTableBillSplitDialog,
   type TableBillSplitResult,
@@ -914,6 +922,8 @@ export function PosView({
   const canManagePosSettings = me.role === "Owner" || me.role === "Manajer";
   // POS V6: Theme Studio (preferensi tampilan per perangkat, terbuka untuk semua peran POS).
   const [themeStudioOpen, setThemeStudioOpen] = useState(false);
+  // GOD++ Fase 4: panel QC Kasir.
+  const [qcOpen, setQcOpen] = useState(false);
   const posShortcutRef = useRef<(key: string) => boolean | void>(() => false);
   // Hapus invoice belum lunas: Owner/Manajer saja (server juga menolak role lain).
   const canDeleteInvoice = me.role === "Owner" || me.role === "Manajer";
@@ -1198,6 +1208,7 @@ export function PosView({
   const waitingCustomerOrderCount = customerOrders.filter(
     (order) => order.status === "pending_cashier" || order.status === "awaiting_payment",
   ).length;
+  const unpaidCustomerOrderCount = customerOrders.filter((order) => paymentStatusOf(order) === "pending").length;
   const showQrNotice =
     waitingCustomerOrderCount > 0 && dismissedQrNoticeKey !== customerOrderNoticeKey;
   const qrNoticeIsNew =
@@ -3224,7 +3235,10 @@ export function PosView({
     setSelectedPaymentMethod("Cash");
     setPaymentProvider(defaultPaymentProvider("Cash"));
     setPaymentReference("");
-    setCashReceived(totalDue ? String(totalDue) : "");
+    // GOD++ F-01: uang diterima TIDAK diisi otomatis. Nilai lama (total saat dialog dibuka) tidak ikut
+    // berubah saat voucher/diskon → layar sempat menampilkan "kembalian" palsu. Kasir isi nominal atau
+    // tekan "Uang Pas" (memakai total terbaru).
+    setCashReceived("");
   }
 
   function selectPaymentMethod(method: PaymentMethod) {
@@ -3234,7 +3248,7 @@ export function PosView({
     setPaymentError(null);
 
     if (method === "Cash") {
-      setCashReceived(totalDue ? String(totalDue) : "");
+      setCashReceived("");
     }
   }
 
@@ -3669,7 +3683,12 @@ export function PosView({
       await loadTableLiveData({ silent: true });
       invalidateGarageCache([GARAGE_TAGS.orders, GARAGE_TAGS.kitchen, GARAGE_TAGS.dashboard]);
     } catch (error) {
-      setPaymentError(error instanceof Error ? error.message : "Tagihan gagal disimpan.");
+      orderAttemptRef.current = markAttemptAfterError(attempt, error);
+      setPaymentError(
+        isUncertainSubmitError(error)
+          ? UNCERTAIN_SUBMIT_MESSAGE
+          : error instanceof Error ? error.message : "Tagihan gagal disimpan.",
+      );
     } finally {
       setPaymentPending(false);
     }
@@ -3905,7 +3924,13 @@ export function PosView({
         GARAGE_TAGS.customers,
       ]);
     } catch (error) {
-      setPaymentError(error instanceof Error ? error.message : "Pembayaran gagal.");
+      // GOD++ F-03: gagal tidak pasti → key yang sama dipakai lagi walau isi berubah (server cek dulu).
+      orderAttemptRef.current = markAttemptAfterError(attempt, error);
+      setPaymentError(
+        isUncertainSubmitError(error)
+          ? UNCERTAIN_SUBMIT_MESSAGE
+          : error instanceof Error ? error.message : "Pembayaran gagal.",
+      );
     } finally {
       setPaymentPending(false);
     }
@@ -4570,6 +4595,13 @@ export function PosView({
             </PosV6NavGroup>
             <PosV6NavGroup label="Operasional">
               <PosV6NavItem
+                icon={ClipboardCheck}
+                label="QC Kasir"
+                count={waitingCustomerOrderCount + kitchenTickets.length}
+                onClick={() => setQcOpen(true)}
+                testId="pos-qc-open"
+              />
+              <PosV6NavItem
                 icon={UtensilsCrossed}
                 label="Produksi Bar & Dapur"
                 count={kitchenTickets.length}
@@ -4658,6 +4690,39 @@ export function PosView({
       ) : null}
 
       <PosV6ThemeCustomStyle />
+      <PosV6QcPanel
+        open={qcOpen}
+        onOpenChange={setQcOpen}
+        theme={isCashierKiosk ? cashierTheme : undefined}
+        cashier={me.user.name}
+        role={me.role}
+        device={me.device}
+        shiftOpen={shiftOpen}
+        menuCount={menuItems.length}
+        soldOutCount={soldOutIds.size}
+        qrisReady={qrisImageReady}
+        qrWaiting={waitingCustomerOrderCount}
+        unpaidQr={unpaidCustomerOrderCount}
+        kitchenReady={kitchenTickets.length}
+        onOpenShift={() => {
+          setQcOpen(false);
+          prepareShiftDialog();
+        }}
+        onOpenQr={() => {
+          setQcOpen(false);
+          openQrWork("incoming");
+        }}
+        onOpenKitchen={() => {
+          setQcOpen(false);
+          setKitchenPanelOpen(true);
+          void loadKitchenTickets();
+        }}
+        onOpenSoldOut={() => {
+          setQcOpen(false);
+          setSoldOutDialogOpen(true);
+        }}
+        onReload={() => void refreshCashierData()}
+      />
       <PosV6ThemeStudio
         canCustomize={canManagePosSettings}
         open={themeStudioOpen}
@@ -5360,6 +5425,9 @@ export function PosView({
               <VoiceStatusBadge onOpen={() => setVoiceDialogOpen(true)} />
             </span>
           </span>
+          <button type="button" className="contents" onClick={() => setQcOpen(true)} aria-label="Buka QC Kasir (status koneksi, printer, antrean)">
+            <PosV6ConnectionChip />
+          </button>
           <span className="pos-v6-tb-chip hidden 2xl:inline-flex" title="Penjualan otomatis memotong bahan di gudang sesuai resep">
             <span className="pos-v6-tb-chip-dot" aria-hidden />
             Gudang Auto
@@ -8862,11 +8930,14 @@ export function PosView({
                             >
                               {paymentPending
                                 ? "Mencatat..."
-                                : selectedPaymentMethod === "Cash" && cashReceived !== "" && cashPaymentReady
-                                  ? cashConfirmLabel(cashReceivedValue, totalDue)
-                                  : qrisReferenceMissing
-                                    ? "Isi referensi QRIS"
-                                    : "Konfirmasi Bayar"}
+                                : finalPayLabel({
+                                    method: selectedPaymentMethod,
+                                    cashReceived,
+                                    cashReceivedValue,
+                                    totalDue,
+                                    qrisReferenceMissing,
+                                    tableMissing: dineInTableMissing,
+                                  })}
                             </Button>
                           ) : null}
                         </div>

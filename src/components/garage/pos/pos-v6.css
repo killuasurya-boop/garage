@@ -1174,3 +1174,47 @@
   .pos-v6-qr.pos-v6-qr .pos-v6-qr-search input.pos-v6-qr-search-input,
   .pos-v6-qr.pos-v6-qr .pos-v6-qr-search input[aria-label="Scan barcode atau cari produk"] { background: transparent !important; border: 0 !important; box-shadow: none !important; }
 }
+@layer components {
+  [data-slot="dialog-content"] .pos-v6-change[data-state="empty"] {
+    border-color: var(--pos-border, #4a4a54) !important;
+    border-style: dashed !important;
+    background: var(--pos-surface-muted, rgba(255, 255, 255, 0.04)) !important;
+    color: var(--pos-text-2, #d6d6dc) !important;
+  }
+}
+
+/* ------------------------------------------------------------------ QC Kasir & koneksi (GOD++) */
+@layer components {
+  .garage-shell .cashier-pos-surface .pos-v6-conn { cursor: pointer; }
+  .garage-shell .cashier-pos-surface .pos-v6-conn svg { color: #22c55e; }
+  .garage-shell .cashier-pos-surface .pos-v6-conn[data-bad="true"] { border-color: #e5484d; background: rgba(229, 72, 77, 0.16); }
+  .garage-shell .cashier-pos-surface .pos-v6-conn[data-bad="true"] svg { color: #ff8a8f; }
+  .pos-v6-qc[data-slot="sheet-content"] { background: var(--pos-bg, #0f0f14) !important; color: var(--pos-text, #f4f4f5) !important; }
+  .pos-v6-qc .pos-v6-qc-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--pos-border, #34343c);
+    background: var(--pos-surface, #17171c);
+    color: var(--pos-text, #f4f4f5);
+  }
+  .pos-v6-qc .pos-v6-qc-row > svg { margin-top: 1px; }
+  .pos-v6-qc .pos-v6-qc-row[data-state="ok"] > svg { color: var(--pos-success, #22c55e); }
+  .pos-v6-qc .pos-v6-qc-row[data-state="warn"] { border-color: color-mix(in srgb, var(--pos-warning, #f5a742) 55%, var(--pos-border, #34343c)); }
+  .pos-v6-qc .pos-v6-qc-row[data-state="warn"] > svg { color: var(--pos-warning, #f5a742); }
+  .pos-v6-qc .pos-v6-qc-row[data-state="down"] { border-color: #e5484d; }
+  .pos-v6-qc .pos-v6-qc-row[data-state="down"] > svg { color: #d4202a; }
+  .pos-v6-qc .pos-v6-qc-row[data-state="unknown"] > svg { color: var(--pos-muted, #a1a1aa); }
+  .pos-v6-qc .pos-v6-qc-badge {
+    padding: 0 6px;
+    border-radius: 6px;
+    background: var(--pos-surface-muted, #1f1f26);
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .pos-v6-qc .pos-v6-qc-row[data-state="ok"] .pos-v6-qc-badge { color: var(--pos-success, #4ade80); }
+  .pos-v6-qc .pos-v6-qc-row[data-state="warn"] .pos-v6-qc-badge { color: var(--pos-warning, #fbbf24); }
+  .pos-v6-qc .pos-v6-qc-row[data-state="down"] .pos-v6-qc-badge { color: #c0262d; }
+}

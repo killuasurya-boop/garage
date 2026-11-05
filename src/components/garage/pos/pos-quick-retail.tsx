@@ -10,7 +10,13 @@ import { Input } from "@/components/ui/input";
 import { garageApi } from "@/lib/api-client";
 import type { AppSettings, MenuItem, OrderCreateResponse, OrderReceipt } from "@/lib/garage-api-types";
 import { calculateBillingTotals } from "@/lib/garage-billing";
-import { idempotencyAttemptFor, type IdempotencyAttempt } from "@/lib/idempotency-client";
+import {
+  idempotencyAttemptFor,
+  isUncertainSubmitError,
+  markAttemptAfterError,
+  UNCERTAIN_SUBMIT_MESSAGE,
+  type IdempotencyAttempt,
+} from "@/lib/idempotency-client";
 import { quickCashOptions } from "@/lib/pos-cash";
 import {
   isQuickRetailProduct,
@@ -218,7 +224,12 @@ export function PosQuickRetail({
       setLines([]);
       await onCompleted(result);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Pembayaran gagal. Status order dicek dari server — coba lagi.");
+      setAttempt(markAttemptAfterError(current, caught));
+      setError(
+        isUncertainSubmitError(caught)
+          ? UNCERTAIN_SUBMIT_MESSAGE
+          : caught instanceof Error ? caught.message : "Pembayaran gagal. Status order dicek dari server — coba lagi.",
+      );
     } finally {
       setBusy(false);
     }

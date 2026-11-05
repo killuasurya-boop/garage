@@ -12,6 +12,7 @@
 // Fungsi ini mengembalikan `Response` agar jadi pengganti drop-in untuk
 // `fetch("/api/print/thermal", ...)` di seluruh pemanggil lama.
 
+import { recordPrintResult } from "./print-health";
 import { stripReceiptQr } from "@/lib/receipt-layout";
 import {
   DEVICE_PRINTER_MODE_LABELS,
@@ -155,6 +156,27 @@ export async function probeAutoPrinter(
 }
 
 export async function deliverPrintContent(
+  source: string | ((columns: number) => string),
+  options: DeliverOptions,
+): Promise<Response> {
+  try {
+    const response = await deliverPrintContentInner(source, options);
+    let message = response.ok ? "Cetak berhasil" : `Cetak gagal (${response.status})`;
+    try {
+      const body = (await response.clone().json()) as { data?: { message?: string }; error?: { message?: string } };
+      message = body.error?.message ?? body.data?.message ?? message;
+    } catch {
+      /* bukan JSON */
+    }
+    recordPrintResult(response.ok, message);
+    return response;
+  } catch (error) {
+    recordPrintResult(false, error instanceof Error ? error.message : "Cetak gagal");
+    throw error;
+  }
+}
+
+async function deliverPrintContentInner(
   source: string | ((columns: number) => string),
   options: DeliverOptions,
 ): Promise<Response> {

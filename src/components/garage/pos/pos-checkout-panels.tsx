@@ -927,6 +927,11 @@ export function CashPaymentPanel({
           </Button>
         ))}
       </div>
+      {cashReceived === "" ? (
+        <p className="pos-v6-change mt-3 rounded-xl border p-4 text-sm font-bold" data-state="empty" role="status">
+          Isi uang yang diterima dari pelanggan, atau tekan Uang Pas bila uangnya pas.
+        </p>
+      ) : (
       <div className="pos-v6-change mt-3 rounded-xl border p-4" data-state={cashPaymentReady ? "ok" : "short"} role="status" aria-live="polite">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -954,6 +959,7 @@ export function CashPaymentPanel({
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }

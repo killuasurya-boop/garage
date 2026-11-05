@@ -13,6 +13,7 @@ import type { MenuItem } from "@/lib/garage-api-types";
 
 import { MenuPhoto } from "../menu-card";
 import { cartKey, rupiah, variantPrice } from "../order-ui";
+import { notePlaceholder } from "./menu-v5-model";
 
 type Variant = MenuItem["variants"][number] & { eventUnavailable?: string | false | null };
 
@@ -47,6 +48,11 @@ export function QuickViewV5({
     <Sheet open={Boolean(item)} onOpenChange={(open) => (!open ? onClose() : undefined)}>
       <SheetContent
         side="bottom"
+        // Jangan fokus otomatis ke kolom catatan: di HP keyboard langsung menutupi foto & harga.
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          (event.currentTarget as HTMLElement | null)?.focus({ preventScroll: true });
+        }}
         className="gm5 inset-x-0 bottom-0 z-[95] mx-auto flex max-h-[92svh] w-full flex-col overflow-hidden rounded-t-[20px] border border-[color:var(--gm5-line)] bg-[#0e0e0e] p-0 text-white sm:bottom-auto sm:top-1/2 sm:max-h-[88svh] sm:w-[min(820px,calc(100vw-48px))] sm:-translate-y-1/2 sm:rounded-[20px]"
       >
         {item ? <QuickViewBody key={item.id} item={item} initialVariantId={initialVariantId} cart={cart} notes={notes} onAdjust={onAdjust} onNote={onNote} onClose={onClose} /> : null}
@@ -204,8 +210,8 @@ function QuickViewBody({
                 maxLength={160}
                 autoComplete="off"
                 name="catatan-menu"
-                placeholder="Contoh: tanpa es, extra shot, dll…"
-                className="h-12 w-full rounded-full border border-[color:var(--gm5-line)] bg-[#141214] px-4 text-base text-white outline-none placeholder:text-[#8f8984] focus:border-[var(--menu-red)]"
+                placeholder={notePlaceholder(item)}
+                className="h-12 w-full rounded-full border border-white/15 bg-[#141214] px-4 text-base text-white outline-none placeholder:text-[#8f8984] hover:border-white/25 focus:border-[var(--menu-red)]"
               />
             </label>
           </div>

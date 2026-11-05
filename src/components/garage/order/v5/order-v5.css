@@ -270,18 +270,42 @@
       linear-gradient(120deg, #1a1718 0%, #0f0e10 60%, #171314 100%);
     box-shadow: inset 0 1px 0 var(--gm5-line-soft), 0 20px 44px rgba(0, 0, 0, 0.45);
   }
+  /* Panggung hero: emblem resmi UTUH (transparan, object-contain) besar di belakang-atas, foto menu (poster resmi)
+     sebagai kartu miring di depan-bawah sehingga puncak segitiga tetap terlihat. Tidak ada yang dipotong. */
+  .gm5-hero-stage {
+    overflow: hidden;
+    background: radial-gradient(70% 60% at 62% 38%, color-mix(in srgb, var(--menu-red) 26%, transparent), transparent 72%);
+  }
   .gm5-hero-emblem {
     position: absolute;
-    mix-blend-mode: lighten;
+    top: 5%;
+    right: 2%;
+    width: 96%;
+    height: 66%;
+    object-fit: contain;
+    object-position: 75% 0%;
+    filter: drop-shadow(0 10px 26px rgba(0, 0, 0, 0.55));
     pointer-events: none;
-    opacity: 0.95;
   }
   .gm5-hero-photo {
     position: absolute;
+    top: 60%;
+    left: 46%;
+    z-index: 10;
+    display: block;
+    width: min(66%, 240px);
+    aspect-ratio: 1;
+    transform: translate(-50%, -50%) rotate(-4deg);
     overflow: hidden;
-    -webkit-mask-image: radial-gradient(75% 80% at 55% 50%, #000 55%, transparent 100%);
-    mask-image: radial-gradient(75% 80% at 55% 50%, #000 55%, transparent 100%);
+    border-radius: 16px;
+    cursor: pointer;
+    box-shadow: 0 22px 44px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.12);
   }
+  @media (max-width: 639px) {
+    .gm5-hero-emblem { top: 4%; height: 56%; }
+    .gm5-hero-photo { top: 62%; left: 50%; width: min(86%, 240px); }
+  }
+  .gm5-hero-photo:focus-visible { outline: 2px solid var(--menu-red-bright); outline-offset: 3px; }
   .gm5-swash {
     display: block;
     height: 4px;
@@ -362,7 +386,145 @@
   }
 
   /* ---- Gerak (papan 06): hover 120 ms ease-out, tekan 80 ms ease-in ---- */
+
+  /* F4 AYA Assistant (papan 04): contoh pertanyaan, titik mengetik, gelombang mic. */
+  .gm5-prompt {
+    display: flex;
+    width: 100%;
+    min-height: 48px;
+    align-items: center;
+    gap: 0.75rem;
+    border: 1px solid var(--gm5-line);
+    border-radius: var(--gm5-radius-sm);
+    background: var(--gm5-surface);
+    padding: 0.6rem 0.85rem;
+    font-size: 0.9rem;
+    line-height: 1.3;
+    color: #f6f2ee;
+    cursor: pointer;
+  }
+  .gm5-prompt:hover { border-color: color-mix(in srgb, var(--menu-red) 65%, #3a3436); }
+  .gm5-prompt:focus-visible { outline: 2px solid var(--menu-red-bright); outline-offset: 2px; }
+  .gm5-typing { display: inline-flex; align-items: center; gap: 4px; }
+  .gm5-typing i { display: block; width: 7px; height: 7px; border-radius: 999px; background: #cfc9c4; }
+  .gm5-wave { display: flex; height: 22px; align-items: center; gap: 3px; }
+  .gm5-wave i { display: block; width: 3px; height: 40%; border-radius: 2px; background: var(--menu-red-bright); }
+  .gm5-mic-active {
+    border-color: var(--menu-red-bright) !important;
+    background: linear-gradient(180deg, var(--menu-red-bright), var(--menu-red)) !important;
+    color: #fff !important;
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--menu-red) 30%, transparent);
+  }
+
+  /* Sidebar: kategori yang sedang terlihat (scrollspy) = garis merah + teks putih (bukan isian merah penuh). */
+  .gm5-side-sub[aria-current="location"] {
+    color: #fff;
+    background: color-mix(in srgb, var(--menu-red) 16%, transparent);
+    box-shadow: inset 3px 0 0 var(--menu-red-bright);
+  }
+  .gm5-member-cta {
+    border-color: color-mix(in srgb, var(--garage-amber) 45%, #3a3436);
+    background:
+      radial-gradient(120% 90% at 100% 0%, color-mix(in srgb, var(--garage-amber) 16%, transparent), transparent 60%),
+      var(--gm5-surface);
+  }
+
+  /* Kartu sosmed: satu baris per akun, ikon berwarna merek di kotak kecil (logo, bukan tema). */
+  .gm5-social {
+    display: flex;
+    min-height: 52px;
+    align-items: center;
+    gap: 0.6rem;
+    border: 1px solid var(--gm5-line-soft);
+    border-radius: var(--gm5-radius-sm);
+    background: #141214;
+    padding: 0.5rem 0.6rem;
+    cursor: pointer;
+  }
+  .gm5-social:hover { border-color: color-mix(in srgb, var(--menu-red) 65%, #3a3436); }
+  .gm5-social:focus-visible { outline: 2px solid var(--menu-red-bright); outline-offset: 2px; }
+  .gm5-social-icon {
+    display: inline-flex;
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    color: #fff;
+  }
+  .gm5-social[data-social="instagram"] .gm5-social-icon { background: linear-gradient(135deg, #f58529, #dd2a7b 55%, #8134af); }
+  .gm5-social[data-social="tiktok"] .gm5-social-icon { background: #010101; box-shadow: inset 0 0 0 1px #2a2a2a, -2px -1px 0 -1px #25f4ee, 2px 1px 0 -1px #fe2c55; }
+  .gm5-social[data-social="youtube"] .gm5-social-icon { background: #ff0000; }
+  .gm5-social[data-social="facebook"] .gm5-social-icon { background: #1877f2; }
+
+  /* Sidebar desktop lebih tinggi dari layar → gulir sendiri, scrollbar tipis. */
+  .gm5-side-scroll { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--menu-red) 45%, #3a3436) transparent; }
+
+  /* Hapus item (papan 03): kotak merah gelap bergaris, sebaris dengan stepper. */
+  .gm5-trash {
+    border: 1px solid color-mix(in srgb, var(--menu-red-bright) 70%, transparent);
+    background: color-mix(in srgb, var(--menu-red) 22%, #1a1617);
+    color: #ffb4b0;
+  }
+  .gm5-trash:hover { background: color-mix(in srgb, var(--menu-red) 38%, #1a1617); color: #fff; }
+
+  /* F5 papan 06: toast bertingkat, titik terbang, centang sukses, skeleton. */
+  .gm5-toast-stack {
+    position: fixed;
+    inset-inline: 1rem;
+    bottom: calc(5.5rem + env(safe-area-inset-bottom));
+    z-index: 60;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-inline: auto;
+    max-width: 24rem;
+    pointer-events: none;
+  }
+  @media (min-width: 1024px) {
+    /* Desktop: panel Daftar Pilihan sudah menampilkan item baru; toast sukses tidak perlu menutupinya. */
+    .gm5-toast-stack { bottom: 1.5rem; max-width: 26rem; }
+    .gm5-toast[data-tone="success"] { display: none; }
+  }
+  .gm5-toast {
+    --gm5-toast-c: #86efac;
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    border: 1px solid color-mix(in srgb, var(--gm5-toast-c) 45%, #3a3436);
+    border-left-width: 4px;
+    border-left-color: var(--gm5-toast-c);
+    border-radius: var(--gm5-radius-sm);
+    background: #161416f2;
+    padding: 0.55rem 0.4rem 0.55rem 0.8rem;
+    color: #ede6dc;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+  }
+  .gm5-toast[data-tone="warning"] { --gm5-toast-c: #fbbf24; }
+  .gm5-toast[data-tone="error"] { --gm5-toast-c: #f87171; }
+  .gm5-toast-icon { color: var(--gm5-toast-c); }
+  .gm5-toast-close {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 999px;
+    color: #cfc9c4;
+    cursor: pointer;
+  }
+  .gm5-toast-close:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
+  .gm5-toast-close:focus-visible { outline: 2px solid var(--menu-red-bright); outline-offset: 1px; }
+  .gm5-success-check { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .gm5-success-ring { stroke: #86efac; stroke-width: 1.6; fill: color-mix(in srgb, #86efac 14%, transparent); }
+  .gm5-success-tick { stroke: #86efac; stroke-width: 2.4; stroke-dasharray: 16; stroke-dashoffset: 0; }
+
   @media (prefers-reduced-motion: no-preference) {
+    .gm5-social { transition: transform 120ms ease-out, border-color 120ms ease-out; }
+    .gm5-social:active { transform: scale(0.97); transition-duration: 80ms; transition-timing-function: ease-in; }
     .gm5 :is(.gm5-chip, .gm5-tile, .gm5-btn-red, .gm5-btn-ghost, .gm5-step, .gm5-heart, .gm5-nav-item, .gm5-side-item) {
       transition: transform 120ms ease-out, box-shadow 120ms ease-out, border-color 120ms ease-out, background-color 120ms ease-out, filter 120ms ease-out;
     }
@@ -379,11 +541,56 @@
       .gm5-tile:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--menu-red) 65%, #3a3436); }
     }
     .gm5-pop { animation: gm5-pop 180ms ease-out both; }
+    .gm5-pulse { animation: gm5-pulse 300ms ease-out both; }
+    .gm5-typing i { animation: gm5-loading 1.2s ease-in-out infinite; }
+    .gm5-typing i:nth-child(2) { animation-delay: 160ms; }
+    .gm5-typing i:nth-child(3) { animation-delay: 320ms; }
+    .gm5-wave i { animation: gm5-wave 720ms ease-in-out infinite alternate; }
+    .gm5-prompt { transition: transform 120ms ease-out, border-color 120ms ease-out; }
+    .gm5-prompt:active { transform: scale(0.98); transition-duration: 80ms; transition-timing-function: ease-in; }
+    .gm5-heart[aria-pressed="true"] svg { animation: gm5-heart-burst 300ms ease-out both; }
+    .gm5-heart[aria-pressed="true"]::after {
+      content: "";
+      position: absolute;
+      inset: -2px;
+      border-radius: inherit;
+      border: 2px solid var(--menu-red-bright);
+      pointer-events: none;
+      animation: gm5-heart-ring 300ms ease-out both;
+    }
+    .gm5-success-check { animation: gm5-pulse 300ms ease-out 260ms both; }
+    .gm5-success-tick { stroke-dashoffset: 16; animation: gm5-draw 320ms ease-out 120ms forwards; }
+    .gm5-skeleton { animation: gm5-loading 1.2s ease-in-out infinite; }
     .gm5-rise { animation: gm5-rise 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both; animation-delay: calc(var(--gm5-i, 0) * 60ms); }
     .gm5-hero-photo img { animation: gm5-hero-in 520ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+    .gm5-hero-emblem { animation: gm5-emblem-in 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+    @media (hover: hover) {
+      .gm5-hero-photo { transition: transform 160ms ease-out; }
+      .gm5-hero-photo:hover { transform: translate(-50%, -50%) rotate(-2deg) scale(1.03); }
+    }
   }
 }
 
 @keyframes gm5-pop { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: scale(1); } }
 @keyframes gm5-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 @keyframes gm5-hero-in { from { opacity: 0; transform: translateX(24px) scale(1.04); } to { opacity: 1; transform: none; } }
+@keyframes gm5-pulse { 0% { transform: scale(1); } 45% { transform: scale(1.28); } 100% { transform: scale(1); } }
+@keyframes gm5-heart-burst { 0% { transform: scale(1); } 40% { transform: scale(1.35); } 100% { transform: scale(1); } }
+@keyframes gm5-heart-ring { from { opacity: 0.9; transform: scale(0.7); } to { opacity: 0; transform: scale(1.5); } }
+@keyframes gm5-draw { to { stroke-dashoffset: 0; } }
+@keyframes gm5-loading { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+
+/* Titik "terbang ke Daftar" ditempel di <body> (di luar .gm5), digerakkan lewat Web Animations API. */
+.gm5-fly-dot {
+  position: fixed;
+  z-index: 95;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--menu-red, #d43a3a);
+  box-shadow: 0 0 0 2px #0e0e0e, 0 0 14px color-mix(in srgb, var(--menu-red, #d43a3a) 70%, transparent);
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+@keyframes gm5-wave { from { transform: scaleY(0.35); } to { transform: scaleY(1.6); } }
+@keyframes gm5-emblem-in { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: none; } }

@@ -74,6 +74,9 @@ Keputusan Owner 4 Nov 2026 (sisa, "pakai usulan Claude"):
 Status 4 Nov 2026: F1 (AYA V5 + token + font), F2 (layout) dan F3 (Quick View, Daftar Pilihan, mode outlet
 `digitalMenuMode`, Tunjukkan ke Waiter + QR prefill Pesankan) selesai. Berikutnya F4 (AYA chat/voice/quick prompts) dan
 F5 (state, toast, efek suara, QA penuh). Ukuran S/M/L & level gula masih menunggu data produk.
+Status lanjutan: F5 (animasi + efek suara, `menu-feedback.ts`, `toast-v5.tsx`) dan F4 (AYA Assistant: `aya-menu-assistant.ts`
+= jawaban berbasis aturan dari data menu, TANPA AI (D-07); panel `aya-chat-v5.tsx` dengan saran cepat, contoh pertanyaan, kartu menu,
+mic bawaan browser, suara `speakAya`) selesai. Rating ★ dan "menu terbaru" di papan 04 tidak dipasang: datanya tidak ada.
 
 Rencana fase: F1 fondasi (token #D43A3A, font, AYA V5 di semua layar + rig jalan/lari) -> F2 layout menu
 (header, sidebar, hero, ubin, chip, kartu, panel kanan, bottom nav) -> F3 Quick View + Daftar Pilihan + mode outlet

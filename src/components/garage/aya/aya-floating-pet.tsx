@@ -160,6 +160,7 @@ export function AyaFloatingPet({
   const [dragging, setDragging] = useState(false);
   const [facingLeft, setFacingLeft] = useState(false);
   const [open, setOpen] = useState(false);
+  const autoGreeting = useRef<{ scrollY: number } | null>(null);
   const [pose, setPose] = useState<AyaPose>("idle");
   const [expression, setExpression] = useState<AyaExpression>("default");
   const [effect, setEffect] = useState<AyaEffect | null>(null);
@@ -234,6 +235,7 @@ export function AyaFloatingPet({
     if (greetingOnce && !readJson<boolean>("session", greetedKey)) {
       writeJson("session", greetedKey, true);
       const timer = window.setTimeout(() => {
+        autoGreeting.current = { scrollY: window.scrollY };
         setOpen(true);
         setPose("wave");
         setExpression("happy");
@@ -313,10 +315,23 @@ export function AyaFloatingPet({
     window.setTimeout(() => settleRef.current(), next.seconds * 1000 + 60);
   }, []);
 
+  // Sapaan otomatis (bukan dibuka pelanggan) menutup sendiri saat pelanggan mulai
+  // mengetik atau menggulir, supaya tidak menutupi hasil cari / menu.
+  useEffect(() => {
+    if (!open) autoGreeting.current = null;
+  }, [open]);
+
   // Pelanggan sedang menggulir/mengetik → tandai sibuk (Aya menunggu, tidak berkeliaran).
   useEffect(() => {
-    const busy = () => {
+    const busy = (event: Event) => {
       lastBusy.current = Date.now();
+      const greeting = autoGreeting.current;
+      if (!greeting) return;
+      const typing = event.type === "input" || (event.type === "keydown" && event.target instanceof HTMLElement && event.target.matches("input, textarea"));
+      if (typing || (event.type === "scroll" && Math.abs(window.scrollY - greeting.scrollY) > 160)) {
+        autoGreeting.current = null;
+        setOpen(false);
+      }
     };
     window.addEventListener("scroll", busy, { passive: true });
     window.addEventListener("keydown", busy);

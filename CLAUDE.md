@@ -524,7 +524,9 @@ Animation skills (owner, Nov 2026: customer surfaces = cinematic, operational sc
 `motion-design` (LottieFiles, choreography/timing tables); `micro-interaction`, `page-transition-animation`,
 `60fps-animation`, `accessible-animation`, `svg-animation`, `lottie-animation` (iart-ai); `gsap-core`, `gsap-timeline`,
 `gsap-scrolltrigger`, `gsap-react`, `gsap-performance`, `gsap-plugins`, `gsap-utils` (official GreenSock).
-Use `framer-motion` (installed) and CSS first. GSAP/Lottie are NOT dependencies yet: ask the owner before adding one.
+Use `framer-motion` (installed) and CSS first. GSAP (`gsap@3.15.0`, pinned) was added with owner approval (Nov 2026) for the
+website Cinematic Laser UI (`src/components/garage-website/cinematic/`: hero, laser border, ScrollTrigger progress, site
+SFX default OFF in `site-sfx.ts`); Lottie is still NOT a dependency: ask the owner before adding it.
 Skipped on purpose: glassmorphism (heavy blur conflicts with the motion policy) and auto-invoking AI image-generation
 skills. Licenses: `.claude/skills/_licenses/`.
 Image generation (owner, Nov 2026): MCP `mcp-image` (pinned 0.18.2, template `.claude/mcp-ui.example.json`) needs

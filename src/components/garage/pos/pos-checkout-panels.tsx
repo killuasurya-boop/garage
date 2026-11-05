@@ -4,6 +4,7 @@ import {
 AlertTriangle,
 Banknote,
 Check,
+Copy,
 Equal,
 Landmark,
 Plus,
@@ -983,61 +984,99 @@ export function QrisPaymentPanel({
     window.open(url, "garage-qris-display", "noopener,noreferrer");
   };
   return (
-    <div className="garage-surface rounded-md p-3">
+    <div className="pos-v6-paypanel garage-surface rounded-xl p-3">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <QrCode className="size-4 text-[#f5a742]" />
-          <p className="garage-mono">QRIS GARAGE</p>
+          <QrCode className="pos-v6-cash-icon size-4" />
+          <p className="pos-v6-cash-label text-[13px] font-bold">Pembayaran QRIS</p>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={openCustomerDisplay}
-          className="h-7 gap-1 border-[#f5a742]/55 bg-[#f5a742]/10 px-2 text-[10px] font-bold uppercase tracking-wider text-[#ffd79a] hover:bg-[#f5a742]/20"
-        >
-          <QrCode className="size-3" />
+        <Button type="button" variant="outline" size="sm" onClick={openCustomerDisplay} className="pos-v6-quickcash h-9 gap-1.5 px-2.5 text-xs font-bold">
+          <QrCode className="size-3.5" />
           Layar Customer
         </Button>
       </div>
-      {imageReady ? (
-        <div className="mt-3 flex flex-col items-center rounded-md border border-[#4a4a54] bg-white p-3 text-[#111116]">
-          <Image
-            src={imagePath}
-            alt="QRIS resmi GARAGE"
-            width={180}
-            height={180}
-            className="h-[180px] w-[180px] object-contain"
-            onLoad={() => onImageReadyChange(true)}
-            onError={() => onImageReadyChange(false)}
-          />
-          <p className="mt-2 text-center text-xs font-semibold">
-            Scan QRIS merchant resmi GARAGE
+      <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,220px)_minmax(0,1fr)] sm:items-start">
+        {imageReady ? (
+          <div className="pos-v6-qris-frame flex flex-col items-center rounded-xl bg-white p-3 text-[#111116]">
+            <Image
+              src={imagePath}
+              alt="QRIS resmi GARAGE"
+              width={180}
+              height={180}
+              className="h-[180px] w-[180px] object-contain"
+              onLoad={() => onImageReadyChange(true)}
+              onError={() => onImageReadyChange(false)}
+            />
+            <p className="mt-2 text-center text-xs font-semibold">Scan QRIS merchant resmi GARAGE</p>
+          </div>
+        ) : (
+          <Alert className="border-[#f5a742]/45 bg-[#f5a742]/12 text-[#f4f4f5]">
+            <AlertTriangle className="size-4" />
+            <AlertTitle>QRIS resmi belum dikonfigurasi</AlertTitle>
+            <AlertDescription>Taruh file QRIS merchant resmi di `public/payments/qris-garage.png`.</AlertDescription>
+          </Alert>
+        )}
+        <div className="min-w-0 space-y-3">
+          <p className="pos-v6-cash-muted text-sm leading-snug">Minta pelanggan scan dengan aplikasi e-wallet atau m-banking, lalu cek notifikasi merchant sebelum konfirmasi.</p>
+          {typeof totalDue === "number" ? <PosV6TotalStrip label="Total Pembayaran" amount={totalDue} /> : null}
+          <p className="pos-v6-warn flex gap-2 text-sm font-semibold">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+            Pastikan status BERHASIL di notifikasi merchant/bank. Screenshot pelanggan saja tidak cukup.
           </p>
+          <div>
+            <p className="pos-v6-cash-muted mb-1 text-xs font-semibold">{referenceRequired ? "Referensi wajib" : "Referensi (opsional)"}</p>
+            <Input
+              value={paymentReference}
+              onChange={(event) => onPaymentReferenceChange(event.target.value.slice(0, 80))}
+              className="pos-v6-cash-input h-11"
+              placeholder="No. Ref / RRN dari notifikasi QRIS"
+              aria-label="Referensi QRIS"
+            />
+          </div>
         </div>
-      ) : (
-        <Alert className="mt-3 border-[#f5a742]/45 bg-[#f5a742]/12 text-[#f4f4f5]">
-          <AlertTriangle className="size-4" />
-          <AlertTitle>QRIS resmi belum dikonfigurasi</AlertTitle>
-          <AlertDescription>
-            Taruh file QRIS merchant resmi di `public/payments/qris-garage.png`.
-          </AlertDescription>
-        </Alert>
-      )}
-      <p className="mt-3 flex gap-2 text-sm font-semibold text-[#ffd08a]">
-        <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-        Pastikan status BERHASIL di notifikasi merchant/bank. Screenshot pelanggan saja tidak cukup.
-      </p>
-      <div className="mt-3">
-        <p className="garage-mono mb-1">{referenceRequired ? "Referensi wajib" : "Referensi opsional"}</p>
-        <Input
-          value={paymentReference}
-          onChange={(event) => onPaymentReferenceChange(event.target.value.slice(0, 80))}
-          className="h-10 border-[#34343c] bg-white/[0.06]"
-          placeholder="No. Ref / RRN dari notifikasi QRIS"
-          aria-label="Referensi QRIS"
-        />
       </div>
+    </div>
+  );
+}
+
+/** Kotak total tagihan (papan 05: "Total Pembayaran" merah, angka besar). */
+function PosV6TotalStrip({ label, amount }: { label: string; amount: number }) {
+  return (
+    <div className="pos-v6-total-strip flex items-center justify-between gap-3 rounded-xl px-3.5 py-3">
+      <span className="text-sm font-bold">{label}</span>
+      <span className="font-mono text-2xl font-extrabold tabular-nums">{currency.format(amount)}</span>
+    </div>
+  );
+}
+
+/** Nilai yang bisa disalin (nomor rekening/akun) — kasir tidak perlu mengetik ulang. */
+function PosV6CopyValue({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="pos-v6-copy flex items-center gap-2 rounded-xl px-3 py-2.5">
+      <span className="min-w-0 flex-1">
+        <span className="pos-v6-cash-muted block text-xs font-semibold">{label}</span>
+        <span className="block break-all font-mono text-lg font-bold tabular-nums">{value}</span>
+      </span>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="pos-v6-quickcash h-10 shrink-0 gap-1.5 px-3 text-xs font-bold"
+        onClick={() => {
+          void navigator.clipboard?.writeText(value.replace(/\s/g, "")).then(
+            () => {
+              setCopied(true);
+              window.setTimeout(() => setCopied(false), 1600);
+            },
+            () => setCopied(false),
+          );
+        }}
+        aria-label={`Salin ${label}`}
+      >
+        {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+        {copied ? "Tersalin" : "Salin"}
+      </Button>
     </div>
   );
 }
@@ -1048,42 +1087,49 @@ export function BankTransferPaymentPanel({
   paymentReference,
   onProviderChange,
   onPaymentReferenceChange,
+  totalDue,
 }: {
   selectedProvider: string;
   selectedAccount: (typeof bankAccounts)[number];
   paymentReference: string;
   onProviderChange: (value: string) => void;
   onPaymentReferenceChange: (value: string) => void;
+  totalDue?: number;
 }) {
   return (
-    <div className="garage-surface rounded-md p-3">
+    <div className="pos-v6-paypanel garage-surface space-y-3 rounded-xl p-3">
       <div className="flex items-center gap-2">
-        <Landmark className="size-4 text-[#f5a742]" />
-        <p className="garage-mono">Transfer bank</p>
+        <Landmark className="pos-v6-cash-icon size-4" />
+        <p className="pos-v6-cash-label text-[13px] font-bold">Transfer Bank</p>
       </div>
-      <Select value={selectedProvider} onValueChange={onProviderChange}>
-        <SelectTrigger className="mt-3 h-10 w-full border-[#34343c] bg-white/[0.06]">
-          <SelectValue placeholder="Pilih bank" />
-        </SelectTrigger>
-        <SelectContent>
+      <div>
+        <p className="pos-v6-cash-muted mb-1.5 text-xs font-semibold">Pilih bank tujuan</p>
+        <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Bank tujuan">
           {bankAccounts.map((account) => (
-            <SelectItem key={account.id} value={account.id}>
+            <Button
+              key={account.id}
+              type="button"
+              variant="outline"
+              role="radio"
+              aria-checked={selectedProvider === account.id}
+              data-selected={selectedProvider === account.id}
+              className="pos-v6-quickcash h-12 text-sm font-bold"
+              onClick={() => onProviderChange(account.id)}
+            >
+              <Landmark className="size-4" />
               {account.bank}
-            </SelectItem>
+            </Button>
           ))}
-        </SelectContent>
-      </Select>
-      <div className="mt-3 rounded-md border border-[#4a4a54] bg-[#0f0f14] p-3">
-        <BillRow label="Bank" value={selectedAccount.bank} />
-        <BillRow label="Atas nama" value={selectedAccount.accountName} />
-        <BillRow label="Rekening" value={selectedAccount.accountNumber} accent />
+        </div>
       </div>
-      <div className="mt-3">
-        <p className="garage-mono mb-1">Referensi opsional</p>
+      <PosV6CopyValue label={`Rekening ${selectedAccount.bank} · a.n. ${selectedAccount.accountName}`} value={selectedAccount.accountNumber} />
+      {typeof totalDue === "number" ? <PosV6TotalStrip label="Total Pembayaran" amount={totalDue} /> : null}
+      <div>
+        <p className="pos-v6-cash-muted mb-1 text-xs font-semibold">Referensi (opsional)</p>
         <Input
           value={paymentReference}
           onChange={(event) => onPaymentReferenceChange(event.target.value)}
-          className="h-10 border-[#34343c] bg-white/[0.06]"
+          className="pos-v6-cash-input h-11"
           placeholder="Nomor transaksi / catatan kasir"
         />
       </div>
@@ -1097,42 +1143,49 @@ export function EWalletPaymentPanel({
   paymentReference,
   onProviderChange,
   onPaymentReferenceChange,
+  totalDue,
 }: {
   selectedProvider: string;
   selectedAccount: (typeof eWalletAccounts)[number];
   paymentReference: string;
   onProviderChange: (value: string) => void;
   onPaymentReferenceChange: (value: string) => void;
+  totalDue?: number;
 }) {
   return (
-    <div className="garage-surface rounded-md p-3">
+    <div className="pos-v6-paypanel garage-surface space-y-3 rounded-xl p-3">
       <div className="flex items-center gap-2">
-        <WalletCards className="size-4 text-[#f5a742]" />
-        <p className="garage-mono">E-Wallet</p>
+        <WalletCards className="pos-v6-cash-icon size-4" />
+        <p className="pos-v6-cash-label text-[13px] font-bold">E-Wallet</p>
       </div>
-      <Select value={selectedProvider} onValueChange={onProviderChange}>
-        <SelectTrigger className="mt-3 h-10 w-full border-[#34343c] bg-white/[0.06]">
-          <SelectValue placeholder="Pilih e-wallet" />
-        </SelectTrigger>
-        <SelectContent>
+      <div>
+        <p className="pos-v6-cash-muted mb-1.5 text-xs font-semibold">Pilih e-wallet (akun resmi outlet)</p>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="radiogroup" aria-label="E-wallet">
           {eWalletAccounts.map((account) => (
-            <SelectItem key={account.id} value={account.id}>
+            <Button
+              key={account.id}
+              type="button"
+              variant="outline"
+              role="radio"
+              aria-checked={selectedProvider === account.id}
+              data-selected={selectedProvider === account.id}
+              className="pos-v6-quickcash h-12 text-sm font-bold"
+              onClick={() => onProviderChange(account.id)}
+            >
+              <WalletCards className="size-4" />
               {account.provider}
-            </SelectItem>
+            </Button>
           ))}
-        </SelectContent>
-      </Select>
-      <div className="mt-3 rounded-md border border-[#4a4a54] bg-[#0f0f14] p-3">
-        <BillRow label="Provider" value={selectedAccount.provider} />
-        <BillRow label="Akun" value={selectedAccount.accountName} />
-        <BillRow label="Nomor/ID" value={selectedAccount.accountNumber} accent />
+        </div>
       </div>
-      <div className="mt-3">
-        <p className="garage-mono mb-1">Referensi opsional</p>
+      <PosV6CopyValue label={`${selectedAccount.provider} · a.n. ${selectedAccount.accountName}`} value={selectedAccount.accountNumber} />
+      {typeof totalDue === "number" ? <PosV6TotalStrip label="Total Pembayaran" amount={totalDue} /> : null}
+      <div>
+        <p className="pos-v6-cash-muted mb-1 text-xs font-semibold">Referensi (opsional)</p>
         <Input
           value={paymentReference}
           onChange={(event) => onPaymentReferenceChange(event.target.value)}
-          className="h-10 border-[#34343c] bg-white/[0.06]"
+          className="pos-v6-cash-input h-11"
           placeholder="Nomor transaksi / catatan kasir"
         />
       </div>

@@ -10,10 +10,10 @@ import { Input } from "@/components/ui/input";
 import { currency } from "@/lib/garage-data";
 
 // --- Cashier theme preset ------------------------------------------------
-// POS V6 (owner, Nov 2026): empat tema Theme Studio. Kunci lama dipertahankan supaya preferensi
-// perangkat tidak hilang; "garage-default" (gelap klasik) otomatis menjadi Garage Signature.
+// POS V6 (owner, Nov 2026): empat tema Theme Studio + Garage Dark (gelap klasik, permintaan Owner 5 Nov 2026).
+// Kunci lama dipertahankan supaya preferensi perangkat tidak hilang; perangkat baru = Garage Signature.
 
-export type CashierThemeMode = "garage-signature" | "garage-clear" | "warm-light" | "focus-blue";
+export type CashierThemeMode = "garage-signature" | "garage-clear" | "warm-light" | "focus-blue" | "garage-default";
 
 export const DEFAULT_CASHIER_THEME: CashierThemeMode = "garage-signature";
 
@@ -48,13 +48,19 @@ export const cashierThemePresets: Array<{
     detail: "Putih kebiruan, navy, aksen biru yang tenang.",
     swatches: ["#FFFFFF", "#EEF3F9", "#FFFFFF", "#1F5FD1"],
   },
+  {
+    value: "garage-default",
+    label: "Garage Dark",
+    detail: "Tema gelap klasik POS — asphalt, chrome, aksen merah.",
+    swatches: ["#0B0B0E", "#0A0A0D", "#17171C", "#E63946"],
+  },
 ];
 
 export function isCashierThemeMode(value: string | null): value is CashierThemeMode {
   return cashierThemePresets.some((preset) => preset.value === value);
 }
 
-/** Baca preferensi tersimpan: kunci lama/tak dikenal → Garage Signature. */
+/** Baca preferensi tersimpan: kunci tak dikenal/kosong → Garage Signature; gelap klasik tetap gelap. */
 export function normalizeCashierTheme(value: string | null): CashierThemeMode {
   return isCashierThemeMode(value) ? value : DEFAULT_CASHIER_THEME;
 }

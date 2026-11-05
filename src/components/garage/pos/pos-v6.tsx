@@ -10,7 +10,9 @@
 // =============================================================================
 import { useEffect, useState, type ComponentType, type ReactNode } from "react";
 import Image from "next/image";
-import { Check, Crown, Heart, ImageOff, Plus, Star, TicketPercent } from "lucide-react";
+import { Check, ChevronDown, Crown, Heart, ImageOff, Plus, Star, TicketPercent } from "lucide-react";
+
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 import { cashierThemePresets, type CashierThemeMode } from "../garage-app-pickers";
 
@@ -30,7 +32,8 @@ export function PosV6Brand({
   hideLogoAtXl = false,
 }: {
   theme: CashierThemeMode;
-  compact?: boolean;
+  /** true = logo saja; "icon" = emblem GC (sidebar ringkas). */
+  compact?: boolean | "icon";
   subtitle?: string;
   /** Topbar kiosk: logo sudah tampil di sidebar (≥ xl), jangan dobel. */
   hideLogoAtXl?: boolean;
@@ -38,6 +41,9 @@ export function PosV6Brand({
   const light = posV6ChromeIsLight(theme);
   return (
     <div className="pos-v6-brand flex min-w-0 items-center gap-3">
+      {compact === "icon" ? (
+        <Image src="/garage-brand/garage-coffee-icon.png" alt="Garage Coffee" width={256} height={256} className="size-11 shrink-0 object-contain" />
+      ) : (
       <span className={`pos-v6-logo shrink-0 ${light ? "pos-v6-logo-plate" : ""} ${hideLogoAtXl ? "xl:hidden" : ""}`}>
         <Image
           src={light ? "/garage-brand/garage-coffee-logo-dark.png" : "/garage-brand/garage-coffee-logo.png"}
@@ -48,6 +54,7 @@ export function PosV6Brand({
           className="h-auto w-[112px] object-contain xl:w-[128px]"
         />
       </span>
+      )}
       {compact ? null : (
         <span className={`pos-v6-brand-title hidden min-w-0 md:block ${hideLogoAtXl ? "border-l pl-3 xl:border-l-0 xl:pl-0" : "border-l pl-3"}`}>
           <span className="flex items-center gap-2">
@@ -366,20 +373,105 @@ export function PosV6TopbarButton({
   );
 }
 
-export function PosV6Profile({ name, role, initials, onClick }: { name: string; role: string; initials: string; onClick: () => void }) {
+export type PosV6ProfileAction = { key: string; label: string; icon: IconType; onSelect: () => void; tone?: "danger"; disabled?: boolean };
+
+/**
+ * Profil karyawan (papan 02 "Profil Kasir & Menu"): avatar, nama, peran, perangkat & status shift,
+ * lalu menu aksi akun. Aksi = handler yang sudah ada di POS (tidak ada fitur baru di sini).
+ */
+export function PosV6Profile({
+  name,
+  role,
+  initials,
+  device,
+  shiftLabel,
+  actions,
+  theme,
+}: {
+  name: string;
+  role: string;
+  initials: string;
+  device: string;
+  shiftLabel: string;
+  actions: PosV6ProfileAction[];
+  theme: CashierThemeMode;
+}) {
   return (
-    <button type="button" className="pos-v6-profile" onClick={onClick} aria-label={`Profil ${name} — buka menu kasir`}>
-      <span className="pos-v6-avatar" aria-hidden>
-        {initials}
-      </span>
-      <span className="hidden min-w-0 text-left leading-tight 2xl:block">
-        <span className="block max-w-[120px] truncate text-sm font-bold">{name}</span>
-        <span className="block truncate text-[11px] opacity-80">{role}</span>
-      </span>
-    </button>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button type="button" className="pos-v6-profile" aria-label={`Profil ${name} (${role}) — buka menu akun`}>
+          <span className="pos-v6-avatar" aria-hidden>
+            {initials}
+          </span>
+          <span className="hidden min-w-0 text-left leading-tight lg:block">
+            <span className="block max-w-[132px] truncate text-sm font-bold">{name}</span>
+            <span className="block truncate text-[11px] opacity-80">{role}</span>
+          </span>
+          <ChevronDown className="hidden size-4 shrink-0 opacity-80 lg:block" aria-hidden />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" sideOffset={8} data-cashier-theme-scope={theme} className="pos-v6-profile-menu w-64 p-1.5">
+        <DropdownMenuLabel className="flex items-center gap-3 p-2">
+          <span className="pos-v6-avatar size-10 text-sm" aria-hidden>
+            {initials}
+          </span>
+          <span className="min-w-0 leading-tight">
+            <span className="block truncate text-sm font-bold">{name}</span>
+            <span className="block truncate text-xs font-medium opacity-75">
+              {role} · {device}
+            </span>
+            <span className="block truncate text-xs font-medium opacity-75">{shiftLabel}</span>
+          </span>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {actions.map((action) => {
+          const Icon = action.icon;
+          return (
+            <DropdownMenuItem
+              key={action.key}
+              disabled={action.disabled}
+              onSelect={action.onSelect}
+              className={`min-h-10 gap-2.5 text-sm font-semibold ${action.tone === "danger" ? "pos-v6-menu-danger" : ""}`}
+            >
+              <Icon className="size-4" aria-hidden />
+              {action.label}
+            </DropdownMenuItem>
+          );
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
 export function PosV6Divider() {
   return <span className="pos-v6-divider" aria-hidden />;
+}
+
+const longDateFmt = new Intl.DateTimeFormat("id-ID", { weekday: "short", day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Jakarta" });
+
+/** Papan 07 "Dialog Mulai Shift": ringkasan Kasir · Tanggal · Waktu mulai (jam WIB berjalan). */
+export function PosV6ShiftInfo({ cashier, device }: { cashier: string; device: string }) {
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    const tick = () => setNow(new Date());
+    tick();
+    const id = window.setInterval(tick, 15_000);
+    return () => window.clearInterval(id);
+  }, []);
+  const rows: Array<[string, string]> = [
+    ["Kasir", cashier],
+    ["Perangkat", device],
+    ["Tanggal", now ? longDateFmt.format(now) : "—"],
+    ["Waktu mulai", now ? `${timeFmt.format(now).replace(".", ":")} WIB` : "—"],
+  ];
+  return (
+    <dl className="pos-v6-shiftinfo grid grid-cols-2 gap-px overflow-hidden rounded-xl">
+      {rows.map(([label, value]) => (
+        <div key={label} className="pos-v6-shiftinfo-cell px-3 py-2">
+          <dt className="text-xs font-semibold">{label}</dt>
+          <dd className="truncate text-sm font-bold">{value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
 }

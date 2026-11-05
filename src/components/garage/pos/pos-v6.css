@@ -522,7 +522,7 @@
   }
   .garage-shell .cashier-pos-surface .pos-v6-bill.pos-v6-bill.pos-v6-bill .pos-total-box p { color: var(--pos-text) !important; }
   .garage-shell .cashier-pos-surface .pos-v6-bill.pos-v6-bill.pos-v6-bill .pos-total-box p:last-child.garage-mono,
-  .garage-shell .cashier-pos-surface .pos-v6-bill.pos-v6-bill.pos-v6-bill .pos-total-box .text-2xl { color: var(--pos-accent) !important; font-size: calc(28px * var(--pos-fs, 1)); }
+  .garage-shell .cashier-pos-surface .pos-v6-bill.pos-v6-bill.pos-v6-bill .pos-total-box .text-2xl { color: var(--pos-total-fg, var(--pos-accent)) !important; font-size: calc(28px * var(--pos-fs, 1)); }
   .pos-v6-summary { color: var(--pos-text-2); }
   .garage-shell .cashier-pos-surface .pos-v6-bill.pos-v6-bill.pos-v6-bill .pos-v6-pay {
     height: 52px;
@@ -837,4 +837,191 @@
     background: none !important;
     text-shadow: none !important;
   }
+}
+
+/* ------------------------------------------------------------------ Metode bayar & panel non-tunai (papan 05) */
+@layer components {
+  [data-slot="dialog-content"] .pos-v6-method.pos-v6-method {
+    display: inline-flex;
+    min-height: 56px;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border-radius: 12px;
+    border: 1px solid var(--pos-border, #4a4a54);
+    background: var(--pos-surface, #17171c);
+    color: var(--pos-text, #f4f4f5);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background-color 120ms ease-out, border-color 120ms ease-out, transform 80ms ease-in;
+  }
+  [data-slot="dialog-content"] .pos-v6-method:active { transform: scale(0.98); }
+  [data-slot="dialog-content"] .pos-v6-method:disabled { opacity: 0.55; cursor: not-allowed; }
+  [data-slot="dialog-content"] .pos-v6-method[data-active="true"] {
+    border-color: var(--pos-accent, #d11a2a);
+    background: var(--pos-accent, #d11a2a);
+    color: var(--pos-accent-fg, #fff);
+    box-shadow: 0 6px 16px color-mix(in srgb, var(--pos-accent, #d11a2a) 30%, transparent);
+  }
+  [data-slot="dialog-content"] .pos-v6-method:focus-visible { outline: 2px solid var(--pos-accent, #d11a2a); outline-offset: 2px; }
+  [data-slot="dialog-content"] .pos-v6-paypanel.pos-v6-paypanel {
+    border: 1px solid var(--pos-border, #34343c) !important;
+    background: var(--pos-surface, #15151b) !important;
+    color: var(--pos-text, #f4f4f5) !important;
+  }
+  [data-slot="dialog-content"] .pos-v6-paypanel :is(.pos-v6-cash-label) { color: var(--pos-text, #f4f4f5) !important; }
+  [data-slot="dialog-content"] .pos-v6-paypanel :is(.pos-v6-cash-icon) { color: var(--pos-accent, #f5a742) !important; }
+  [data-slot="dialog-content"] .pos-v6-paypanel :is(.pos-v6-cash-muted) { color: var(--pos-muted, #b8b8bf) !important; }
+  [data-slot="dialog-content"] .pos-v6-paypanel .pos-v6-cash-input {
+    border: 1.5px solid var(--pos-border, #4a4a54) !important;
+    border-radius: 12px !important;
+    background: var(--pos-surface, rgba(255, 255, 255, 0.06)) !important;
+    color: var(--pos-text, #fff) !important;
+  }
+  [data-slot="dialog-content"] .pos-v6-paypanel .pos-v6-quickcash {
+    border: 1px solid var(--pos-border, #4a4a54) !important;
+    border-radius: 10px !important;
+    background: var(--pos-surface-muted, rgba(255, 255, 255, 0.05)) !important;
+    color: var(--pos-text, #f4f4f5) !important;
+  }
+  [data-slot="dialog-content"] .pos-v6-paypanel .pos-v6-quickcash[data-selected="true"] {
+    border-color: var(--pos-accent, #d11a2a) !important;
+    background: var(--pos-accent-soft, rgba(209, 26, 42, 0.18)) !important;
+    color: var(--pos-accent, #ffb4bd) !important;
+  }
+  [data-slot="dialog-content"] .pos-v6-paypanel .pos-v6-qris-frame { box-shadow: inset 0 0 0 3px var(--pos-accent, #d11a2a); }
+  [data-slot="dialog-content"] .pos-v6-paypanel .pos-v6-total-strip {
+    background: var(--pos-total-bg, rgba(209, 26, 42, 0.14));
+    color: var(--pos-text, #f4f4f5);
+  }
+  [data-slot="dialog-content"] .pos-v6-paypanel .pos-v6-total-strip .font-mono { color: var(--pos-total-fg, var(--pos-accent, #ff8a92)); }
+  [data-slot="dialog-content"] .pos-v6-paypanel .pos-v6-copy {
+    border: 1px solid var(--pos-border, #34343c);
+    background: var(--pos-surface-muted, rgba(255, 255, 255, 0.04));
+    color: var(--pos-text, #f4f4f5);
+  }
+  [data-slot="dialog-content"] .pos-v6-paypanel .pos-v6-warn { color: var(--pos-warning, #ffd08a) !important; }
+
+  /* Menu profil karyawan */
+  .pos-v6-profile-menu[data-cashier-theme-scope] {
+    border-color: var(--pos-border) !important;
+    background: var(--pos-surface) !important;
+    color: var(--pos-text) !important;
+  }
+  .pos-v6-profile-menu [role="menuitem"] { color: var(--pos-text); }
+  .pos-v6-profile-menu [role="menuitem"]:focus { background: var(--pos-surface-muted); }
+  .pos-v6-profile-menu .pos-v6-menu-danger { color: #c0262d; }
+  .pos-v6-profile-menu .pos-v6-avatar { width: 40px; height: 40px; }
+}
+
+/* ------------------------------------------------------------------ Shift & kas (papan 07) */
+@layer components {
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) .pos-v6-denom.pos-v6-denom {
+    border-color: var(--pos-border) !important;
+    background: var(--pos-surface) !important;
+  }
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) .pos-v6-denom .pos-v6-denom-head {
+    background: var(--pos-surface-muted) !important;
+    color: var(--pos-text-2) !important;
+    border-color: var(--pos-border) !important;
+  }
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) .pos-v6-denom .pos-v6-denom-list > li + li { border-color: var(--pos-border) !important; }
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) .pos-v6-denom .pos-v6-denom-step {
+    border-color: var(--pos-border) !important;
+    background: var(--pos-surface-muted) !important;
+    color: var(--pos-accent) !important;
+  }
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) .pos-v6-denom .pos-v6-denom-input {
+    border-color: var(--pos-border) !important;
+    background: var(--pos-surface) !important;
+    color: var(--pos-text) !important;
+  }
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) .pos-v6-denom .pos-v6-denom-sub[data-counted="true"] { color: var(--pos-text) !important; }
+  .pos-v6-money { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15); }
+
+  .pos-v6-shiftinfo { background: var(--pos-border, #34343c); }
+  .pos-v6-shiftinfo-cell { background: var(--pos-surface-muted, #1c1c24); }
+  .pos-v6-shiftinfo-cell dt { color: var(--pos-muted, #b8b8bf); }
+  .pos-v6-shiftinfo-cell dd { color: var(--pos-text, #f4f4f5); }
+
+  /* Layar sebelum shift (papan 07 "Dialog Mulai Shift" / layar kunci) */
+  .pos-v6-gate .pos-v6-gate-head {
+    background: linear-gradient(100deg, #1b1213 0%, #2a1416 48%, #5a0f14 100%);
+    color: #fff;
+  }
+  .pos-v6-gate .pos-v6-gate-head .pos-v6-clock { color: #fff; }
+}
+
+/* ------------------------------------------------------------------ Meja & status (papan 06) — palet resmi Owner tetap,
+   hanya teks pastel (dirancang untuk gelap) digelapkan di tema terang agar terbaca. */
+@layer components {
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) [class*="text-[#bbf7d0]"] { color: #166534 !important; }
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) [class*="text-[#fef08a]"] { color: #854d0e !important; }
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) [class*="text-[#bfdbfe]"] { color: #1e40af !important; }
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) :is([class*="text-[#fecaca]"], [class*="text-[#ffb3b3]"], [class*="text-[#ff9aa2]"]) { color: #b91c1c !important; }
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) [class*="text-[#e5e7eb]"] { color: #374151 !important; }
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) [class*="text-[#8f8f98]"] { color: var(--pos-muted) !important; }
+}
+
+/* ------------------------------------------------------------------ HP: topbar satu baris (ikon saja) */
+@media (max-width: 639px) {
+  .garage-shell .cashier-pos-surface .pos-v6-topbar { flex-wrap: nowrap; padding: 8px 10px; gap: 8px; }
+  .garage-shell .cashier-pos-surface .pos-v6-topbar .pos-v6-brand img { width: 92px !important; }
+  .garage-shell .cashier-pos-surface .pos-v6-actions { flex-wrap: nowrap; gap: 6px; }
+  .garage-shell .cashier-pos-surface .pos-v6-tb-btn { min-height: 40px; min-width: 40px; padding: 0 9px; justify-content: center; }
+  .garage-shell .cashier-pos-surface .pos-v6-tb-btn > span:not(.pos-v6-tb-count) { display: none; }
+  .garage-shell .cashier-pos-surface .pos-v6-tb-btn .pos-v6-tb-count { position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; line-height: 18px; font-size: 10px; }
+  .garage-shell .cashier-pos-surface .pos-v6-profile { padding: 2px; min-height: 40px; }
+  .garage-shell .cashier-pos-surface .pos-v6-profile .pos-v6-avatar { width: 34px; height: 34px; }
+}
+@layer components {
+  .pos-v6-profile-menu .pos-v6-avatar { opacity: 1; color: var(--pos-accent-fg) !important; }
+  .pos-v6-profile-menu [data-slot="dropdown-menu-label"] { color: var(--pos-text) !important; opacity: 1; }
+}
+@layer components {
+  .pos-v6-gate[data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]).pos-v6-gate {
+    background: var(--pos-surface) !important;
+    border-color: var(--pos-border) !important;
+    color: var(--pos-text) !important;
+    box-shadow: 0 24px 60px rgba(20, 10, 10, 0.18) !important;
+  }
+}
+@layer components {
+  /* Teks abu muda (dirancang untuk gelap) → muted di tema terang. */
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) :is([class*="text-[#c8c8cf]"], [class*="text-[#6b6b75]"]) { color: var(--pos-muted) !important; }
+  /* Tombol tindakan merah pucat (Keluar dsb.) di tema terang: latar merah lembut + teks merah gelap. */
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) :is(button, a)[class*="bg-[#d11a2a]/14"] {
+    background: var(--pos-accent-soft) !important;
+    border-color: color-mix(in srgb, #b5121b 45%, var(--pos-border)) !important;
+    color: #a3121a !important;
+  }
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) :is(button, a)[class*="bg-[#d11a2a]/14"] * { color: inherit !important; }
+  /* Tombol outline netral (Dashboard dsb.) */
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) .pos-v6-gate :is(button)[class*="bg-white/[0.055]"],
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]).pos-v6-gate :is(button)[class*="bg-white/[0.055]"] {
+    background: var(--pos-surface) !important;
+    border-color: var(--pos-border) !important;
+    color: var(--pos-text) !important;
+  }
+}
+@layer components {
+  .garage-shell [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]).pos-v6-gate.pos-v6-gate button[class*="bg-[#d11a2a]/14"][class*="bg-[#d11a2a]/14"],
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]).pos-v6-gate.pos-v6-gate button[class*="bg-[#d11a2a]/14"][class*="bg-[#d11a2a]/14"] {
+    background: var(--pos-accent-soft) !important;
+    color: #a3121a !important;
+  }
+}
+@layer components {
+  /* Tombol berlatar merah TIPIS (…/12–/28) = aksi sekunder/berbahaya: tetap merah lembut + teks merah gelap,
+     jangan ikut aturan lama "tombol merah = isi penuh" (yang membuat teks merah di atas merah). */
+  :is(.garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) :is(.cashier-pos-surface, [data-slot="dialog-content"], [data-slot="sheet-content"]), [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]))
+    button:not([disabled]):is([class*="bg-[#d11a2a]/12"], [class*="bg-[#d11a2a]/14"], [class*="bg-[#d11a2a]/18"], [class*="bg-[#d11a2a]/20"], [class*="bg-[#d11a2a]/22"])[class*="bg-[#d11a2a]/"][class*="bg-[#d11a2a]/"] {
+    background: var(--pos-accent-soft, #fce8e9) !important;
+    border-color: color-mix(in srgb, #b5121b 45%, var(--pos-border, #e4dddb)) !important;
+    color: #a3121a !important;
+    box-shadow: none !important;
+  }
+  :is(.garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) :is(.cashier-pos-surface, [data-slot="dialog-content"], [data-slot="sheet-content"]), [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]))
+    button:not([disabled]):is([class*="bg-[#d11a2a]/12"], [class*="bg-[#d11a2a]/14"], [class*="bg-[#d11a2a]/18"], [class*="bg-[#d11a2a]/20"], [class*="bg-[#d11a2a]/22"])[class*="bg-[#d11a2a]/"][class*="bg-[#d11a2a]/"] * { color: inherit !important; }
 }

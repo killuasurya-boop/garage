@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cashierThemePresets, DEFAULT_CASHIER_THEME, isCashierThemeMode, normalizeCashierTheme } from "../garage-app-pickers";
 import { defaultCashierPosSettings, loadCashierPosSettings } from "../garage-app-helpers";
 
-const THEMES = ["garage-signature", "garage-clear", "warm-light", "focus-blue"] as const;
+const THEMES = ["garage-signature", "garage-clear", "warm-light", "focus-blue", "garage-default"] as const;
 
 function tokensFor(theme: string) {
   const css = readFileSync(path.join(process.cwd(), "src/app/globals.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
@@ -43,17 +43,18 @@ function firstHex(value: string) {
 }
 
 describe("POS V6 — tema kasir", () => {
-  it("tepat empat tema Theme Studio, unik, Signature = utama", () => {
+  it("empat tema V6 + Garage Dark klasik, unik, Signature = utama", () => {
     expect(cashierThemePresets.map((preset) => preset.value)).toEqual([...THEMES]);
-    expect(cashierThemePresets.map((preset) => preset.label)).toEqual(["Garage Signature", "Garage Clear", "Warm Coffee", "Focus Blue"]);
+    expect(cashierThemePresets.map((preset) => preset.label)).toEqual(["Garage Signature", "Garage Clear", "Warm Coffee", "Focus Blue", "Garage Dark"]);
     expect(DEFAULT_CASHIER_THEME).toBe("garage-signature");
   });
 
-  it("preferensi lama/tidak dikenal dipetakan ke Garage Signature", () => {
-    expect(normalizeCashierTheme("garage-default")).toBe("garage-signature");
+  it("tidak dikenal/kosong → Garage Signature; gelap klasik tetap gelap", () => {
+    expect(normalizeCashierTheme("garage-default")).toBe("garage-default");
     expect(normalizeCashierTheme(null)).toBe("garage-signature");
+    expect(normalizeCashierTheme("neon")).toBe("garage-signature");
     expect(normalizeCashierTheme("warm-light")).toBe("warm-light");
-    expect(isCashierThemeMode("garage-default")).toBe(false);
+    expect(isCashierThemeMode("garage-default")).toBe(true);
   });
 
   for (const theme of THEMES) {
@@ -70,7 +71,7 @@ describe("POS V6 — tema kasir", () => {
       expect(contrast(firstHex(t["--pos-accent-fg"]), firstHex(t["--pos-accent"]))).toBeGreaterThanOrEqual(4.5);
       expect(contrast(firstHex(t["--pos-chrome-fg"]), firstHex(t["--pos-chrome-solid"]))).toBeGreaterThanOrEqual(7);
       // Total tagihan (aksen) di atas kotak total
-      expect(contrast(firstHex(t["--pos-accent"]), firstHex(t["--pos-total-bg"]))).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(firstHex(t["--pos-total-fg"] ?? t["--pos-accent"]), firstHex(t["--pos-total-bg"]))).toBeGreaterThanOrEqual(4.5);
       // Status sukses (kembalian) tetap terbaca di permukaan
       expect(contrast(firstHex(t["--pos-success"]), firstHex(t["--pos-success-soft"]))).toBeGreaterThanOrEqual(4.5);
     });

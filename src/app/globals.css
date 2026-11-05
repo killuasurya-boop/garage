@@ -600,6 +600,41 @@ body {
     background: #f8f6f4 !important;
   }
 
+  /* Garage Dark (gelap klasik) — token V6 untuk komponen V6 di tema gelap. */
+  .garage-shell[data-cashier-theme="garage-default"],
+  [data-cashier-theme-scope="garage-default"] {
+    --pos-chrome-bg: #0b0b0e;
+    --pos-topbar-bg: linear-gradient(100deg, #0e0e12 0%, #16161c 60%, #2a1116 100%);
+    --pos-chrome-solid: #0b0b0e;
+    --pos-chrome-fg: #f4f4f5;
+    --pos-chrome-muted: #b8b8bf;
+    --pos-chrome-line: #2a2a32;
+    --pos-chrome-hover: rgba(255, 255, 255, 0.07);
+    --pos-chrome-active-bg: linear-gradient(180deg, #e63946, #c81e2c);
+    --pos-chrome-active-fg: #ffffff;
+    --pos-chrome-chip: rgba(255, 255, 255, 0.05);
+    --pos-accent: #d4202a;
+    --pos-accent-hover: #e63946;
+    --pos-accent-soft: rgba(230, 57, 70, 0.16);
+    --pos-accent-fg: #ffffff;
+    --pos-bg: #0a0a0d;
+    --pos-surface: #17171c;
+    --pos-surface-muted: #1f1f26;
+    --pos-text: #fafafa;
+    --pos-text-2: #d6d6dc;
+    --pos-muted: #a1a1aa;
+    --pos-border: #34343c;
+    --pos-price: #ff8a92;
+    --pos-total-bg: #2a1116;
+    --pos-total-fg: #ff9aa2;
+    --pos-success: #4ade80;
+    --pos-success-soft: #0f2a1a;
+    --pos-warning: #fbbf24;
+    --pos-warning-soft: #2a2010;
+    --pos-info: #60a5fa;
+    --pos-info-soft: #0f1d33;
+  }
+
   .garage-shell[data-cashier-theme="garage-signature"],
   [data-cashier-theme-scope="garage-signature"] {
     --pos-chrome-bg: linear-gradient(180deg, #261a1b 0%, #1b1213 100%);

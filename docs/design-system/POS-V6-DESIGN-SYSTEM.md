@@ -35,8 +35,10 @@ Didefinisikan per tema di `src/app/globals.css` (selektor `.garage-shell[data-ca
 | Garage Clear | `garage-clear` | putih | `#F3F4F6` | `#B5121B` |
 | Warm Coffee | `warm-light` | espresso `#3A2219` | krem `#F5EEE3` | `#B5121B` |
 | Focus Blue | `focus-blue` | putih | `#EEF3F9` | `#1F5FD1` |
+| Garage Dark (klasik, permintaan Owner) | `garage-default` | asphalt `#0B0B0E` | `#0A0A0D` | `#D4202A` |
 
-Kunci lama `garage-default` (gelap klasik) otomatis dibaca sebagai Garage Signature (`normalizeCashierTheme`).
+Perangkat yang sudah memakai gelap klasik (`garage-default`) tetap gelap (Owner, 5 Nov 2026); perangkat baru = Garage Signature.
+Tombol "⚡ Uang pas · Take away" (Bayar 1 tap) tetap langsung menyelesaikan transaksi (keputusan Owner 5 Nov 2026).
 Status bahaya tetap merah di semua tema (Focus Blue tidak mengubah merah jadi biru).
 
 **Kontras:** `src/components/garage/pos/pos-v6.test.ts` membaca token dari `globals.css` dan memeriksa
@@ -56,12 +58,12 @@ teks ≥ 7:1, teks redup/harga/tombol/total/kembalian ≥ 4,5:1 untuk keempat te
 | Papan | Komponen React | File | Status |
 |---|---|---|---|
 | 01 Sidebar | `PosV6NavGroup`, `PosV6NavItem` (badge, titik status, shortcut), `PosV6ThemeSwatches` | `src/components/garage/pos/pos-v6.tsx`, sidebar di `pos-view.tsx` | Selesai; mode Penuh/Ikon saja |
-| 02 Header | `PosV6Brand`, `PosV6ShiftChip`, `PosV6Clock`, `PosV6Kpi`, `PosV6TopbarButton`, `PosV6Profile` | `pos-v6.tsx`, topbar di `pos-view.tsx` | Selesai |
+| 02 Header | `PosV6Brand`, `PosV6ShiftChip`, `PosV6Clock`, `PosV6Kpi`, `PosV6TopbarButton`, `PosV6Profile` (menu akun: Menu Kasir, Absen, Fee, Shift, Theme Studio, Pengaturan, Keluar) | `pos-v6.tsx`, topbar di `pos-view.tsx` | Selesai; HP = satu baris ikon |
 | 03 Katalog | `PosV6CategoryTile`, `PosV6ProductCard` (Visual/Ringkas/Daftar, Habis, Signature, Unggulan, Promo, Favorit) | `pos-v6.tsx` | Selesai |
 | 04 Keranjang | tab Pesanan/Meja, thumbnail baris, Subtotal/Layanan/Pajak/Pembulatan, Total Tagihan, Bayar F9 | `pos-view.tsx` + `pos-v6.css` | Selesai (struktur baris lama dipertahankan) |
-| 05 Pembayaran | `CashPaymentPanel` V6 (Uang Diterima, nominal cepat + Uang Pas, kartu Kembalian) | `pos/pos-checkout-panels.tsx` | Tunai selesai; QRIS/Transfer/E-Wallet memakai panel lama bertema terang |
-| 06 Operasional | Lembar Operasional QR, peta meja | `pos-view.tsx` | Tema terang diperbaiki (kontras); tata letak lama |
-| 07 Shift | Dialog shift, hitung denominasi, closing | (tidak diubah) | Tema terang ikut pemetaan warna; tata letak lama |
+| 05 Pembayaran | Pemilih metode berikon; `CashPaymentPanel` (Uang Diterima, nominal cepat + Uang Pas, Kembalian); `QrisPaymentPanel` (QR + total + verifikasi + ref); `BankTransferPaymentPanel`/`EWalletPaymentPanel` (pilih akun, nomor bisa disalin, total) | `pos/pos-checkout-panels.tsx` | Selesai |
+| 06 Operasional | Lembar Operasional QR, peta meja (palet status resmi Owner dipertahankan) | `pos-view.tsx` | Kontras tema terang diperbaiki; tata letak lama |
+| 07 Shift | Layar "Shift Belum Dibuka" ber-header V6, `PosV6ShiftInfo` (kasir/perangkat/tanggal/jam), grid pecahan berwarna uang Rupiah, Tutup Shift (blind count tetap) | `pos-view.tsx`, `cash-denomination-grid.tsx` | Selesai (aturan keuangan tidak diubah) |
 | 08 Theme Studio | `PosV6ThemeStudio`, `CashierThemePresetGrid` (kartu pratinjau) | `pos/pos-v6-theme-studio.tsx`, `garage-app-pickers.tsx` | Selesai (preferensi perangkat) |
 
 Badge kartu: **Promo** (harga promo dari data) > **Signature** (tag produk "Signature") > **Unggulan** (`featured`).

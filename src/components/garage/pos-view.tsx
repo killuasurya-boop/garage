@@ -13,6 +13,7 @@ import {
   PosV6Profile,
   PosV6ProductCard,
   PosV6ShiftChip,
+  PosV6ShiftInfo,
   PosV6ThemeSwatches,
   PosV6TopbarButton,
   type PosV6CardBadge,
@@ -54,6 +55,8 @@ Percent,
 Plus,
 Printer,
 QrCode,
+Landmark,
+WalletCards,
 ReceiptText,
 RefreshCw,
 Scissors,
@@ -3930,7 +3933,7 @@ export function PosView({
     return (
       <section className="flex h-full min-h-0 items-center justify-center p-3">
         <Dialog open={shiftDialogOpen} onOpenChange={setShiftDialogOpen}>
-          <DialogContent className="max-h-[90vh] overflow-y-auto border-[#34343c] bg-[#111116] sm:max-w-lg">
+          <DialogContent data-cashier-theme-scope={isCashierKiosk ? cashierTheme : undefined} className="max-h-[90vh] overflow-y-auto border-[#34343c] bg-[#111116] sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>Mulai Shift Kasir</DialogTitle>
               <DialogDescription>
@@ -3938,6 +3941,7 @@ export function PosView({
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={(event) => void openShift(event)} className="space-y-4">
+              <PosV6ShiftInfo cashier={me.user.name} device={me.device} />
               <ShiftStartStatus
                 onShiftNumber={setOpeningShiftNumber}
                 onSuggestOpeningCash={(amount) => setOpeningCash(String(amount))}
@@ -3966,7 +3970,12 @@ export function PosView({
           </DialogContent>
         </Dialog>
 
-        <div className="garage-panel garage-animate-in w-full max-w-xl rounded-md p-5">
+        <div data-cashier-theme-scope={isCashierKiosk ? cashierTheme : undefined} className="pos-v6-gate garage-panel garage-animate-in w-full max-w-xl overflow-hidden rounded-2xl p-0">
+          <div className="pos-v6-gate-head flex items-center justify-between gap-3 px-5 py-4">
+            <PosV6Brand theme="garage-signature" />
+            <PosV6Clock />
+          </div>
+          <div className="p-5">
           <div className="flex items-start gap-3">
             <div className="garage-shift-closed flex size-10 shrink-0 items-center justify-center rounded-md border border-[#d11a2a]/55 bg-[#d11a2a]/18 text-[#ffe1e5]">
               <ShieldAlert className="size-5" />
@@ -4170,6 +4179,7 @@ export function PosView({
               <AlertDescription>{signOutError}</AlertDescription>
             </Alert>
           )}
+          </div>
         </div>
       </section>
     );
@@ -4531,7 +4541,7 @@ export function PosView({
           aria-label="Navigasi kasir"
         >
           <div className="pos-v6-sidebar-brand">
-            <PosV6Brand theme={cashierTheme} compact />
+            <PosV6Brand theme={cashierTheme} compact={cashierPosSettings.sidebarMode === "compact" ? "icon" : true} />
             {cashierPosSettings.sidebarMode === "compact" ? null : (
               <p className="pos-v6-sidebar-caption">
                 POS V6 · {me.device}
@@ -5359,11 +5369,11 @@ export function PosView({
             short="Menu"
             onClick={() => setCashierMenuOpen(true)}
             ariaLabel="Buka menu kasir"
-            className={isCashierKiosk ? "xl:hidden" : ""}
+            className={`hidden sm:inline-flex ${isCashierKiosk ? "xl:hidden" : ""}`}
           />
           {/* Absen = aksi kelas satu, selalu tampak di POS (NAV_ACTION_AUDIT §1.3). */}
           {canAccessModule(me.role, "absensi-v2") && (
-            <PosV6TopbarButton icon={Fingerprint} label="Absen" onClick={() => window.location.assign("/absen")} ariaLabel="Absen kehadiran" title="Absen kehadiran" />
+            <PosV6TopbarButton icon={Fingerprint} label="Absen" onClick={() => window.location.assign("/absen")} ariaLabel="Absen kehadiran" title="Absen kehadiran" className="hidden sm:inline-flex" />
           )}
           {!isCashierKiosk && (
             <PosV6TopbarButton icon={ArrowLeft} label="Kembali" onClick={() => void exitPosToDashboard()} ariaLabel="Kembali ke dashboard" />
@@ -5377,7 +5387,7 @@ export function PosView({
             className={`${shiftOpen ? "garage-shift-open hidden md:inline-flex" : "garage-shift-closed"} ${isCashierKiosk ? "xl:hidden" : ""}`}
           />
           <PosV6TopbarButton
-            icon={Bell}
+            icon={ClipboardList}
             label="QR Order"
             short="QR"
             tone={waitingCustomerOrderCount ? "warn" : undefined}
@@ -5433,9 +5443,23 @@ export function PosView({
               className="md:hidden"
             />
           )}
-          <span className="hidden sm:inline-flex">
-            <PosV6Profile name={me.user.name} role={me.role} initials={profileInitials} onClick={() => setCashierMenuOpen(true)} />
-          </span>
+          <PosV6Profile
+            name={me.user.name}
+            role={me.role}
+            initials={profileInitials}
+            device={me.device}
+            shiftLabel={shiftOpen ? (/aktif/i.test(me.shift) ? me.shift : `Shift aktif · ${me.shift}`) : "Belum ada shift aktif"}
+            theme={cashierTheme}
+            actions={[
+              { key: "menu", label: "Menu Kasir", icon: Menu, onSelect: () => setCashierMenuOpen(true) },
+              ...(canAccessModule(me.role, "absensi-v2") ? [{ key: "absen", label: "Absen Kehadiran", icon: Fingerprint, onSelect: () => window.location.assign("/absen") }] : []),
+              { key: "fee", label: "Fee Saya", icon: Wallet, onSelect: () => onOpenEarnings() },
+              { key: "shift", label: shiftOpen ? "Shift Aktif / Tutup Shift" : "Mulai Shift", icon: shiftOpen ? ShieldCheck : ShieldAlert, onSelect: prepareShiftDialog },
+              { key: "studio", label: "Theme Studio", icon: Palette, onSelect: () => setThemeStudioOpen(true) },
+              ...(canManagePosSettings ? [{ key: "settings", label: "Pengaturan POS", icon: Settings, onSelect: () => setCashierToolOpen("settings") }] : []),
+              { key: "logout", label: signOutPending ? "Keluar..." : "Keluar", icon: LogOut, tone: "danger" as const, disabled: signOutPending, onSelect: () => void signOutFromPos() },
+            ]}
+          />
         </div>
         <div className="hidden">
           <Button
@@ -5706,7 +5730,7 @@ export function PosView({
       )}
 
       <Dialog open={shiftDialogOpen} onOpenChange={setShiftDialogOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto border-[#34343c] bg-[#111116] sm:max-w-lg">
+        <DialogContent data-cashier-theme-scope={isCashierKiosk ? cashierTheme : undefined} className="max-h-[90vh] overflow-y-auto border-[#34343c] bg-[#111116] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
               {shiftOpen ? "Tutup / Ganti Shift Kasir" : "Mulai Shift Kasir"}
@@ -5737,6 +5761,7 @@ export function PosView({
             />
           ) : (
             <form onSubmit={(event) => void openShift(event)} className="space-y-4">
+              <PosV6ShiftInfo cashier={me.user.name} device={me.device} />
               <ShiftStartStatus
                 onShiftNumber={setOpeningShiftNumber}
                 onSuggestOpeningCash={(amount) => setOpeningCash(String(amount))}
@@ -5767,7 +5792,12 @@ export function PosView({
       </Dialog>
 
       {!posVisible ? (
-        <div className="garage-panel garage-animate-in mx-auto max-w-xl rounded-md p-5">
+        <div data-cashier-theme-scope={isCashierKiosk ? cashierTheme : undefined} className="pos-v6-gate garage-panel garage-animate-in mx-auto w-full max-w-xl overflow-hidden rounded-2xl p-0">
+          <div className="pos-v6-gate-head flex items-center justify-between gap-3 px-5 py-4">
+            <PosV6Brand theme="garage-signature" />
+            <PosV6Clock />
+          </div>
+          <div className="p-5">
           <div className="flex items-start gap-3">
             <div className="garage-shift-closed flex size-10 shrink-0 items-center justify-center rounded-md border border-[#d11a2a]/55 bg-[#d11a2a]/18 text-[#ffe1e5]">
               <ShieldAlert className="size-5" />
@@ -5810,6 +5840,7 @@ export function PosView({
               Absen Kehadiran
             </Button>
           )}
+          </div>
         </div>
       ) : (
         <>
@@ -8675,23 +8706,27 @@ export function PosView({
                                 Bayar terpisah per tamu (split per produk)
                               </button>
                             ) : null}
-                            <div className="grid gap-2 sm:grid-cols-2">
-                              {paymentMethods.map((method) => (
-                                <Button
-                                  key={method}
-                                  type="button"
-                                  variant={selectedPaymentMethod === method ? "default" : "outline"}
-                                  className={`garage-press h-12 ${
-                                    selectedPaymentMethod === method
-                                      ? "bg-[#d11a2a] text-white hover:bg-[#ff2a3a]"
-                                      : "border-[#4a4a54]"
-                                  }`}
-                                  disabled={paymentPending}
-                                  onClick={() => selectPaymentMethod(method)}
-                                >
-                                  {paymentMethodLabel(method)}
-                                </Button>
-                              ))}
+                            {/* POS V6 papan 05: pemilih metode berikon (Tunai · QRIS · Transfer · E-Wallet). */}
+                            <div className="pos-v6-methods grid grid-cols-2 gap-2 sm:grid-cols-4" role="radiogroup" aria-label="Metode pembayaran">
+                              {paymentMethods.map((method) => {
+                                const MethodIcon = method === "Cash" ? Banknote : method === "QRIS" ? QrCode : method === "Bank Transfer" ? Landmark : WalletCards;
+                                const active = selectedPaymentMethod === method;
+                                return (
+                                  <button
+                                    key={method}
+                                    type="button"
+                                    role="radio"
+                                    aria-checked={active}
+                                    data-active={active}
+                                    className="pos-v6-method garage-press"
+                                    disabled={paymentPending}
+                                    onClick={() => selectPaymentMethod(method)}
+                                  >
+                                    <MethodIcon className="size-5" aria-hidden />
+                                    {paymentMethodLabel(method)}
+                                  </button>
+                                );
+                              })}
                             </div>
                             {selectedPaymentMethod === "Cash" ? (
                               <CashPaymentPanel
@@ -8724,6 +8759,7 @@ export function PosView({
                                 paymentReference={paymentReference}
                                 onProviderChange={setPaymentProvider}
                                 onPaymentReferenceChange={setPaymentReference}
+                                totalDue={totalDue}
                               />
                             ) : null}
                             {selectedPaymentMethod === "E-Wallet" ? (
@@ -8733,6 +8769,7 @@ export function PosView({
                                 paymentReference={paymentReference}
                                 onProviderChange={setPaymentProvider}
                                 onPaymentReferenceChange={setPaymentReference}
+                                totalDue={totalDue}
                               />
                             ) : null}
                           </div>

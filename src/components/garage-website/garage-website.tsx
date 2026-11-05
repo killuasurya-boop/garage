@@ -1870,8 +1870,12 @@ function Hero({ landingHero }) {
               <h1 className="display hero-image-title" aria-label="Garage Coffee Tebing Tinggi — lebih dari sekadar kopi.">
                 <span className="gw-sr-only">Garage Coffee Tebing Tinggi — </span>
                 <span className="hero-title-line hero-title-top">LEBIH DARI</span>
-                <span className="hero-title-line hero-title-bottom">
-                  <span>SEKAD</span><span className="hero-title-red">A</span><span>R KOPI.</span>
+                {/* Baris kedua = gambar transparan dari font Anton yang sama (perak + "A" merah terpisah agar kilaunya tetap
+                    berdenyut). Huruf "S" Anton digambar rusak oleh background-clip:text, jadi tidak dipakai di baris ini. */}
+                <span className="hero-title-line hero-title-bottom hero-title-stack">
+                  <span className="gw-sr-only">SEKADAR KOPI.</span>
+                  <img className="hero-title-img" src="/garage-brand/hero-title/sekadar-kopi-silver.webp" alt="" aria-hidden="true" width={1975} height={332} decoding="async" fetchPriority="high" />
+                  <img className="hero-title-img hero-title-img-a" src="/garage-brand/hero-title/sekadar-kopi-a-red.webp" alt="" aria-hidden="true" width={1975} height={332} decoding="async" />
                 </span>
               </h1>
               <p className="hero-image-lead">
@@ -2081,6 +2085,22 @@ function Hero({ landingHero }) {
             background-clip: text;
             color: transparent;
             filter: drop-shadow(0 0 18px rgba(209,26,42,0.42));
+          }
+          /* Judul baris kedua = gambar (lihat catatan di JSX); lebar mengikuti font-size baris (em). */
+          .hero-title-stack {
+            display: grid;
+            width: 5.46em;
+            max-width: 100%;
+            background: none;
+            -webkit-background-clip: border-box;
+            background-clip: border-box;
+            color: inherit;
+          }
+          .hero-title-stack > * { grid-area: 1 / 1; }
+          .hero-title-img { display: block; width: 100%; height: auto; user-select: none; pointer-events: none; }
+          .hero-title-img-a {
+            filter: drop-shadow(0 0 18px rgba(209,26,42,0.42));
+            animation: garageRedA 2.6s ease-in-out infinite;
           }
           .hero-image-lead {
             margin-top: 28px;

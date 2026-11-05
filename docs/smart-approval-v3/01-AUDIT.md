@@ -22,7 +22,7 @@ Tanggal: 6 Nov 2026 · Branch `ccr-29608758-dtli1n` (main `bec5f34` + PR #176) �
 | A7 | P1 | Tidak ada Tunda / Minta revisi | — | ✅ `review_state` + `POST /api/approvals/[id]/review` |
 | A8 | P2 | `APP-PCX.requestedBy` berisi nama (bukan user id) sehingga cek "tidak boleh setujui sendiri" tidak berlaku untuk batal item | `requestPaidItemCancel…` | ⚠️ Belum diubah: Manajer memutus pengajuannya sendiri lewat jalur "langsung" — perlu keputusan Owner |
 | A9 | P2 | Keputusan lewat PIN di POS / board lama belum meminta TOTP untuk R3 | `decideApprovalWithPin`, PATCH board | ⚠️ R3 + TOTP dipasang di Owner Decision Center (Batch 4); jalur lama tetap berbasis peran |
-| A10 | P2 | `getApprovalStats` belum disaring per outlet | `getApprovalStats` | ⏳ Batch 4 (KPI Decision Center) |
+| A10 | P2 | `getApprovalStats` belum disaring per outlet; WA massal terkirim juga untuk pengajuan yang gagal diputus | `getApprovalStats`, `approvals-board.tsx` | ✅ Diperbaiki (statistik per outlet untuk Manajer; WA hanya untuk yang berhasil; papan lama menampilkan status pelaksanaan & Tunda/Revisi) |
 
 ## Yang sudah aman (diverifikasi)
 - Klaim keputusan atomik (`UPDATE … WHERE status='pending'`) — tes keputusan bersamaan: hanya satu lolos.

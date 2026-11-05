@@ -9,7 +9,7 @@ export async function GET() {
   const session = await requirePermission("approvals:read");
   if (session.response) return session.response;
 
-  return ok(await getApprovalStats(), {
+  return ok(await getApprovalStats(session.data), {
     headers: { "Cache-Control": "no-store" },
   });
 }

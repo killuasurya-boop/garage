@@ -116,6 +116,7 @@ export const API_ROUTE_CATALOG: ApiRouteEntry[] = [
   {"path":"/api/control/cash-oversight","methods":["GET"],"note":""},
   {"path":"/api/control/decision-center/{id}","methods":["GET","POST"],"note":""},
   {"path":"/api/control/decision-center","methods":["GET"],"note":""},
+  {"path":"/api/control/intelligence","methods":["GET"],"note":""},
   {"path":"/api/control/risk/{id}/case","methods":["POST"],"note":""},
   {"path":"/api/control/risk/{id}","methods":["PATCH"],"note":""},
   {"path":"/api/control/risk","methods":["GET","POST"],"note":""},

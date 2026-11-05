@@ -26,6 +26,7 @@ import {
   type ApprovalCategory,
   type ApprovalPayload,
 } from "@/lib/approval-rules";
+import { EXECUTION_STATUS_LABEL, REVIEW_STATE_LABEL, type ApprovalExecutionStatus, type ApprovalReviewState } from "@/lib/smart-approval";
 import { GarageConnectedNav } from "@/components/garage/garage-connected-nav";
 import { GarageEmpty } from "@/components/garage/garage-state-display";
 import { useDateFilterContext } from "@/components/garage/date-filter";
@@ -61,6 +62,11 @@ type ApprovalRow = {
   reasonDecided: string | null;
   payload: ApprovalPayload;
   createdAt: string;
+  // Smart Approval V3: keputusan ≠ pelaksanaan; Tunda/Minta revisi.
+  executionStatus?: ApprovalExecutionStatus;
+  executionError?: string | null;
+  reviewState?: ApprovalReviewState | null;
+  reviewNote?: string | null;
 };
 
 type ApprovalStats = {
@@ -358,7 +364,6 @@ export function ApprovalsBoard({
       return row && !isHighRisk(row.risk);
     });
     if (!ids.length) return;
-    const decidedRows = rows.filter((r) => ids.includes(r.id));
     const res = await fetch("/api/approvals/bulk", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -371,6 +376,10 @@ export function ApprovalsBoard({
     if (!res.ok) {
       throw new Error(json.error?.message || "Keputusan massal gagal.");
     }
+    // Smart Approval V3: server bisa menolak sebagian (R3/void/refund/kas/stok harus satu per satu) —
+    // WA hanya untuk yang benar-benar berhasil diputus.
+    const okIds = new Set((json.data?.results ?? []).filter((r) => r.ok).map((r) => r.id));
+    const decidedRows = rows.filter((r) => okIds.has(r.id));
 
     // WA: buka tab pertama, salin sisanya ke clipboard (hindari popup blocker).
     const rowsWithPhone = decidedRows.filter((r) => r.requesterPhone);
@@ -816,6 +825,16 @@ function ApprovalRowCard({
           <Badge className={`text-[11px] ${STATUS_TONE[row.status] ?? ""}`}>
             {approvalStatusLabel(row.status)}
           </Badge>
+          {row.reviewState ? (
+            <Badge className="border-[#f5a742]/60 bg-[#f5a742]/12 text-[11px] text-[#ffd08a]" title={row.reviewNote ?? undefined}>
+              {REVIEW_STATE_LABEL[row.reviewState]}
+            </Badge>
+          ) : null}
+          {row.executionStatus === "failed" || row.executionStatus === "running" ? (
+            <Badge className="border-[#e5484d]/60 bg-[#e5484d]/12 text-[11px] text-[#ffb4bd]" title={row.executionError ?? undefined}>
+              {EXECUTION_STATUS_LABEL[row.executionStatus]}
+            </Badge>
+          ) : null}
         </div>
         <p className="mt-1 text-xs text-[#d6d6dc]">
           {row.requester} ·{" "}

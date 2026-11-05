@@ -5654,9 +5654,14 @@ export async function getApprovalData(params?: { status?: string; viewer?: Garag
 
 // Aggregate stats untuk header bar di Approvals Board.
 // Hitung on-the-fly, no caching needed (volume harian biasanya <100 baris).
-export async function getApprovalStats() {
+export async function getApprovalStats(viewer?: GarageSession) {
   const db = getDb();
-  const allRows = await db.select().from(approvals);
+  // Smart Approval V3: Manajer hanya menghitung pengajuan outletnya (+ lama tanpa outlet).
+  const outletScope =
+    viewer && viewer.profile.role !== "Owner" && viewer.profile.outlet?.id
+      ? or(eq(approvals.outletId, viewer.profile.outlet.id), isNull(approvals.outletId))
+      : undefined;
+  const allRows = await db.select().from(approvals).where(outletScope);
 
   const now = Date.now();
   const todayMs = getJakartaTodayRange().start.getTime();

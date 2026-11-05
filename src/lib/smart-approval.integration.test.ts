@@ -140,6 +140,9 @@ describe("Smart Approval V3 — outlet, bulk, auto, tunda", () => {
     expect(list.some((row: any) => row.id === id)).toBe(false);
     const ownerList = await svc.getApprovalData({ status: "pending", viewer: owner() });
     expect(ownerList.some((row: any) => row.id === id)).toBe(true);
+    const managerStats = await svc.getApprovalStats(manajerA());
+    const ownerStats = await svc.getApprovalStats(owner());
+    expect(ownerStats.pending).toBeGreaterThan(managerStats.pending);
     expect((await svc.decideApproval(id, { status: "approved" }, owner())).status).toBe("approved");
   });
 

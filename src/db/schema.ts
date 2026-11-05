@@ -2602,9 +2602,26 @@ export const approvals = pgTable("approvals", {
   payload: jsonb("payload").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
   // "board" (diputus di modul Persetujuan) | "pin" (PIN Manajer di POS) | "auto"
   decidedVia: text("decided_via"),
+  // Smart Approval V3 (Nov 2026, migrasi 0177). Outlet asal pengajuan (null = lama/global):
+  // Manajer hanya memutus pengajuan outletnya sendiri.
+  outletId: uuid("outlet_id").references(() => outlets.id, { onDelete: "set null" }),
+  // Nominal angka (Rupiah) — `amount` tetap label tampilan.
+  amountValue: integer("amount_value"),
+  // Keputusan ≠ pelaksanaan: not_required | running | succeeded | failed | legacy.
+  executionStatus: text("execution_status").notNull().default("not_required"),
+  executionError: text("execution_error"),
+  executionAttempts: integer("execution_attempts").notNull().default(0),
+  executedAt: timestamp("executed_at", { withTimezone: true }),
+  // Sidik objek sumber saat diputus (data berubah sejak preview → STALE).
+  decisionSnapshotHash: text("decision_snapshot_hash"),
+  // Tunda / Minta Revisi: status tetap pending, ditandai di sini.
+  reviewState: text("review_state"),
+  reviewNote: text("review_note"),
+  reviewBy: text("review_by").references(() => user.id, { onDelete: "set null" }),
+  reviewAt: timestamp("review_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [index("approvals_status_outlet_idx").on(table.status, table.outletId)]);
 
 export const aiProviderConfigs = pgTable(
   "ai_provider_configs",

@@ -1,7 +1,8 @@
 import { z } from "zod";
 
 import { fail, ok, readJson } from "@/lib/api-response";
-import { decideApproval, getApprovalById } from "@/lib/garage-service";
+import { ApprovalStaleError, decideApproval, getApprovalById, getApprovalSnapshotHash } from "@/lib/garage-service";
+import { canDecideForOutlet } from "@/lib/smart-approval";
 import { canUseApi } from "@/lib/role-access";
 import { requireGarageSession, requirePermission } from "@/lib/server-auth";
 
@@ -11,6 +12,8 @@ const approvalSchema = z
   .object({
     status: z.enum(["approved", "rejected"]),
     reasonDecided: z.string().trim().max(500).optional(),
+    // Smart Approval V3: sidik data saat Owner melihat; berbeda saat diputus → 409 STALE.
+    expectedSnapshotHash: z.string().regex(/^[0-9a-f]{64}$/).optional(),
   })
   .refine(
     (data) =>
@@ -38,10 +41,13 @@ export async function GET(
   }
   // Kasir/Waiter hanya perlu status pengajuan (polling diskon/void) — detail
   // nominal, alasan & pemohon hanya untuk yang berhak memutuskan approval.
-  if (!canUseApi(session.data.profile.role, "approvals:decide")) {
+  if (
+    !canUseApi(session.data.profile.role, "approvals:decide") ||
+    !canDecideForOutlet(session.data.profile.role, session.data.profile.outlet?.id, approval.outletId)
+  ) {
     return ok({ id: approval.id, type: approval.type, status: approval.status });
   }
-  return ok(approval);
+  return ok({ ...approval, snapshotHash: await getApprovalSnapshotHash(id) });
 }
 
 export async function PATCH(
@@ -67,12 +73,14 @@ export async function PATCH(
         reasonDecided: body.data.reasonDecided,
       },
       session.data,
+      { expectedSnapshotHash: body.data.expectedSnapshotHash },
     );
     if (!approval) {
       return fail(404, "APPROVAL_NOT_FOUND", "Pengajuan tidak ditemukan.");
     }
     return ok(approval);
   } catch (err) {
+    if (err instanceof ApprovalStaleError) return fail(409, "STALE", err.message);
     return fail(
       400,
       "APPROVAL_DECIDE_FAILED",

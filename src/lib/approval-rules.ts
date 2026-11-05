@@ -158,4 +158,6 @@ export type ApprovalPayload = {
   /** Diskon manual: nominal maksimum yang disetujui & kasir peminta. */
   discountAmount?: number;
   requestedBy?: string;
+  /** APP-PCX: bill pisahan yang sudah dibuat (pelaksanaan diulang tidak memisah dua kali). */
+  splitChildId?: string;
 };

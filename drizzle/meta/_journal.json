@@ -1240,6 +1240,13 @@
       "when": 1793302176227,
       "tag": "0176_payout_active_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 177,
+      "version": "7",
+      "when": 1793905628766,
+      "tag": "0177_smart_approval_v3",
+      "breakpoints": true
     }
   ]
 }

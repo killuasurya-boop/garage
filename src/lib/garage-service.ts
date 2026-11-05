@@ -229,6 +229,15 @@ import {
   type ApprovalPayload,
   type RefundPayloadItem,
 } from "@/lib/approval-rules";
+import {
+  approvalRiskTier,
+  autoApprovalDecision,
+  bulkDecisionBlockReason,
+  canDecideForOutlet,
+  parseRupiahLabel,
+  type ApprovalExecutionStatus,
+  type ApprovalReviewState,
+} from "@/lib/smart-approval";
 import { hashPin, pinHashEquals } from "@/lib/attendance";
 import {
   APPROVAL_PIN_OUTLET_POLICY,
@@ -5462,12 +5471,76 @@ function mapApprovalRow(row: typeof approvals.$inferSelect) {
     reasonDecided: row.reasonDecided,
     payload: (row.payload ?? {}) as ApprovalPayload,
     createdAt: row.createdAt.toISOString(),
+    // Smart Approval V3
+    outletId: row.outletId ?? null,
+    amountValue: row.amountValue ?? null,
+    riskTier: approvalRiskTier(row),
+    executionStatus: row.executionStatus as ApprovalExecutionStatus,
+    executionError: row.executionError ?? null,
+    executionAttempts: row.executionAttempts,
+    executedAt: row.executedAt?.toISOString() ?? null,
+    reviewState: (row.reviewState ?? null) as ApprovalReviewState | null,
+    reviewNote: row.reviewNote ?? null,
+    reviewAt: row.reviewAt?.toISOString() ?? null,
   };
 }
 
 export async function getApprovalById(id: string) {
   const [row] = await getDb().select().from(approvals).where(eq(approvals.id, id)).limit(1);
   if (!row) return null;
+  return mapApprovalRow(row);
+}
+
+/** Sidik objek sumber pengajuan saat ini (untuk preview; dibandingkan lagi saat diputus). */
+export async function getApprovalSnapshotHash(id: string) {
+  const [row] = await getDb().select().from(approvals).where(eq(approvals.id, id)).limit(1);
+  if (!row) return null;
+  const { approvalSubjectSnapshot } = await import("@/lib/smart-approval-snapshot");
+  return (await approvalSubjectSnapshot(row)).hash;
+}
+
+/**
+ * Tunda / Minta bukti-revisi (Smart Approval V3): keputusan tetap "pending", tidak ada efek ke uang/stok.
+ * Hanya pemutus yang berwenang untuk outlet itu; catatan wajib; tercatat di audit.
+ */
+export async function reviewApproval(
+  id: string,
+  input: { action: "defer" | "request_revision" | "clear"; note?: string },
+  garage: GarageSession,
+) {
+  const note = input.note?.trim().slice(0, 500) || null;
+  if (input.action !== "clear" && (!note || note.length < 5)) {
+    throw new Error("Catatan wajib diisi minimal 5 karakter.");
+  }
+  const db = getDb();
+  const [current] = await db.select().from(approvals).where(eq(approvals.id, id)).limit(1);
+  if (!current) return null;
+  if (current.status !== "pending") throw new Error("Pengajuan ini sudah diputuskan.");
+  if (!canDecideForOutlet(garage.profile.role, garage.profile.outlet?.id, current.outletId)) {
+    throw new Error("Pengajuan ini milik outlet lain.");
+  }
+  const reviewState = input.action === "defer" ? "deferred" : input.action === "request_revision" ? "revision_requested" : null;
+  const [row] = await db
+    .update(approvals)
+    .set({
+      reviewState,
+      reviewNote: reviewState ? note : null,
+      reviewBy: reviewState ? garage.user.id : null,
+      reviewAt: reviewState ? new Date() : null,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(approvals.id, id), eq(approvals.status, "pending")))
+    .returning();
+  if (!row) throw new Error("Pengajuan ini sudah diputuskan.");
+  await createAuditLog({
+    actor: `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`,
+    action:
+      input.action === "defer" ? "Pengajuan ditunda" : input.action === "request_revision" ? "Minta bukti/revisi pengajuan" : "Status tunda/revisi dihapus",
+    object: id,
+    device: garage.profile.deviceLabel,
+    status: reviewState ?? "pending",
+    metadata: { note, before: current.reviewState ?? null, after: reviewState },
+  });
   return mapApprovalRow(row);
 }
 
@@ -5541,6 +5614,8 @@ export async function requestManualDiscountApproval(
       status: "pending",
       // Approval terkunci ke nominal ini & kasir peminta (dipakai saat order).
       payload: { discountAmount: amount, requestedBy: garage.user.id } satisfies ApprovalPayload,
+      outletId: garage.profile.outlet?.id ?? null,
+      amountValue: Math.round(amount),
     });
 
   await createAuditLog({
@@ -5561,11 +5636,17 @@ export async function requestManualDiscountApproval(
   return { approvalId, status: "pending" as const, amount };
 }
 
-export async function getApprovalData(params?: { status?: string }) {
+export async function getApprovalData(params?: { status?: string; viewer?: GarageSession }) {
+  // Manajer melihat pengajuan outletnya + pengajuan lama tanpa outlet; Owner semua.
+  const viewer = params?.viewer;
+  const outletScope =
+    viewer && viewer.profile.role !== "Owner" && viewer.profile.outlet?.id
+      ? or(eq(approvals.outletId, viewer.profile.outlet.id), isNull(approvals.outletId))
+      : undefined;
   const rows = await getDb()
     .select()
     .from(approvals)
-    .where(params?.status ? eq(approvals.status, params.status) : undefined)
+    .where(and(params?.status ? eq(approvals.status, params.status) : undefined, outletScope))
     .orderBy(desc(approvals.createdAt));
 
   return rows.map(mapApprovalRow);
@@ -13953,6 +14034,8 @@ export async function createStockOpname(input: StockOpnameInput, garage: GarageS
           risk: Math.abs(totalDelta) >= 10 ? "high" : "medium",
           age: "baru saja",
           status: "pending",
+          outletId: targetOutletId ?? null,
+          payload: { requestedBy: garage.user.id } satisfies ApprovalPayload,
         })
         .onConflictDoNothing();
     }
@@ -15017,6 +15100,8 @@ export async function requestOrderVoidApproval(
     age: "baru saja",
     status: "pending",
     payload,
+    outletId: order.outletId ?? garage.profile.outlet?.id ?? null,
+    amountValue: order.total,
   };
 
   await db.insert(approvals).values({ id: approvalId, ...values });
@@ -15077,6 +15162,7 @@ export async function getRefundableOrder(idOrOrderNo: string, garage: GarageSess
     orderId: order.id,
     orderNo: order.orderNo,
     tableLabel: order.tableLabel,
+    outletId: order.outletId ?? null,
     status: order.status,
     subtotal: order.subtotal,
     total: order.total,
@@ -15146,6 +15232,8 @@ export async function requestOrderRefundApproval(
     age: "baru saja",
     status: "pending",
     payload,
+    outletId: refundable.outletId ?? garage.profile.outlet?.id ?? null,
+    amountValue: refundAmount,
   });
 
   await createAuditLog({
@@ -15246,6 +15334,8 @@ export async function requestUnpaidItemCancelApproval(
     age: "baru saja",
     status: "pending",
     payload,
+    outletId: order.outletId ?? garage.profile.outlet?.id ?? null,
+    amountValue: amount,
   });
   await createAuditLog({
     actor,
@@ -17839,6 +17929,8 @@ export async function createExpense(input: ExpenseInput, garage: GarageSession) 
           age: "baru saja",
           status: "pending",
           payload: { expenseId: createdExpense.id } satisfies ApprovalPayload,
+          outletId: createdExpense.outletId ?? null,
+          amountValue: createdExpense.amount,
         })
         .onConflictDoNothing();
     }
@@ -19386,6 +19478,8 @@ export async function closeCashSession(
           age: "baru saja",
           status: "pending",
           payload: { cashSessionId: current.id } satisfies ApprovalPayload,
+          outletId: current.outletId ?? null,
+          amountValue: Math.abs(discrepancy),
         })
         .onConflictDoNothing();
     }
@@ -20289,7 +20383,24 @@ async function resolveExpenseIdFromApprovalId(approvalId: string) {
   return prefix?.id ?? null;
 }
 
-export type ApprovalDecisionVia = "board" | "pin" | "langsung" | "auto";
+export type ApprovalDecisionVia = "board" | "pin" | "langsung" | "auto" | "decision_center";
+
+/** Data pengajuan berubah sejak dilihat (preview) — keputusan lama tidak berlaku. */
+export class ApprovalStaleError extends Error {
+  readonly code = "STALE";
+  constructor() {
+    super("Data pengajuan berubah sejak Anda melihatnya. Muat ulang dan periksa lagi sebelum memutus.");
+  }
+}
+
+/** Pesan error pelaksanaan yang aman disimpan/ditampilkan (tanpa teks SQL/stack). */
+function safeExecutionError(error: unknown) {
+  const message = error instanceof Error ? error.message : "";
+  if (!message || /\b(relation|violates|syntax|column|constraint|duplicate key|ECONN|timeout expired)\b/i.test(message)) {
+    return "Pelaksanaan gagal karena kesalahan sistem. Detail ada di log server.";
+  }
+  return message.slice(0, 300);
+}
 
 export async function decideApproval(
   id: string,
@@ -20298,7 +20409,7 @@ export async function decideApproval(
     reasonDecided?: string;
   },
   garage: GarageSession,
-  options: { via?: ApprovalDecisionVia } = {},
+  options: { via?: ApprovalDecisionVia; expectedSnapshotHash?: string } = {},
 ) {
   const via = options.via ?? "board";
   const reasonText = input.reasonDecided?.trim().slice(0, 500) || null;
@@ -20319,6 +20430,16 @@ export async function decideApproval(
   }
   if (current.status !== "pending") {
     throw new Error("Pengajuan ini sudah diputuskan.");
+  }
+  // Smart Approval V3: Manajer hanya memutus pengajuan outletnya sendiri.
+  if (!canDecideForOutlet(garage.profile.role, garage.profile.outlet?.id, current.outletId)) {
+    throw new Error("Pengajuan ini milik outlet lain — diputus oleh Manajer outlet tersebut atau Owner.");
+  }
+  // Sidik objek sumber saat diputus; bila pemanggil membawa sidik preview dan berbeda → STALE.
+  const { approvalSubjectSnapshot } = await import("@/lib/smart-approval-snapshot");
+  const { hash: snapshotHash } = await approvalSubjectSnapshot(current);
+  if (options.expectedSnapshotHash && options.expectedSnapshotHash !== snapshotHash) {
+    throw new ApprovalStaleError();
   }
 
   // Approval expense 2 tingkat: di atas batas Owner, persetujuan Manajer = review saja.
@@ -20359,6 +20480,11 @@ export async function decideApproval(
       decidedAt: new Date(),
       decidedVia: via,
       reasonDecided: reasonText,
+      // Keputusan ≠ pelaksanaan: "running" sampai efek resmi selesai dan tercatat.
+      executionStatus: "running",
+      executionError: null,
+      executionAttempts: sql`${approvals.executionAttempts} + 1`,
+      decisionSnapshotHash: snapshotHash,
       updatedAt: new Date(),
     })
     .where(and(eq(approvals.id, id), eq(approvals.status, "pending")))
@@ -20368,10 +20494,13 @@ export async function decideApproval(
     throw new Error("Pengajuan ini sudah diputuskan.");
   }
 
+  let executed = false;
   try {
-    await applyApprovalDecision(id, current, input.status, reasonText, garage);
+    executed = await applyApprovalDecision(id, current, input.status, reasonText, garage);
   } catch (error) {
-    // Eksekusi gagal → kembalikan ke Menunggu supaya bisa diputus ulang.
+    // Pelaksanaan gagal → kembali ke Menunggu supaya bisa diputus ulang, TAPI kegagalan tercatat
+    // (execution_status = failed + alasan + audit). Langkah yang sudah jalan bersifat idempoten.
+    const executionError = safeExecutionError(error);
     await db
       .update(approvals)
       .set({
@@ -20381,11 +20510,28 @@ export async function decideApproval(
         decidedAt: null,
         decidedVia: null,
         reasonDecided: null,
+        executionStatus: "failed",
+        executionError,
         updatedAt: new Date(),
       })
       .where(eq(approvals.id, id));
+    await createAuditLog({
+      actor: deciderName,
+      action: "Pelaksanaan keputusan gagal",
+      object: id,
+      device: garage.profile.deviceLabel,
+      status: "failed",
+      metadata: { approvalType: approval.type, decision: input.status, via, executionError },
+    }).catch(() => undefined);
     throw error;
   }
+  const executedAt = new Date();
+  await db
+    .update(approvals)
+    .set({ executionStatus: executed ? "succeeded" : "not_required", executedAt: executed ? executedAt : null, updatedAt: executedAt })
+    .where(eq(approvals.id, id));
+  approval.executionStatus = executed ? "succeeded" : "not_required";
+  approval.executedAt = executed ? executedAt : null;
 
   await createAuditLog({
     actor: deciderName,
@@ -20398,39 +20544,63 @@ export async function decideApproval(
       category: approvalCategoryOf(approval),
       reasonDecided: reasonText,
       via,
+      executionStatus: approval.executionStatus,
+      snapshotHash,
     },
   });
 
   return approval;
 }
 
-/** Efek samping keputusan per kategori (void, refund, pengeluaran, kas, opname). */
+async function orderStatusOf(orderId: string) {
+  const [row] = await getDb().select({ status: orders.status }).from(orders).where(eq(orders.id, orderId)).limit(1);
+  return row?.status ?? null;
+}
+
+/**
+ * Efek samping keputusan per kategori (void, refund, pengeluaran, kas, opname).
+ * Mengembalikan true bila ada pelaksanaan resmi yang dijalankan. Langkah berlapis dibuat idempoten
+ * supaya pengulangan setelah gagal tidak menggandakan efek (mis. pisah bill dua kali).
+ */
 async function applyApprovalDecision(
   id: string,
   current: typeof approvals.$inferSelect,
   status: "approved" | "rejected",
   reasonText: string | null,
   garage: GarageSession,
-) {
+): Promise<boolean> {
   const payload = (current.payload ?? {}) as ApprovalPayload;
   const requestReason = payload.reasonCode
     ? composeCancelReason(payload.reasonCode, payload.note)
     : current.reason;
+  let executed = false;
 
   if (id.startsWith("APP-VOID-") && status === "approved") {
     const orderId = payload.orderId ?? id.slice("APP-VOID-".length);
-    await voidOrder(orderId, requestReason, garage);
+    if ((await orderStatusOf(orderId)) !== "voided") await voidOrder(orderId, requestReason, garage);
+    executed = true;
   }
 
   if (id.startsWith("APP-RFD-") && status === "approved") {
     await executeOrderRefund(payload, requestReason, garage);
+    executed = true;
   }
 
   // Production Hub V4: batal item bill belum lunas = pisah bill + void bill pisahan (jalur resmi).
+  // Bill pisahan dicatat di payload dulu: bila void gagal lalu diulang, pisah tidak terjadi dua kali.
   if (id.startsWith("APP-PCX-") && status === "approved" && payload.orderId) {
-    const items = (payload.items ?? []).map((item) => ({ orderItemId: item.orderItemId, qty: item.qty }));
-    const split = await splitCustomerOrder(payload.orderId, { items, guestName: `Batal item ${payload.orderNo ?? ""}`.trim() }, garage);
-    await voidOrder(split.child.id, requestReason, garage);
+    let childId = payload.splitChildId ?? null;
+    if (!childId) {
+      const items = (payload.items ?? []).map((item) => ({ orderItemId: item.orderItemId, qty: item.qty }));
+      const split = await splitCustomerOrder(payload.orderId, { items, guestName: `Batal item ${payload.orderNo ?? ""}`.trim() }, garage);
+      childId = split.child.id;
+      await getDb()
+        .update(approvals)
+        .set({ payload: { ...payload, splitChildId: childId } satisfies ApprovalPayload })
+        .where(eq(approvals.id, id));
+    }
+    if ((await orderStatusOf(childId)) !== "voided") await voidOrder(childId, requestReason, garage);
+    executed = true;
   }
 
   // Item yang batal bisa membuat sisa order langsung "selesai" tanpa transisi READY baru →
@@ -20446,6 +20616,7 @@ async function applyApprovalDecision(
 
   if (id.startsWith("APP-CASH-") && status === "approved" && payload.cashSessionId) {
     await approveCashSessionDiscrepancy(payload.cashSessionId, garage, reasonText ?? undefined);
+    executed = true;
   }
 
   const expenseId = payload.expenseId ?? (await resolveExpenseIdFromApprovalId(id));
@@ -20455,6 +20626,7 @@ async function applyApprovalDecision(
     } else {
       await rejectExpense(expenseId, garage);
     }
+    executed = true;
   }
 
   if (id.startsWith("APP-OPN-")) {
@@ -20471,7 +20643,9 @@ async function applyApprovalDecision(
         throw error;
       }
     }
+    executed = true;
   }
+  return executed;
 }
 
 /**
@@ -20582,7 +20756,22 @@ export async function decideApprovalsBulk(
   garage: GarageSession,
 ) {
   const results: Array<{ id: string; ok: boolean; error?: string }> = [];
+  // Smart Approval V3: setuju massal tidak boleh menyentuh risiko tinggi (R3) atau pengajuan yang
+  // menggerakkan uang laci/stok — diperiksa di server, bukan hanya di UI.
+  const rows = ids.length
+    ? await getDb()
+        .select({ id: approvals.id, type: approvals.type, risk: approvals.risk, amountValue: approvals.amountValue })
+        .from(approvals)
+        .where(inArray(approvals.id, ids))
+    : [];
+  const rowById = new Map(rows.map((row) => [row.id, row]));
   for (const id of ids) {
+    const row = rowById.get(id);
+    const blocked = row ? bulkDecisionBlockReason(row, input.status) : null;
+    if (blocked) {
+      results.push({ id, ok: false, error: blocked });
+      continue;
+    }
     try {
       const r = await decideApproval(id, input, garage);
       results.push({ id, ok: Boolean(r) });
@@ -21542,11 +21731,18 @@ export type AutoApprovalResult = {
   }>;
 };
 
-function parseAmountIdr(label: string): number {
-  // Format: "Rp1.234.567" atau "+10" atau "-5"
-  const cleaned = label.replace(/[^\d.,-]/g, "").replace(/\./g, "").replace(/,/g, "");
-  const n = Number(cleaned);
-  return Number.isFinite(n) ? Math.abs(n) : 0;
+/** Pemohon pengajuan: payload.requestedBy, atau pembuat biaya untuk APP-EXP. */
+async function approvalRequesterId(row: typeof approvals.$inferSelect) {
+  const payload = (row.payload ?? {}) as ApprovalPayload;
+  if (payload.requestedBy) return payload.requestedBy;
+  const expenseId = payload.expenseId ?? (row.id.startsWith("APP-EXP-") ? row.id.slice("APP-EXP-".length) : null);
+  if (!expenseId || !/^[0-9a-f-]{36}$/i.test(expenseId)) return null;
+  const [expense] = await getDb()
+    .select({ createdBy: expenses.createdBy })
+    .from(expenses)
+    .where(eq(expenses.id, expenseId))
+    .limit(1);
+  return expense?.createdBy ?? null;
 }
 
 export async function runAutoApprovalSweep(garage: GarageSession): Promise<AutoApprovalResult> {
@@ -21561,27 +21757,47 @@ export async function runAutoApprovalSweep(garage: GarageSession): Promise<AutoA
     .where(eq(approvals.status, "pending"))
     .orderBy(asc(approvals.createdAt));
 
+  // Smart Approval V3: batas harian auto-approval per pemohon (hitung dari keputusan otomatis hari ini, WIB).
+  const dayStart = new Date(`${jakartaDateKey(new Date())}T00:00:00+07:00`);
+  const autoToday = await db
+    .select()
+    .from(approvals)
+    .where(and(eq(approvals.decidedVia, "auto"), eq(approvals.status, "approved"), gte(approvals.decidedAt, dayStart)));
+  const autoCountByRequester = new Map<string, number>();
+  for (const row of autoToday) {
+    const requester = await approvalRequesterId(row);
+    if (requester) autoCountByRequester.set(requester, (autoCountByRequester.get(requester) ?? 0) + 1);
+  }
+
   const decisions: AutoApprovalResult["decisions"] = [];
   let autoApproved = 0;
 
   for (const row of pending) {
-    const amount = parseAmountIdr(row.amount);
+    const amountValue = row.amountValue ?? parseRupiahLabel(row.amount);
+    const amount = amountValue ?? 0;
     let decision: "auto_approved" | "skipped" = "skipped";
-    let reason = "Tipe approval tidak masuk auto-decide.";
-
-    if (approvalCategoryOf(row) === "pengeluaran") {
-      if (amount > 0 && amount < expenseThreshold) {
-        decision = "auto_approved";
-        reason = `Nominal Rp${amount.toLocaleString("id-ID")} di bawah batas Rp${expenseThreshold.toLocaleString("id-ID")}.`;
-      } else {
-        reason = `Nominal ≥ batas; perlu dicek manual.`;
-      }
+    const requestedBy = approvalCategoryOf(row) === "pengeluaran" ? await approvalRequesterId(row) : null;
+    const verdict = autoApprovalDecision(
+      { id: row.id, type: row.type, risk: row.risk, amountValue, requestedBy },
+      {
+        threshold: expenseThreshold,
+        sweeperUserId: garage.user.id,
+        autoApprovedTodayForRequester: requestedBy ? autoCountByRequester.get(requestedBy) ?? 0 : 0,
+      },
+    );
+    let reason = verdict.reason;
+    if (verdict.approve) decision = "auto_approved";
+    // Outlet lain tidak disentuh oleh sweep Manajer.
+    if (decision === "auto_approved" && !canDecideForOutlet(garage.profile.role, garage.profile.outlet?.id, row.outletId)) {
+      decision = "skipped";
+      reason = "Pengajuan outlet lain — tidak disentuh.";
     }
 
     if (decision === "auto_approved") {
       try {
         await decideApproval(row.id, { status: "approved", reasonDecided: reason }, garage, { via: "auto" });
         autoApproved += 1;
+        if (requestedBy) autoCountByRequester.set(requestedBy, (autoCountByRequester.get(requestedBy) ?? 0) + 1);
       } catch (error) {
         decision = "skipped";
         reason = error instanceof Error ? error.message : "Gagal disetujui otomatis.";

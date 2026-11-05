@@ -79,6 +79,8 @@ export function isAgentForbiddenPath(path: string) {
     path.startsWith("/api/admin/users") ||
     // Owner AI Connect: AI tidak boleh membuat kode verifikasi untuk dirinya sendiri / mencabut koneksi.
     path.startsWith("/api/owner-ai") ||
+    // AYA V4: keputusan/tautan pelaksanaan kasus masalah = manusia (Owner), bukan agent key.
+    path.startsWith("/api/ai/problem-cases") ||
     path.startsWith("/api/admin/security")
   );
 }

@@ -2623,6 +2623,52 @@ export const approvals = pgTable("approvals", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [index("approvals_status_outlet_idx").on(table.status, table.outletId)]);
 
+// AYA Smart Problem Solver V4 (Batch 3, migrasi 0178): kasus masalah Owner + linimasa append-only.
+// Bukti, hipotesis dan opsi disimpan sebagai snapshot diagnosis (sudah disamarkan); keputusan,
+// tautan pelaksanaan resmi (mcp_operations) dan verifikasi = event. Tidak menyalin data keuangan inti.
+export const aiProblemCases = pgTable(
+  "ai_problem_cases",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    caseNo: text("case_no").notNull(),
+    ownerUserId: text("owner_user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+    outletId: uuid("outlet_id").references(() => outlets.id, { onDelete: "set null" }),
+    question: text("question").notNull(),
+    mode: text("mode").notNull().default("quick"),
+    // open → monitoring → resolved | dismissed
+    status: text("status").notNull().default("open"),
+    analysisStatus: text("analysis_status").notNull(),
+    domains: jsonb("domains").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    diagnosis: jsonb("diagnosis").$type<Record<string, unknown>>().notNull(),
+    diagnosisHash: text("diagnosis_hash").notNull(),
+    version: integer("version").notNull().default(1),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("ai_problem_cases_case_no_idx").on(table.caseNo),
+    index("ai_problem_cases_owner_idx").on(table.ownerUserId, table.createdAt),
+  ],
+);
+
+export const aiProblemCaseEvents = pgTable(
+  "ai_problem_case_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    caseId: uuid("case_id").notNull().references(() => aiProblemCases.id, { onDelete: "cascade" }),
+    // analysis | decision | action_linked | verification | status | note
+    kind: text("kind").notNull(),
+    actorUserId: text("actor_user_id").references(() => user.id, { onDelete: "set null" }),
+    actorName: text("actor_name"),
+    caseVersion: integer("case_version").notNull(),
+    operationId: uuid("operation_id").references(() => mcpOperations.id, { onDelete: "set null" }),
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("ai_problem_case_events_case_idx").on(table.caseId, table.createdAt)],
+);
+
 export const aiProviderConfigs = pgTable(
   "ai_provider_configs",
   {

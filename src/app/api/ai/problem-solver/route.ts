@@ -14,6 +14,8 @@ const schema = z.object({
   message: z.string().trim().min(5).max(3000),
   mode: z.enum(["quick", "full"]).optional().default("quick"),
   withAi: z.boolean().optional().default(true),
+  // Batch 3: simpan sebagai kasus (riwayat keputusan). Default ya.
+  saveCase: z.boolean().optional().default(true),
 });
 
 /** Owner-only; never changes business data. All actions remain draft-only. */
@@ -44,8 +46,15 @@ export async function POST(request: Request) {
       mode: body.data.mode,
       withAi: body.data.withAi,
     });
-    return ok(data, { headers: { "Cache-Control": "no-store" } });
-  } catch {
+    let caseInfo: { id: string; caseNo: string; diagnosisHash: string } | null = null;
+    if (body.data.saveCase && !session.data.profile.agentKey) {
+      const { createProblemCase } = await import("@/lib/ai-problem-cases");
+      const row = await createProblemCase(session.data, { question: body.data.message, mode: body.data.mode, result: data });
+      caseInfo = { id: row.id, caseNo: row.caseNo, diagnosisHash: row.diagnosisHash };
+    }
+    return ok({ ...data, case: caseInfo }, { headers: { "Cache-Control": "no-store" } });
+  } catch (error) {
+    console.error("[problem-solver] route gagal", error);
     return fail(503, "PROBLEM_SOLVER_FAILED", "Investigasi belum dapat diselesaikan. Tidak ada data bisnis yang diubah.");
   }
 }

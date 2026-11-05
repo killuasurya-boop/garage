@@ -58,6 +58,8 @@ export const API_ROUTE_CATALOG: ApiRouteEntry[] = [
   {"path":"/api/ai/owner-chat/history/{id}","methods":["GET","DELETE"],"note":""},
   {"path":"/api/ai/owner-chat/history","methods":["GET","DELETE"],"note":""},
   {"path":"/api/ai/pos-agent","methods":["POST"],"note":""},
+  {"path":"/api/ai/problem-cases/{id}","methods":["GET","POST"],"note":""},
+  {"path":"/api/ai/problem-cases","methods":["GET"],"note":""},
   {"path":"/api/ai/problem-solver","methods":["POST"],"note":""},
   {"path":"/api/ai/providers/auto-fix","methods":["POST"],"note":""},
   {"path":"/api/ai/providers","methods":["GET","PUT"],"note":""},

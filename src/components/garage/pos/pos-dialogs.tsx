@@ -3,10 +3,10 @@
 // Dialog POS yang dipindah dari pos-view.tsx (U0d). Perilaku sama; state dan
 // handler tetap di PosView dan diteruskan sebagai props.
 
-import { generateTemporaryMemberPin, hasOpenTableBill, type ParkedOrder, type PaymentMethod, paymentMethods, tableNumbers } from "@/components/garage/garage-app-helpers";
+import { generateTemporaryMemberPin, hasOpenTableBill, type ParkedOrder, tableNumbers } from "@/components/garage/garage-app-helpers";
 import { type CashierThemeMode } from "@/components/garage/garage-app-pickers";
 import { type OrderCancelTarget } from "@/components/garage/pos-order-cancel-dialog";
-import { chitStationFor, formatReceiptDate } from "@/components/garage/pos/pos-ui-shared";
+import { formatReceiptDate } from "@/components/garage/pos/pos-ui-shared";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,8 +16,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { type AppSettings, type CartLine, type CustomerOrder, type MenuItem, type MenuVariant, type OrderReceipt, type OrderType, type TableLiveRow } from "@/lib/garage-api-types";
 import { currency, type GarageMenuItem } from "@/lib/garage-data";
-import { componentLabel, groupOrderLines } from "@/lib/order-package-lines";
-import { quickCashOptions } from "@/lib/pos-cash";
 import { AlertTriangle, Archive, ArrowRight, Ban, Banknote, Camera, Check, Loader2, PauseCircle, Percent, Plus, Printer, RefreshCw, Trash2, Users } from "lucide-react";
 import { type ChangeEvent, type Dispatch, type FormEvent, type RefObject, type SetStateAction } from "react";
 
@@ -1258,215 +1256,6 @@ export function PosReceiptHistoryDialog({
             onClick={() => setReceiptHistoryOpen(false)}
           >
             Tutup
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-export function PosFinalizeOrderDialog({
-  finalizeOrderTarget,
-  setFinalizeOrderTarget,
-  menuItemsById,
-  setFinalizeMethod,
-  qrisImageReady,
-  finalizeMethod,
-  finalizeCash,
-  setFinalizeCash,
-  finalizeCashValue,
-  finalizeCashShort,
-  finalizeReference,
-  setFinalizeReference,
-  confirmFinalizeOrder,
-  finalizeReferenceMissing,
-  settings,
-}: {
-  finalizeOrderTarget: CustomerOrder | null;
-  setFinalizeOrderTarget: Dispatch<SetStateAction<CustomerOrder | null>>;
-  menuItemsById: Map<string, GarageMenuItem>;
-  setFinalizeMethod: Dispatch<SetStateAction<"Cash" | "QRIS" | "Bank Transfer" | "E-Wallet">>;
-  qrisImageReady: boolean;
-  finalizeMethod: "Cash" | "QRIS" | "Bank Transfer" | "E-Wallet";
-  finalizeCash: string;
-  setFinalizeCash: Dispatch<SetStateAction<string>>;
-  finalizeCashValue: number;
-  finalizeCashShort: boolean;
-  finalizeReference: string;
-  setFinalizeReference: Dispatch<SetStateAction<string>>;
-  confirmFinalizeOrder: () => void;
-  finalizeReferenceMissing: boolean;
-  settings: AppSettings;
-}) {
-  return (
-    <Dialog
-      open={Boolean(finalizeOrderTarget)}
-      onOpenChange={(open) => {
-        if (!open) setFinalizeOrderTarget(null);
-      }}
-    >
-      <DialogContent className="garage-scroll max-h-[92svh] overflow-y-auto border-[#34343c] bg-[#111116] max-w-[calc(100%-2rem)] sm:max-w-md">
-        <DialogHeader className="text-left">
-          <DialogTitle>Konfirmasi pembayaran</DialogTitle>
-          <DialogDescription>
-            Final Bayar menutup order ini. Pastikan pembayaran sudah diterima.
-          </DialogDescription>
-        </DialogHeader>
-        {finalizeOrderTarget ? (
-          <div className="space-y-2 rounded-md border border-[#34343c] bg-white/[0.04] p-3 text-sm">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-[#b8b8bf]">Meja / Order</span>
-              <span className="garage-mono font-semibold text-white">
-                {finalizeOrderTarget.tableLabel} · {finalizeOrderTarget.orderNo}
-              </span>
-            </div>
-            {finalizeOrderTarget.items.length ? (
-              <ul className="garage-scroll max-h-44 space-y-1.5 overflow-y-auto border-t border-[#34343c] pt-2" aria-label="Isi pesanan">
-                {groupOrderLines(finalizeOrderTarget.items).map((group) =>
-                  group.kind === "package" ? (
-                    <li key={group.groupId} className="text-sm">
-                      <div className="flex items-start justify-between gap-2">
-                        <span className="min-w-0 break-words font-semibold text-white">{group.qty}× {group.name}</span>
-                        <span className="garage-mono shrink-0 text-white">{currency.format(group.total)}</span>
-                      </div>
-                      <p className="break-words text-[13px] leading-5 text-[#d0d0d6]">
-                        {group.components.map((line) => componentLabel(line, group.qty)).join(" · ")}
-                      </p>
-                    </li>
-                  ) : (
-                    <li key={group.line.id} className="flex items-start justify-between gap-2 text-sm">
-                      <span className="min-w-0 break-words text-[#e4e4ea]">{group.line.qty}× {group.line.itemName}{group.line.variantLabel && group.line.variantLabel !== "Regular" ? ` ${group.line.variantLabel}` : ""}</span>
-                      <span className="garage-mono shrink-0 text-white">{currency.format(group.line.lineTotal)}</span>
-                    </li>
-                  ),
-                )}
-              </ul>
-            ) : null}
-            {(() => {
-              const handover = finalizeOrderTarget.items.filter((line) => {
-                const menu = line.menuItemId ? menuItemsById.get(line.menuItemId) : undefined;
-                return menu ? chitStationFor(menu) === "Langsung" : false;
-              });
-              return handover.length ? (
-                <p className="rounded-md border border-[#f5a742]/60 bg-[#f5a742]/14 p-2 text-sm font-bold text-[#ffd08a]" data-testid="finalize-handover">
-                  Serahkan langsung: {handover.map((line) => `${line.qty}× ${line.itemName}`).join(", ")}
-                </p>
-              ) : null;
-            })()}
-            <div className="flex items-center justify-between gap-2 border-t border-[#34343c] pt-2">
-              <span className="text-[#b8b8bf]">Total</span>
-              <span className="garage-mono text-base font-black text-[#ffd08a]">
-                {currency.format(finalizeOrderTarget.total)}
-              </span>
-            </div>
-          </div>
-        ) : null}
-        {finalizeOrderTarget ? (
-          <div className="space-y-2">
-            <p className="garage-mono text-xs uppercase tracking-wide text-[#c8c8cc]">
-              Metode bayar
-            </p>
-            {finalizeOrderTarget.fulfillment === "delivery" ? (
-              <p className="text-xs font-semibold text-[#ffd79a]">
-                Delivery hanya QRIS — cek mutasi QRIS dulu, baru tandai lunas & antar.
-              </p>
-            ) : null}
-            <div className="grid grid-cols-2 gap-1.5">
-              {(finalizeOrderTarget.fulfillment === "delivery"
-                ? (["QRIS"] as PaymentMethod[])
-                : paymentMethods
-              ).map((method) => (
-                <button
-                  key={method}
-                  type="button"
-                  onClick={() => setFinalizeMethod(method)}
-                  disabled={method === "QRIS" && !qrisImageReady && finalizeOrderTarget.fulfillment !== "delivery"}
-                  className={`garage-press h-11 rounded-md border text-sm font-bold disabled:opacity-40 ${
-                    finalizeMethod === method
-                      ? "border-[#f5a742] bg-[#f5a742] text-black"
-                      : "border-[#34343c] bg-white/[0.05] text-[#d6d6dc]"
-                  }`}
-                >
-                  {method === "Cash" ? "Tunai" : method === "Bank Transfer" ? "Transfer" : method}
-                </button>
-              ))}
-            </div>
-            {finalizeMethod === "Cash" ? (
-              <div className="space-y-1">
-                <Input
-                  inputMode="numeric"
-                  value={finalizeCash}
-                  onChange={(event) => setFinalizeCash(event.target.value.replace(/[^\d]/g, ""))}
-                  placeholder={`Uang diterima (kosong = uang pas ${currency.format(finalizeOrderTarget.total)})`}
-                  aria-label="Uang diterima"
-                  className="h-11 border-[#34343c] bg-white/[0.06] text-base font-semibold"
-                />
-                <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-5">
-                  {quickCashOptions(finalizeOrderTarget.total).map((amount) => (
-                    <button
-                      key={amount}
-                      type="button"
-                      onClick={() => setFinalizeCash(String(amount))}
-                      className={`garage-press h-11 rounded-md border text-sm font-bold tabular-nums ${
-                        finalizeCashValue === amount
-                          ? "border-[#f5a742] bg-[#f5a742]/20 text-white"
-                          : "border-[#4a4a54] bg-white/[0.05] text-[#e4e4ea]"
-                      }`}
-                    >
-                      {currency.format(amount)}
-                    </button>
-                  ))}
-                </div>
-                {finalizeCashShort ? (
-                  <p className="text-sm font-semibold text-[#ffc2c8]">Uang diterima kurang dari total.</p>
-                ) : finalizeCashValue > finalizeOrderTarget.total ? (
-                  <div className="rounded-md border-2 border-[#f5a742]/70 bg-[#f5a742]/12 p-3 text-center">
-                    <p className="font-mono text-[11px] font-bold uppercase tracking-[0.2em] text-[#ffd08a]">Kembalian</p>
-                    <p className="garage-display text-3xl font-bold tabular-nums text-white">
-                      {currency.format(finalizeCashValue - finalizeOrderTarget.total)}
-                    </p>
-                  </div>
-                ) : null}
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                {finalizeMethod === "QRIS" ? (
-                  <p className="flex gap-2 text-sm font-semibold text-[#ffd08a]">
-                    <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-                    Pastikan status BERHASIL di notifikasi merchant/bank. Screenshot pelanggan saja tidak cukup.
-                  </p>
-                ) : null}
-                <Input
-                  value={finalizeReference}
-                  onChange={(event) => setFinalizeReference(event.target.value.slice(0, 80))}
-                  placeholder={
-                    finalizeMethod === "QRIS" && settings.qrisReferenceRequired
-                      ? "No. Ref / RRN QRIS (wajib)"
-                      : "No. Ref / RRN (opsional)"
-                  }
-                  aria-label="Referensi pembayaran"
-                  className="h-11 border-[#34343c] bg-white/[0.06]"
-                />
-              </div>
-            )}
-          </div>
-        ) : null}
-        <div className="flex flex-col gap-2 sm:flex-row-reverse">
-          <Button
-            type="button"
-            className="garage-press h-12 flex-1 bg-[#d11a2a] text-base font-bold text-white hover:bg-[#ff2a3a]"
-            onClick={confirmFinalizeOrder}
-            disabled={finalizeCashShort || finalizeReferenceMissing}
-          >
-            Konfirmasi Bayar
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="garage-press h-11 flex-1 border-[#4a4a54] bg-white/[0.05] text-sm"
-            onClick={() => setFinalizeOrderTarget(null)}
-          >
-            Batal
           </Button>
         </div>
       </DialogContent>

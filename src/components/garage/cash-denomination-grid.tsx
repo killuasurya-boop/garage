@@ -26,6 +26,17 @@ export function denominationTotals(counts: Record<string, string>) {
   };
 }
 
+/** Warna khas uang kertas Rupiah (emisi 2022) — penanda visual di grid hitung (POS V6 papan 07). */
+const NOTE_COLOR: Record<string, string> = {
+  "100000": "#d9445a",
+  "50000": "#2f6fd1",
+  "20000": "#2f9a5a",
+  "10000": "#7b4bb7",
+  "5000": "#a5672f",
+  "2000": "#7c7f86",
+  "1000": "#3c9c8c",
+};
+
 /**
  * Tabel hitung uang per pecahan (kertas + koin) dipakai saat buka & tutup
  * shift: jumlah lembar/keping × nilai = total per baris.
@@ -54,11 +65,12 @@ export function CashDenominationGrid({
         { label: "Uang kertas", Icon: Banknote, list: CASH_DENOMINATIONS.filter((item) => item.kind === "note") },
         { label: "Uang koin", Icon: Coins, list: CASH_DENOMINATIONS.filter((item) => item.kind === "coin") },
       ].map((group) => (
-        <div key={group.label} className="overflow-hidden rounded-lg border border-[#34343c]">
-          <p className="flex items-center gap-1.5 border-b border-[#34343c] bg-white/[0.05] px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-[#d6d6dc]">
+        <div key={group.label} className="pos-v6-denom overflow-hidden rounded-xl border border-[#34343c]">
+          <p className="pos-v6-denom-head flex items-center gap-1.5 border-b border-[#34343c] bg-white/[0.05] px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-[#d6d6dc]">
             <group.Icon className="size-3.5 text-[#f5a742]" /> {group.label}
+            <span className="ml-auto normal-case tracking-normal">Jumlah · Subtotal</span>
           </p>
-          <ul className="divide-y divide-white/5">
+          <ul className="pos-v6-denom-list divide-y divide-white/5">
             {group.list.map((denomination) => {
               const qty = parsed[denomination.key] ?? 0;
               return (
@@ -66,12 +78,19 @@ export function CashDenominationGrid({
                   key={denomination.key}
                   className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-1.5 px-2.5 py-1.5 sm:gap-2 sm:px-3"
                 >
-                  <span className="whitespace-nowrap text-[13px] font-semibold text-white sm:text-sm">{denomination.label}</span>
+                  <span className="flex min-w-0 items-center gap-2 whitespace-nowrap text-[13px] font-semibold text-white sm:text-sm">
+                    <span
+                      aria-hidden
+                      className={`pos-v6-money shrink-0 ${denomination.kind === "coin" ? "size-5 rounded-full" : "h-4 w-7 rounded-[3px]"}`}
+                      style={{ background: denomination.kind === "coin" ? "linear-gradient(135deg, #e5e7eb, #9ca3af)" : NOTE_COLOR[denomination.key] ?? "#9ca3af" }}
+                    />
+                    {denomination.label}
+                  </span>
                   <div className="flex items-center">
                     <button
                       type="button"
                       onClick={() => step(denomination.key, -1)}
-                      className="grid size-9 place-items-center rounded-l-md sm:size-10 border border-[#4a4a54] bg-white/[0.05] text-white hover:bg-white/10 disabled:opacity-40"
+                      className="pos-v6-denom-step grid size-9 place-items-center rounded-l-md sm:size-10 border border-[#4a4a54] bg-white/[0.05] text-white hover:bg-white/10 disabled:opacity-40"
                       disabled={qty === 0}
                       aria-label={`Kurangi ${denomination.label}`}
                     >
@@ -84,18 +103,18 @@ export function CashDenominationGrid({
                       placeholder="0"
                       aria-label={`Jumlah ${denomination.label}`}
                       data-testid={`${testIdPrefix}-${denomination.key}`}
-                      className="h-9 w-11 border-y sm:h-10 sm:w-14 border-[#4a4a54] bg-black/30 text-center font-mono text-base font-bold text-white outline-none placeholder:text-[#6b6b75] focus:bg-black/50"
+                      className="pos-v6-denom-input h-9 w-11 border-y sm:h-10 sm:w-14 border-[#4a4a54] bg-black/30 text-center font-mono text-base font-bold text-white outline-none placeholder:text-[#6b6b75] focus:bg-black/50"
                     />
                     <button
                       type="button"
                       onClick={() => step(denomination.key, 1)}
-                      className="grid size-9 place-items-center rounded-r-md sm:size-10 border border-[#4a4a54] bg-white/[0.05] text-white hover:bg-white/10"
+                      className="pos-v6-denom-step grid size-9 place-items-center rounded-r-md sm:size-10 border border-[#4a4a54] bg-white/[0.05] text-white hover:bg-white/10"
                       aria-label={`Tambah ${denomination.label}`}
                     >
                       <Plus className="size-4" />
                     </button>
                   </div>
-                  <span className={`whitespace-nowrap text-right font-mono text-[13px] sm:text-sm ${qty ? "font-bold text-white" : "text-[#8f8f99]"}`}>
+                  <span data-counted={qty > 0} className={`pos-v6-denom-sub whitespace-nowrap text-right font-mono text-[13px] tabular-nums sm:text-sm ${qty ? "font-bold text-white" : "text-[#8f8f99]"}`}>
                     {rupiah(denomination.value * qty)}
                   </span>
                 </li>

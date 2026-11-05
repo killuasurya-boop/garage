@@ -713,6 +713,8 @@ export type CustomerOrder = {
   cashReceivedAt: string | null;
   cashDepositedAt: string | null;
   cashierConfirmedAt: string | null;
+  /** Tagihan dibuat staf ("Bayar nanti"/waiter) — metode bayar belum dipilih pelanggan. */
+  staffOrder?: boolean;
   items: CustomerOrderItem[];
 };
 

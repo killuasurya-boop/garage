@@ -1095,6 +1095,8 @@ function customerOrderResponse(
     cashReceivedAt,
     cashDepositedAt,
     cashierConfirmedAt,
+    // Tagihan dibuat staf (Bayar nanti/waiter): metode bayar belum dipilih pelanggan.
+    staffOrder: metadata.staffOrder === true,
     items: items.map((item) => ({
       id: item.id,
       menuItemId: item.menuItemId,
@@ -6114,9 +6116,17 @@ export async function listInvoicesForFinance(filter: FinanceInvoiceListFilter = 
 
 const customerOrderSources = ["qr_table", "qr_takeaway", "instagram", "campaign"];
 
-export async function getCustomerOrderData(params?: { status?: string }) {
+export async function getCustomerOrderData(params?: { status?: string; scope?: "unpaid"; outletId?: string | null }) {
   const filters = [inArray(orders.orderSource, customerOrderSources)];
-  if (params?.status && params.status !== "all") {
+  const unpaid = params?.scope === "unpaid";
+  if (params?.outletId) {
+    const outletFilter = or(eq(orders.outletId, params.outletId), isNull(orders.outletId));
+    if (outletFilter) filters.push(outletFilter);
+  }
+  if (unpaid) {
+    // Tagihan Belum Bayar (owner, Nov 2026): semua tanggal, semua metode, sampai lunas/dibatalkan.
+    filters.push(inArray(orders.status, ["pending_cashier", "awaiting_payment", "accepted"]));
+  } else if (params?.status && params.status !== "all") {
     filters.push(eq(orders.status, params.status));
   } else {
     const activeCustomerOrderStatusFilter = or(
@@ -6141,7 +6151,7 @@ export async function getCustomerOrderData(params?: { status?: string }) {
     .from(orders)
     .where(and(...filters))
     .orderBy(desc(orders.createdAt))
-    .limit(80);
+    .limit(unpaid ? 300 : 80);
 
   if (!rows.length) {
     return [];
@@ -9886,6 +9896,8 @@ async function createCustomerOrderImpl(input: CustomerOrderInput) {
           provider: paymentProvider,
           reference: paymentReference,
           source: "customer_qr",
+          // "Bayar nanti" dari kasir: metode belum dipilih pelanggan (kolom method wajib diisi → "Cash" placeholder).
+          ...(input.staffOrder ? { staffOrder: true } : {}),
           tableJoinCode: joinCode,
           orderType: input.orderType,
           invoiceNo,

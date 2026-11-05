@@ -79,9 +79,13 @@ export async function GET(request: Request) {
   // Tolak otomatis order take away/delivery yang lewat batas bayar (sapuan malas).
   await sweepUnpaidOrdersLazily();
   const url = new URL(request.url);
+  const scope = url.searchParams.get("scope") === "unpaid" ? "unpaid" : undefined;
   return ok(
     await getCustomerOrderData({
       status: url.searchParams.get("status") ?? undefined,
+      scope,
+      // Daftar Belum Bayar = outlet staf saja (order lama tanpa outlet tetap ikut).
+      outletId: scope ? session.data.profile.outlet.id : undefined,
     }),
   );
 }

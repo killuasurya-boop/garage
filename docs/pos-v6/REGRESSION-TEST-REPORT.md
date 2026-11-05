@@ -16,7 +16,7 @@ Tanggal: 5 Nov 2026 · Branch `ccr-29608758-dtli1n` (draft PR #175) · Lingkunga
 | `next build` | PASS |
 | Playwright E2E (`e2e/*.spec.ts`, desktop 1366 + mobile) | PASS — lihat angka di bawah |
 
-Angka akhir: RESULT_PLACEHOLDER
+Angka akhir: vitest **1776 passed (1776)** · E2E **9 passed** (desktop 1366: 7, mobile 390: 2) · build OK.
 
 ## Tes baru di batch ini
 
@@ -32,6 +32,7 @@ Angka akhir: RESULT_PLACEHOLDER
 
 | Kegagalan | Penyebab | Tindakan |
 |---|---|---|
+| 4 E2E timeout di halaman login (run kedua) | commit/push dilakukan saat server dev E2E berjalan → server terus recompile/reload | E2E diulang tanpa menyentuh file: 9/9 lulus. Pelajaran: jangan ubah repo saat E2E jalan |
 | `pos-guardian.spec.ts` gagal pada run pertama: `POS-…` tidak ditemukan di dialog "Pembayaran POS" | Transaksi **berhasil** (screenshot: "Transaksi selesai · POS-…, kembalian Rp 0, struk tercetak"); dialog berganti judul sehingga locator salah | Locator tes diperbaiki ke dialog "Transaksi selesai" + cek kembalian Rp 0. Tidak ada kontrol finansial yang dilemahkan |
 
 ## Belum diuji (jujur)

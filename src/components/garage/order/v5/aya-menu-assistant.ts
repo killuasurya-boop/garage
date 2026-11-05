@@ -84,7 +84,7 @@ export function normalizeAyaText(text: string) {
 const INTENT_PATTERNS: Array<[AyaIntent, RegExp]> = [
   ["staff", /\b(waiter|pelayan|kasir|staf|staff|panggil|bantuan orang)\b/],
   ["howTo", /\b(cara (pesan|order|bayar|memesan)|gimana (pesan|order|cara)|bagaimana (pesan|cara|memesan)|pesannya gimana)\b/],
-  ["nonCoffee", /\b(non ?kopi|non ?coffee|bukan kopi|tanpa kopi|teh|tea|matcha|coklat|cokelat|chocolate)\b/],
+  ["nonCoffee", /\b(non[ -]?kopi|non[ -]?coffee|bukan kopi|tanpa kopi|teh|tea|matcha|coklat|cokelat|chocolate)\b/],
   ["cold", /\b(dingin|es|segar|seger|ice|iced|cold|adem)\b/],
   ["hot", /\b(panas|hangat|anget|hot)\b/],
   ["bold", /\b(bold|strong|pahit|kuat|americano|espresso|hitam|black)\b/],
@@ -104,7 +104,9 @@ export function detectAyaIntents(query: string): AyaIntent[] {
   const text = normalizeAyaText(query);
   if (!text) return [];
   if (GREETING.test(text)) return ["greeting"];
-  return INTENT_PATTERNS.filter(([, pattern]) => pattern.test(text)).map(([intent]) => intent);
+  const intents = INTENT_PATTERNS.filter(([, pattern]) => pattern.test(text)).map(([intent]) => intent);
+  // "non kopi" / "bukan kopi" / "non-coffee" juga memuat kata "kopi": maksud kopi positif dibatalkan.
+  return intents.includes("nonCoffee") ? intents.filter((intent) => intent !== "coffee") : intents;
 }
 
 function available(item: MenuItem) {
@@ -194,7 +196,8 @@ export function answerAya(query: string, ctx: AyaContext): AyaAnswer {
   }
 
   const filters = intents.filter((intent) => FEATURE[intent]);
-  const tokens = filters.length ? [] : freeTextTokens(query);
+  // Kata maksud (mis. "rekomendasi", "favorit") bukan kata cari: pencarian bebas hanya bila tidak ada maksud dikenali.
+  const tokens = filters.length || intents.length ? [] : freeTextTokens(query);
   const scored = pool
     .map((item) => {
       const text = haystack(item);

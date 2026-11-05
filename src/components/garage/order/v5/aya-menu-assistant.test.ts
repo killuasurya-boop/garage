@@ -84,4 +84,23 @@ describe("AYA Assistant (aturan, tanpa AI)", () => {
     const text = [...AYA_SAMPLE_PROMPTS.map((prompt) => prompt.label), answerAya("rekomendasi", ctx).text].join(" ");
     expect(text).not.toMatch(/rating|terbaru|★/i);
   });
+
+  it("non kopi / bukan kopi / non-coffee = hanya non-kopi, tidak pernah kopi (temuan review)", () => {
+    for (const query of ["non kopi yang dingin", "bukan kopi", "minuman non-coffee"]) {
+      expect(detectAyaIntents(query)).not.toContain("coffee");
+      const answer = answerAya(query, ctx);
+      expect(answer.empty).toBeFalsy();
+      expect(answer.items.length).toBeGreaterThan(0);
+      expect(answer.items.every((item) => item.category === "Non-Coffee")).toBe(true);
+    }
+  });
+
+  it("chip Rekomendasi menu = rekomendasi, bukan pencarian kata (temuan review)", () => {
+    for (const prompt of ayaQuickPrompts(ctx).filter((entry) => entry.id === "rekomendasi")) {
+      const answer = answerAya(prompt.query, ctx);
+      expect(answer.empty).toBeFalsy();
+      expect(ids(answer.items)[0]).toBe("spanish");
+    }
+    expect(answerAya("Ada menu rekomendasi spesial hari ini?", ctx).empty).toBeFalsy();
+  });
 });

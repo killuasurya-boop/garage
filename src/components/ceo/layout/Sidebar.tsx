@@ -37,6 +37,7 @@ import { GlowDot } from "../ui/GlowDot";
 export const controlNav = [
   { href: "/control", label: "Ringkasan", icon: LayoutDashboard },
   { href: "/control/decision", label: "Decision Center", icon: Gavel },
+  { href: "/control/aya-solver", label: "AYA Solver", icon: Sparkles },
   { href: "/control/onboarding", label: "Onboarding", icon: Rocket },
   { href: "/control/briefing", label: "Briefing", icon: Sparkles },
   { href: "/control/financial", label: "Keuangan", icon: PiggyBank },

@@ -375,7 +375,9 @@ export function buildProblemDiagnosis(message: string, mode: SolverMode, evidenc
       : "Tindak lanjuti pemeriksaan bukti yang relevan. Semua tindakan perubahan masih usulan.";
   const akarMasalah = status === "EVIDENCE_READY" && supported.length
     ? `Belum pasti — dugaan terkuat (didukung data): ${supported[0].text}`
-    : "Belum dapat dipastikan; bukti belum cukup (NEED_REVIEW).";
+    : status === "EVIDENCE_READY"
+      ? "Belum dapat dipastikan; tidak ada dugaan yang didukung data dari sumber yang dibaca."
+      : "Belum dapat dipastikan; bukti belum cukup (NEED_REVIEW).";
   const report: SolverReport = {
     masalah: message.slice(0, 400),
     fakta: verifiedFacts,

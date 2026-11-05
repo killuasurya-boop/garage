@@ -250,6 +250,12 @@ Scroll direction:
   - B7c: `cash-ledger-report.ts` (period cash book per account from `cash_ledger_entries`, running balance, opening+in−out=closing
     checked against `accountBalance`, `external` = flows only), PDF `cash-ledger-pdf.ts`, Excel `cash-ledger-xlsx.ts`;
     `type=ledger&month=|from&to[&format=pdf|xlsx]` (all outlets — bank accounts are global). Query schema: `owner-reports-query.ts`.
+- POS V6 (owner, Nov 2026, `docs/design-system/POS-V6-DESIGN-SYSTEM.md`): visual only — topbar/sidebar/catalog/cart/cash panel in
+  `src/components/garage/pos/pos-v6*.tsx|css`; handlers stay in `pos-view.tsx` (no second transaction logic). 4 themes =
+  `garage-signature` (default; old `garage-default` maps to it), `garage-clear`, `warm-light` (Warm Coffee), `focus-blue`; colours =
+  `--pos-*` tokens in `globals.css`, AA contrast enforced by `pos-v6.test.ts`. Theme Studio = per-device prefs (`CashierPosSettings`:
+  productView/showPhotos/sidebarMode/reducedMotion/textSize). Cashier topbar never shows omzet/expected cash (blind count).
+  Legacy cashier CSS lives in `@layer components` with `!important`: V6 overrides must stay in the same layer with higher specificity.
 - Browser-dialog printing uses `browserColumns` (huruf Besar → 24 col on 58 mm) with tall
   TOTAL/Kembali lines; cashier can print Bar/Dapur chits manually (`printKitchenChits`).
 - Production Hub V4 (owner, Nov 2026, no migration): UI `src/components/garage/production-hub/` (portal over the shell,

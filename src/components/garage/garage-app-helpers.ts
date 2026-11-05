@@ -500,12 +500,15 @@ export function persistSoldOutIds(ids: string[]) {
 // Cashier POS settings (text size, density, auto-lock, dst)
 const CASHIER_SETTINGS_STORAGE_KEY = "garage:pos:cashier-settings";
 
-export type PosTextSize = "normal" | "large";
+export type PosTextSize = "small" | "normal" | "large";
 export type PosCardDensity = "compact" | "large";
 export type PosAutoLockDelay = "off" | "1" | "3" | "5";
 export type PosReceiptPrintMode = "auto" | "manual";
 export type PosQrSoundMode = "on" | "airport" | "off";
 export type PosBillLayout = "right" | "bottom";
+/** POS V6 Theme Studio: tampilan katalog (visual = kartu foto seperti referensi, compact, list). */
+export type PosProductView = "visual" | "compact" | "list";
+export type PosSidebarMode = "full" | "compact";
 export type CashierPosSettings = {
   textSize: PosTextSize;
   cardDensity: PosCardDensity;
@@ -513,6 +516,11 @@ export type CashierPosSettings = {
   receiptPrintMode: PosReceiptPrintMode;
   qrSoundMode: PosQrSoundMode;
   billLayout: PosBillLayout;
+  productView: PosProductView;
+  showPhotos: boolean;
+  sidebarMode: PosSidebarMode;
+  /** Kurangi gerak di POS (selain prefers-reduced-motion perangkat). */
+  reducedMotion: boolean;
 };
 
 export const defaultCashierPosSettings: CashierPosSettings = {
@@ -522,6 +530,10 @@ export const defaultCashierPosSettings: CashierPosSettings = {
   receiptPrintMode: "auto",
   qrSoundMode: "airport",
   billLayout: "right",
+  productView: "visual",
+  showPhotos: true,
+  sidebarMode: "full",
+  reducedMotion: false,
 };
 
 function isCashierPosSettings(value: unknown): value is Partial<CashierPosSettings> {
@@ -537,7 +549,7 @@ export function loadCashierPosSettings(): CashierPosSettings {
     if (!isCashierPosSettings(parsed)) return defaultCashierPosSettings;
 
     return {
-      textSize: parsed.textSize === "large" ? "large" : "normal",
+      textSize: parsed.textSize === "large" ? "large" : parsed.textSize === "small" ? "small" : "normal",
       cardDensity: parsed.cardDensity === "large" ? "large" : "compact",
       autoLockDelay: ["1", "3", "5"].includes(String(parsed.autoLockDelay))
         ? (parsed.autoLockDelay as PosAutoLockDelay)
@@ -550,6 +562,10 @@ export function loadCashierPosSettings(): CashierPosSettings {
             ? "airport"
             : "on",
       billLayout: parsed.billLayout === "bottom" ? "bottom" : "right",
+      productView: parsed.productView === "compact" || parsed.productView === "list" ? parsed.productView : "visual",
+      showPhotos: parsed.showPhotos !== false,
+      sidebarMode: parsed.sidebarMode === "compact" ? "compact" : "full",
+      reducedMotion: parsed.reducedMotion === true,
     };
   } catch {
     return defaultCashierPosSettings;

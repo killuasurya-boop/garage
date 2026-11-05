@@ -10,38 +10,43 @@ import { Input } from "@/components/ui/input";
 import { currency } from "@/lib/garage-data";
 
 // --- Cashier theme preset ------------------------------------------------
+// POS V6 (owner, Nov 2026): empat tema Theme Studio. Kunci lama dipertahankan supaya preferensi
+// perangkat tidak hilang; "garage-default" (gelap klasik) otomatis menjadi Garage Signature.
 
-export type CashierThemeMode = "garage-default" | "garage-clear" | "warm-light" | "focus-blue";
+export type CashierThemeMode = "garage-signature" | "garage-clear" | "warm-light" | "focus-blue";
+
+export const DEFAULT_CASHIER_THEME: CashierThemeMode = "garage-signature";
 
 export const cashierThemePresets: Array<{
   value: CashierThemeMode;
   label: string;
   detail: string;
+  /** [sidebar/header, kanvas, permukaan, aksen] — dipakai pratinjau mini Theme Studio. */
   swatches: string[];
 }> = [
   {
-    value: "garage-default",
-    label: "Garage Default",
-    detail: "Dark profesional",
-    swatches: ["#0A0A0D", "#14141A", "#E63946", "#FBBF24"],
+    value: "garage-signature",
+    label: "Garage Signature",
+    detail: "Sidebar charcoal, aksen merah Garage, konten putih elegan.",
+    swatches: ["#211718", "#F8F6F4", "#FFFFFF", "#B5121B"],
   },
   {
     value: "garage-clear",
     label: "Garage Clear",
-    detail: "Light minimal",
-    swatches: ["#FFFFFF", "#F7F8FA", "#0F172A", "#D11A2A"],
+    detail: "Putih bersih, abu-abu lembut, keterbacaan maksimal.",
+    swatches: ["#FFFFFF", "#F3F4F6", "#FFFFFF", "#B5121B"],
   },
   {
     value: "warm-light",
-    label: "Warm Light",
-    detail: "Café paper",
-    swatches: ["#FFFFFF", "#FAF6EF", "#6B4226", "#C08A4A"],
+    label: "Warm Coffee",
+    detail: "Krem, ivory, espresso — nuansa kafe hangat.",
+    swatches: ["#3A2219", "#F5EEE3", "#FFFDF8", "#B5121B"],
   },
   {
     value: "focus-blue",
     label: "Focus Blue",
-    detail: "Calm pro",
-    swatches: ["#FFFFFF", "#F1F5F9", "#4338CA", "#0D9488"],
+    detail: "Putih kebiruan, navy, aksen biru yang tenang.",
+    swatches: ["#FFFFFF", "#EEF3F9", "#FFFFFF", "#1F5FD1"],
   },
 ];
 
@@ -49,44 +54,64 @@ export function isCashierThemeMode(value: string | null): value is CashierThemeM
   return cashierThemePresets.some((preset) => preset.value === value);
 }
 
+/** Baca preferensi tersimpan: kunci lama/tak dikenal → Garage Signature. */
+export function normalizeCashierTheme(value: string | null): CashierThemeMode {
+  return isCashierThemeMode(value) ? value : DEFAULT_CASHIER_THEME;
+}
+
 export function CashierThemePresetGrid({
   value,
   onChange,
+  layout = "list",
 }: {
   value: CashierThemeMode;
   onChange: (theme: CashierThemeMode) => void;
+  /** "cards" = kartu pratinjau 2 kolom (Theme Studio), "list" = baris ringkas. */
+  layout?: "list" | "cards";
 }) {
   return (
-    <div className="grid gap-2">
+    <div className={layout === "cards" ? "grid gap-2.5 sm:grid-cols-2" : "grid gap-2"} role="radiogroup" aria-label="Tema POS">
       {cashierThemePresets.map((preset) => {
         const active = value === preset.value;
+        const [chrome, canvas, surface, accent] = preset.swatches;
 
         return (
           <button
             key={preset.value}
             type="button"
-            className={`garage-press cashier-theme-preset flex min-h-16 items-center gap-3 rounded-md border p-2.5 text-left transition ${
-              active
-                ? "border-[#f5a742] bg-[#f5a742]/14 text-white"
-                : "border-[#34343c] bg-white/[0.045] text-[#d6d6dc]"
+            role="radio"
+            aria-checked={active}
+            data-active={active}
+            className={`garage-press pos-v6-theme-card flex items-center gap-3 rounded-xl border p-2.5 text-left transition ${
+              layout === "cards" ? "flex-col items-stretch" : "min-h-16"
             }`}
             onClick={() => onChange(preset.value)}
-            aria-pressed={active}
           >
-            <span className="grid grid-cols-4 gap-1">
-              {preset.swatches.map((color) => (
-                <span
-                  key={color}
-                  className="size-6 rounded-sm border border-black/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.28)]"
-                  style={{ backgroundColor: color }}
-                />
-              ))}
+            {/* Pratinjau mini: sidebar + header + kartu + tombol aksen */}
+            <span
+              aria-hidden
+              className={`relative flex shrink-0 overflow-hidden rounded-lg border border-black/10 ${layout === "cards" ? "h-20 w-full" : "h-11 w-16"}`}
+              style={{ background: canvas }}
+            >
+              <span className="h-full w-[22%]" style={{ background: chrome }} />
+              <span className="flex flex-1 flex-col gap-1 p-1.5">
+                <span className="h-[18%] rounded-sm" style={{ background: chrome, opacity: 0.9 }} />
+                <span className="flex flex-1 gap-1">
+                  <span className="flex-1 rounded-sm border border-black/5" style={{ background: surface }} />
+                  <span className="flex-1 rounded-sm border border-black/5" style={{ background: surface }} />
+                  <span className="w-[30%] rounded-sm border border-black/5" style={{ background: surface }} />
+                </span>
+                <span className="h-[16%] w-[38%] self-end rounded-sm" style={{ background: accent }} />
+              </span>
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-black">{preset.label}</span>
-              <span className="mt-0.5 block truncate text-xs opacity-80">{preset.detail}</span>
+              <span className="flex items-center gap-1.5 text-sm font-bold">
+                {preset.label}
+                {preset.value === DEFAULT_CASHIER_THEME ? <span className="pos-v6-default-tag">Utama</span> : null}
+              </span>
+              <span className="mt-0.5 block text-xs leading-snug opacity-80">{preset.detail}</span>
             </span>
-            {active ? <Check className="size-4 shrink-0 text-[#22c55e]" /> : null}
+            {active ? <Check className={`size-4 shrink-0 ${layout === "cards" ? "absolute right-3 top-3" : ""}`} aria-hidden /> : null}
           </button>
         );
       })}

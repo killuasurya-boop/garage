@@ -868,19 +868,21 @@ export function CashPaymentPanel({
   onCashReceivedChange: (value: string) => void;
 }) {
   const exactCash = cashReceivedValue === totalDue && totalDue > 0;
+  // POS V6 papan 05: input Uang Diterima, nominal cepat (termasuk Uang Pas), kartu Kembalian.
+  // Memilih nominal HANYA mengisi "Uang diterima" — transaksi tetap selesai lewat tombol final.
   return (
-    <div className="garage-surface rounded-md p-3">
-      <div className="mb-2 flex items-center justify-between gap-3">
+    <div className="pos-v6-cash garage-surface rounded-xl p-3">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Banknote className="size-4 text-[#f5a742]" />
-          <p className="garage-mono text-[12px] tracking-wide">UANG DITERIMA DARI PELANGGAN</p>
+          <Banknote className="pos-v6-cash-icon size-4" />
+          <p className="pos-v6-cash-label text-[13px] font-bold">Uang Diterima</p>
         </div>
-        <span className="garage-mono text-[11px] text-[#b8b8bf]">
-          Total Tagihan {currency.format(totalDue)}
+        <span className="pos-v6-cash-muted text-xs font-semibold">
+          Total Tagihan <span className="pos-v6-cash-total font-mono tabular-nums">{currency.format(totalDue)}</span>
         </span>
       </div>
       <div className="relative">
-        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 garage-mono text-base font-semibold text-[#d6d6dc]">
+        <span className="pos-v6-cash-muted pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 font-mono text-base font-semibold">
           Rp
         </span>
         <Input
@@ -892,84 +894,63 @@ export function CashPaymentPanel({
             onCashReceivedChange(event.target.value.replace(/\D/g, ""))
           }
           placeholder="0"
-          className="garage-mono h-14 border-[#34343c] bg-white/[0.06] pl-10 pr-3 text-right text-2xl font-bold tracking-wide text-white"
+          aria-label="Uang diterima dari pelanggan (Rupiah)"
+          className="pos-v6-cash-input h-14 pl-11 pr-3 text-right font-mono text-2xl font-bold tracking-wide tabular-nums"
         />
       </div>
-      <Button
-        type="button"
-        className={`garage-press mt-2 h-11 w-full justify-center gap-2 text-sm font-semibold ${
-          exactCash
-            ? "bg-[#f5a742] text-[#1a1a20] hover:bg-[#ffba5a]"
-            : "border border-[#f5a742]/55 bg-[#f5a742]/12 text-[#ffd08a] hover:bg-[#f5a742]/20"
-        }`}
-        disabled={paymentPending || totalDue <= 0}
-        onClick={() => onCashReceivedChange(String(totalDue))}
-      >
-        <Equal className="size-4" />
-        Uang Pas ({currency.format(totalDue)})
-      </Button>
-      {quickCashAmounts.length > 0 && (
-        <div className="mt-3">
-          <p className="garage-mono mb-1 text-[11px] text-[#b8b8bf]">
-            Pilihan cepat nominal uang
-          </p>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {quickCashAmounts.map((amount) => (
-              <Button
-                key={amount}
-                type="button"
-                variant="outline"
-                className="garage-press h-11 border-[#4a4a54] px-2 text-sm font-semibold"
-                disabled={paymentPending}
-                onClick={() => onCashReceivedChange(String(amount))}
-              >
-                {currency.format(amount)}
-              </Button>
-            ))}
-          </div>
-        </div>
-      )}
-      <div
-        className={`mt-3 rounded-md border p-4 ${
-          cashPaymentReady
-            ? "border-[#f5a742]/45 bg-[#f5a742]/10"
-            : "border-[#d11a2a]/45 bg-[#d11a2a]/12"
-        }`}
-      >
+      <p className="pos-v6-cash-muted mb-1.5 mt-3 text-xs font-semibold">Nominal cepat</p>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <Button
+          type="button"
+          variant="outline"
+          data-selected={exactCash}
+          className="pos-v6-quickcash garage-press h-11 gap-1.5 px-2 text-sm font-bold"
+          disabled={paymentPending || totalDue <= 0}
+          onClick={() => onCashReceivedChange(String(totalDue))}
+        >
+          <Equal className="size-4 shrink-0" />
+          Uang Pas
+          <span className="sr-only"> ({currency.format(totalDue)})</span>
+        </Button>
+        {quickCashAmounts.map((amount) => (
+          <Button
+            key={amount}
+            type="button"
+            variant="outline"
+            data-selected={cashReceivedValue === amount && !exactCash}
+            className="pos-v6-quickcash garage-press h-11 px-2 text-sm font-bold"
+            disabled={paymentPending}
+            onClick={() => onCashReceivedChange(String(amount))}
+          >
+            {currency.format(amount)}
+          </Button>
+        ))}
+      </div>
+      <div className="pos-v6-change mt-3 rounded-xl border p-4" data-state={cashPaymentReady ? "ok" : "short"} role="status" aria-live="polite">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="garage-mono text-[12px] tracking-wide text-[#d6d6dc]">
-              {cashPaymentReady ? "KEMBALIAN UNTUK PELANGGAN" : "UANG MASIH KURANG"}
+            <p className="pos-v6-change-label text-[13px] font-extrabold uppercase tracking-wide">
+              {cashPaymentReady ? "Kembalian untuk pelanggan" : "Uang masih kurang"}
             </p>
-            <p
-              className={`garage-display mt-1 text-4xl font-bold leading-none ${
-                cashPaymentReady ? "text-[#ffd08a]" : "text-[#ffc2c8]"
-              }`}
-            >
+            <p className="pos-v6-change-value mt-1 font-mono text-4xl font-extrabold leading-none tabular-nums">
               {currency.format(cashPaymentReady ? cashChange : cashShortage)}
             </p>
           </div>
-          <Badge
-            className={
-              cashPaymentReady
-                ? "border-[#f5a742]/45 bg-[#f5a742]/14 text-[#ffd08a]"
-                : "border-[#d11a2a]/45 bg-[#d11a2a]/14 text-[#ffc2c8]"
-            }
-          >
-            {cashPaymentReady ? "CUKUP" : "KURANG"}
-          </Badge>
+          <Badge className="pos-v6-change-badge">{cashPaymentReady ? "CUKUP" : "KURANG"}</Badge>
         </div>
-        <div className="mt-3 space-y-1 border-t border-white/10 pt-3 text-sm">
-          <BillRow label="Total tagihan" value={currency.format(totalDue)} />
-          <BillRow
-            label="Uang diterima"
-            value={currency.format(cashReceivedValue)}
-          />
-          <BillRow
-            label={cashPaymentReady ? "Kembalian pelanggan" : "Sisa kurang"}
-            value={currency.format(cashPaymentReady ? cashChange : cashShortage)}
-            accent
-          />
+        <div className="pos-v6-change-rows mt-3 space-y-1 border-t pt-3 text-sm">
+          <div className="flex justify-between gap-3">
+            <span>Total tagihan</span>
+            <span className="font-mono font-semibold tabular-nums">{currency.format(totalDue)}</span>
+          </div>
+          <div className="flex justify-between gap-3">
+            <span>Uang diterima</span>
+            <span className="font-mono font-semibold tabular-nums">{currency.format(cashReceivedValue)}</span>
+          </div>
+          <div className="flex justify-between gap-3 font-bold">
+            <span>{cashPaymentReady ? "Kembalian pelanggan" : "Sisa kurang"}</span>
+            <span className="font-mono tabular-nums">{currency.format(cashPaymentReady ? cashChange : cashShortage)}</span>
+          </div>
         </div>
       </div>
     </div>

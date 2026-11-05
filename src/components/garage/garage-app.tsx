@@ -42,7 +42,7 @@ fetchAuthSessionCheck,
 hasActiveAuthSession
 } from "@/components/garage/garage-app-helpers";
 import {
-isCashierThemeMode,
+normalizeCashierTheme,
 type CashierThemeMode
 } from "@/components/garage/garage-app-pickers";
 import { Alert,AlertDescription,AlertTitle } from "@/components/ui/alert";
@@ -392,11 +392,10 @@ function GarageWorkspace({
   const [garageTheme] = useState<GarageThemeMode>("dark");
   const [cashierTheme, setCashierTheme] = useState<CashierThemeMode>(() => {
     if (typeof window === "undefined") {
-      return "garage-default";
+      return "garage-signature";
     }
 
-    const stored = window.localStorage.getItem(GARAGE_CASHIER_THEME_STORAGE_KEY);
-    return isCashierThemeMode(stored) ? stored : "garage-default";
+    return normalizeCashierTheme(window.localStorage.getItem(GARAGE_CASHIER_THEME_STORAGE_KEY));
   });
   const [signOutPending, setSignOutPending] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);

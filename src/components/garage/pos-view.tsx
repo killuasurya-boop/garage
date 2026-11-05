@@ -3,6 +3,23 @@
 import { statusClass, type QrWorkTab } from "@/components/garage/pos/pos-status";
 import { PosTableDetailDialog } from "@/components/garage/pos/pos-table-detail-dialog";
 import {
+  PosV6Brand,
+  PosV6CategoryTile,
+  PosV6Clock,
+  PosV6Divider,
+  PosV6Kpi,
+  PosV6NavGroup,
+  PosV6NavItem,
+  PosV6Profile,
+  PosV6ProductCard,
+  PosV6ShiftChip,
+  PosV6ThemeSwatches,
+  PosV6TopbarButton,
+  type PosV6CardBadge,
+} from "@/components/garage/pos/pos-v6";
+import { isSignature, isUnggulan } from "@/components/garage/order/v5/menu-v5-model";
+import { PosV6ThemeStudio } from "@/components/garage/pos/pos-v6-theme-studio";
+import {
 AlertTriangle,
 Archive,
 ArrowLeft,
@@ -42,6 +59,12 @@ RefreshCw,
 Scissors,
 Search,
 Settings,
+LayoutGrid,
+Palette,
+PanelLeftClose,
+PanelLeftOpen,
+Milk,
+Package,
 ShieldAlert,
 ShieldCheck,
 ShoppingCart,
@@ -332,8 +355,16 @@ function PosHeaderClock() {
   );
 }
 
-const menuPrimaryGroups: MenuFilter[] = ["All", "Dapur", "Bar", "Lainnya"];
-const menuGroupLabels = { Dapur: "Dapur", Bar: "Bar", Lainnya: "Lainnya" } as const;
+/** Ikon tile kategori V6 dari nama kategori data (bukan daftar hardcode kategori). */
+function posV6CategoryIcon(category: string) {
+  const c = category.toLowerCase();
+  if (c.includes("non")) return CupSoda;
+  if (c.includes("coffee") || c.includes("kopi")) return Coffee;
+  if (c.includes("cemilan") || c.includes("camilan") || c.includes("snack")) return Cookie;
+  if (c.includes("botol") || c.includes("mineral") || c.includes("air")) return Milk;
+  if (c.includes("makan") || c.includes("food")) return UtensilsCrossed;
+  return Package;
+}
 const qrPublicBaseUrl = process.env.NEXT_PUBLIC_GARAGE_PUBLIC_BASE_URL?.trim().replace(/\/+$/, "");
 const qrPrintPath = "/order/qr-print";
 
@@ -878,6 +909,9 @@ export function PosView({
   );
   const isCashierKiosk = me.role === "Kasir";
   const canManagePosSettings = me.role === "Owner" || me.role === "Manajer";
+  // POS V6: Theme Studio (preferensi tampilan per perangkat, terbuka untuk semua peran POS).
+  const [themeStudioOpen, setThemeStudioOpen] = useState(false);
+  const posShortcutRef = useRef<(key: string) => boolean | void>(() => false);
   // Hapus invoice belum lunas: Owner/Manajer saja (server juga menolak role lain).
   const canDeleteInvoice = me.role === "Owner" || me.role === "Manajer";
   const [invoiceDeleteTarget, setInvoiceDeleteTarget] = useState<InvoiceDeleteTarget | null>(null);
@@ -924,6 +958,16 @@ export function PosView({
   // memantau (Bar & Dapur, pesanan, laporan). Transaksi & kas tetap butuh shift.
   const [ownerViewing, setOwnerViewing] = useState(false);
   const posVisible = shiftOpen || ownerViewing;
+  useEffect(() => {
+    if (!posVisible) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (!/^F([1-4]|9)$/.test(event.key) || event.altKey || event.ctrlKey || event.metaKey) return;
+      if (document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]')) return;
+      if (posShortcutRef.current(event.key) !== false) event.preventDefault();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [posVisible]);
   // Shift lupa ditutup (> 20 jam): server menolak transaksi baru; tampilkan
   // layar wajib tutup shift supaya kasir tidak bingung.
   const [staleClock, setStaleClock] = useState(() => Date.now());
@@ -989,17 +1033,10 @@ export function PosView({
   // tiap render filter untuk SEMUA item walau cuma kategori yg berubah.
   // Sub-kategori POS dari master kategori (kategori baru tampil otomatis).
   const menuSubCategories = useMemo(() => menuSubCategoriesFrom(menuItems), [menuItems]);
-  const activeMenuGroup = useMemo<keyof typeof menuGroupLabels | null>(() => {
-    if (menuCategory === "All") return null;
-    if (menuCategory === "Dapur" || menuCategory === "Bar" || menuCategory === "Lainnya") {
-      return menuCategory as keyof typeof menuGroupLabels;
-    }
-    return (
-      (Object.keys(menuSubCategories) as Array<keyof typeof menuGroupLabels>).find((group) =>
-        menuSubCategories[group].includes(menuCategory),
-      ) ?? null
-    );
-  }, [menuCategory, menuSubCategories]);
+  const posV6CategoryList = useMemo(
+    () => [...new Set([...menuSubCategories.Bar, ...menuSubCategories.Dapur, ...menuSubCategories.Lainnya])],
+    [menuSubCategories],
+  );
   const indexedMenu = useMemo(
     () =>
       menuItems.map((item) => ({
@@ -1050,6 +1087,11 @@ export function PosView({
     }
     return ranked.slice(0, POS_FAVORITE_LIMIT);
   }, [favoriteCounts, indexedMenu]);
+  /** Hati di kartu V6 = favorit perangkat ini (sudah sering ditap), bukan klaim terlaris. */
+  const favoriteIdSet = useMemo(
+    () => new Set(favoriteItems.filter((item) => (favoriteCounts[item.id] ?? 0) > 0).map((item) => item.id)),
+    [favoriteCounts, favoriteItems],
+  );
   const filteredMenu = useMemo(() => {
     // Kode singkat ("cl" → Coffee Latte) dicocokkan di samping teks biasa;
     // kode persis tampil paling depan supaya kasir cukup tap kartu pertama.
@@ -3144,6 +3186,20 @@ export function PosView({
     setVariantItem(item);
   }
 
+  /** POS V6 navigasi: F1 = Kasir (fokus pencarian menu). */
+  function focusPosSearch() {
+    setCashierMenuOpen(false);
+    const input = document.querySelector<HTMLInputElement>('[data-testid="pos-menu-search"]');
+    input?.focus();
+  }
+
+  /** POS V6 navigasi: Pesanan QR / Meja = panel Operasional QR pada tab terkait. */
+  function openQrWork(tab: QrWorkTab) {
+    setCashierMenuOpen(false);
+    setQrWorkTab(tab);
+    setQrOperationsOpen(true);
+  }
+
   function resetPaymentDialog() {
     setPaymentError(null);
     setPaymentResult(null);
@@ -3852,6 +3908,24 @@ export function PosView({
     }
   }
 
+  // POS V6 shortcut kasir (papan 01/05): F1 Kasir · F2 Pesanan QR · F3 Meja · F4 Riwayat · F9 Bayar.
+  // Hanya membuka panel/dialog yang sama dengan tombolnya; tidak pernah menyelesaikan pembayaran.
+  // Tidak aktif saat dialog lain terbuka. Ref = handler terbaru tanpa memasang ulang listener.
+  useEffect(() => {
+    posShortcutRef.current = (key: string) => {
+      if (key === "F1") focusPosSearch();
+      else if (key === "F2") openQrWork("incoming");
+      else if (key === "F3") openQrWork("table_map");
+      else if (key === "F4") setReceiptHistoryOpen(true);
+      else if (key === "F9") {
+        if (!cartLines.length) return false;
+        resetPaymentDialog();
+        setPaymentOpen(true);
+      } else return false;
+      return true;
+    };
+  });
+
   if (!posVisible) {
     return (
       <section className="flex h-full min-h-0 items-center justify-center p-3">
@@ -4107,8 +4181,13 @@ export function PosView({
       data-pos-text-size={cashierPosSettings.textSize}
       data-pos-card-density={cashierPosSettings.cardDensity}
       data-pos-bill-layout={cashierPosSettings.billLayout}
+      data-pos-v6="true"
+      data-pos-product-view={cashierPosSettings.productView}
+      data-pos-photos={cashierPosSettings.showPhotos ? "on" : "off"}
+      data-pos-sidebar={cashierPosSettings.sidebarMode}
+      data-pos-reduced-motion={cashierPosSettings.reducedMotion ? "on" : undefined}
       className={`cashier-pos-surface relative flex h-full min-h-0 flex-col gap-2 pb-0 ${
-        isCashierKiosk ? "xl:pl-[292px]" : ""
+        isCashierKiosk ? (cashierPosSettings.sidebarMode === "compact" ? "xl:pl-[92px]" : "xl:pl-[260px]") : ""
       }`}
     >
       <PosChatInbox
@@ -4190,6 +4269,18 @@ export function PosView({
               >
                 <ShoppingCart className="size-4" />
                 Jual / Kasir
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="garage-press h-11 justify-start gap-2 border-[#4a4a54] bg-white/[0.055] px-3 text-sm"
+                onClick={() => {
+                  setCashierMenuOpen(false);
+                  setThemeStudioOpen(true);
+                }}
+              >
+                <Palette className="size-4" />
+                Theme Studio (tampilan)
               </Button>
               <Button
                 type="button"
@@ -4432,269 +4523,138 @@ export function PosView({
       </Sheet>
 
       {isCashierKiosk ? (
-        <aside className="garage-scroll garage-side-panel fixed inset-y-0 left-0 z-40 hidden w-[292px] flex-col overflow-y-auto border-r border-[#34343c] bg-[#0b0b0e] p-4 text-[#f4f4f5] shadow-[18px_0_50px_rgba(0,0,0,0.24)] xl:flex">
-          <div className="text-left">
-            <h2 className="garage-display garage-chrome text-xl">Menu Kasir</h2>
-            <p className="mt-1 text-xs text-[#b8b8bf]">
-              {GARAGE_BUSINESS_NAME} - {me.shift} - {me.device}
-            </p>
+        // POS V6 sidebar (papan 01): navigasi ringkas berikon, grup, badge, shortcut, Mode Tampilan.
+        // Semua menu lama tetap ada (hanya dikelompokkan); handler sama persis.
+        <aside
+          className="pos-v6-sidebar garage-scroll fixed inset-y-0 left-0 z-40 hidden flex-col overflow-y-auto xl:flex"
+          data-mode={cashierPosSettings.sidebarMode}
+          aria-label="Navigasi kasir"
+        >
+          <div className="pos-v6-sidebar-brand">
+            <PosV6Brand theme={cashierTheme} compact />
+            {cashierPosSettings.sidebarMode === "compact" ? null : (
+              <p className="pos-v6-sidebar-caption">
+                POS V6 · {me.device}
+              </p>
+            )}
           </div>
-          <div className="mt-4 space-y-3">
-            <div className="rounded-md border border-[#34343c] bg-white/[0.055] p-3">
-              <div className="flex items-center gap-3">
-                <span className="garage-mono flex size-10 shrink-0 items-center justify-center rounded-full border border-[#f5a742]/35 bg-[#f5a742]/12 text-sm font-semibold text-[#ffd08a]">
-                  {profileInitials}
-                </span>
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-white">{me.user.name}</p>
-                  <p className="truncate text-xs text-[#b8b8bf]">
-                    {me.role} - {me.device}
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="grid gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                className="garage-press h-11 justify-start gap-2 border-[#22c55e]/45 bg-[#22c55e]/12 px-3 text-sm text-[#dcfce7]"
-              >
-                <ShoppingCart className="size-4" />
-                Sell / POS
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className={`garage-press h-11 justify-start gap-2 px-3 text-sm ${
-                  shiftOpen
-                    ? "garage-shift-open border-[#22c55e]/55 bg-[#22c55e]/16 text-[#dcfce7] hover:bg-[#22c55e]/22"
-                    : "garage-shift-closed border-[#d11a2a]/70 bg-[#d11a2a]/20 text-[#ffe1e5] hover:bg-[#d11a2a]/28"
-                }`}
-                onClick={prepareShiftDialog}
-              >
-                {shiftOpen ? <ShieldCheck className="size-4" /> : <ShieldAlert className="size-4" />}
-                {shiftOpen ? "Shift Aktif / Tutup Shift" : "Mulai Shift"}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="garage-press h-11 justify-between border-[#4a4a54] bg-white/[0.055] px-3 text-sm"
-                onClick={() => setQrOperationsOpen(true)}
-              >
-                <span className="inline-flex items-center gap-2">
-                  <Bell className="size-4" />
-                  QR Order
-                </span>
-                <Badge className={`${waitingCustomerOrderCount ? statusClass.pending_cashier : statusClass.info} px-2 text-[10px]`}>
-                  {waitingCustomerOrderCount}
-                </Badge>
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className={`garage-press h-11 justify-between px-3 text-sm ${
-                  kitchenTickets.length
-                    ? "border-[#22c55e]/55 bg-[#22c55e]/16 text-[#dcfce7] hover:bg-[#22c55e]/22"
-                    : "border-[#4a4a54] bg-white/[0.055]"
-                }`}
+          <nav className="flex flex-1 flex-col gap-3 px-2.5 pb-3">
+            <PosV6NavGroup>
+              <PosV6NavItem icon={ShoppingCart} label="Kasir" shortcut="F1" active onClick={focusPosSearch} />
+              <PosV6NavItem
+                icon={ClipboardList}
+                label="Pesanan QR"
+                shortcut="F2"
+                count={waitingCustomerOrderCount}
+                onClick={() => openQrWork("incoming")}
+              />
+              <PosV6NavItem icon={LayoutGrid} label="Meja" shortcut="F3" onClick={() => openQrWork("table_map")} />
+              <PosV6NavItem
+                icon={History}
+                label="Riwayat Struk"
+                shortcut="F4"
+                count={receiptHistory.length}
+                onClick={() => setReceiptHistoryOpen(true)}
+              />
+              <PosV6NavItem icon={BarChart3} label="Laporan Shift" onClick={() => setCashierToolOpen("reports")} />
+            </PosV6NavGroup>
+            <PosV6NavGroup label="Operasional">
+              <PosV6NavItem
+                icon={UtensilsCrossed}
+                label="Produksi Bar & Dapur"
+                count={kitchenTickets.length}
+                dot={kitchenTickets.length ? "good" : undefined}
                 onClick={() => {
                   setKitchenPanelOpen(true);
                   void loadKitchenTickets();
                 }}
-              >
-                <span className="inline-flex items-center gap-2">
-                  <UtensilsCrossed className="size-4" />
-                  Bar &amp; Dapur
-                </span>
-                <Badge className="border-[#4a4a54] bg-black/30 px-2 text-[10px]">
-                  {kitchenTickets.length}
-                </Badge>
-              </Button>
-              {([
-                ["contacts", Users, "Kontak / Member"],
-                ["reports", BarChart3, "Laporan Shift"],
-                ...(canManagePosSettings
-                  ? ([["settings", Settings, "Pengaturan POS"]] as const)
-                  : []),
-              ] as const).map(([tool, Icon, label]) => (
-                <Button
-                  key={String(tool)}
-                  type="button"
-                  variant="outline"
-                  className="garage-press h-11 justify-start gap-2 border-[#4a4a54] bg-white/[0.055] px-3 text-sm"
-                  onClick={() => setCashierToolOpen(tool)}
-                >
-                  <Icon className="size-4" />
-                  {label}
-                </Button>
-              ))}
-              <Button
-                type="button"
-                variant="outline"
-                className="garage-press h-11 justify-start gap-2 border-[#f5a742]/45 bg-[#f5a742]/12 px-3 text-sm text-[#ffd08a] hover:bg-[#f5a742]/20"
-                onClick={() => window.open("/sales-history", "_blank")}
-              >
-                <ReceiptText className="size-4" />
-                Riwayat Penjualan
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="garage-press h-11 justify-start gap-2 border-[#f5a742]/45 bg-[#f5a742]/12 px-3 text-sm text-[#ffd08a] hover:bg-[#f5a742]/20"
-                onClick={() => window.open("/shift", "_blank")}
-              >
-                <FileText className="size-4" />
-                Riwayat & Laporan Shift
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="garage-press h-11 justify-start gap-2 border-[#4a4a54] bg-white/[0.055] px-3 text-sm"
-                onClick={() => window.open("/shift?tab=petty", "_blank")}
-                data-testid="pos-menu-petty"
-              >
-                <Wallet className="size-4" />
-                Petty Cash
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="garage-press h-11 justify-start gap-2 border-[#4a4a54] bg-white/[0.055] px-3 text-sm"
-                onClick={() => window.open("/shift?tab=incident", "_blank")}
-                data-testid="pos-menu-incident"
-              >
-                <ClipboardList className="size-4" />
-                Catatan Kejadian
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="garage-press h-11 justify-between border-[#4a4a54] bg-white/[0.055] px-3 text-sm"
-                onClick={() => setReceiptHistoryOpen(true)}
-              >
-                <span className="inline-flex items-center gap-2">
-                  <History className="size-4" />
-                  Riwayat Struk Shift
-                </span>
-                <Badge className="border-[#4a4a54] bg-white/[0.08] px-2 text-[10px]">
-                  {receiptHistory.length}
-                </Badge>
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className={`garage-press h-11 justify-between px-3 text-sm ${
-                  soldOutIds.size > 0
-                    ? "border-[#d11a2a]/55 bg-[#d11a2a]/14 text-[#ffe1e5] hover:bg-[#d11a2a]/22"
-                    : "border-[#4a4a54] bg-white/[0.055]"
-                }`}
+              />
+              <PosV6NavItem
+                icon={shiftOpen ? ShieldCheck : ShieldAlert}
+                label={shiftOpen ? "Shift Aktif / Tutup" : "Mulai Shift"}
+                dot={shiftOpen ? "good" : "danger"}
+                onClick={prepareShiftDialog}
+              />
+              <PosV6NavItem icon={Banknote} label="Kas Keluar / Masuk" onClick={() => openExpenseDialog()} />
+              <PosV6NavItem
+                icon={Ban}
+                label="Atur Stok Habis"
+                count={soldOutIds.size}
+                dot={soldOutIds.size ? "danger" : undefined}
                 onClick={() => setSoldOutDialogOpen(true)}
-              >
-                <span className="inline-flex items-center gap-2">
-                  <Ban className="size-4" />
-                  Atur Stok Habis
-                </span>
-                <Badge
-                  className={`px-2 text-[10px] ${
-                    soldOutIds.size > 0
-                      ? "border-[#d11a2a]/55 bg-[#d11a2a]/22 text-[#ffe1e5]"
-                      : "border-[#4a4a54] bg-white/[0.08]"
-                  }`}
-                >
-                  {soldOutIds.size}
-                </Badge>
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="garage-press h-11 justify-start gap-2 border-[#4a4a54] bg-white/[0.055] px-3 text-sm"
-                onClick={() => openExpenseDialog()}
-              >
-                <Banknote className="size-4" />
-                Kas Keluar / Masuk
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="garage-press h-11 justify-start gap-2 border-[#4a4a54] bg-white/[0.055] px-3 text-sm"
+              />
+              {canQuickCount ? <PosV6NavItem icon={ClipboardCheck} label="Stok Opname Gudang" onClick={() => openQuickCount()} /> : null}
+            </PosV6NavGroup>
+            <PosV6NavGroup label="Pelanggan">
+              <PosV6NavItem icon={Users} label="Kontak / Member" onClick={() => setCashierToolOpen("contacts")} />
+              <PosV6NavItem
+                icon={UserPlus}
+                label="Daftar Member"
                 onClick={() => {
-                  setCashierMenuOpen(false);
                   setMemberRegMsg(null);
                   setMemberRegOpen(true);
                 }}
-              >
-                <UserPlus className="size-4" />
-                Daftar Member
-              </Button>
-              {canQuickCount ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="garage-press h-11 justify-start gap-2 border-[#4a4a54] bg-white/[0.055] px-3 text-sm"
-                  onClick={() => openQuickCount()}
-                >
-                  <ClipboardCheck className="size-4" />
-                  Stok Opname Gudang
-                </Button>
-              ) : null}
-              <Button
-                type="button"
-                variant="outline"
-                className="garage-press h-11 justify-start gap-2 border-[#f5a742]/45 bg-[#f5a742]/12 px-3 text-sm text-[#ffd08a] hover:bg-[#f5a742]/20"
+              />
+            </PosV6NavGroup>
+            <PosV6NavGroup label="Riwayat & Kas">
+              <PosV6NavItem icon={ReceiptText} label="Riwayat Penjualan" onClick={() => window.open("/sales-history", "_blank")} />
+              <PosV6NavItem icon={FileText} label="Riwayat & Laporan Shift" onClick={() => window.open("/shift", "_blank")} />
+              <PosV6NavItem icon={Wallet} label="Petty Cash" testId="pos-menu-petty" onClick={() => window.open("/shift?tab=petty", "_blank")} />
+              <PosV6NavItem icon={ClipboardList} label="Catatan Kejadian" testId="pos-menu-incident" onClick={() => window.open("/shift?tab=incident", "_blank")} />
+            </PosV6NavGroup>
+            <PosV6NavGroup label="Lainnya">
+              <PosV6NavItem
+                icon={Mic}
+                label="Pengumuman Suara"
                 onClick={() => {
                   voice.unlock();
                   setVoiceDialogOpen(true);
                 }}
-              >
-                <Mic className="size-4" />
-                Pengumuman Suara
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="garage-press h-11 justify-start gap-2 border-[#4a4a54] bg-white/[0.055] px-3 text-sm"
-                onClick={onOpenEarnings}
-              >
-                <Wallet className="size-4" />
-                Fee Saya
-              </Button>
-              <Separator className="my-1 bg-[#34343c]" />
-              <div className="rounded-md border border-[#34343c] bg-white/[0.04] p-2">
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <p className="garage-mono text-[10px]">Tema Kasir</p>
-                  <Badge className="border-[#f5a742]/35 bg-[#f5a742]/12 px-2 text-[10px] text-[#ffd08a]">
-                    Khusus POS
-                  </Badge>
-                </div>
-                <CashierThemePresetGrid
-                  value={cashierTheme}
-                  onChange={onCashierThemeChange}
-                />
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                className="garage-press h-11 justify-start gap-2 border-[#4a4a54] bg-white/[0.055] px-3 text-sm"
-                onClick={() => void refreshCashierData()}
+              />
+              <PosV6NavItem icon={Wallet} label="Fee Saya" onClick={onOpenEarnings} />
+              <PosV6NavItem icon={Palette} label="Theme Studio" onClick={() => setThemeStudioOpen(true)} />
+              {canManagePosSettings ? <PosV6NavItem icon={Settings} label="Pengaturan POS" onClick={() => setCashierToolOpen("settings")} /> : null}
+              <PosV6NavItem
+                icon={RefreshCw}
+                label={cashierRefreshing ? "Memuat..." : "Muat Ulang POS"}
                 disabled={cashierRefreshing}
-              >
-                <RefreshCw className={`size-4 ${cashierRefreshing ? "animate-spin" : ""}`} />
-                Muat Ulang POS
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="garage-press h-11 justify-start gap-2 border-[#d11a2a]/55 bg-[#d11a2a]/14 px-3 text-sm text-[#ffe1e5] hover:bg-[#d11a2a]/22"
+                onClick={() => void refreshCashierData()}
+              />
+            </PosV6NavGroup>
+          </nav>
+          <div className="pos-v6-sidebar-foot">
+            <PosV6ThemeSwatches
+              value={cashierTheme}
+              onChange={onCashierThemeChange}
+              onOpenStudio={() => setThemeStudioOpen(true)}
+              compact={cashierPosSettings.sidebarMode === "compact"}
+            />
+            <div className="mt-2 grid gap-0.5">
+              <PosV6NavItem
+                icon={cashierPosSettings.sidebarMode === "compact" ? PanelLeftOpen : PanelLeftClose}
+                label={cashierPosSettings.sidebarMode === "compact" ? "Perlebar sidebar" : "Ringkas sidebar"}
+                onClick={() => updateCashierPosSettings({ sidebarMode: cashierPosSettings.sidebarMode === "compact" ? "full" : "compact" })}
+              />
+              <PosV6NavItem
+                icon={LogOut}
+                label={signOutPending ? "Keluar..." : "Keluar"}
+                tone="danger"
                 disabled={signOutPending}
                 onClick={() => void signOutFromPos()}
-              >
-                <LogOut className="size-4" />
-                {signOutPending ? "Keluar..." : "Keluar"}
-              </Button>
+              />
             </div>
           </div>
         </aside>
       ) : null}
+
+      <PosV6ThemeStudio
+        open={themeStudioOpen}
+        onOpenChange={setThemeStudioOpen}
+        theme={cashierTheme}
+        onThemeChange={onCashierThemeChange}
+        settings={cashierPosSettings}
+        onSettingsChange={updateCashierPosSettings}
+      />
 
       <Dialog
         open={activeCashierToolOpen !== null}
@@ -5013,6 +4973,7 @@ export function PosView({
                     value={cashierPosSettings.textSize}
                     onChange={(textSize) => updateCashierPosSettings({ textSize })}
                     options={[
+                      { value: "small", label: "Kecil", detail: "Lebih banyak informasi di layar." },
                       { value: "normal", label: "Normal", detail: "Untuk layar kasir standar." },
                       { value: "large", label: "Besar", detail: "Lebih nyaman untuk mata lelah/rabun." },
                     ]}
@@ -5364,181 +5325,117 @@ export function PosView({
         setMemberCreatePin={setMemberCreatePin}
       />
 
-      <div className="garage-panel garage-animate-in flex shrink-0 flex-col gap-2 rounded-md p-2 md:flex-row md:items-center md:justify-between">
-        <div className="min-w-0">
-          <p className="garage-mono text-[11px] text-[#b8b8bf]">POS kasir</p>
-          <h1 className="garage-display garage-chrome truncate text-xl leading-none sm:text-2xl">
-            {GARAGE_BUSINESS_NAME}
-          </h1>
-          <p className="mt-0.5 truncate text-xs text-[#d6d6dc]">
-            {me.shift} - {me.device}
-          </p>
+      {/* POS V6 topbar (papan 02): brand · status shift · jam · ringkasan · aksi · profil.
+          Nominal kas/omzet TIDAK ditampilkan ke kasir (kebijakan blind count). */}
+      <div className="pos-v6-topbar garage-animate-in flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl px-3 py-2 md:px-4">
+        <PosV6Brand theme={cashierTheme} hideLogoAtXl={isCashierKiosk} />
+        <h1 className="sr-only">
+          POS kasir {GARAGE_BUSINESS_NAME} — {me.shift} — {me.device}
+        </h1>
+        <div className="pos-v6-status hidden min-w-0 items-center gap-3 lg:flex">
+          <PosV6Divider />
+          <PosV6ShiftChip open={shiftOpen} cashier={me.user.name} />
+          <PosV6Divider />
+          <PosV6Clock />
+          <PosV6Divider />
+          <PosV6Kpi icon={ReceiptText} label="Transaksi shift" value={receiptHistory.length} />
         </div>
-        <div className="flex flex-wrap items-center gap-1.5 md:justify-end">
-          {/* Kasir di mode POS penuh tidak punya header global → lonceng di sini. */}
-          {me.role === "Kasir" ? <StaffNotificationCenter newOrderSound={settings.newOrderSound} /> : null}
-          <VoiceStatusBadge onOpen={() => setVoiceDialogOpen(true)} />
-          <span
-            className="inline-flex h-10 items-center gap-1.5 rounded-md border border-[#16A34A]/45 bg-[#16A34A]/12 px-2.5 text-[11px] font-semibold text-[#7fd7a3]"
-            title="Penjualan otomatis memotong bahan di gudang sesuai resep"
-          >
-            <span className="size-2 rounded-full bg-[#16A34A]" />
+        <div className="pos-v6-actions ml-auto flex flex-wrap items-center justify-end gap-1.5">
+          <span className="pos-v6-tb-slot flex items-center gap-1.5">
+            {/* Kasir di mode POS penuh tidak punya header global → lonceng di sini. */}
+            {me.role === "Kasir" ? <StaffNotificationCenter newOrderSound={settings.newOrderSound} /> : null}
+            <span className="hidden md:inline-flex">
+              <VoiceStatusBadge onOpen={() => setVoiceDialogOpen(true)} />
+            </span>
+          </span>
+          <span className="pos-v6-tb-chip hidden 2xl:inline-flex" title="Penjualan otomatis memotong bahan di gudang sesuai resep">
+            <span className="pos-v6-tb-chip-dot" aria-hidden />
             Gudang Auto
           </span>
-          <Button
-            type="button"
-            variant="outline"
-            className="garage-press relative h-10 gap-1.5 border-[#f5a742]/55 bg-[#f5a742]/12 px-3 text-xs font-semibold text-[#ffd08a] hover:bg-[#f5a742]/20"
-            onClick={() => setChatOpen(true)}
-            aria-label="Chat tamu"
-          >
-            <Headset className="size-3.5" />
-            Chat Tamu
-            {chatUnread > 0 ? (
-              <span className="absolute -right-1.5 -top-1.5 flex min-w-5 items-center justify-center rounded-full border-2 border-[#121218] bg-[#d11a2a] px-1 text-[10px] font-black text-white">
-                {chatUnread}
-              </span>
-            ) : null}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className={`garage-press h-10 border-[#34343c] bg-white/[0.055] px-3 text-xs font-semibold text-white hover:bg-white/[0.09] ${
-              isCashierKiosk ? "xl:hidden" : ""
-            }`}
+          <PosV6TopbarButton icon={Headset} label="Chat Tamu" onClick={() => setChatOpen(true)} ariaLabel="Chat tamu" tone="warn" count={chatUnread} className={chatUnread ? "" : "hidden md:inline-flex"} />
+          <PosV6TopbarButton
+            icon={Menu}
+            label="Menu Kasir"
+            short="Menu"
             onClick={() => setCashierMenuOpen(true)}
-            aria-label="Buka menu kasir"
-          >
-            <Menu className="mr-2 size-3.5" />
-            Menu Kasir
-          </Button>
+            ariaLabel="Buka menu kasir"
+            className={isCashierKiosk ? "xl:hidden" : ""}
+          />
           {/* Absen = aksi kelas satu, selalu tampak di POS (NAV_ACTION_AUDIT §1.3). */}
           {canAccessModule(me.role, "absensi-v2") && (
-            <Button
-              type="button"
-              variant="outline"
-              className="garage-press h-10 gap-1.5 border-[#f5a742]/55 bg-[#f5a742]/12 px-3 text-xs font-semibold text-[#ffd08a] hover:bg-[#f5a742]/20"
-              onClick={() => window.location.assign("/absen")}
-              aria-label="Absen kehadiran"
-              title="Absen kehadiran"
-            >
-              <Fingerprint className="size-3.5" />
-              <span className="hidden sm:inline">Absen</span>
-            </Button>
+            <PosV6TopbarButton icon={Fingerprint} label="Absen" onClick={() => window.location.assign("/absen")} ariaLabel="Absen kehadiran" title="Absen kehadiran" />
           )}
           {!isCashierKiosk && (
-            <Button
-              type="button"
-              variant="outline"
-              className="garage-press h-10 gap-1.5 border-[#4a4a54] bg-white/[0.055] px-2.5 text-xs text-[#d4d4d8] hover:bg-white/[0.09]"
-              onClick={() => void exitPosToDashboard()}
-              aria-label="Kembali ke dashboard"
-            >
-              <ArrowLeft className="size-3.5" />
-              <span className="hidden sm:inline">Kembali</span>
-            </Button>
+            <PosV6TopbarButton icon={ArrowLeft} label="Kembali" onClick={() => void exitPosToDashboard()} ariaLabel="Kembali ke dashboard" />
           )}
-          {/* Keluar = satu istilah logout konsisten (NAV_ACTION_AUDIT §1.1). */}
-          <Button
-            type="button"
-            variant="outline"
-            className={`garage-press h-10 gap-1.5 border-[#d11a2a]/55 bg-[#d11a2a]/14 px-2.5 text-xs text-[#ffe1e5] hover:bg-[#d11a2a]/22 ${
-              isCashierKiosk ? "xl:hidden" : ""
-            }`}
-            disabled={signOutPending}
-            onClick={() => void signOutFromPos()}
-            aria-label="Keluar"
-          >
-            <LogOut className="size-3.5" />
-            <span className="hidden sm:inline">
-              {signOutPending ? "Keluar..." : "Keluar"}
-            </span>
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className={`garage-press h-10 px-2.5 text-xs ${
-              shiftOpen
-                ? "garage-shift-open border-[#22c55e]/55 bg-[#22c55e]/16 text-[#dcfce7] hover:bg-[#22c55e]/22"
-                : "garage-shift-closed border-[#d11a2a]/70 bg-[#d11a2a]/20 text-[#ffe1e5] hover:bg-[#d11a2a]/28"
-            } ${isCashierKiosk ? "xl:hidden" : ""}`}
+          <PosV6TopbarButton
+            icon={shiftOpen ? ShieldCheck : ShieldAlert}
+            label={shiftOpen ? "Shift Aktif" : "Mulai Shift"}
+            short={shiftOpen ? "Shift" : "Mulai Shift"}
+            tone={shiftOpen ? "good" : "danger"}
             onClick={prepareShiftDialog}
-          >
-            {shiftOpen ? (
-              <ShieldCheck className="mr-1.5 size-3.5" />
-            ) : (
-              <ShieldAlert className="mr-1.5 size-3.5" />
-            )}
-            {shiftOpen ? "Shift Aktif" : "Mulai Shift"}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            data-pulse={qrNoticeIsNew ? "true" : "false"}
-            aria-label="Buka Operasional QR"
-            className={`garage-press h-10 gap-1.5 px-2.5 text-xs ${
-              waitingCustomerOrderCount
-                ? "qr-order-notice border-[#f5a742]/55 bg-[#f5a742]/14 text-[#ffe0ad] hover:bg-[#f5a742]/20"
-                : "border-[#4a4a54] bg-white/[0.055] text-[#d4d4d8] hover:bg-white/[0.09]"
-            } ${isCashierKiosk ? "xl:hidden" : ""}`}
+            className={`${shiftOpen ? "garage-shift-open hidden md:inline-flex" : "garage-shift-closed"} ${isCashierKiosk ? "xl:hidden" : ""}`}
+          />
+          <PosV6TopbarButton
+            icon={Bell}
+            label="QR Order"
+            short="QR"
+            tone={waitingCustomerOrderCount ? "warn" : undefined}
+            pulse={qrNoticeIsNew}
+            count={waitingCustomerOrderCount}
             onClick={() => setQrOperationsOpen(true)}
-          >
-            <Bell className="size-3.5" />
-            QR
-            <Badge className={`${waitingCustomerOrderCount ? statusClass.pending_cashier : statusClass.info} px-1.5 text-[10px]`}>
-              {waitingCustomerOrderCount}
-            </Badge>
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            aria-label="Buka pesanan Bar &amp; Dapur"
-            className={`garage-press h-10 gap-1.5 px-2.5 text-xs ${
-              kitchenTickets.length
-                ? "border-[#22c55e]/55 bg-[#22c55e]/14 text-[#bbf7d0] hover:bg-[#22c55e]/20"
-                : "border-[#4a4a54] bg-white/[0.055] text-[#d4d4d8] hover:bg-white/[0.09]"
-            } ${isCashierKiosk ? "xl:hidden" : ""}`}
+            ariaLabel="Buka Operasional QR"
+            className={`${waitingCustomerOrderCount ? "qr-order-notice" : ""} ${isCashierKiosk ? "xl:hidden" : ""}`}
+          />
+          <PosV6TopbarButton
+            icon={UtensilsCrossed}
+            label="Bar & Dapur"
+            short="Siap"
+            tone={kitchenTickets.length ? "good" : undefined}
+            count={kitchenTickets.length}
             onClick={() => {
               setKitchenPanelOpen(true);
               void loadKitchenTickets();
             }}
-          >
-            <UtensilsCrossed className="size-3.5" />
-            Siap
-            <Badge className="border-[#4a4a54] bg-black/30 px-1.5 text-[10px]">
-              {kitchenTickets.length}
-            </Badge>
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            aria-label="Muat ulang data POS"
-            className={`garage-press h-10 gap-1.5 border-[#4a4a54] bg-white/[0.055] px-2.5 text-xs text-[#d4d4d8] hover:bg-white/[0.09] ${
-              isCashierKiosk ? "xl:hidden" : ""
-            }`}
+            ariaLabel="Buka pesanan Bar & Dapur"
+            className={isCashierKiosk ? "xl:hidden" : ""}
+          />
+          <PosV6TopbarButton
+            icon={RefreshCw}
+            label={cashierRefreshing ? "Memuat..." : "Muat ulang"}
+            spin={cashierRefreshing}
             disabled={cashierRefreshing}
             onClick={() => void refreshCashierData()}
-          >
-            <RefreshCw className={`size-3.5 ${cashierRefreshing ? "animate-spin" : ""}`} />
-            <span className="hidden sm:inline">
-              {cashierRefreshing ? "Memuat..." : "Muat ulang"}
-            </span>
-          </Button>
-          <PosHeaderClock />
+            ariaLabel="Muat ulang data POS"
+            className={`hidden md:inline-flex ${isCashierKiosk ? "xl:hidden" : ""}`}
+          />
+          {/* Keluar = satu istilah logout konsisten (NAV_ACTION_AUDIT §1.1). */}
+          <PosV6TopbarButton
+            icon={LogOut}
+            label={signOutPending ? "Keluar..." : "Keluar"}
+            tone="danger"
+            disabled={signOutPending}
+            onClick={() => void signOutFromPos()}
+            ariaLabel="Keluar"
+            className={`hidden md:inline-flex ${isCashierKiosk ? "xl:hidden" : ""}`}
+          />
+          <span className="hidden sm:inline-flex lg:hidden">
+            <PosV6Clock compact />
+          </span>
           {shiftOpen && (
-            <Button
-              type="button"
-              variant="outline"
-              className="garage-press h-10 border-[#f5a742]/45 bg-[#f5a742]/10 px-2.5 text-xs text-[#ffe0ad] md:hidden"
+            <PosV6TopbarButton
+              icon={ReceiptText}
+              label="Keranjang"
+              short="Keranjang"
+              tone="accent"
+              count={cartItemCount}
               onClick={() => setBillOpen(true)}
-            >
-              <ReceiptText className="mr-1.5 size-3.5" />
-              Keranjang
-              <span className="garage-mono ml-1.5 rounded-full border border-[#f5a742]/35 bg-black/25 px-1.5 text-[10px]">
-                {cartItemCount}
-              </span>
-            </Button>
+              className="md:hidden"
+            />
           )}
+          <span className="hidden sm:inline-flex">
+            <PosV6Profile name={me.user.name} role={me.role} initials={profileInitials} onClick={() => setCashierMenuOpen(true)} />
+          </span>
         </div>
         <div className="hidden">
           <Button
@@ -5950,7 +5847,7 @@ export function PosView({
             type="button"
             onClick={() => setBillOpen(true)}
             aria-label={`Buka keranjang, ${cartItemCount} item, total ${currency.format(totalDue)}`}
-            className="garage-press fixed inset-x-2 bottom-2 z-30 flex items-center gap-3 rounded-xl border border-[#f5a742]/45 bg-[#15151b] px-3 py-2.5 text-left shadow-[0_14px_40px_rgba(0,0,0,0.45)] md:hidden"
+            className="pos-v6-mobile-total garage-press fixed inset-x-2 bottom-2 z-30 flex items-center gap-3 rounded-xl border border-[#f5a742]/45 bg-[#15151b] px-3 py-2.5 text-left shadow-[0_14px_40px_rgba(0,0,0,0.45)] md:hidden"
           >
             <span className="relative grid size-10 shrink-0 place-items-center rounded-lg bg-[#f5a742]/15 text-[#ffd08a] ring-1 ring-[#f5a742]/35">
               <ShoppingCart className="size-5" />
@@ -5966,7 +5863,7 @@ export function PosView({
                 {currency.format(totalDue)}
               </span>
             </span>
-            <span className="shrink-0 rounded-lg bg-[#f5a742] px-3 py-2 text-sm font-bold uppercase tracking-wide text-black">
+            <span className="pos-v6-mobile-pay shrink-0 rounded-lg bg-[#f5a742] px-3 py-2 text-sm font-bold uppercase tracking-wide text-black">
               Bayar
             </span>
           </button>
@@ -8014,7 +7911,7 @@ export function PosView({
                     />
                   )}
                 />
-                <div className="flex min-h-9 min-w-0 items-center gap-2 rounded-md border border-[#34343c] bg-white/[0.06] px-3 md:w-[190px]">
+                <div className="pos-v6-checkout-chip flex min-h-9 min-w-0 items-center gap-2 rounded-md border border-[#34343c] bg-white/[0.06] px-3 md:w-[190px]">
                   <CreditCard className="size-4 shrink-0 text-[#f5a742]" />
                   <div className="min-w-0">
                     <p className="garage-mono text-[11px] uppercase tracking-[0.14em] text-[#b8b8bf]">
@@ -8027,74 +7924,15 @@ export function PosView({
                 </div>
               </div>
               <div className="space-y-1.5">
-                <div className="garage-scroll-x flex gap-1.5 pb-0.5">
-                  {menuPrimaryGroups.map((group) => {
-                    const active = menuCategory === group;
-                    const isAll = group === "All";
-                    return (
-                      <Button
-                        key={group}
-                        type="button"
-                        size="sm"
-                        variant={active ? "default" : "outline"}
-                        className={`min-h-9 shrink-0 ${
-                          active
-                            ? "bg-[#d11a2a] text-white hover:bg-[#ff2a3a]"
-                            : "border-[#4a4a54] bg-white/[0.06] text-[#d4d4d8]"
-                        }`}
-                        onClick={() => setMenuCategory(group)}
-                      >
-                        {isAll
-                          ? "Semua"
-                          : group === "Dapur"
-                            ? "🍴 Dapur"
-                            : group === "Bar"
-                              ? "☕ Bar"
-                              : "Lainnya"}
-                      </Button>
-                    );
-                  })}
-                  {/* Filter Bestseller — toggle untuk highlight top items */}
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={bestsellerOnly ? "default" : "outline"}
-                    className={`min-h-9 shrink-0 ${
-                      bestsellerOnly
-                        ? "border-[#f5a742]/55 bg-[#f5a742] text-black hover:bg-[#ffc167]"
-                        : "border-[#f5a742]/45 bg-[#f5a742]/12 text-[#ffd08a] hover:bg-[#f5a742]/22"
-                    }`}
-                    onClick={() => setBestsellerOnly((v) => !v)}
-                  >
-                    ⭐ Bestseller
-                  </Button>
+                {/* POS V6 tab kategori (papan 03): Semua + kategori nyata dari data menu + Best Seller.
+                    Filter memakai menuFilterMatches yang sama (kategori = sub-kategori data). */}
+                <div className="pos-v6-cats garage-scroll-x flex gap-2 pb-1" role="group" aria-label="Kategori menu">
+                  <PosV6CategoryTile icon={LayoutGrid} label="Semua" active={menuCategory === "All" && !bestsellerOnly} onClick={() => { setMenuCategory("All"); setBestsellerOnly(false); }} />
+                  {posV6CategoryList.map((sub) => (
+                    <PosV6CategoryTile key={sub} icon={posV6CategoryIcon(sub)} label={sub} active={menuCategory === sub} onClick={() => setMenuCategory(sub)} />
+                  ))}
+                  <PosV6CategoryTile icon={Star} label="Best Seller" active={bestsellerOnly} onClick={() => setBestsellerOnly((v) => !v)} />
                 </div>
-                {activeMenuGroup && menuSubCategories[activeMenuGroup].length > 0 && (
-                  <div className="garage-scroll-x flex gap-1.5 pb-0.5">
-                    <span className="self-center font-mono text-[10px] uppercase tracking-wider text-[#8f8f99]">
-                      {menuGroupLabels[activeMenuGroup]}:
-                    </span>
-                    {menuSubCategories[activeMenuGroup].map((sub) => {
-                      const active = menuCategory === sub;
-                      return (
-                        <Button
-                          key={sub}
-                          type="button"
-                          size="sm"
-                          variant={active ? "default" : "outline"}
-                          className={`shrink-0 ${
-                            active
-                              ? "bg-[#f5a742] text-black hover:bg-[#ffc167]"
-                              : "border-[#4a4a54] bg-white/[0.04] text-[#d4d4d8]"
-                          }`}
-                          onClick={() => setMenuCategory(sub)}
-                        >
-                          {sub}
-                        </Button>
-                      );
-                    })}
-                  </div>
-                )}
                 {favoriteItems.length && !normalizedMenuQuery && menuCategory === "All" && !bestsellerOnly ? (
                   <div className="garage-scroll-x flex gap-1.5 pb-0.5" data-testid="pos-favorites">
                     <span className="flex shrink-0 items-center gap-1 self-center font-mono text-[10px] font-bold uppercase tracking-wider text-[#ffd08a]">
@@ -8142,118 +7980,31 @@ export function PosView({
                   const isSoldOut = soldOutIds.has(item.id);
                   const shortcode = shortcodeById.get(item.id);
 
+                  // Badge V6: Promo (data harga) > Signature (tag produk) > Unggulan (featured admin).
+                  const v6Badge: PosV6CardBadge = hasPromo ? "promo" : isSignature(item) ? "signature" : isUnggulan(item) ? "unggulan" : null;
+                  const variantText = item.variants.length > 1
+                    ? item.variants.length > 3
+                      ? `${item.variants.length} varian`
+                      : item.variants.map((variant) => variant.label).join(" / ")
+                    : "";
+
                   return (
-                    <button
+                    <PosV6ProductCard
                       key={item.id}
-                      type="button"
-                      className={`garage-panel garage-animate-in pos-product-card min-h-[112px] rounded-md p-2 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f5a742]/70 sm:p-2.5 xl:min-h-[124px] ${
-                        isSoldOut
-                          ? "cursor-not-allowed border-[#4a4a54] bg-white/[0.02] opacity-55 grayscale"
-                          : "garage-hover-lift hover:border-[#d11a2a]/55"
-                      }`}
-                      onClick={() => handleProductTap(item)}
-                      aria-label={
-                        isSoldOut
-                          ? `${item.name} sedang habis`
-                          : `Pesan ${item.name}`
-                      }
-                      aria-disabled={isSoldOut}
-                    >
-                      <div className="flex h-full flex-col">
-                        <div className="relative mb-2 aspect-square w-full shrink-0 overflow-hidden rounded-md border border-[#34343c] bg-[#15151b]">
-                          {shortcode ? (
-                            <span
-                              className="garage-mono absolute left-1 top-1 z-[1] rounded bg-black/80 px-1.5 py-0.5 text-[11px] font-bold uppercase leading-4 tracking-wider text-[#ffd08a]"
-                              title={`Kode singkat: ketik "${shortcode}" di pencarian`}
-                              data-testid="pos-product-shortcode"
-                            >
-                              {shortcode}
-                            </span>
-                          ) : null}
-                          {item.imageUrl ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={item.imageUrl}
-                              alt={item.name}
-                              loading="lazy"
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <div className="flex h-full w-full flex-col items-center justify-center gap-1 bg-gradient-to-br from-[#2a2118] to-[#141118] text-[#f5a742]">
-                              {(() => {
-                                const cat = (item.category || "").toLowerCase();
-                                const Icon = cat.includes("coffee") || cat.includes("kopi")
-                                  ? Coffee
-                                  : cat.includes("non-coffee") || cat.includes("minum")
-                                    ? CupSoda
-                                    : cat.includes("cemilan") || cat.includes("snack")
-                                      ? Cookie
-                                      : UtensilsCrossed;
-                                return <Icon className="size-7" />;
-                              })()}
-                              <span className="garage-mono text-[8px] font-bold uppercase tracking-[0.2em] text-[#8a7458]">
-                                GARAGE
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="pos-product-name line-clamp-2 break-words text-[13px] font-semibold leading-4 text-white sm:text-sm sm:leading-5">
-                              {item.name}
-                            </p>
-                            <p className="pos-product-meta mt-1 truncate text-[10px] leading-4 text-[#b8b8bf] sm:text-[11px]">
-                              {item.category} - {item.prep}
-                            </p>
-                          </div>
-                          {isSoldOut ? (
-                            <Badge className="shrink-0 border-[#d11a2a]/55 bg-[#d11a2a]/22 px-1.5 text-[10px] font-extrabold text-[#ffe1e5]">
-                              HABIS
-                            </Badge>
-                          ) : hasPromo ? (
-                            <Badge className="shrink-0 border-0 bg-[#d11a2a] px-1.5 text-[10px] font-black text-white">
-                              PROMO
-                            </Badge>
-                          ) : null}
-                        </div>
-                        <div className="mt-auto pt-2.5">
-                          {hasPromo ? (
-                            <div className="flex items-baseline gap-2">
-                              <p className="pos-product-price break-words text-[15px] font-semibold leading-tight text-[#ffb4bd] md:text-sm xl:text-base">
-                                {currency.format(item.promoPrice as number)}
-                              </p>
-                              <p className="truncate text-[11px] text-[#8f8f99] line-through">
-                                {priceRange}
-                              </p>
-                            </div>
-                          ) : (
-                            <p className="pos-product-price break-words text-[15px] font-semibold leading-tight text-white md:text-sm xl:text-base">
-                              {priceRange}
-                            </p>
-                          )}
-                          <div className="mt-2 flex items-center justify-between gap-2">
-                            <span className="pos-product-note line-clamp-2 min-w-0 text-[10px] leading-tight text-[#d6d6dc] sm:text-[11px]">
-                              {isSoldOut
-                                ? "Tidak bisa dipesan"
-                                : item.variants.length > 1
-                                  ? `${item.variants.length} varian`
-                                  : "Siap tambah"}
-                            </span>
-                            {isSoldOut ? (
-                              <span className="pos-product-order-cta inline-flex h-8 shrink-0 items-center gap-1 rounded-md border border-[#4a4a54] bg-[#202027] px-2.5 text-[11px] font-extrabold text-[#8f8f99]">
-                                <Ban className="size-3.5" />
-                                Habis
-                              </span>
-                            ) : (
-                              <span className="pos-product-order-cta inline-flex h-8 shrink-0 items-center gap-1 rounded-md bg-[#d11a2a] px-2.5 text-[11px] font-extrabold text-white shadow-[0_0_18px_rgba(209,26,42,0.22)]">
-                                <Plus className="size-3.5" />
-                                Pesan
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </button>
+                      name={item.name}
+                      subtitle={isSoldOut ? "Tidak bisa dipesan" : variantText ? `${item.category} (${variantText})` : item.category}
+                      price={hasPromo ? currency.format(item.promoPrice as number) : priceRange}
+                      strikePrice={hasPromo ? priceRange : null}
+                      imageUrl={item.imageUrl}
+                      fallbackIcon={posV6CategoryIcon(item.category || "")}
+                      soldOut={isSoldOut}
+                      shortcode={shortcode}
+                      badge={isSoldOut ? null : v6Badge}
+                      favorite={favoriteIdSet.has(item.id)}
+                      showPhoto={cashierPosSettings.showPhotos && cashierPosSettings.productView !== "list"}
+                      view={cashierPosSettings.productView}
+                      onTap={() => handleProductTap(item)}
+                    />
                   );
                 }) : (
                   <div className="pos-empty-state col-span-full flex min-h-[220px] flex-col items-center justify-center rounded-md border border-dashed border-[#4a4a54] bg-[#202027]/66 p-5 text-center">
@@ -8301,19 +8052,27 @@ export function PosView({
 
           <aside
             data-open={billOpen ? "true" : "false"}
-            className="garage-panel garage-animate-in pos-bill-panel fixed inset-x-2 bottom-2 z-40 flex max-h-[calc(100svh-80px)] min-h-0 flex-col overflow-hidden rounded-md p-2.5 shadow-[0_18px_60px_rgba(0,0,0,0.3)] transition-[opacity,translate] duration-300 sm:p-3 md:sticky md:top-0 md:inset-auto md:h-full md:w-full md:max-h-none md:shadow-none"
+            className="garage-panel garage-animate-in pos-bill-panel pos-v6-bill fixed inset-x-2 bottom-2 z-40 flex max-h-[calc(100svh-80px)] min-h-0 flex-col overflow-hidden rounded-md p-2.5 shadow-[0_18px_60px_rgba(0,0,0,0.3)] transition-[opacity,translate] duration-300 sm:p-3 md:sticky md:top-0 md:inset-auto md:h-full md:w-full md:max-h-none md:shadow-none"
           >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="pos-muted-label garage-mono text-[11px] text-[#b8b8bf]">Keranjang</p>
-                <h2 className="garage-display garage-chrome mt-0.5 truncate text-xl leading-none sm:text-2xl">
-                  {dineInTableMissing ? "Pilih meja" : tableLabel}
-                </h2>
-                <p className="pos-muted-label mt-1 truncate text-xs text-[#b8b8bf]">
+            <div className="pos-v6-bill-head flex flex-col gap-2">
+              <div className="min-w-0 flex-1">
+                {/* POS V6 tab panel (papan 04): Pesanan (jumlah item) + meja. Meja dipilih di langkah Bayar. */}
+                <h2 className="sr-only">Keranjang — {dineInTableMissing ? "meja belum dipilih" : tableLabel}</h2>
+                <div className="pos-v6-bill-tabs flex min-w-0 gap-1.5">
+                  <span className="pos-v6-bill-tab" data-active="true">
+                    <ShoppingCart className="size-4 shrink-0" aria-hidden />
+                    Pesanan ({cartItemCount})
+                  </span>
+                  <span className="pos-v6-bill-tab min-w-0" title={dineInTableMissing ? "Meja dipilih di langkah Bayar" : tableLabel}>
+                    <LayoutGrid className="size-4 shrink-0" aria-hidden />
+                    <span className="truncate">{dineInTableMissing ? "Pilih meja" : tableLabel}</span>
+                  </span>
+                </div>
+                <p className="pos-muted-label mt-1.5 truncate text-xs">
                   {dineInTableMissing
-                    ? "Belum final"
+                    ? "Dine-in · meja dipilih saat Bayar"
                     : orderType === "dine-in"
-                      ? "Dine in"
+                      ? "Dine-in"
                       : "Order tanpa nomor meja"}
                 </p>
                 {/* ADD-ON indicator — selalu visible saat kasir lagi
@@ -8325,11 +8084,11 @@ export function PosView({
                   </span>
                 ) : null}
               </div>
-              <div className="flex shrink-0 flex-col items-end gap-1.5">
+              <div className="flex shrink-0 items-center justify-between gap-2">
                 <Badge className="garage-mono h-6 border-[#d11a2a]/45 bg-[#d11a2a]/14 px-2 text-[10px] text-white">
                   {orderType}
                 </Badge>
-                <div className="flex items-center gap-1 rounded-md border border-[#34343c] bg-black/20 p-1">
+                <div className="pos-v6-bill-tools flex items-center gap-1 rounded-lg p-1">
                   {/* Parked orders */}
                   <Button
                     type="button"
@@ -8404,6 +8163,19 @@ export function PosView({
                       className="pos-cart-line garage-press rounded-md border border-[#3a3a42] bg-[#25252d]/86 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] hover:border-[#555560]"
                     >
                       <div className="flex items-start justify-between gap-3">
+                        {cashierPosSettings.showPhotos ? (
+                          <span className="pos-v6-line-thumb" aria-hidden>
+                            {line.item.imageUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element -- foto menu dari storage
+                              <img src={line.item.imageUrl} alt="" loading="lazy" decoding="async" />
+                            ) : (
+                              (() => {
+                                const ThumbIcon = posV6CategoryIcon(line.item.category || "");
+                                return <ThumbIcon className="size-5" aria-hidden />;
+                              })()
+                            )}
+                          </span>
+                        ) : null}
                         <div className="min-w-0 flex-1">
                           <p className="pos-cart-title break-words text-[15px] font-semibold leading-5 text-white">
                             {line.item.name}
@@ -8472,7 +8244,39 @@ export function PosView({
                   Kasir/rincian dipindah ke dalam alur tombol Bayar. Chip ringkas
                   di bawah supaya kasir tetap sadar ada potongan aktif. */}
               <div className="pos-total-box rounded-md border border-[#4a4a54] bg-[#0f0f14] p-2.5">
-                <BillRow label="Total" value={currency.format(totalDue)} large />
+                {cartLines.length ? (
+                  <div className="pos-v6-summary mb-1.5 space-y-0.5">
+                    <div className="flex justify-between gap-3 text-sm">
+                      <span>Subtotal ({cartItemCount} item)</span>
+                      <span className="font-mono tabular-nums">{currency.format(subtotal)}</span>
+                    </div>
+                    {service > 0 ? (
+                      <div className="flex justify-between gap-3 text-sm">
+                        <span>Layanan ({serviceChargePct}%)</span>
+                        <span className="font-mono tabular-nums">{currency.format(service)}</span>
+                      </div>
+                    ) : null}
+                    {tax > 0 ? (
+                      <div className="flex justify-between gap-3 text-sm">
+                        <span>Pajak ({taxPct}%)</span>
+                        <span className="font-mono tabular-nums">{currency.format(tax)}</span>
+                        {roundingAdjustment !== 0 ? (
+                      <div className="flex justify-between gap-3 text-sm">
+                        <span>Pembulatan</span>
+                        <span className="font-mono tabular-nums">{currency.format(roundingAdjustment)}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                    ) : null}
+                    {roundingAdjustment !== 0 ? (
+                      <div className="flex justify-between gap-3 text-sm">
+                        <span>Pembulatan</span>
+                        <span className="font-mono tabular-nums">{currency.format(roundingAdjustment)}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+                <BillRow label="Total Tagihan" value={currency.format(totalDue)} large />
                 {voucher > 0 || manualDiscountAmount > 0 || manualDiscountAwaitingApproval ? (
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {voucher > 0 ? (
@@ -8513,12 +8317,13 @@ export function PosView({
               >
                 <DialogTrigger asChild>
                   <Button
-                    className="garage-press mt-2 h-11 w-full text-base font-semibold"
+                    className="garage-press pos-v6-pay mt-2 h-12 w-full text-base font-bold"
                     disabled={!cartLines.length}
                     onClick={resetPaymentDialog}
                   >
                     <CreditCard className="mr-2 size-4" />
                     Bayar
+                    <kbd className="pos-v6-kbd ml-2">F9</kbd>
                   </Button>
                 </DialogTrigger>
                 {/* Bayar 1 tap (owner, Okt 2026): take away langsung lunas tanpa 4 langkah. */}
@@ -8528,7 +8333,7 @@ export function PosView({
                     variant="outline"
                     data-testid="pos-quick-cash"
                     disabled={!cartLines.length || paymentPending || !shiftOpen}
-                    className="garage-press h-12 border-[#22c55e]/55 bg-[#22c55e]/12 px-2 text-xs font-bold text-[#dcfce7]"
+                    className="garage-press pos-v6-quick h-12 border-[#22c55e]/55 bg-[#22c55e]/12 px-2 text-xs font-bold text-[#dcfce7]"
                     onClick={() => {
                       resetPaymentDialog();
                       setOrderType("takeaway");
@@ -8547,7 +8352,7 @@ export function PosView({
                     variant="outline"
                     data-testid="pos-quick-qris"
                     disabled={!cartLines.length || paymentPending || !shiftOpen}
-                    className="garage-press h-12 border-[#f5a742]/55 bg-[#f5a742]/12 px-2 text-xs font-bold text-[#ffd08a]"
+                    className="garage-press pos-v6-quick h-12 border-[#f5a742]/55 bg-[#f5a742]/12 px-2 text-xs font-bold text-[#ffd08a]"
                     onClick={() => {
                       resetPaymentDialog();
                       setOrderType("takeaway");

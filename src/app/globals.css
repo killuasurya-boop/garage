@@ -557,6 +557,192 @@ body {
       linear-gradient(180deg, #f1f5fb 0%, #e7eef7 100%) !important;
   }
 
+  /* ============================================================
+     POS V6 (owner, Nov 2026) — Theme Studio: 4 tema, struktur identik.
+     --cashier-* = token lama (dipakai remap kelas lama); --pos-* = token V6
+     (komponen V6 di src/components/garage/pos/pos-v6.css). Hanya warna/visual,
+     tidak ada perilaku yang bergantung pada tema.
+     ============================================================ */
+  .garage-shell[data-cashier-theme="garage-signature"],
+  [data-cashier-theme-scope="garage-signature"] {
+    --cashier-bg: #f8f6f4;
+    --cashier-panel: #ffffff;
+    --cashier-panel-soft: #f4f1ef;
+    --cashier-text: #211b1c;
+    --cashier-muted: #666064;
+    --cashier-line: #e4dddb;
+    --cashier-red: #b5121b;
+    --cashier-amber: #a15c00;
+    --cashier-good: #16803c;
+    --cashier-button: #b5121b;
+    --cashier-button-text: #ffffff;
+    --cashier-control: #ffffff;
+    --cashier-empty: #faf8f7;
+    --cashier-footer: #ffffff;
+    --cashier-total: #ffffff;
+    --cashier-total-accent: rgba(181, 18, 27, 0.07);
+    --cashier-panel-overlay: none;
+    --cashier-input-bg: #ffffff;
+    --cashier-input-focus-tint: rgba(181, 18, 27, 0.14);
+    --cashier-card-shadow:
+      0 0 0 1px rgba(33, 23, 24, 0.03),
+      0 1px 2px rgba(33, 23, 24, 0.05),
+      0 6px 16px rgba(33, 23, 24, 0.06);
+    --cashier-hover-shadow:
+      0 0 0 1px rgba(181, 18, 27, 0.16),
+      0 4px 8px rgba(33, 23, 24, 0.07),
+      0 14px 32px rgba(33, 23, 24, 0.1);
+    --cashier-soft-shadow:
+      0 -1px 0 rgba(255, 255, 255, 1) inset,
+      0 -6px 16px rgba(33, 23, 24, 0.05);
+    --cashier-overlay-from: rgba(248, 246, 244, 0.98);
+    --cashier-overlay-mid: rgba(248, 246, 244, 0.82);
+    background: #f8f6f4 !important;
+  }
+
+  .garage-shell[data-cashier-theme="garage-signature"],
+  [data-cashier-theme-scope="garage-signature"] {
+    --pos-chrome-bg: linear-gradient(180deg, #261a1b 0%, #1b1213 100%);
+    --pos-topbar-bg: linear-gradient(100deg, #1b1213 0%, #2a1416 48%, #5a0f14 100%);
+    --pos-chrome-solid: #211718;
+    --pos-chrome-fg: #ffffff;
+    --pos-chrome-muted: #d9cfcf;
+    --pos-chrome-line: rgba(255, 255, 255, 0.12);
+    --pos-chrome-hover: rgba(255, 255, 255, 0.08);
+    --pos-chrome-active-bg: linear-gradient(180deg, #d4202a, #b5121b);
+    --pos-chrome-active-fg: #ffffff;
+    --pos-chrome-chip: rgba(255, 255, 255, 0.07);
+    --pos-logo-on-light: 0;
+    --pos-accent: #b5121b;
+    --pos-accent-hover: #961019;
+    --pos-accent-soft: #fce8e9;
+    --pos-accent-fg: #ffffff;
+    --pos-bg: #f8f6f4;
+    --pos-surface: #ffffff;
+    --pos-surface-muted: #f4f1ef;
+    --pos-text: #211b1c;
+    --pos-text-2: #4d4649;
+    --pos-muted: #666064;
+    --pos-border: #e4dddb;
+    --pos-price: #b5121b;
+    --pos-total-bg: #fce8e9;
+    --pos-success: #13703a;
+    --pos-success-soft: #e7f6ec;
+    --pos-warning: #a15c00;
+    --pos-warning-soft: #fdf1df;
+    --pos-info: #225cbd;
+    --pos-info-soft: #e7eefb;
+  }
+
+  .garage-shell[data-cashier-theme="garage-clear"],
+  [data-cashier-theme-scope="garage-clear"] {
+    --cashier-button: #b5121b;
+    --cashier-input-focus-tint: rgba(181, 18, 27, 0.14);
+    --pos-chrome-bg: #ffffff;
+    --pos-topbar-bg: #ffffff;
+    --pos-chrome-solid: #ffffff;
+    --pos-chrome-fg: #1c1d22;
+    --pos-chrome-muted: #5f6370;
+    --pos-chrome-line: #e5e7eb;
+    --pos-chrome-hover: #f3f4f6;
+    --pos-chrome-active-bg: linear-gradient(180deg, #d4202a, #b5121b);
+    --pos-chrome-active-fg: #ffffff;
+    --pos-chrome-chip: #f6f7f9;
+    --pos-logo-on-light: 1;
+    --pos-accent: #b5121b;
+    --pos-accent-hover: #961019;
+    --pos-accent-soft: #fdecee;
+    --pos-accent-fg: #ffffff;
+    --pos-bg: #f3f4f6;
+    --pos-surface: #ffffff;
+    --pos-surface-muted: #f5f6f8;
+    --pos-text: #15171c;
+    --pos-text-2: #3f434d;
+    --pos-muted: #5f6370;
+    --pos-border: #e2e4e9;
+    --pos-price: #b5121b;
+    --pos-total-bg: #fdecee;
+    --pos-success: #13703a;
+    --pos-success-soft: #e7f6ec;
+    --pos-warning: #a15c00;
+    --pos-warning-soft: #fdf1df;
+    --pos-info: #225cbd;
+    --pos-info-soft: #e7eefb;
+  }
+
+  .garage-shell[data-cashier-theme="warm-light"],
+  [data-cashier-theme-scope="warm-light"] {
+    --cashier-button: #b5121b;
+    --cashier-input-focus-tint: rgba(181, 18, 27, 0.14);
+    --pos-chrome-bg: linear-gradient(180deg, #3a2219 0%, #2a1812 100%);
+    --pos-topbar-bg: linear-gradient(100deg, #2a1812 0%, #4a2a1e 55%, #6a2a1c 100%);
+    --pos-chrome-solid: #3a2219;
+    --pos-chrome-fg: #fff8ef;
+    --pos-chrome-muted: #e6d3bd;
+    --pos-chrome-line: rgba(255, 240, 220, 0.14);
+    --pos-chrome-hover: rgba(255, 240, 220, 0.09);
+    --pos-chrome-active-bg: linear-gradient(180deg, #d4202a, #b5121b);
+    --pos-chrome-active-fg: #ffffff;
+    --pos-chrome-chip: rgba(255, 240, 220, 0.08);
+    --pos-logo-on-light: 0;
+    --pos-accent: #b5121b;
+    --pos-accent-hover: #961019;
+    --pos-accent-soft: #f9e6e2;
+    --pos-accent-fg: #ffffff;
+    --pos-bg: #f5eee3;
+    --pos-surface: #fffdf8;
+    --pos-surface-muted: #f6efe4;
+    --pos-text: #2a1a12;
+    --pos-text-2: #4d382c;
+    --pos-muted: #6e5747;
+    --pos-border: #e8dccb;
+    --pos-price: #a3141c;
+    --pos-total-bg: #f9e6e2;
+    --pos-success: #3f7a2a;
+    --pos-success-soft: #ebf3e3;
+    --pos-warning: #94590f;
+    --pos-warning-soft: #fbefdc;
+    --pos-info: #2f5d9a;
+    --pos-info-soft: #e7eef8;
+  }
+
+  .garage-shell[data-cashier-theme="focus-blue"],
+  [data-cashier-theme-scope="focus-blue"] {
+    --cashier-button: #1f5fd1;
+    --cashier-input-focus-tint: rgba(31, 95, 209, 0.16);
+    --pos-chrome-bg: #ffffff;
+    --pos-topbar-bg: #ffffff;
+    --pos-chrome-solid: #ffffff;
+    --pos-chrome-fg: #0e1a33;
+    --pos-chrome-muted: #4a5873;
+    --pos-chrome-line: #dbe3ee;
+    --pos-chrome-hover: #eef3fa;
+    --pos-chrome-active-bg: linear-gradient(180deg, #2a6be0, #1f5fd1);
+    --pos-chrome-active-fg: #ffffff;
+    --pos-chrome-chip: #f2f6fb;
+    --pos-logo-on-light: 1;
+    --pos-accent: #1f5fd1;
+    --pos-accent-hover: #184fb0;
+    --pos-accent-soft: #e6eefc;
+    --pos-accent-fg: #ffffff;
+    --pos-bg: #eef3f9;
+    --pos-surface: #ffffff;
+    --pos-surface-muted: #f3f6fb;
+    --pos-text: #0e1a33;
+    --pos-text-2: #33415c;
+    --pos-muted: #4a5873;
+    --pos-border: #d8e0eb;
+    --pos-price: #1a4fae;
+    --pos-total-bg: #e6eefc;
+    --pos-success: #13703a;
+    --pos-success-soft: #e7f6ec;
+    --pos-warning: #a15c00;
+    --pos-warning-soft: #fdf1df;
+    /* Status bahaya tetap merah (semantik), bukan biru tema. */
+    --pos-info: #1f5fd1;
+    --pos-info-soft: #e6eefc;
+  }
+
   /* When POS uses the default Garage cashier theme inside Garage OS, inherit
      the active OS preset instead of freezing to the old red/black palette. */
   .garage-os-shell:not([data-garage-os-surface="light"])[data-cashier-theme="garage-default"],

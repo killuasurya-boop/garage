@@ -312,6 +312,20 @@ Scroll direction:
   R3 (D-01a): preview also creates a step-up challenge (subject = operation id, hash = args digest); the confirmed
   call needs `kode2fa` (Owner TOTP), verified BEFORE the token is claimed.
 
+- Smart Approval V3 (owner, Nov 2026, migration 0177, `docs/smart-approval-v3/`): `approvals` carries `outlet_id`,
+  `amount_value`, `execution_status` (decision ≠ execution: running/succeeded/failed/not_required/legacy), error/attempts,
+  `decision_snapshot_hash`, `review_state` (Tunda/Minta revisi, status stays pending). Rules pure in `src/lib/smart-approval.ts`
+  (tier R1–R3, `bulkDecisionBlockReason`, `autoApprovalDecision`, `canDecideForOutlet`). `decideApproval` checks outlet, optional
+  `expectedSnapshotHash` (`approvalSubjectSnapshot`, 409 STALE), records failed execution (back to pending + audit), PCX split is
+  idempotent (`payload.splitChildId`). Bulk approve never touches R3/void/refund/cash/stock; auto-approval = expense, low/medium,
+  < threshold, requester ≠ sweeper, max 3/day/requester. Owner Decision Center `/control/decision` (`decision-center*.ts`,
+  `/api/control/decision-center`): explanation A–J is rule-based; R3 = Owner TOTP step-up bound to the snapshot hash.
+- AYA Problem Solver V4 (`docs/smart-problem-solver-v4/`, migration 0178): `garage-problem-solver.ts` (R0 whitelist, facts,
+  hypotheses, report; tool errors never forwarded — ref only), service sends only `aiSafeExcerpt` to AI providers; MCP tool
+  `garage_analisis_masalah` (R0, Owner). Cases `ai_problem_cases` + append-only `ai_problem_case_events` (`ai-problem-cases.ts`):
+  analysis → decision (STALE) → link the Owner's own executed `mcp_operations` → verification (`compareOutcome`). UI
+  `/control/aya-solver`; Living Intelligence `/control/intelligence` (16 registry domains, real signals, no signal = unverified).
+
 ## Product Management Rules
 
 - Product categories are dynamic (owner, Okt 2026): table `product_categories` (`src/lib/product-management.ts`),

@@ -107,6 +107,13 @@ export function AyaProblemSolver() {
     }
   }, []);
 
+  // Prefill dari Living Intelligence ("Investigasi AYA") — hanya mengisi kotak, tidak menjalankan otomatis.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("q");
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (q) setMessage(q.slice(0, 3000));
+  }, []);
+
   useEffect(() => {
     const id = window.setTimeout(() => void loadCases(), 0);
     return () => window.clearTimeout(id);

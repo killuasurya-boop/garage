@@ -1,0 +1,50 @@
+/* Living Intelligence Dashboard — animasi ambient ringan (transform/opacity/dashoffset), opacity rendah.
+   Dimatikan oleh intensitas "minimal", tab di latar belakang (data-paused) dan prefers-reduced-motion. */
+@layer components {
+  .li-svg { width: 100%; height: auto; display: block; }
+  .li-link { stroke: var(--dc-line); stroke-width: 1.4; fill: none; }
+  .li-flow { stroke: var(--dc-red); stroke-width: 1.6; fill: none; stroke-dasharray: 2 14; opacity: 0.28; animation: liFlow 6s linear infinite; }
+  .li-root[data-intensity="cinematic"] .li-flow { opacity: 0.45; animation-duration: 4s; }
+  .li-link[data-hl="true"] { stroke: var(--dc-amber); stroke-width: 2.2; }
+  .li-core-breath { transform-box: fill-box; transform-origin: center; animation: liBreath 3.6s ease-in-out infinite; }
+  .li-ring { transform-box: fill-box; transform-origin: center; fill: none; stroke: var(--dc-red); stroke-opacity: 0.45; stroke-width: 1.2; stroke-dasharray: 6 10; }
+  .li-ring-a { animation: liSpin 26s linear infinite; }
+  .li-ring-b { animation: liSpin 34s linear infinite reverse; stroke: var(--dc-amber); stroke-opacity: 0.35; }
+  .li-orbit { transform-box: view-box; animation: liSpin 30s linear infinite; }
+  .li-wave { transform-box: fill-box; transform-origin: center; fill: none; stroke: #a78bfa; stroke-width: 2; animation: liWave 2.4s ease-out 3; opacity: 0; }
+  .li-node { cursor: pointer; }
+  .li-node:focus-visible .li-node-ring { stroke: var(--dc-amber); stroke-width: 3; }
+  .li-node-ring { stroke-width: 2; fill: var(--dc-surface); transition: stroke-width 200ms ease-out; }
+  .li-node:hover .li-node-ring { stroke-width: 3; }
+  .li-node[data-health="ok"] .li-node-ring { stroke: var(--dc-green); }
+  .li-node[data-health="attention"] .li-node-ring { stroke: var(--dc-amber); }
+  .li-node[data-health="critical"] .li-node-ring { stroke: var(--dc-red); }
+  .li-node[data-health="unverified"] .li-node-ring { stroke: var(--dc-muted); stroke-dasharray: 4 4; }
+  .li-node-glow { transform-box: fill-box; transform-origin: center; opacity: 0; }
+  .li-node[data-health="ok"] .li-node-glow { fill: var(--dc-green); animation: liGlow 4.5s ease-in-out infinite; }
+  /* Kritis: maksimal dua denyut, lalu tetap terlihat tanpa berkedip. */
+  .li-node[data-health="critical"] .li-node-glow { fill: var(--dc-red); animation: liAlert 0.9s ease-out 2 forwards; }
+  .li-node[data-selected="true"] .li-node-ring { stroke-width: 4; }
+  .li-node-label { font-size: 15px; font-weight: 800; fill: var(--dc-text); }
+  .li-node-sub { font-size: 12.5px; fill: var(--dc-muted); }
+  .li-particle { fill: var(--dc-amber); }
+  .li-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--dc-line); background: var(--dc-surface); font-size: 12px; font-weight: 800; }
+  .li-dot { width: 9px; height: 9px; border-radius: 99px; flex-shrink: 0; }
+  .li-dot[data-health="ok"] { background: var(--dc-green); }
+  .li-dot[data-health="attention"] { background: var(--dc-amber); }
+  .li-dot[data-health="critical"] { background: var(--dc-red); }
+  .li-dot[data-health="unverified"] { background: transparent; border: 2px dashed var(--dc-muted); }
+  .li-root[data-intensity="minimal"] :is(.li-flow, .li-core-breath, .li-ring-a, .li-ring-b, .li-orbit, .li-node-glow) { animation: none !important; }
+  .li-root[data-intensity="minimal"] .li-orbit { display: none; }
+  .li-root[data-paused="true"] * { animation-play-state: paused !important; }
+}
+@keyframes liFlow { to { stroke-dashoffset: -160; } }
+@keyframes liBreath { 0%, 100% { transform: scale(1); opacity: 0.85; } 50% { transform: scale(1.06); opacity: 1; } }
+@keyframes liSpin { to { transform: rotate(360deg); } }
+@keyframes liWave { 0% { transform: scale(0.6); opacity: 0.7; } 100% { transform: scale(2.4); opacity: 0; } }
+@keyframes liGlow { 0%, 100% { opacity: 0; transform: scale(1); } 50% { opacity: 0.18; transform: scale(1.25); } }
+@keyframes liAlert { 0% { opacity: 0.5; transform: scale(1); } 100% { opacity: 0.12; transform: scale(1.5); } }
+@media (prefers-reduced-motion: reduce) {
+  .li-root * { animation: none !important; }
+  .li-orbit, .li-wave { display: none; }
+}

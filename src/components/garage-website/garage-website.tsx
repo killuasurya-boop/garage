@@ -9,9 +9,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { SiteAsset } from "@/lib/site-assets";
 import type { PublicEvent } from "@/lib/event-format";
 import { GrandOpeningBanner } from "@/components/garage-website/grand-opening-banner";
-import { CinematicHero } from "@/components/garage-website/cinematic/cinematic-hero";
-import { ScrollProgress, SiteSoundToggle } from "@/components/garage-website/cinematic/site-chrome";
-import { playSiteSfx } from "@/components/garage-website/cinematic/site-sfx";
 import {
   Award,
   ChevronDown,
@@ -686,18 +683,14 @@ function Nav() {
   const condensed = y > 80;
   // Desktop: 5 tujuan utama saja agar nav tidak sesak. Halaman sekunder
   // (Franchise, Karier) ada di drawer HP & footer.
-  // Cinematic UI V1 (mockup Owner Nov 2026): Home · Menu · Promo · About · Contact.
   const items = [
-  ["Home", "#beranda"],
   ["Menu", "#menu", true],
-  ["Promo", "#promo"],
-  ["About", "#about"],
-  ["Contact", "#location"]];
-  const mobileItems = [
-  ...items,
   ["Live Outlet", "#live-status"],
   ["Member", "#membership"],
   ["Event", "#events"],
+  ["Lokasi", "#location"]];
+  const mobileItems = [
+  ...items,
   ["Cara Pesan", "#cara-pesan"],
   ["Lacak Pesanan", "#tracking-order"],
   ["Franchise", "/franchise"],
@@ -869,14 +862,12 @@ function Nav() {
             >
               <span>Cek Meja</span><ArrowRight size={12} />
             </button>
-            <SiteSoundToggle className="nav-sound" />
             <Link
               href={DIGITAL_MENU_URL}
-              className="btn btn-primary nav-order-cta"
-              style={{ padding: "10px 16px", fontSize: 11 }}
-              onClick={() => playSiteSfx("sweep")}
+              className="btn btn-primary"
+              style={{ padding: "9px 14px", fontSize: 10 }}
             >
-              <CartGlyph /><span>Pesan Sekarang</span>
+              <span>Pesan</span><ArrowRight size={12} />
             </Link>
             <button
               className="mob-toggle"
@@ -1797,23 +1788,6 @@ function Nav() {
 }
 
 // ---------------- HERO ----------------
-// Hero sinematik (Cinematic Laser UI V1): foto produk dari menu live yang sama dengan menu digital.
-function CinematicHeroSlot({ landingHero }) {
-  const { rows } = useLiveMenu();
-  // Foto hero Pengaturan tidak dipakai di mockup baru (dan aset lama masih memuat merek "& Motor").
-  void landingHero;
-  return <CinematicHero rows={rows} menuHref={DIGITAL_MENU_URL} aboutHref="#about" />;
-}
-
-function CartGlyph() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="9" cy="20" r="1.4" /><circle cx="18" cy="20" r="1.4" /><path d="M2.5 3.5h3l2.4 11.2a1.6 1.6 0 0 0 1.6 1.3h8.4a1.6 1.6 0 0 0 1.6-1.2L21.5 7H6.6" />
-    </svg>
-  );
-}
-
-// Hero lama (sebelum Cinematic UI V1) — tidak dipakai lagi, disimpan untuk rollback cepat.
 function Hero({ landingHero }) {
   const y = useScrollY();
   const biz = useBiz();
@@ -1893,11 +1867,15 @@ function Hero({ landingHero }) {
                 <span className="garage-steam garage-steam-2" />
                 <span className="garage-steam garage-steam-3" />
               </div>
-              <h1 className="display hero-image-title" aria-label="Garage Coffee Tebing Tinggi — lebih dari sekadar kopi.">
+              <h1 className="display hero-image-title" aria-label="Garage Coffee Tebing Tinggi — lebih dari sekedar kopi.">
                 <span className="gw-sr-only">Garage Coffee Tebing Tinggi — </span>
                 <span className="hero-title-line hero-title-top">LEBIH DARI</span>
-                <span className="hero-title-line hero-title-bottom">
-                  <span>SEKAD</span><span className="hero-title-red">A</span><span>R KOPI.</span>
+                {/* Baris kedua = gambar transparan dari font Anton yang sama (perak + "A" merah terpisah agar kilaunya tetap
+                    berdenyut). Huruf "S" Anton digambar rusak oleh background-clip:text, jadi tidak dipakai di baris ini. */}
+                <span className="hero-title-line hero-title-bottom hero-title-stack">
+                  <span className="gw-sr-only">SEKEDAR KOPI.</span>
+                  <img className="hero-title-img" src="/garage-brand/hero-title/sekedar-kopi-silver.webp" alt="" aria-hidden="true" width={1948} height={332} decoding="async" fetchPriority="high" />
+                  <img className="hero-title-img hero-title-img-a" src="/garage-brand/hero-title/sekedar-kopi-a-red.webp" alt="" aria-hidden="true" width={1948} height={332} decoding="async" />
                 </span>
               </h1>
               <p className="hero-image-lead">
@@ -2108,6 +2086,22 @@ function Hero({ landingHero }) {
             color: transparent;
             filter: drop-shadow(0 0 18px rgba(209,26,42,0.42));
           }
+          /* Judul baris kedua = gambar (lihat catatan di JSX); lebar mengikuti font-size baris (em). */
+          .hero-title-stack {
+            display: grid;
+            width: 5.41em;
+            max-width: 100%;
+            background: none;
+            -webkit-background-clip: border-box;
+            background-clip: border-box;
+            color: inherit;
+          }
+          .hero-title-stack > * { grid-area: 1 / 1; }
+          .hero-title-img { display: block; width: 100%; height: auto; user-select: none; pointer-events: none; }
+          .hero-title-img-a {
+            filter: drop-shadow(0 0 18px rgba(209,26,42,0.42));
+            animation: garageRedA 2.6s ease-in-out infinite;
+          }
           .hero-image-lead {
             margin-top: 28px;
             margin-left: auto;
@@ -2236,7 +2230,7 @@ function Hero({ landingHero }) {
             <span className="garage-steam garage-steam-2" />
             <span className="garage-steam garage-steam-3" />
           </div>
-          <Reveal mask delay={400} as="h1" className="display hero-title" aria-label="Garage Coffee Tebing Tinggi — lebih dari sekadar kopi."
+          <Reveal mask delay={400} as="h1" className="display hero-title" aria-label="Garage Coffee Tebing Tinggi — lebih dari sekedar kopi."
           style={{ marginBottom: 8 }}>
             <span className="chrome hero-title-kicker" style={{
               display: "block",
@@ -2255,7 +2249,7 @@ function Hero({ landingHero }) {
               <span className="chrome" style={{
                 background: "linear-gradient(180deg, #f4f4f5 0%, #c8c8cc 30%, #6a6a72 55%, #c8c8cc 78%, #f4f4f5 100%)",
                 WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent"
-              }}>SEKAD</span>
+              }}>SEKED</span>
               <span className="red-a" style={{
                 background: "linear-gradient(180deg, #ff5a6a 0%, var(--red) 50%, #6a0a14 100%)",
                 WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent",
@@ -6205,8 +6199,7 @@ function GarageWebsiteRoot({
       <div className="bg-vignette" />
       <PromoBar />
       <Nav />
-      <ScrollProgress />
-      <CinematicHeroSlot landingHero={landingHero} />
+      <Hero landingHero={landingHero} />
       {featuredEvent ? <GrandOpeningBanner event={featuredEvent} /> : null}
       {/* 1. Pesan: menu, promo, unggulan, cara pesan */}
       <Menu />

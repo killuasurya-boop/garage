@@ -473,7 +473,6 @@ html { scroll-behavior: smooth; }
   /* Section baru tanpa aturan urutan tidak boleh lompat ke atas hero. */
   main.garage-website > section { order: 40; }
   main.garage-website > section#top { order: 1; }
-  main.garage-website > section#beranda { order: 1; } /* hero sinematik (Cinematic UI V1) */
   /* Grand Opening tepat di bawah hero (sama-sama order 1, urutan DOM: hero → banner). */
   main.garage-website > section#grand-opening { order: 1; }
   main.garage-website > section#menu { order: 2; }

@@ -156,10 +156,11 @@ const tools: AgentTool[] = [
     risk: "R0",
     permission: "approvals:read",
     input: z.object({ status: z.enum(["pending", "approved", "rejected", "all"]).optional() }),
-    async run(_session, args) {
+    async run(session, args) {
       const { getApprovalData } = await import("@/lib/garage-service");
       const status = (args.status as string | undefined) ?? "pending";
-      return getApprovalData(status === "all" ? undefined : { status });
+      // Smart Approval V3: Manajer hanya melihat pengajuan outletnya (Owner semua).
+      return getApprovalData({ status: status === "all" ? undefined : status, viewer: session });
     },
   },
   {

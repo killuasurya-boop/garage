@@ -175,9 +175,8 @@ export function OpeningCashPresetPicker({
       <Input
         type="number"
         inputMode="numeric"
-        min={100}
-        max={max}
-        step={100}
+        min={0}
+        // Tanpa step/max: validasi browser (bahasa Inggris) tidak memblokir; pesan Indonesia dari openingCashError.
         value={value}
         onChange={(event) => onChange(event.target.value)}
         aria-label="Nominal modal awal (Rupiah)"

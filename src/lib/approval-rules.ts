@@ -157,7 +157,10 @@ export type ApprovalPayload = {
   managerReview?: { by: string; name: string; at: string };
   /** Diskon manual: nominal maksimum yang disetujui & kasir peminta. */
   discountAmount?: number;
+  /** ID user pemohon (Better Auth `user.id`). Baris PCX lama (sebelum Nov 2026) berisi nama "Nama / Peran". */
   requestedBy?: string;
+  /** Nama tampilan pemohon ("Nama / Peran"), hanya untuk tampilan/audit. */
+  requestedByName?: string;
   /** APP-PCX: bill pisahan yang sudah dibuat (pelaksanaan diulang tidak memisah dua kali). */
   splitChildId?: string;
 };

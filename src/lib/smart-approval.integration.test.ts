@@ -185,4 +185,14 @@ describe("Smart Approval V3 — outlet, bulk, auto, tunda", () => {
     expect(fetched.riskTier).toBe("R2");
     expect(fetched.executionStatus).toBe("not_required");
   });
+
+  it("A8: Manajer tidak bisa menyetujui PCX miliknya sendiri (ID baru maupun nama lama)", async () => {
+    const order = await insertOrder("open");
+    await insertApproval(`APP-PCX-${order.id}-1`, { payload: { orderId: order.id, requestedBy: MANAJER }, outletId: outletA });
+    await expect(svc.decideApproval(`APP-PCX-${order.id}-1`, { status: "approved" }, manajerA())).rejects.toThrow(/sendiri/);
+    await insertApproval(`APP-PCX-${order.id}-2`, { payload: { orderId: order.id, requestedBy: "Manajer SA / Manajer" }, outletId: outletA });
+    await expect(svc.decideApproval(`APP-PCX-${order.id}-2`, { status: "approved" }, manajerA())).rejects.toThrow(/sendiri/);
+    expect((await approvalRow(`APP-PCX-${order.id}-1`)).status).toBe("pending");
+    expect((await approvalRow(`APP-PCX-${order.id}-2`)).status).toBe("pending");
+  });
 });

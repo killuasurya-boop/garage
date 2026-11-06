@@ -15326,7 +15326,9 @@ export async function requestUnpaidItemCancelApproval(
     reasonCode: input.reasonCode,
     note: input.note?.trim() || null,
     items: payloadItems,
-    requestedBy: actor,
+    // A8 (Smart Approval V3): ID user, bukan nama — dipakai cek "bukan pengajuan sendiri" & auto-approval.
+    requestedBy: garage.user.id,
+    requestedByName: actor,
   };
   await db.insert(approvals).values({
     id: approvalId,
@@ -20452,9 +20454,15 @@ export async function decideApproval(
     const pendingExpenseId =
       (current.payload as ApprovalPayload | null)?.expenseId ??
       (id.startsWith("APP-EXP-") ? id.slice("APP-EXP-".length) : null);
-    // Tidak boleh menyetujui pengajuan sendiri (kecuali Owner).
-    if (garage.profile.role !== "Owner") {
-      const payload = (current.payload ?? {}) as ApprovalPayload & { requestedBy?: string };
+    // Tidak boleh menyetujui pengajuan sendiri (kecuali Owner). Jalur "langsung" = pengaju yang berhak
+    // memutus mengeksekusi pengajuannya sendiri saat dibuat (kode internal, tidak bisa dikirim dari request).
+    if (garage.profile.role !== "Owner" && via !== "langsung") {
+      const payload = (current.payload ?? {}) as ApprovalPayload;
+      // Baris PCX lama menyimpan nama "Nama / Peran" di requestedBy — cocokkan juga dengan nama pemutus.
+      const selfName = `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`;
+      if (payload.requestedBy && payload.requestedBy === selfName) {
+        throw new Error("Pengajuan Anda sendiri harus disetujui orang lain.");
+      }
       let ownerOfRequest = payload.requestedBy ?? null;
       if (!ownerOfRequest && pendingExpenseId) {
         const [exp] = await db

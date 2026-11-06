@@ -143,7 +143,7 @@
 .dc-list li::before { content: ""; position: absolute; left: 4px; top: 0.6em; width: 6px; height: 6px; border-radius: 99px; background: color-mix(in srgb, var(--dc-red) 70%, var(--dc-muted)); }
 .dc-money { font-family: ui-monospace, monospace; font-variant-numeric: tabular-nums; font-weight: 800; white-space: nowrap; }
 .dc-enter { animation: dcIn 320ms cubic-bezier(.2,.8,.2,1) both; }
-.dc-mobile-bar { position: sticky; bottom: 0; z-index: 5; padding: 10px; background: color-mix(in srgb, var(--dc-bg) 92%, transparent); border-top: 1px solid var(--dc-line); }
+.dc-mobile-bar { position: sticky; bottom: 0; z-index: 5; padding: 10px 10px calc(10px + env(safe-area-inset-bottom, 0px)); background: color-mix(in srgb, var(--dc-bg) 92%, transparent); border-top: 1px solid var(--dc-line); }
 }
 @keyframes dcIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes dcPop { from { opacity: 0; transform: translateY(6px) scale(0.92); } to { opacity: 1; transform: none; } }

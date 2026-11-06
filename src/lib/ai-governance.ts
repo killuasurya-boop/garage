@@ -113,3 +113,49 @@ export function summarizeCases(rows: GovernanceCaseRow[]) {
     effectivenessPct: verified > 0 ? Math.round((verdicts.improved / verified) * 100) : null,
   };
 }
+
+export type DecisionQualityRow = {
+  status: string;
+  decidedVia: string | null;
+  executionStatus: string;
+  payload: Record<string, unknown> | null;
+};
+
+/**
+ * Tahap D "LEARN" (audit SA-17): kualitas keputusan 30 hari dari data nyata. Kesesuaian = keputusan Owner
+ * searah rekomendasi aturan yang tercatat SAAT memutus (Decision Center). Bukan klaim AI belajar sendiri:
+ * angka ini bahan Owner menilai apakah aturan rekomendasi perlu diubah.
+ */
+export function summarizeDecisionQuality(rows: DecisionQualityRow[]) {
+  const byChannel: Record<string, number> = {};
+  let recorded = 0;
+  let followed = 0;
+  const byConfidence: Record<string, { total: number; followed: number }> = {};
+  let executed = 0;
+  let executionOk = 0;
+  for (const row of rows) {
+    if (row.decidedVia) byChannel[row.decidedVia] = (byChannel[row.decidedVia] ?? 0) + 1;
+    const dc = (row.payload as { decisionCenter?: { followed?: boolean | null; confidence?: string } } | null)?.decisionCenter;
+    if (dc && typeof dc.followed === "boolean") {
+      recorded += 1;
+      if (dc.followed) followed += 1;
+      const level = dc.confidence ?? "tidak tercatat";
+      byConfidence[level] ??= { total: 0, followed: 0 };
+      byConfidence[level].total += 1;
+      if (dc.followed) byConfidence[level].followed += 1;
+    }
+    if (["succeeded", "failed", "uncertain"].includes(row.executionStatus)) {
+      executed += 1;
+      if (row.executionStatus === "succeeded") executionOk += 1;
+    }
+  }
+  return {
+    decided: rows.filter((r) => r.status !== "pending").length,
+    expired: rows.filter((r) => r.status === "expired").length,
+    superseded: rows.filter((r) => r.status === "superseded").length,
+    uncertain: rows.filter((r) => r.executionStatus === "uncertain").length,
+    byChannel,
+    recommendation: { recorded, followed, followedPct: recorded ? Math.round((followed / recorded) * 100) : null, byConfidence },
+    execution: { attempted: executed, succeeded: executionOk, successPct: executed ? Math.round((executionOk / executed) * 100) : null },
+  };
+}

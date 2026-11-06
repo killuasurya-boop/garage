@@ -24,6 +24,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import { AI_MODE_LABEL, settingsForMode, type AiMode } from "@/lib/ai-governance";
+import { DECISION_CHANNEL_LABEL } from "@/lib/smart-approval";
 import type { AiGovernanceOverview } from "@/lib/ai-governance-server";
 
 const THEME_KEY = "garage:decision-center-theme";
@@ -185,6 +186,45 @@ export function AiGovernancePanel() {
               </div>
             ))}
           </div>
+
+          <section className="dc-card p-4" aria-labelledby="gov-quality" data-testid="gov-quality">
+            <h2 id="gov-quality" className="dc-sec-h mb-1"><Gauge className="size-4" aria-hidden /> Kualitas keputusan · {data.windowDays} hari</h2>
+            <p className="dc-muted mb-3 text-xs">Diukur dari data nyata. Kesesuaian = keputusan Anda searah rekomendasi aturan yang tercatat saat memutus di Decision Center — bahan menilai aturan, bukan klaim AI belajar sendiri.</p>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="dc-soft p-3">
+                <p className="dc-text-2 text-xs font-bold">Sejalan dengan rekomendasi</p>
+                <p className="dc-kpi-value mt-1">{data.quality.recommendation.followedPct === null ? "—" : `${data.quality.recommendation.followedPct}%`}</p>
+                <p className="dc-muted text-[11px]">{data.quality.recommendation.followed} dari {data.quality.recommendation.recorded} keputusan tercatat</p>
+              </div>
+              <div className="dc-soft p-3">
+                <p className="dc-text-2 text-xs font-bold">Pelaksanaan berhasil</p>
+                <p className="dc-kpi-value mt-1">{data.quality.execution.successPct === null ? "—" : `${data.quality.execution.successPct}%`}</p>
+                <p className="dc-muted text-[11px]">{data.quality.execution.succeeded} dari {data.quality.execution.attempted} · {data.quality.uncertain} tidak pasti</p>
+              </div>
+              <div className="dc-soft p-3">
+                <p className="dc-text-2 text-xs font-bold">Kedaluwarsa / digantikan</p>
+                <p className="dc-kpi-value mt-1">{data.quality.expired + data.quality.superseded}</p>
+                <p className="dc-muted text-[11px]">{data.quality.expired} kedaluwarsa · {data.quality.superseded} sumber berubah</p>
+              </div>
+              <div className="dc-soft p-3">
+                <p className="dc-text-2 text-xs font-bold">Jalur keputusan</p>
+                <ul className="mt-1 space-y-0.5 text-[11px]">
+                  {Object.entries(data.quality.byChannel).length ? (
+                    Object.entries(data.quality.byChannel)
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([via, n]) => (
+                        <li key={via} className="flex justify-between gap-2">
+                          <span className="dc-muted min-w-0 truncate">{DECISION_CHANNEL_LABEL[via as keyof typeof DECISION_CHANNEL_LABEL] ?? via}</span>
+                          <span className="font-bold">{n}</span>
+                        </li>
+                      ))
+                  ) : (
+                    <li className="dc-muted">Belum ada keputusan.</li>
+                  )}
+                </ul>
+              </div>
+            </div>
+          </section>
 
           <div className="grid gap-3 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
             <section className="dc-card p-4" aria-labelledby="gov-tools">

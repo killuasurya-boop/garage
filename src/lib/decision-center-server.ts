@@ -226,6 +226,9 @@ export async function decideFromDecisionCenter(
     }
     stepUpVerified = true;
   }
+  // Tahap D "LEARN": rekomendasi aturan & kelengkapan bukti SAAT memutus disimpan bersama keputusan,
+  // supaya kesesuaian Owner ↔ rekomendasi dan hasilnya bisa diukur (bukan klaim belajar otomatis).
+  const seen = await getDecisionDetail(session, id, { stepUp: false }).catch(() => null);
   try {
     const approval = await decideApproval(
       id,
@@ -234,6 +237,18 @@ export async function decideFromDecisionCenter(
       { via: "decision_center", expectedSnapshotHash: input.expectedSnapshotHash, stepUpVerified },
     );
     if (!approval) throw new DecisionCenterError("NOT_FOUND", "Pengajuan tidak ditemukan.", 404);
+    if (seen && approval.status !== "pending") {
+      const rec = seen.explanation.recommendation.action;
+      const recApprove = rec === "approve" || rec === "approve_with_note";
+      const recReject = rec === "reject";
+      const followed = approval.status === "approved" ? recApprove : approval.status === "rejected" ? recReject : null;
+      const record = { recommendation: rec, confidence: seen.explanation.confidence.level, followed, at: new Date().toISOString() };
+      await getDb()
+        .update(approvals)
+        .set({ payload: sql`${approvals.payload} || ${JSON.stringify({ decisionCenter: record })}::jsonb` })
+        .where(eq(approvals.id, id))
+        .catch((error) => console.error("[decision-center] catatan rekomendasi gagal", error));
+    }
     return { approval, executed: approval.executionStatus === "succeeded" };
   } catch (error) {
     if (error instanceof ApprovalStaleError) throw new DecisionCenterError("STALE", error.message, 409);

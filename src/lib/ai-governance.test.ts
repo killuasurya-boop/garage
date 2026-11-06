@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { aiModeOf, settingsForMode, summarizeCases, summarizeOperations, summarizeTools } from "@/lib/ai-governance";
+import { aiModeOf, settingsForMode, summarizeCases, summarizeDecisionQuality, summarizeOperations, summarizeTools } from "@/lib/ai-governance";
 
 describe("AI Governance (Batch 7)", () => {
   it("mode dari dua saklar; Dijeda menang; mode → saklar bolak-balik konsisten", () => {
@@ -55,5 +55,21 @@ describe("AI Governance (Batch 7)", () => {
     expect(s.domains).toHaveLength(16);
     expect(s.byRisk.find((r) => r.risk === "R3")?.count).toBe(1);
     expect(s.domains.find((d) => d.id === "pos")?.tools[0].name).toBe("b");
+  });
+
+  it("Tahap D: kualitas keputusan dari data nyata (kesesuaian hanya dari yang tercatat)", () => {
+    const q = summarizeDecisionQuality([
+      { status: "approved", decidedVia: "decision_center", executionStatus: "succeeded", payload: { decisionCenter: { followed: true, confidence: "tinggi" } } },
+      { status: "rejected", decidedVia: "decision_center", executionStatus: "not_required", payload: { decisionCenter: { followed: false, confidence: "sedang" } } },
+      { status: "approved", decidedVia: "board", executionStatus: "uncertain", payload: {} },
+      { status: "expired", decidedVia: "auto", executionStatus: "not_required", payload: {} },
+      { status: "superseded", decidedVia: "auto", executionStatus: "not_required", payload: null },
+    ]);
+    expect(q.recommendation).toMatchObject({ recorded: 2, followed: 1, followedPct: 50 });
+    expect(q.recommendation.byConfidence.tinggi).toEqual({ total: 1, followed: 1 });
+    expect(q.execution).toMatchObject({ attempted: 2, succeeded: 1, successPct: 50 });
+    expect(q).toMatchObject({ expired: 1, superseded: 1, uncertain: 1 });
+    expect(q.byChannel).toMatchObject({ decision_center: 2, board: 1, auto: 2 });
+    expect(summarizeDecisionQuality([]).recommendation.followedPct).toBeNull();
   });
 });

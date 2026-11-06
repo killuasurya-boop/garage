@@ -90,4 +90,16 @@ describe("Decision Center — kecerdasan berbasis bukti", () => {
     expect(["suggestion_only", "unavailable"]).toContain(res.status);
     expect((await t.getDb().select().from(t.schema.stepUpChallenges)).length).toBe(before);
   });
+
+  it("Tahap D: keputusan Decision Center mencatat rekomendasi & kelengkapan bukti saat memutus", async () => {
+    await approval("APP-DISC-intel-learn", { amountValue: 30_000, amount: "Rp30.000", payload: { discountAmount: 30_000, requestedBy: KASIR } });
+    const seen = await dc.getDecisionDetail(owner(), "APP-DISC-intel-learn", { stepUp: false });
+    await dc.decideFromDecisionCenter(owner(), "APP-DISC-intel-learn", { action: "reject", note: "tidak perlu diskon", expectedSnapshotHash: seen.snapshotHash });
+    const { eq } = await import("drizzle-orm");
+    const [r] = await t.getDb().select().from(t.schema.approvals).where(eq(t.schema.approvals.id, "APP-DISC-intel-learn"));
+    const rec = (r.payload as any).decisionCenter;
+    expect(rec.recommendation).toBe(seen.explanation.recommendation.action);
+    expect(rec.confidence).toBe(seen.explanation.confidence.level);
+    expect(rec.followed).toBe(seen.explanation.recommendation.action === "reject");
+  });
 });

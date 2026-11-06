@@ -10,6 +10,7 @@ import {
   R4_FORBIDDEN,
   aiModeOf,
   summarizeCases,
+  summarizeDecisionQuality,
   summarizeOperations,
   summarizeTools,
   type GovernanceTool,
@@ -86,7 +87,7 @@ export async function getAiGovernance(session: GarageSession) {
   }
 
   const decided = await db
-    .select({ id: approvals.id, decidedVia: approvals.decidedVia, executionStatus: approvals.executionStatus, status: approvals.status })
+    .select({ id: approvals.id, decidedVia: approvals.decidedVia, executionStatus: approvals.executionStatus, status: approvals.status, payload: approvals.payload })
     .from(approvals)
     .where(gte(approvals.createdAt, since));
   const pendingDocs = await db
@@ -130,6 +131,7 @@ export async function getAiGovernance(session: GarageSession) {
       executionRunning: decided.filter((row) => row.executionStatus === "running").length,
       pendingDocuments: pendingDocs.length,
     },
+    quality: summarizeDecisionQuality(decided),
   };
 }
 

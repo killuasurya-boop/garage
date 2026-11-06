@@ -336,6 +336,13 @@ Scroll direction:
   Owner + 2FA verified for that decision (`stepUpVerified`, set only by Decision Center after TOTP or by the MCP R3 confirm flow);
   rejecting is always allowed. Non-Owner "langsung" on high risk stays pending (`canSelfApprove(garage, risk)`). `putuskan_approval`
   is R3. APP-CASH: opener/closer can't approve own discrepancy; an existing sign-off is never overwritten.
+  Tahap B (migration 0180): `approvals.expires_at` (discount 6 h, `APPROVAL_TTL_HOURS`), statuses `expired`/`superseded`
+  (never deleted); `reconcileApprovals` (`approval-reconcile.ts`, rules pure in `-rules.ts`, every minute from the server
+  sweeper) expires/supersedes, verifies stuck `running` executions (succeeded only with proof, else `uncertain`) and pushes
+  R3 / R2>30 min to Owners. Sweep skips `reviewState`; errors never carry SQL (`safeExecutionError`).
+  Tahap C/D: Decision Center loads deterministic cross-module context (requester 30 days, open risk alerts, same order) +
+  evidence-completeness `confidence`; `getDecisionQueues` = read-only index of other modules' approval queues; decisions
+  record `payload.decisionCenter` (recommendation, confidence, followed) → AI Governance "Kualitas keputusan".
 - AYA Problem Solver V4 (`docs/smart-problem-solver-v4/`, migration 0178): `garage-problem-solver.ts` (R0 whitelist, facts,
   hypotheses, report; tool errors never forwarded — ref only), service sends only `aiSafeExcerpt` to AI providers; MCP tool
   `garage_analisis_masalah` (R0, Owner). Cases `ai_problem_cases` + append-only `ai_problem_case_events` (`ai-problem-cases.ts`):

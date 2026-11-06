@@ -48,3 +48,24 @@ Rollback: revert commit; kolom `expires_at` boleh dibiarkan (nullable).
 | SA-18 istilah menuduh | Smart Audit: "Tren naik" / "Perlu pemeriksaan berulang". | — |
 | SA-19 Tanya AYA membuat tantangan 2FA | `getDecisionDetail(..., { stepUp: false })`. | idem |
 | SA-20 Owner tanpa 2FA | Pesan + tautan "Aktifkan 2FA sekarang" di dialog R3; jalur lain kini juga menolak R3 tanpa 2FA. | Tahap A |
+
+## Tahap D — polish & "LEARN" yang jujur
+
+- Setiap keputusan dari Decision Center menyimpan `payload.decisionCenter` = rekomendasi aturan, kelengkapan bukti,
+  dan apakah Owner sejalan (`followed`) — dicatat SAAT memutus.
+- AI Governance → "Kualitas keputusan · 30 hari": % sejalan dengan rekomendasi (hanya dari yang tercatat),
+  % pelaksanaan berhasil (+ tidak pasti), kedaluwarsa/digantikan, jalur keputusan (papan, PIN, Decision Center,
+  ChatGPT, AI Command, otomatis). Ini bahan Owner menilai aturan rekomendasi, **bukan** klaim AI belajar sendiri.
+- SA-21: komentar `canDecideForOutlet` dirapikan (Tahap A).
+- SA-22: diperiksa ulang — bar aksi HP adalah sticky di akhir detail; konten tidak tertutup saat digulir sampai
+  bawah (bukan bug). Ditambah jarak safe-area bawah untuk iPhone.
+
+## Status akhir temuan audit
+
+| Temuan | Status |
+|---|---|
+| SA-01, SA-02, SA-03 (P0) | Diperbaiki + tes "harus ditolak" |
+| SA-04 … SA-11 (P1) | Diperbaiki + tes (SA-09 diverifikasi lewat UI) |
+| SA-12 … SA-20 (P2) | Diperbaiki + tes |
+| SA-21 | Diperbaiki |
+| SA-22 | Bukan bug (diverifikasi ulang), safe-area ditambah |

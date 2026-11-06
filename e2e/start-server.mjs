@@ -33,7 +33,8 @@ const env = {
   GARAGE_MEMBER_SEED_PASSWORD: process.env.GARAGE_SEED_PASSWORD,
   GARAGE_POS_API_KEY: `e2e-${process.env.E2E_AUTH_SECRET?.slice(0, 12)}`,
   NEXT_TELEMETRY_DISABLED: "1",
-  // Matikan MCP dev Next (log browser ke file memicu loop reload) — lihat next.config.ts.
+  // Matikan MCP dev Next (log browser ke file .next/dev/logs memicu rebuild) — lihat next.config.ts.
+  // Catatan: loop reload /login masih bisa muncul sesekali; ulangi E2E (docs/smart-approval-v3/06-TESTING.md).
   GARAGE_E2E_SERVER: "1",
 };
 

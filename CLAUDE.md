@@ -320,6 +320,16 @@ Scroll direction:
   idempotent (`payload.splitChildId`). Bulk approve never touches R3/void/refund/cash/stock; auto-approval = expense, low/medium,
   < threshold, requester ≠ sweeper, max 3/day/requester. Owner Decision Center `/control/decision` (`decision-center*.ts`,
   `/api/control/decision-center`): explanation A–J is rule-based; R3 = Owner TOTP step-up bound to the snapshot hash.
+- Smart Approval Batch 7 (Nov 2026, migration 0179, `docs/smart-approval-v3/09-BATCH7.md`):
+  - Document Approval: a new company document version = `review_status` pending + sha256 + approval `APP-DOC-<versionId>` (one tx);
+    effective version = `company_documents.approved_version` (set only when approved; rejected keeps the old one, file kept).
+    `ownerOnlyApproval` (`smart-approval.ts`): APP-DOC hidden from and undecidable by non-Owner. Snapshot hash covers doc/version.
+  - A8: APP-PCX `payload.requestedBy` = user id (name in `requestedByName`); self-approval check also matches legacy "Nama / Peran".
+  - AI Governance `/control/ai-governance` (`ai-governance.ts` pure, `-server.ts`, Owner screen only): mode = the two existing
+    switches (`settingsForMode`; paused also turns writes off), tool risk from the code registry (read-only). `mcpChatgpt*` and
+    `securityRequire2faForOwner` are Owner-only (`assertRoleMayWriteSettings`); `ubah_data_garage` refuses protected setting keys.
+  - Decision PDF `GET /api/control/decision-center/[id]/pdf` (`decision-pdf.ts`): DRAFT until decided AND execution recorded;
+    printing never creates a step-up challenge (`getDecisionDetail(..., { stepUp: false })`).
 - AYA Problem Solver V4 (`docs/smart-problem-solver-v4/`, migration 0178): `garage-problem-solver.ts` (R0 whitelist, facts,
   hypotheses, report; tool errors never forwarded — ref only), service sends only `aiSafeExcerpt` to AI providers; MCP tool
   `garage_analisis_masalah` (R0, Owner). Cases `ai_problem_cases` + append-only `ai_problem_case_events` (`ai-problem-cases.ts`):

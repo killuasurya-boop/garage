@@ -33,6 +33,13 @@ export type DecisionSubject = {
   order?: { id: string; orderNo: string; status: string; total: number } | null;
   cashSession?: { id: string; status: string; expectedCash: number; actualCash: number | null; discrepancy: number } | null;
   expense?: { id: string; status: string; amount: number } | null;
+  document?: {
+    id: string;
+    title: string;
+    approvedVersion: number | null;
+    currentVersion: number;
+    version: { id: string; version: number; reviewStatus: string; sha256: string | null; fileName: string; sizeBytes: number } | null;
+  } | null;
 };
 
 export type Recommendation = "approve" | "approve_with_note" | "reject" | "request_revision" | "defer";
@@ -60,6 +67,7 @@ const PROBLEM: Record<ApprovalCategory, string> = {
   pengeluaran: "Staf mengajukan pengeluaran uang yang butuh persetujuan.",
   selisih_kas: "Uang laci saat tutup shift tidak sama dengan catatan sistem.",
   stok: "Hasil hitung stok berbeda dengan stok tercatat dan perlu disahkan.",
+  dokumen: "Versi baru dokumen/SOP perusahaan diunggah dan belum berlaku sampai disetujui.",
   lainnya: "Pengajuan lain yang butuh keputusan.",
 };
 
@@ -70,6 +78,7 @@ const CHANGES: Record<ApprovalCategory, string[]> = {
   pengeluaran: ["Status biaya menjadi disetujui; bila sumbernya laci/rekening, saldo akun berkurang sesuai buku kas.", "Masuk laporan biaya (P&L) sesuai kategori."],
   selisih_kas: ["Selisih shift tercatat sebagai disetujui Manajer/Owner (sign-off).", "Tidak mengubah angka hitungan; tetap tercatat di laporan & risiko."],
   stok: ["Penyesuaian opname diposting ke stok.", "Nilai persediaan berubah sesuai selisih × HPP rata-rata."],
+  dokumen: ["Versi ini menjadi versi BERLAKU dokumen tersebut.", "Versi berlaku sebelumnya tetap tersimpan sebagai riwayat (tidak dihapus).", "Tidak ada uang/stok yang berubah."],
   lainnya: ["Tidak ada perubahan otomatis tercatat untuk jenis ini."],
 };
 
@@ -137,7 +146,26 @@ export function explainApproval(a: DecisionApproval, s: DecisionSubject): Decisi
     if (a.riskTier === "R3") rec = { action: "request_revision", title: "Minta alasan tambahan", reason: "Diskon besar; minta alasan pelanggan/kompensasi tertulis.", basis: "aturan" };
   } else if (a.category === "stok") {
     facts.push(`Selisih opname: ${a.amount}.`);
-    unknowns.push("Rincian per bahan ada di modul Gudang → Opname.");
+    unknowns.push("Rincian per bahan ada di modul Gudang → Opname.");  } else if (a.category === "dokumen") {
+    const doc = s.document ?? null;
+    const v = doc?.version ?? null;
+    if (doc && v) {
+      facts.push(`Dokumen "${doc.title}" versi ${v.version} (${v.fileName}, ${Math.max(1, Math.round(v.sizeBytes / 1024))} KB).`);
+      facts.push(doc.approvedVersion ? `Versi berlaku saat ini: v${doc.approvedVersion}.` : "Belum ada versi berlaku sebelumnya.");
+      checks.push({ label: "Status versi", value: v.reviewStatus, ok: v.reviewStatus === "pending", source: "company_document_versions" });
+      checks.push({ label: "Sidik file (SHA-256)", value: v.sha256 ? `${v.sha256.slice(0, 12)}…` : "Tidak tercatat", ok: Boolean(v.sha256), source: "company_document_versions" });
+      if (v.reviewStatus !== "pending") {
+        rec = { action: "reject", title: "Periksa — versi sudah diputus", reason: "Versi ini tidak lagi menunggu persetujuan.", basis: "aturan" };
+      } else if (doc.approvedVersion !== null && v.version < doc.approvedVersion) {
+        rec = { action: "reject", title: "Tolak — versi lebih lama", reason: `Sudah ada versi berlaku yang lebih baru (v${doc.approvedVersion}).`, basis: "aturan" };
+      } else {
+        rec = { action: "approve_with_note", title: "Baca dulu, lalu setujui", reason: "Isi dokumen tidak dinilai otomatis — unduh dan baca versi ini sebelum menyetujui.", basis: "aturan" };
+      }
+    } else {
+      unknowns.push("Data dokumen/versi tidak ditemukan.");
+      rec = { action: "reject", title: "Tolak — data tidak ditemukan", reason: "Versi dokumen yang diajukan tidak ada lagi.", basis: "aturan" };
+    }
+    unknowns.push("Isi dokumen belum diperiksa AYA (hanya metadata & sidik file).");
   }
 
   if (a.reviewState === "revision_requested") followUp.push(`Menunggu bukti/revisi: ${a.reviewNote ?? "-"}`);
@@ -147,7 +175,7 @@ export function explainApproval(a: DecisionApproval, s: DecisionSubject): Decisi
   }
   if (a.executionStatus === "running") followUp.push("Pelaksanaan belum terverifikasi — cek objek sumber sebelum mengambil tindakan lain.");
 
-  const money = a.category !== "stok" && a.category !== "lainnya";
+  const money = a.category !== "stok" && a.category !== "lainnya" && a.category !== "dokumen";
   return {
     problem: PROBLEM[a.category],
     checks,
@@ -157,13 +185,22 @@ export function explainApproval(a: DecisionApproval, s: DecisionSubject): Decisi
     recommendation: rec,
     consequences: {
       approve: `${APPROVAL_CATEGORY_LABEL[a.category]} dijalankan lewat jalur resmi. Status "Disetujui" baru dianggap selesai setelah pelaksanaan berhasil tercatat.`,
-      reject: "Tidak ada perubahan uang/stok. Pemohon melihat alasan penolakan. Pengajuan biaya ditandai ditolak.",
+      reject:
+        a.category === "dokumen"
+          ? "Versi ditandai ditolak; versi berlaku sebelumnya tetap dipakai. File tidak dihapus."
+          : "Tidak ada perubahan uang/stok. Pemohon melihat alasan penolakan. Pengajuan biaya ditandai ditolak.",
       defer: "Tetap Menunggu dengan tanda Ditunda + catatan. Tidak ada perubahan data.",
       request_revision: "Tetap Menunggu; pemohon diminta melengkapi bukti. Tidak ada perubahan data.",
     },
     riskBenefit: {
       risks: [
-        money ? "Uang keluar/berubah tidak bisa ditarik kembali kecuali lewat pembalik resmi." : "Nilai persediaan berubah.",
+        money
+          ? "Uang keluar/berubah tidak bisa ditarik kembali kecuali lewat pembalik resmi."
+          : a.category === "dokumen"
+            ? "Staf membaca versi yang salah bila isi belum diperiksa."
+            : a.category === "stok"
+              ? "Nilai persediaan berubah."
+              : "Perubahan data sesuai jenis pengajuan.",
         a.riskTier === "R3" ? "Risiko tinggi: wajib 2FA Owner." : "Risiko sedang/rendah.",
       ],
       benefits: ["Catatan transaksi sesuai kejadian nyata.", "Pengajuan tidak menumpuk di antrean."],

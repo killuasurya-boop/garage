@@ -2915,6 +2915,8 @@ export const companyDocuments = pgTable(
     confidentiality: text("confidentiality").notNull().default("internal"),
     status: text("status").notNull().default("active"),
     currentVersion: integer("current_version").notNull().default(1),
+    // Document Approval (Batch 7): versi yang BERLAKU = disetujui Owner. currentVersion = upload terbaru.
+    approvedVersion: integer("approved_version"),
     allowedRoles: jsonb("allowed_roles").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
     source: text("source").notNull().default("manual"),
     createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
@@ -2942,6 +2944,12 @@ export const companyDocumentVersions = pgTable(
     storagePath: text("storage_path").notNull(),
     uploadedBy: text("uploaded_by").references(() => user.id, { onDelete: "set null" }),
     notes: text("notes"),
+    // Document Approval: pending → approved | rejected; legacy = versi sebelum fitur ini (dianggap berlaku).
+    reviewStatus: text("review_status").notNull().default("pending"),
+    sha256: text("sha256"),
+    reviewedBy: text("reviewed_by").references(() => user.id, { onDelete: "set null" }),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    reviewNote: text("review_note"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({

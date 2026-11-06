@@ -4,7 +4,7 @@
 import { eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { approvals, cashSessions, expenses, orders } from "@/db/schema";
+import { approvals, cashSessions, companyDocuments, companyDocumentVersions, expenses, orders } from "@/db/schema";
 import type { ApprovalPayload } from "@/lib/approval-rules";
 import { summaryHashOf } from "@/lib/step-up-totp";
 
@@ -13,6 +13,13 @@ export type ApprovalSubjectSnapshot = {
   order?: { id: string; orderNo: string; status: string; total: number } | null;
   cashSession?: { id: string; status: string; expectedCash: number; actualCash: number | null; discrepancy: number } | null;
   expense?: { id: string; status: string; amount: number } | null;
+  document?: {
+    id: string;
+    title: string;
+    approvedVersion: number | null;
+    currentVersion: number;
+    version: { id: string; version: number; reviewStatus: string; sha256: string | null; fileName: string; sizeBytes: number } | null;
+  } | null;
 };
 
 export async function approvalSubjectSnapshot(row: typeof approvals.$inferSelect): Promise<{ hash: string; snapshot: ApprovalSubjectSnapshot }> {
@@ -51,6 +58,27 @@ export async function approvalSubjectSnapshot(row: typeof approvals.$inferSelect
       .where(eq(expenses.id, payload.expenseId))
       .limit(1);
     snapshot.expense = expense ?? null;
+  }
+  // Document Approval: versi lain disetujui / status berubah sejak dibuka → STALE.
+  if (payload.documentId && payload.versionId && /^[0-9a-f-]{36}$/i.test(payload.documentId) && /^[0-9a-f-]{36}$/i.test(payload.versionId)) {
+    const [doc] = await db
+      .select({ id: companyDocuments.id, title: companyDocuments.title, approvedVersion: companyDocuments.approvedVersion, currentVersion: companyDocuments.currentVersion })
+      .from(companyDocuments)
+      .where(eq(companyDocuments.id, payload.documentId))
+      .limit(1);
+    const [version] = await db
+      .select({
+        id: companyDocumentVersions.id,
+        version: companyDocumentVersions.version,
+        reviewStatus: companyDocumentVersions.reviewStatus,
+        sha256: companyDocumentVersions.sha256,
+        fileName: companyDocumentVersions.originalFileName,
+        sizeBytes: companyDocumentVersions.sizeBytes,
+      })
+      .from(companyDocumentVersions)
+      .where(eq(companyDocumentVersions.id, payload.versionId))
+      .limit(1);
+    snapshot.document = doc ? { ...doc, version: version ?? null } : null;
   }
   return { hash: summaryHashOf(snapshot), snapshot };
 }

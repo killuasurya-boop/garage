@@ -94,7 +94,12 @@ export async function getDecisionDetail(session: GarageSession, id: string) {
   const [row] = await getDb().select().from(approvals).where(eq(approvals.id, id)).limit(1);
   const { hash, snapshot } = await approvalSubjectSnapshot(row);
   const approval = toDecision(view);
-  const subject: DecisionSubject = { order: snapshot.order ?? null, cashSession: snapshot.cashSession ?? null, expense: snapshot.expense ?? null };
+  const subject: DecisionSubject = {
+    order: snapshot.order ?? null,
+    cashSession: snapshot.cashSession ?? null,
+    expense: snapshot.expense ?? null,
+    document: snapshot.document ?? null,
+  };
   const explanation = explainApproval(approval, subject);
   const timeline = await getDb()
     .select({ time: auditLogs.createdAt, actor: auditLogs.actor, action: auditLogs.action, status: auditLogs.status })

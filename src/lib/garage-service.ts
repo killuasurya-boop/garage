@@ -1,7 +1,7 @@
 import { createHash, randomBytes, randomInt, randomUUID } from "crypto";
 import { parseDigitalMenuMode } from "@/lib/digital-menu-mode";
 
-import { and, asc, count, desc, eq, gte, ilike, inArray, isNotNull, isNull, lt, lte, ne, not, notInArray, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, inArray, isNotNull, isNull, lt, lte, ne, not, notIlike, notInArray, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { assertAgentMayWriteSettings } from "@/lib/agent-protected-settings";
 import { releaseEventQuotaForOrder, resolveEventCheckoutCart } from "@/lib/event-menu-service";
@@ -234,6 +234,7 @@ import {
   autoApprovalDecision,
   bulkDecisionBlockReason,
   canDecideForOutlet,
+  ownerOnlyApproval,
   parseRupiahLabel,
   type ApprovalExecutionStatus,
   type ApprovalReviewState,
@@ -5519,6 +5520,9 @@ export async function reviewApproval(
   if (!canDecideForOutlet(garage.profile.role, garage.profile.outlet?.id, current.outletId)) {
     throw new Error("Pengajuan ini milik outlet lain.");
   }
+  if (ownerOnlyApproval(current.id) && garage.profile.role !== "Owner") {
+    throw new Error("Pengajuan dokumen hanya diputus Owner.");
+  }
   const reviewState = input.action === "defer" ? "deferred" : input.action === "request_revision" ? "revision_requested" : null;
   const [row] = await db
     .update(approvals)
@@ -5643,10 +5647,12 @@ export async function getApprovalData(params?: { status?: string; viewer?: Garag
     viewer && viewer.profile.role !== "Owner" && viewer.profile.outlet?.id
       ? or(eq(approvals.outletId, viewer.profile.outlet.id), isNull(approvals.outletId))
       : undefined;
+  // Batch 7: pengajuan dokumen (APP-DOC) hanya untuk Owner.
+  const ownerOnlyScope = viewer && viewer.profile.role !== "Owner" ? notIlike(approvals.id, "APP-DOC-%") : undefined;
   const rows = await getDb()
     .select()
     .from(approvals)
-    .where(and(params?.status ? eq(approvals.status, params.status) : undefined, outletScope))
+    .where(and(params?.status ? eq(approvals.status, params.status) : undefined, outletScope, ownerOnlyScope))
     .orderBy(desc(approvals.createdAt));
 
   return rows.map(mapApprovalRow);
@@ -5661,7 +5667,8 @@ export async function getApprovalStats(viewer?: GarageSession) {
     viewer && viewer.profile.role !== "Owner" && viewer.profile.outlet?.id
       ? or(eq(approvals.outletId, viewer.profile.outlet.id), isNull(approvals.outletId))
       : undefined;
-  const allRows = await db.select().from(approvals).where(outletScope);
+  const ownerOnlyScope = viewer && viewer.profile.role !== "Owner" ? notIlike(approvals.id, "APP-DOC-%") : undefined;
+  const allRows = await db.select().from(approvals).where(and(outletScope, ownerOnlyScope));
 
   const now = Date.now();
   const todayMs = getJakartaTodayRange().start.getTime();
@@ -20442,6 +20449,10 @@ export async function decideApproval(
   if (!canDecideForOutlet(garage.profile.role, garage.profile.outlet?.id, current.outletId)) {
     throw new Error("Pengajuan ini milik outlet lain — diputus oleh Manajer outlet tersebut atau Owner.");
   }
+  // Batch 7: dokumen perusahaan = hak Owner (company:manage) — Manajer tidak bisa menerbitkan.
+  if (ownerOnlyApproval(current.id) && garage.profile.role !== "Owner") {
+    throw new Error("Pengajuan dokumen hanya diputus Owner.");
+  }
   // Sidik objek sumber saat diputus; bila pemanggil membawa sidik preview dan berbeda → STALE.
   const { approvalSubjectSnapshot } = await import("@/lib/smart-approval-snapshot");
   const { hash: snapshotHash } = await approvalSubjectSnapshot(current);
@@ -20639,6 +20650,13 @@ async function applyApprovalDecision(
     } else {
       await rejectExpense(expenseId, garage);
     }
+    executed = true;
+  }
+
+  // Batch 7 Document Approval: versi dokumen jadi berlaku / ditolak.
+  if (id.startsWith("APP-DOC-") && payload.versionId) {
+    const { decideCompanyDocumentVersion } = await import("@/lib/company-control");
+    await decideCompanyDocumentVersion(payload.versionId, status, reasonText, garage);
     executed = true;
   }
 

@@ -72,6 +72,11 @@ export function autoApprovalDecision(
 }
 
 /** Manajer hanya memutus pengajuan outletnya sendiri; Owner semua; pengajuan lama tanpa outlet tetap terbuka. */
+/** Pengajuan yang hanya boleh diputus/dilihat Owner (dokumen perusahaan = hak `company:manage`, Owner saja). */
+export function ownerOnlyApproval(id: string) {
+  return id.startsWith("APP-DOC-");
+}
+
 export function canDecideForOutlet(role: string, profileOutletId: string | null | undefined, approvalOutletId: string | null | undefined) {
   if (role === "Owner") return true;
   if (!approvalOutletId) return true;

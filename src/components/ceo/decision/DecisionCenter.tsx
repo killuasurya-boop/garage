@@ -454,6 +454,17 @@ export function DecisionCenter() {
                 <Section title="Apa masalahnya" icon={FileText}>
                   <p className="dc-text-2 text-sm">{ex.problem}</p>
                   <p className="dc-muted mt-1 text-xs">Alasan pemohon: {a.reason}</p>
+                  {a.category === "dokumen" && detail.subject.document?.version ? (
+                    <a
+                      className="dc-btn mt-3 min-h-9 px-3 text-xs"
+                      href={`/api/company/documents/${detail.subject.document.id}/versions/${detail.subject.document.version.id}/download`}
+                      target="_blank"
+                      rel="noreferrer"
+                      data-testid="dc-doc-download"
+                    >
+                      <FileText className="size-4" aria-hidden /> Unduh & baca v{detail.subject.document.version.version}
+                    </a>
+                  ) : null}
                 </Section>
                 <section className={`dc-reco dc-enter p-4`} data-tone={recTone}>
                   <div className="flex items-start gap-3">

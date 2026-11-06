@@ -8,6 +8,7 @@ export type ApprovalCategory =
   | "pengeluaran"
   | "selisih_kas"
   | "stok"
+  | "dokumen"
   | "lainnya";
 
 export type ApprovalStatus = "pending" | "approved" | "rejected";
@@ -23,6 +24,8 @@ const CATEGORY_BY_PREFIX: Array<[string, ApprovalCategory]> = [
   ["APP-CASH-", "selisih_kas"],
   ["APP-OPN-", "stok"],
   ["APP-ADJ-", "stok"],
+  // Batch 7: versi dokumen/SOP baru baru berlaku setelah disetujui.
+  ["APP-DOC-", "dokumen"],
 ];
 
 // Fallback untuk baris lama/seed yang ID-nya tidak mengikuti pola prefix.
@@ -54,6 +57,7 @@ export const APPROVAL_CATEGORY_LABEL: Record<ApprovalCategory, string> = {
   pengeluaran: "Pengeluaran",
   selisih_kas: "Selisih kas",
   stok: "Penyesuaian stok",
+  dokumen: "Dokumen / SOP",
   lainnya: "Lainnya",
 };
 
@@ -161,6 +165,12 @@ export type ApprovalPayload = {
   requestedBy?: string;
   /** Nama tampilan pemohon ("Nama / Peran"), hanya untuk tampilan/audit. */
   requestedByName?: string;
+  /** APP-DOC: versi dokumen yang diajukan untuk berlaku. */
+  documentId?: string;
+  versionId?: string;
+  documentVersion?: number;
+  documentTitle?: string;
+  sha256?: string;
   /** APP-PCX: bill pisahan yang sudah dibuat (pelaksanaan diulang tidak memisah dua kali). */
   splitChildId?: string;
 };

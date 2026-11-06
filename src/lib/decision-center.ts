@@ -77,9 +77,15 @@ const CHANGES: Record<ApprovalCategory, string[]> = {
   diskon: ["Kasir boleh memakai diskon sebesar nominal yang disetujui pada order berikutnya.", "Tidak ada uang/stok yang berubah sampai order dibayar."],
   pengeluaran: ["Status biaya menjadi disetujui; bila sumbernya laci/rekening, saldo akun berkurang sesuai buku kas.", "Masuk laporan biaya (P&L) sesuai kategori."],
   selisih_kas: ["Selisih shift tercatat sebagai disetujui Manajer/Owner (sign-off).", "Tidak mengubah angka hitungan; tetap tercatat di laporan & risiko."],
-  stok: ["Penyesuaian opname diposting ke stok.", "Nilai persediaan berubah sesuai selisih × HPP rata-rata."],
+  stok: [
+    "Opname lama (APP-OPN) TIDAK bisa diterapkan ke stok lagi — setujui akan ditolak sistem.",
+    "Hitung ulang lewat Gudang → Stok Opname; stok hanya berubah lewat finalisasi WMS.",
+  ],
   dokumen: ["Versi ini menjadi versi BERLAKU dokumen tersebut.", "Versi berlaku sebelumnya tetap tersimpan sebagai riwayat (tidak dihapus).", "Tidak ada uang/stok yang berubah."],
-  lainnya: ["Tidak ada perubahan otomatis tercatat untuk jenis ini."],
+  lainnya: [
+    "Catatan keputusan saja — tidak ada perubahan otomatis untuk jenis ini.",
+    "Mis. usulan ProfitMax: ubah harga/promo lewat modul Produk setelah disetujui.",
+  ],
 };
 
 export function explainApproval(a: DecisionApproval, s: DecisionSubject): DecisionExplanation {
@@ -146,7 +152,10 @@ export function explainApproval(a: DecisionApproval, s: DecisionSubject): Decisi
     if (a.riskTier === "R3") rec = { action: "request_revision", title: "Minta alasan tambahan", reason: "Diskon besar; minta alasan pelanggan/kompensasi tertulis.", basis: "aturan" };
   } else if (a.category === "stok") {
     facts.push(`Selisih opname: ${a.amount}.`);
-    unknowns.push("Rincian per bahan ada di modul Gudang → Opname.");  } else if (a.category === "dokumen") {
+    unknowns.push("Rincian per bahan ada di modul Gudang → Opname.");
+    if (a.id.startsWith("APP-OPN-")) {
+      rec = { action: "reject", title: "Tolak — opname lama", reason: "Jalur opname lama sudah dimatikan; hitung ulang di Gudang → Stok Opname.", basis: "aturan" };
+    }  } else if (a.category === "dokumen") {
     const doc = s.document ?? null;
     const v = doc?.version ?? null;
     if (doc && v) {

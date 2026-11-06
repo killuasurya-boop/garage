@@ -337,16 +337,22 @@ export function ApprovalsBoard({
     id: string,
     status: "approved" | "rejected",
     reasonDecided?: string,
+    expectedSnapshotHash?: string,
   ) => {
     const res = await fetch(`/api/approvals/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status, reasonDecided }),
+      // Audit SA-09: sidik data saat detail dibuka — bila data berubah, server menolak (STALE).
+      body: JSON.stringify({ status, reasonDecided, expectedSnapshotHash }),
     });
     if (!res.ok) {
       const json = (await res.json().catch(() => ({}))) as {
-        error?: { message?: string };
+        error?: { code?: string; message?: string };
       };
+      if (json.error?.code === "STALE") {
+        await load();
+        throw new Error("Data pengajuan berubah sejak dibuka. Tutup lalu buka lagi untuk melihat data terbaru.");
+      }
       throw new Error(json.error?.message || "Gagal menyimpan keputusan.");
     }
     const row = rows.find((r) => r.id === id);
@@ -868,11 +874,28 @@ function ApprovalDetailModal({
 }: {
   row: ApprovalRow | null;
   onClose: () => void;
-  onDecide: (id: string, status: "approved" | "rejected", reason?: string) => Promise<void>;
+  onDecide: (id: string, status: "approved" | "rejected", reason?: string, snapshotHash?: string) => Promise<void>;
   onOpenAudit?: () => void;
   role?: Role;
 }) {
   const [mode, setMode] = useState<"view" | "approve" | "reject">("view");
+  // Sidik data saat detail dibuka (STALE guard). Kosong = server tetap memutus tanpa pembanding.
+  const [snapshotHash, setSnapshotHash] = useState<string | undefined>(undefined);
+  const rowId = row?.id ?? null;
+  const rowPending = row?.status === "pending";
+  useEffect(() => {
+    if (!rowId || !rowPending) return;
+    let cancelled = false;
+    void fetch(`/api/approvals/${rowId}`, { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json: { data?: { snapshotHash?: string } } | null) => {
+        if (!cancelled) setSnapshotHash(json?.data?.snapshotHash);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [rowId, rowPending]);
   const [reasonInput, setReasonInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -891,7 +914,7 @@ function ApprovalDetailModal({
     setSubmitting(true);
     setError(null);
     try {
-      await onDecide(row.id, status, trimmed || undefined);
+      await onDecide(row.id, status, trimmed || undefined, snapshotHash);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal menyimpan keputusan.");

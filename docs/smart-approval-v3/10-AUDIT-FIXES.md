@@ -20,3 +20,19 @@ Perubahan perilaku yang terlihat Owner:
 - Agent API key: baca & ajukan saja.
 
 Rollback: revert commit Tahap A (tanpa migrasi).
+
+## Tahap B — P1 alur (migrasi 0180, aditif)
+
+| Temuan | Perbaikan | Bukti tes |
+|---|---|---|
+| SA-04 sweep mengklaim pengajuan Ditunda | Sweep melewati `reviewState`; alasan "skipped" lewat `safeExecutionError`. | `approval-reconcile.integration.test.ts` |
+| SA-05 tanpa kedaluwarsa / digantikan | Kolom `approvals.expires_at` (0180). Diskon manual: 6 jam sejak dibuat dan 6 jam sejak disetujui (`APPROVAL_TTL_HOURS`); pemakaian di order menolak yang kedaluwarsa; keputusan atas pengajuan kedaluwarsa → `APPROVAL_EXPIRED`. Status baru `expired` / `superseded` (tidak pernah dihapus, tercatat di audit). | idem |
+| SA-06 pelaksanaan macet "running" | `reconcileApprovals` (tiap menit dari sweeper server): running > 5 menit dicek ke objek sumber → `succeeded` hanya bila terbukti, selain itu `uncertain` ("Tidak pasti — cek manual"). | idem |
+| SA-07 APP-OPN lama "berhasil" tanpa stok | Setujui APP-OPN ditolak; pending lama ditandai `superseded`; teks penjelasan dikoreksi. | idem |
+| SA-08 ProfitMax tidak tersambung | Pengajuan diisi outlet, nominal angka, pemohon; penjelasan menyebut "catatan keputusan — ubah harga lewat modul Produk". | idem |
+| SA-09 papan tanpa STALE | Detail papan mengambil `snapshotHash` saat dibuka dan mengirimnya saat memutus; STALE → muat ulang + pesan. | E2E/visual |
+| SA-10 tanpa push/eskalasi | Push ke Owner (dedup per pengajuan): R3 segera, R2 menunggu ≥ 30 menit; isi tanpa nama pemohon. | idem |
+| SA-11 SQL bocor | `safeExecutionError` mengenali teks query; `decideApproval` melempar pesan aman yang sama dengan yang tersimpan. | idem |
+
+Catatan: biaya besar tetap dua tingkat — review Manajer (uang belum bergerak) lalu final Owner + kode 2FA.
+Rollback: revert commit; kolom `expires_at` boleh dibiarkan (nullable).

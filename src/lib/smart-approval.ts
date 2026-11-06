@@ -4,7 +4,7 @@
 import { approvalCategoryOf, type ApprovalCategory } from "@/lib/approval-rules";
 
 export type ApprovalRiskTier = "R1" | "R2" | "R3";
-export type ApprovalExecutionStatus = "not_required" | "running" | "succeeded" | "failed" | "legacy";
+export type ApprovalExecutionStatus = "not_required" | "running" | "succeeded" | "failed" | "uncertain" | "legacy";
 export type ApprovalReviewState = "deferred" | "revision_requested";
 
 /** Kategori yang memindahkan uang (laci, refund, biaya). */
@@ -88,6 +88,7 @@ export const EXECUTION_STATUS_LABEL: Record<ApprovalExecutionStatus, string> = {
   running: "Sedang dijalankan — belum terverifikasi",
   succeeded: "Berhasil dijalankan",
   failed: "Gagal dijalankan",
+  uncertain: "Tidak pasti — hasil tidak terbukti, cek objek sumber",
   legacy: "Diputus sebelum V3 (tanpa bukti pelaksanaan)",
 };
 
@@ -150,3 +151,22 @@ export function decisionPolicyBlock(input: DecisionPolicyInput): DecisionPolicyB
   }
   return null;
 }
+
+/**
+ * Audit SA-05: masa berlaku per jenis (jam). Diskon manual dipakai di transaksi yang sedang berjalan —
+ * persetujuan yang tidak dipakai 6 jam kedaluwarsa (pengajuan maupun hasil setujunya). Jenis lain tidak
+ * kedaluwarsa otomatis; mereka ditandai "superseded" bila objek sumbernya sudah berubah.
+ */
+export const APPROVAL_TTL_HOURS: Partial<Record<string, number>> = { "APP-DISC-": 6 };
+
+export function approvalExpiresAt(id: string, from: Date): Date | null {
+  for (const [prefix, hours] of Object.entries(APPROVAL_TTL_HOURS)) {
+    if (id.startsWith(prefix) && hours) return new Date(from.getTime() + hours * 3_600_000);
+  }
+  return null;
+}
+
+/** Eskalasi: pengajuan R2 yang menunggu lebih dari ini dikirim ke Owner (push). */
+export const APPROVAL_ESCALATE_AFTER_MINUTES = 30;
+/** Pelaksanaan "running" lebih lama dari ini diperiksa ulang ke objek sumber. */
+export const EXECUTION_STUCK_AFTER_MINUTES = 5;

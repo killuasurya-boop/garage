@@ -11,7 +11,7 @@ export type ApprovalCategory =
   | "dokumen"
   | "lainnya";
 
-export type ApprovalStatus = "pending" | "approved" | "rejected";
+export type ApprovalStatus = "pending" | "approved" | "rejected" | "expired" | "superseded";
 
 // Prefix ID approval → kategori. ID dibuat server dengan pola APP-<KODE>-<ref>.
 const CATEGORY_BY_PREFIX: Array<[string, ApprovalCategory]> = [
@@ -65,6 +65,8 @@ export const APPROVAL_STATUS_LABEL: Record<string, string> = {
   pending: "Menunggu",
   approved: "Disetujui",
   rejected: "Ditolak",
+  expired: "Kedaluwarsa",
+  superseded: "Digantikan (sumber sudah berubah)",
 };
 
 export const APPROVAL_RISK_LABEL: Record<string, string> = {

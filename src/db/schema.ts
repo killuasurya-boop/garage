@@ -2607,7 +2607,10 @@ export const approvals = pgTable("approvals", {
   outletId: uuid("outlet_id").references(() => outlets.id, { onDelete: "set null" }),
   // Nominal angka (Rupiah) — `amount` tetap label tampilan.
   amountValue: integer("amount_value"),
-  // Keputusan ≠ pelaksanaan: not_required | running | succeeded | failed | legacy.
+  // Audit SA-05 (migrasi 0180): batas waktu pengajuan/persetujuan (null = tidak kedaluwarsa). Status pengajuan
+  // juga bisa "expired" | "superseded" (diisi rekonsiliasi, tidak pernah dihapus).
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  // Keputusan ≠ pelaksanaan: not_required | running | succeeded | failed | uncertain | legacy.
   executionStatus: text("execution_status").notNull().default("not_required"),
   executionError: text("execution_error"),
   executionAttempts: integer("execution_attempts").notNull().default(0),

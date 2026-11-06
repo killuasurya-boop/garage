@@ -233,6 +233,7 @@ import {
   approvalRiskTier,
   autoApprovalDecision,
   bulkDecisionBlockReason,
+  approvalExpiresAt,
   canDecideForOutlet,
   decisionPolicyBlock,
   ownerOnlyApproval,
@@ -5625,6 +5626,7 @@ export async function requestManualDiscountApproval(
       payload: { discountAmount: amount, requestedBy: garage.user.id } satisfies ApprovalPayload,
       outletId: garage.profile.outlet?.id ?? null,
       amountValue: Math.round(amount),
+      expiresAt: approvalExpiresAt(approvalId, new Date()),
     });
 
   await createAuditLog({
@@ -11675,7 +11677,7 @@ async function createOrderOnce(
         );
       }
       const [approval] = await db
-        .select({ id: approvals.id, status: approvals.status, type: approvals.type, payload: approvals.payload })
+        .select({ id: approvals.id, status: approvals.status, type: approvals.type, payload: approvals.payload, expiresAt: approvals.expiresAt })
         .from(approvals)
         .where(eq(approvals.id, approvalId))
         .limit(1);
@@ -11684,6 +11686,10 @@ async function createOrderOnce(
       }
       if (approval.status !== "approved") {
         throw new Error("Approval diskon manual belum disetujui.");
+      }
+      // Audit SA-05: persetujuan diskon berlaku terbatas (lihat APPROVAL_TTL_HOURS).
+      if (approval.expiresAt && approval.expiresAt.getTime() < Date.now()) {
+        throw new Error("Approval diskon ini sudah kedaluwarsa. Minta approval baru.");
       }
       // Approval hanya berlaku untuk kasir peminta & maksimal nominal yang
       // disetujui (dulu approval apa pun membuka diskon sampai batas maksimum).
@@ -20443,7 +20449,8 @@ export class ApprovalStaleError extends Error {
 /** Pesan error pelaksanaan yang aman disimpan/ditampilkan (tanpa teks SQL/stack). */
 function safeExecutionError(error: unknown) {
   const message = error instanceof Error ? error.message : "";
-  if (!message || /\b(relation|violates|syntax|column|constraint|duplicate key|ECONN|timeout expired)\b/i.test(message)) {
+  // Audit SA-11: teks error database/SQL tidak pernah diteruskan ke layar atau respon.
+  if (!message || /\b(relation|violates|syntax|column|constraint|duplicate key|ECONN|timeout expired|failed query|params:)\b|\b(select|insert|update|delete)\s.+\b(from|into|set)\b/i.test(message)) {
     return "Pelaksanaan gagal karena kesalahan sistem. Detail ada di log server.";
   }
   return message.slice(0, 300);
@@ -20478,6 +20485,9 @@ export async function decideApproval(
   if (current.status !== "pending") {
     throw new Error("Pengajuan ini sudah diputuskan.");
   }
+  if (current.expiresAt && current.expiresAt.getTime() < Date.now()) {
+    throw new ApprovalPolicyError("APPROVAL_EXPIRED", "Pengajuan ini sudah kedaluwarsa. Pemohon perlu mengajukan ulang.");
+  }
   // Smart Approval V3: Manajer hanya memutus pengajuan outletnya sendiri.
   if (!canDecideForOutlet(garage.profile.role, garage.profile.outlet?.id, current.outletId)) {
     throw new Error("Pengajuan ini milik outlet lain — diputus oleh Manajer outlet tersebut atau Owner.");
@@ -20486,16 +20496,10 @@ export async function decideApproval(
   if (ownerOnlyApproval(current.id) && garage.profile.role !== "Owner") {
     throw new Error("Pengajuan dokumen hanya diputus Owner.");
   }
-  // Kebijakan pusat (audit SA-01/SA-02): berlaku sama untuk papan, PIN, ChatGPT, agent, otomatis.
-  const policyBlock = decisionPolicyBlock({
-    tier: approvalRiskTier({ id: current.id, type: current.type, risk: current.risk, amountValue: current.amountValue }),
-    status: input.status,
-    role: garage.profile.role,
-    channel: via,
-    agentKey: Boolean(garage.profile.agentKey),
-    stepUpVerified: options.stepUpVerified === true,
-  });
-  if (policyBlock) throw new ApprovalPolicyError(policyBlock.code, policyBlock.message);
+  // Kebijakan pusat (audit SA-02): API key agent tidak pernah memutus — diperiksa sebelum langkah apa pun.
+  if (garage.profile.agentKey) {
+    throw new ApprovalPolicyError("AGENT_CANNOT_DECIDE", "API key agent hanya boleh membaca dan mengajukan — keputusan diambil manusia (Owner/Manajer).");
+  }
   // Sidik objek sumber saat diputus; bila pemanggil membawa sidik preview dan berbeda → STALE.
   const { approvalSubjectSnapshot } = await import("@/lib/smart-approval-snapshot");
   const { hash: snapshotHash } = await approvalSubjectSnapshot(current);
@@ -20531,10 +20535,22 @@ export async function decideApproval(
       }
     }
     if (pendingExpenseId) {
+      // Review Manajer pada biaya di atas batas Owner = tanda tangan pertama, uang belum bergerak.
       const held = await holdExpenseForOwner(pendingExpenseId, garage);
       if (held) return held;
     }
   }
+
+  // Kebijakan pusat (audit SA-01): berlaku sama untuk papan, PIN, ChatGPT, otomatis, Decision Center.
+  const policyBlock = decisionPolicyBlock({
+    tier: approvalRiskTier({ id: current.id, type: current.type, risk: current.risk, amountValue: current.amountValue }),
+    status: input.status,
+    role: garage.profile.role,
+    channel: via,
+    agentKey: false,
+    stepUpVerified: options.stepUpVerified === true,
+  });
+  if (policyBlock) throw new ApprovalPolicyError(policyBlock.code, policyBlock.message);
 
   const deciderName = `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`;
   // Klaim atomik: hanya satu keputusan yang lolos walau dua Manajer klik bersamaan.
@@ -20552,6 +20568,8 @@ export async function decideApproval(
       executionError: null,
       executionAttempts: sql`${approvals.executionAttempts} + 1`,
       decisionSnapshotHash: snapshotHash,
+      // Diskon disetujui: masa pakai dihitung dari saat disetujui.
+      ...(input.status === "approved" && approvalExpiresAt(id, new Date()) ? { expiresAt: approvalExpiresAt(id, new Date()) } : {}),
       updatedAt: new Date(),
     })
     .where(and(eq(approvals.id, id), eq(approvals.status, "pending")))
@@ -20590,7 +20608,9 @@ export async function decideApproval(
       status: "failed",
       metadata: { approvalType: approval.type, decision: input.status, via, executionError },
     }).catch(() => undefined);
-    throw error;
+    if (executionError !== (error instanceof Error ? error.message : "")) console.error("[approval] pelaksanaan gagal", id, error);
+    // Pesan aman (tanpa SQL) yang sama dengan yang tersimpan di execution_error.
+    throw new Error(executionError);
   }
   const executedAt = new Date();
   await db
@@ -20703,6 +20723,10 @@ async function applyApprovalDecision(
     executed = true;
   }
 
+  // Audit SA-07: opname lama tidak bisa diterapkan ke stok lagi (endpoint 410) — jangan pernah tercatat "berhasil".
+  if (id.startsWith("APP-OPN-") && status === "approved") {
+    throw new Error("Opname lama tidak bisa diterapkan lagi. Hitung ulang lewat Gudang → Stok Opname.");
+  }
   if (id.startsWith("APP-OPN-")) {
     const opnameId = id.slice("APP-OPN-".length);
     try {
@@ -21861,6 +21885,11 @@ export async function runAutoApprovalSweep(garage: GarageSession): Promise<AutoA
     );
     let reason = verdict.reason;
     if (verdict.approve) decision = "auto_approved";
+    // Audit SA-04: pengajuan yang Ditunda / Diminta revisi tidak pernah diputus otomatis.
+    if (decision === "auto_approved" && row.reviewState) {
+      decision = "skipped";
+      reason = "Sedang ditunda/diminta revisi — diputus manual.";
+    }
     // Outlet lain tidak disentuh oleh sweep Manajer.
     if (decision === "auto_approved" && !canDecideForOutlet(garage.profile.role, garage.profile.outlet?.id, row.outletId)) {
       decision = "skipped";
@@ -21874,7 +21903,7 @@ export async function runAutoApprovalSweep(garage: GarageSession): Promise<AutoA
         if (requestedBy) autoCountByRequester.set(requestedBy, (autoCountByRequester.get(requestedBy) ?? 0) + 1);
       } catch (error) {
         decision = "skipped";
-        reason = error instanceof Error ? error.message : "Gagal disetujui otomatis.";
+        reason = safeExecutionError(error);
       }
     }
 

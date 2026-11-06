@@ -46,6 +46,12 @@ function startUnpaidOrderSweeper() {
         const { pruneStaffNotifications } = await import("@/lib/staff-notifications");
         await pruneStaffNotifications();
       }
+      // Sekali per jam: voucher aktif yang tanggal akhirnya lewat → expired (CX V4).
+      if (new Date().getMinutes() === 23) {
+        const { expireEndedVouchers } = await import("@/lib/customer-experience-service");
+        const codes = await expireEndedVouchers();
+        if (codes.length) console.log(`[vouchers] ${codes.length} voucher kedaluwarsa: ${codes.slice(0, 10).join(", ")}`);
+      }
       // Sekali sehari 03:17 WIB: poin member tidak aktif hangus (Pengaturan → Loyalty).
       const wib = new Date(Date.now() + 7 * 3_600_000);
       if (wib.getUTCHours() === 3 && wib.getUTCMinutes() === 17) {

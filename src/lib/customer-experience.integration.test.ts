@@ -103,4 +103,12 @@ describe("CX Engine V4", () => {
       logCxCampaignOpened({ kind: "repeat_visit", customerId: andi!.customerId, userId: "user-itest-cx", message: "x" }),
     ).rejects.toThrow(/izin/);
   });
+
+  it("sweeper voucher: hanya active yang lewat tanggal → expired, idempoten", async () => {
+    const { expireEndedVouchers } = await import("@/lib/customer-experience-service");
+    const codes = await expireEndedVouchers();
+    expect(codes).toContain("LAMA-OKT");
+    expect(codes).not.toContain("MEMBER-NOV");
+    expect(await expireEndedVouchers()).toEqual([]);
+  });
 });

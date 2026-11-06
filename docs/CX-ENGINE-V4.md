@@ -90,11 +90,13 @@ transaksi lunas, sertakan promo member nyata bila ada), E Ulang tahun (ucapan; h
 ## 7. Risiko & rekomendasi sebelum deploy
 1. **P1 — klaim akun via nomor telepon** (`registerMember` existing): perlu verifikasi WA (OTP/kasir) sebelum
    menggabungkan poin customer POS lama. Butuh keputusan Owner (provider OTP = integrasi baru).
-2. Konstanta poin lama vs Pengaturan: `memberResponseData.progress` & `/member` masih memakai ambang poin lama.
-   Rekomendasi: satukan ke `tierProgressBySpend` di batch terpisah.
+2. ~~Progres level `/member` memakai ambang poin lama~~ — **selesai**: `/member` memakai `tierProgressBySpend`
+   ("Belanja Rp… lagi"), kartu level menampilkan syarat belanja. `memberResponseData.progress` (berbasis poin) masih
+   dikirim API untuk kompatibilitas tapi tidak lagi ditampilkan.
 3. Perk tier yang belum punya mesin (birthday reward, free monthly drink, event) — Owner putuskan: implementasi atau
    hapus dari `memberLevelRules`.
-4. Tidak ada sweeper status voucher; status efektif hanya tampilan. Opsional: job harian set `expired`.
+4. ~~Tidak ada sweeper status voucher~~ — **selesai**: `expireEndedVouchers` tiap jam (menit 23, `instrumentation-node.ts`)
+   mengubah voucher `active` yang `ends_at` lewat → `expired`. Kuota habis tidak diubah.
 5. Deploy: migration 0182 (CREATE TABLE saja, aman), jalankan `release-check.sh`, uji di staging dulu.
 
 ### Rollback

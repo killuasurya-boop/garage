@@ -11,7 +11,7 @@
 // - Event tanpa PII (lihat cx-events.ts).
 // =============================================================================
 
-import { and, count, desc, eq, gte, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, isNull, lte, or, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
@@ -519,4 +519,19 @@ export async function logCxCampaignOpened(input: { kind: CxCampaignKind; custome
     sentBy: input.userId,
   });
   return { logged: true };
+}
+
+/**
+ * Sweeper (tiap jam, instrumentation-node): voucher `active` yang `ends_at`-nya lewat
+ * → `expired`. validateVoucher sudah menolaknya; ini menyelaraskan status tersimpan
+ * agar daftar promo, kampanye & laporan tidak menghitungnya aktif. Kuota habis TIDAK
+ * diubah (bisa naik lagi bila Owner menambah kuota). Idempoten.
+ */
+export async function expireEndedVouchers(now = new Date(), db: Db = getDb()) {
+  const rows = await db
+    .update(vouchers)
+    .set({ status: "expired", updatedAt: now })
+    .where(and(eq(vouchers.status, "active"), lte(vouchers.endsAt, now)))
+    .returning({ code: vouchers.code });
+  return rows.map((row) => row.code);
 }

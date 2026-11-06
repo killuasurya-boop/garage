@@ -12,9 +12,14 @@ sendiri — agent yang menerima pesan owner, lalu memanggil Garage OS lewat **MC
 
 | Hak akses | Bisa apa |
 |---|---|
-| **Owner penuh** | Semua fitur, termasuk uang (void/refund, pengeluaran, approval, harga). Aksi langsung jalan. |
+| **Owner penuh** | Semua fitur, termasuk uang (void/refund, pengeluaran, harga). Aksi langsung jalan, **kecuali memutus pengajuan** (lihat di bawah). |
 | **Manajer** | Seperti akun Manajer (tanpa pengaturan inti Owner). |
 | **Baca-saja** | Hanya GET (lihat data & laporan). **Tidak bisa MCP** — pakai REST GET. |
+
+> **Keputusan pengajuan (audit Smart Approval, Nov 2026 — keputusan Owner):** API key agent (semua scope) hanya boleh
+> **membaca dan mengajukan**. Menyetujui/menolak/menunda pengajuan (`putuskan_approval`, `PATCH /api/approvals/{id}`,
+> PIN, bulk) ditolak `403 AGENT_CANNOT_DECIDE` di server (`decisionPolicyBlock`, `smart-approval.ts`). Keputusan risiko
+> tinggi (R3) hanya oleh Owner dengan kode 2FA (Decision Center, ChatGPT, atau AI Command layar Owner).
 
 Agent bertindak atas nama Owner pembuat key. Semua aksi tercatat di **Audit** dengan nama
 `<Owner> · Agent <nama key>` dan perangkat `agent:<nama key>`. Batas 120 permintaan/menit per key.
@@ -88,7 +93,7 @@ R2 dampak finansial · R3 kritis. Di MCP, risiko & domain tampil di depan deskri
 | `daftar_order` | POS | R0 | Order terbaru per status |
 | `cek_stok_bahan` | Gudang | R0 | Cari bahan gudang (stok, minimum, HPP), opsi hanya menipis |
 | `daftar_menu` / `ubah_status_menu` | Produk | R0 / R1 | Lihat menu; tandai habis / tersedia |
-| `daftar_approval` / `putuskan_approval` | Keuangan | R0 / R2 | Pengajuan & keputusannya (tolak wajib alasan) |
+| `daftar_approval` / `putuskan_approval` | Keuangan | R0 / R3 | Pengajuan & keputusannya (tolak wajib alasan). Memutus hanya Owner lewat ChatGPT/AI Command (konfirmasi + kode 2FA); API key ditolak `AGENT_CANNOT_DECIDE` |
 | `catat_pengeluaran` | Keuangan | R2 | Catat pengeluaran kas |
 | `rekap_kas_harian` | Shift & Cash | R0 | Rekap shift kasir per tanggal |
 | `pengawasan_kas` | Shift & Cash | R0 | Panel pengawasan kas Owner: saldo akun, antrean tindakan, pengecualian (Owner saja) |

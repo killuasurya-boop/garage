@@ -1,0 +1,22 @@
+# Smart Approval V3 — 10 Perbaikan hasil audit (Nov 2026)
+
+Sumber: laporan "Audit Total Smart Approval" (6 Nov 2026, 22 temuan SA-01…SA-22). Owner memilih opsi 4:
+semua perbaikan bertahap dari risiko tertinggi (A → B → C → D). Branch `ccr-29608758-dtli1n`, belum di produksi.
+
+## Tahap A — P0 kebijakan keputusan pusat
+
+| Temuan | Perbaikan | Bukti tes |
+|---|---|---|
+| SA-01 R3 dilewati papan/PIN/ChatGPT | `decisionPolicyBlock` di `decideApproval` untuk semua jalur: setujui R3 = Owner + kode 2FA untuk keputusan itu (`stepUpVerified` hanya diisi Decision Center setelah TOTP atau alur konfirmasi MCP R3). PIN/otomatis tidak pernah menyetujui R3. Menolak selalu boleh. "Langsung" oleh bukan-Owner pada risiko tinggi tetap Menunggu Owner. Papan: tombol "Setujui di Decision Center (2FA)" (Owner) / "menunggu Owner" (Manajer). | `approval-policy.integration.test.ts` |
+| SA-02 API key agent memutus | Sesi agent key = kanal `agent_key` → `403 AGENT_CANNOT_DECIDE` (setuju/tolak/tunda). `putuskan_approval` = R3. `docs/AGENT-API.md` diperbarui. | idem |
+| SA-03 self sign-off selisih kas | APP-CASH: pembuka/penutup shift tidak boleh menyetujui (Owner = ditandai `selfVerified` di audit); sign-off yang sudah ada tidak ditimpa; payload menyimpan `requestedBy` = penutup. | idem |
+| SA-12/13 (ikut) | Preview chat memakai `amountValue` + tier; keputusan tercatat `chatgpt` / `owner_command` / `agent_key`. | idem |
+| SA-21 (ikut) | Komentar `canDecideForOutlet` dikembalikan ke tempatnya. | — |
+
+Perubahan perilaku yang terlihat Owner:
+- Manajer tidak lagi bisa menyetujui void/refund/diskon/selisih kas risiko tinggi; tetap bisa menolak.
+- Owner menyetujui R3 dari Decision Center (atau ChatGPT/AI Command) dengan kode 2FA — wajib 2FA aktif.
+- Keputusan via ChatGPT selalu minta kode 2FA (tool R3).
+- Agent API key: baca & ajukan saja.
+
+Rollback: revert commit Tahap A (tanpa migrasi).

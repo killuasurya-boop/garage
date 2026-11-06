@@ -244,7 +244,7 @@ export function DecisionCenter() {
     setBusy(true);
     setActionError(null);
     try {
-      const needs2fa = (dialog === "approve" || dialog === "reject") && detail.approval.riskTier === "R3";
+      const needs2fa = dialog === "approve" && detail.approval.riskTier === "R3";
       const result = await api<{ approval: DecisionApproval; executed: boolean }>(`/api/control/decision-center/${encodeURIComponent(detail.approval.id)}`, {
         method: "POST",
         body: JSON.stringify({
@@ -603,7 +603,7 @@ export function DecisionCenter() {
                 <textarea className="dc-textarea mt-1" value={note} onChange={(e) => setNote(e.target.value.slice(0, 500))} placeholder={dialog === "request_revision" ? "Mis. lampirkan foto struk dan alasan pelanggan" : "Tulis catatan…"} />
                 <span className="dc-muted text-[11px]">{note.length}/500</span>
               </label>
-              {(dialog === "approve" || dialog === "reject") && a.riskTier === "R3" ? (
+              {dialog === "approve" && a.riskTier === "R3" ? (
                 <label className="block text-sm font-bold">
                   Kode 2FA (6 angka) — wajib untuk R3
                   <input className="dc-input mt-1 font-mono tracking-[0.3em]" inputMode="numeric" autoComplete="one-time-code" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} aria-label="Kode 2FA" />
@@ -620,7 +620,7 @@ export function DecisionCenter() {
                   className="dc-btn"
                   data-variant={ACTION_META[dialog].variant}
                   onClick={() => void submitDecision()}
-                  disabled={busy || (ACTION_META[dialog].needsNote && note.trim().length < 5) || ((dialog === "approve" || dialog === "reject") && a.riskTier === "R3" && code.length !== 6)}
+                  disabled={busy || (ACTION_META[dialog].needsNote && note.trim().length < 5) || (dialog === "approve" && a.riskTier === "R3" && code.length !== 6)}
                   data-testid="dc-confirm"
                 >
                   {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null} {ACTION_META[dialog].label}

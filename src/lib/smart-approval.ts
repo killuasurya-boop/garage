@@ -71,12 +71,12 @@ export function autoApprovalDecision(
   return { approve: true, reason: `Pengeluaran Rp${amount.toLocaleString("id-ID")} di bawah batas Rp${ctx.threshold.toLocaleString("id-ID")}, risiko ${row.risk}.` };
 }
 
-/** Manajer hanya memutus pengajuan outletnya sendiri; Owner semua; pengajuan lama tanpa outlet tetap terbuka. */
 /** Pengajuan yang hanya boleh diputus/dilihat Owner (dokumen perusahaan = hak `company:manage`, Owner saja). */
 export function ownerOnlyApproval(id: string) {
   return id.startsWith("APP-DOC-");
 }
 
+/** Manajer hanya memutus pengajuan outletnya sendiri; Owner semua; pengajuan lama tanpa outlet tetap terbuka. */
 export function canDecideForOutlet(role: string, profileOutletId: string | null | undefined, approvalOutletId: string | null | undefined) {
   if (role === "Owner") return true;
   if (!approvalOutletId) return true;
@@ -95,3 +95,58 @@ export const REVIEW_STATE_LABEL: Record<ApprovalReviewState, string> = {
   deferred: "Ditunda",
   revision_requested: "Minta bukti/revisi",
 };
+
+/**
+ * Jalur keputusan. "langsung" = pengaju yang berwenang memutus saat membuat (kode internal);
+ * "auto" = sweep auto-approval; "chatgpt" = tool MCP lewat preview + token (+ kode 2FA untuk R3);
+ * "agent_key" = API key agent statis (tanpa manusia) — tidak boleh memutus.
+ */
+export type DecisionChannel = "board" | "pin" | "langsung" | "auto" | "decision_center" | "chatgpt" | "owner_command" | "agent_key";
+
+export const DECISION_CHANNEL_LABEL: Record<DecisionChannel, string> = {
+  board: "Papan Persetujuan",
+  pin: "PIN di kasir",
+  langsung: "Langsung oleh pengaju yang berwenang",
+  auto: "Otomatis (aturan auto-approval)",
+  decision_center: "Decision Center",
+  chatgpt: "ChatGPT (konfirmasi + kode 2FA)",
+  owner_command: "AI Command layar Owner (konfirmasi + kode 2FA)",
+  agent_key: "API key agent",
+};
+
+export type DecisionPolicyInput = {
+  tier: ApprovalRiskTier;
+  status: "approved" | "rejected";
+  role: string;
+  channel: DecisionChannel;
+  /** Sesi dari API key agent statis. */
+  agentKey: boolean;
+  /** Kode 2FA Owner sudah diverifikasi untuk keputusan INI (Decision Center / konfirmasi ChatGPT R3). */
+  stepUpVerified: boolean;
+};
+
+export type DecisionPolicyBlock = { code: string; message: string };
+
+/**
+ * Smart Approval kebijakan pusat (audit SA-01/SA-02): satu aturan untuk semua jalur, dipanggil di
+ * decideApproval sebelum klaim. Menolak (reject) selalu boleh bagi yang berwenang — tidak ada uang/stok
+ * yang bergerak. Menyetujui R3 = Owner + kode 2FA untuk keputusan itu; Owner yang membuat sendiri
+ * ("langsung") tercatat sebagai keputusan sendiri. API key agent tidak pernah memutus.
+ */
+export function decisionPolicyBlock(input: DecisionPolicyInput): DecisionPolicyBlock | null {
+  if (input.agentKey || input.channel === "agent_key") {
+    return { code: "AGENT_CANNOT_DECIDE", message: "API key agent hanya boleh membaca dan mengajukan — keputusan diambil manusia (Owner/Manajer)." };
+  }
+  if (input.status === "rejected" || input.tier !== "R3") return null;
+  if (input.role !== "Owner") {
+    return { code: "R3_OWNER_ONLY", message: "Risiko tinggi (R3) hanya disetujui Owner. Tolak atau biarkan menunggu Owner." };
+  }
+  if (input.channel === "langsung") return null;
+  if (input.channel === "pin" || input.channel === "auto") {
+    return { code: "R3_STEP_UP_REQUIRED", message: "Risiko tinggi (R3) disetujui Owner dari Decision Center dengan kode 2FA, bukan lewat PIN/otomatis." };
+  }
+  if (!input.stepUpVerified) {
+    return { code: "R3_STEP_UP_REQUIRED", message: "Risiko tinggi (R3): setujui dari Owner Decision Center dengan kode 2FA." };
+  }
+  return null;
+}

@@ -166,18 +166,30 @@ const tools: AgentTool[] = [
   {
     name: "putuskan_approval",
     title: "Setujui / tolak pengajuan",
-    description: "Putuskan pengajuan berdasarkan id. Tolak wajib dengan alasan.",
+    description:
+      "Putuskan pengajuan berdasarkan id. Tolak wajib dengan alasan. Hanya Owner lewat ChatGPT (konfirmasi + kode 2FA); API key agent tidak boleh memutus.",
     write: true,
     domain: "keuangan",
-    risk: "R2",
+    // Audit SA-01/SA-02: keputusan dari chat selalu R3 (kode 2FA Owner), karena tier pengajuan baru
+    // diketahui dari DB. API key agent ditolak di decideApproval.
+    risk: "R3",
     permission: "approvals:decide",
     input: z.object({ id: z.string().min(1), keputusan: z.enum(["approved", "rejected"]), alasan: z.string().max(500).optional() }),
-    async run(session, args) {
+    async run(session, args, ctx) {
       if (args.keputusan === "rejected" && !String(args.alasan ?? "").trim()) {
         throw new AgentToolError("REASON_REQUIRED", "Alasan wajib diisi untuk menolak.");
       }
       const { decideApproval } = await import("@/lib/garage-service");
-      return decideApproval(String(args.id), { status: args.keputusan as "approved" | "rejected", reasonDecided: args.alasan as string | undefined }, session);
+      return decideApproval(
+        String(args.id),
+        { status: args.keputusan as "approved" | "rejected", reasonDecided: args.alasan as string | undefined },
+        session,
+        // Kode 2FA sudah diverifikasi oleh alur konfirmasi R3 sebelum token diklaim.
+        {
+          via: session.profile.agentKey ? "agent_key" : ctx.mcpConnection ? "chatgpt" : "owner_command",
+          stepUpVerified: Boolean(ctx.confirmFlow && ctx.confirmedOperationId),
+        },
+      );
     },
     async preview(_session, args) {
       const { getApprovalById } = await import("@/lib/garage-service");
@@ -186,7 +198,8 @@ const tools: AgentTool[] = [
       return {
         aksi: args.keputusan === "approved" ? "SETUJUI pengajuan" : "TOLAK pengajuan",
         pengajuan: `${approval.categoryLabel} (${approval.type}) dari ${approval.requester}`,
-        nominal: approval.amount ? rupiah(Number(approval.amount)) : null,
+        nominal: approval.amountValue !== null && approval.amountValue !== undefined ? rupiah(approval.amountValue) : approval.amount || null,
+        tingkatRisiko: approval.riskTier,
         alasanPengajuan: approval.reason,
         statusSaatIni: approval.status,
         alasanKeputusan: args.alasan ?? null,

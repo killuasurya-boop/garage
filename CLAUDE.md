@@ -330,6 +330,12 @@ Scroll direction:
     `securityRequire2faForOwner` are Owner-only (`assertRoleMayWriteSettings`); `ubah_data_garage` refuses protected setting keys.
   - Decision PDF `GET /api/control/decision-center/[id]/pdf` (`decision-pdf.ts`): DRAFT until decided AND execution recorded;
     printing never creates a step-up challenge (`getDecisionDetail(..., { stepUp: false })`).
+- Smart Approval decision policy (audit Nov 2026, `docs/smart-approval-v3/10-AUDIT-FIXES.md`): ONE rule set in
+  `decisionPolicyBlock` (`smart-approval.ts`), called inside `decideApproval` for every channel (board, pin, langsung, auto,
+  decision_center, chatgpt, owner_command, agent_key). Agent API keys never decide/defer (`AGENT_CANNOT_DECIDE`). Approving R3 =
+  Owner + 2FA verified for that decision (`stepUpVerified`, set only by Decision Center after TOTP or by the MCP R3 confirm flow);
+  rejecting is always allowed. Non-Owner "langsung" on high risk stays pending (`canSelfApprove(garage, risk)`). `putuskan_approval`
+  is R3. APP-CASH: opener/closer can't approve own discrepancy; an existing sign-off is never overwritten.
 - AYA Problem Solver V4 (`docs/smart-problem-solver-v4/`, migration 0178): `garage-problem-solver.ts` (R0 whitelist, facts,
   hypotheses, report; tool errors never forwarded — ref only), service sends only `aiSafeExcerpt` to AI providers; MCP tool
   `garage_analisis_masalah` (R0, Owner). Cases `ai_problem_cases` + append-only `ai_problem_case_events` (`ai-problem-cases.ts`):

@@ -14,7 +14,7 @@ import {
   PDF_MUTED,
   PDF_RED,
 } from "@/lib/shift-accountability-pdf";
-import { EXECUTION_STATUS_LABEL, REVIEW_STATE_LABEL } from "@/lib/smart-approval";
+import { DECISION_CHANNEL_LABEL, EXECUTION_STATUS_LABEL, REVIEW_STATE_LABEL } from "@/lib/smart-approval";
 
 export type DecisionPdfInput = {
   approval: DecisionApproval;
@@ -25,13 +25,7 @@ export type DecisionPdfInput = {
 };
 
 const STATUS_LABEL: Record<string, string> = { pending: "Menunggu keputusan", approved: "Disetujui", rejected: "Ditolak" };
-const VIA_LABEL: Record<string, string> = {
-  board: "Papan Persetujuan",
-  decision_center: "Decision Center",
-  pin: "PIN di kasir",
-  langsung: "Langsung oleh pengaju yang berwenang",
-  auto: "Otomatis (aturan auto-approval)",
-};
+const VIA_LABEL: Record<string, string> = DECISION_CHANNEL_LABEL;
 const REC_LABEL: Record<string, string> = {
   approve: "Setujui",
   approve_with_note: "Setujui dengan catatan",

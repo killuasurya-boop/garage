@@ -67,6 +67,7 @@ type ApprovalRow = {
   executionError?: string | null;
   reviewState?: ApprovalReviewState | null;
   reviewNote?: string | null;
+  riskTier?: "R1" | "R2" | "R3";
 };
 
 type ApprovalStats = {
@@ -761,6 +762,7 @@ export function ApprovalsBoard({
         onClose={() => setDetail(null)}
         onDecide={handleDecide}
         onOpenAudit={onOpenModule ? () => onOpenModule("audit") : undefined}
+        role={role}
       />
 
       <BulkDecideDialog
@@ -862,11 +864,13 @@ function ApprovalDetailModal({
   onClose,
   onDecide,
   onOpenAudit,
+  role,
 }: {
   row: ApprovalRow | null;
   onClose: () => void;
   onDecide: (id: string, status: "approved" | "rejected", reason?: string) => Promise<void>;
   onOpenAudit?: () => void;
+  role?: Role;
 }) {
   const [mode, setMode] = useState<"view" | "approve" | "reject">("view");
   const [reasonInput, setReasonInput] = useState("");
@@ -1131,17 +1135,33 @@ function ApprovalDetailModal({
 
           {isPending && mode === "view" && (
             <div className="grid gap-2 sm:grid-cols-2">
-              <Button
-                type="button"
-                className="garage-press h-11 gap-2 bg-[#22c55e] text-black hover:bg-[#34d76b]"
-                onClick={() => {
-                  setMode("approve");
-                  setReasonInput("");
-                }}
-              >
-                <Check className="size-4" />
-                Setujui
-              </Button>
+              {row.riskTier === "R3" ? (
+                // Kebijakan pusat (SA-01): R3 hanya disetujui Owner dengan kode 2FA di Decision Center.
+                role === "Owner" ? (
+                  <Button asChild className="garage-press h-11 gap-2 bg-[#22c55e] text-black hover:bg-[#34d76b]">
+                    <a href="/control/decision" data-testid="approval-r3-decision-center">
+                      <Check className="size-4" />
+                      Setujui di Decision Center (2FA)
+                    </a>
+                  </Button>
+                ) : (
+                  <p className="flex h-11 items-center justify-center rounded-md border border-[#f5a742]/50 px-3 text-center text-xs font-semibold text-[#ffd79a]" data-testid="approval-r3-owner-only">
+                    Risiko tinggi — menunggu Owner (2FA)
+                  </p>
+                )
+              ) : (
+                <Button
+                  type="button"
+                  className="garage-press h-11 gap-2 bg-[#22c55e] text-black hover:bg-[#34d76b]"
+                  onClick={() => {
+                    setMode("approve");
+                    setReasonInput("");
+                  }}
+                >
+                  <Check className="size-4" />
+                  Setujui
+                </Button>
+              )}
               <Button
                 type="button"
                 className="garage-press h-11 gap-2 bg-[#d11a2a] text-white hover:bg-[#e72c3c]"

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { fail, ok, readJson } from "@/lib/api-response";
-import { ApprovalStaleError, decideApproval, getApprovalById, getApprovalSnapshotHash } from "@/lib/garage-service";
+import { ApprovalPolicyError, ApprovalStaleError, decideApproval, getApprovalById, getApprovalSnapshotHash } from "@/lib/garage-service";
 import { canDecideForOutlet } from "@/lib/smart-approval";
 import { canUseApi } from "@/lib/role-access";
 import { requireGarageSession, requirePermission } from "@/lib/server-auth";
@@ -81,6 +81,7 @@ export async function PATCH(
     return ok(approval);
   } catch (err) {
     if (err instanceof ApprovalStaleError) return fail(409, "STALE", err.message);
+    if (err instanceof ApprovalPolicyError) return fail(403, err.code, err.message);
     return fail(
       400,
       "APPROVAL_DECIDE_FAILED",

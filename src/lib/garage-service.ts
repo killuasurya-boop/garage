@@ -234,7 +234,9 @@ import {
   autoApprovalDecision,
   bulkDecisionBlockReason,
   canDecideForOutlet,
+  decisionPolicyBlock,
   ownerOnlyApproval,
+  type DecisionChannel,
   parseRupiahLabel,
   type ApprovalExecutionStatus,
   type ApprovalReviewState,
@@ -5519,6 +5521,9 @@ export async function reviewApproval(
   if (current.status !== "pending") throw new Error("Pengajuan ini sudah diputuskan.");
   if (!canDecideForOutlet(garage.profile.role, garage.profile.outlet?.id, current.outletId)) {
     throw new Error("Pengajuan ini milik outlet lain.");
+  }
+  if (garage.profile.agentKey) {
+    throw new ApprovalPolicyError("AGENT_CANNOT_DECIDE", "API key agent tidak boleh menunda atau meminta revisi pengajuan.");
   }
   if (ownerOnlyApproval(current.id) && garage.profile.role !== "Owner") {
     throw new Error("Pengajuan dokumen hanya diputus Owner.");
@@ -15025,9 +15030,14 @@ function orderRiskFor(amount: number) {
   return amount >= 500_000 ? "high" : amount >= 100_000 ? "medium" : "low";
 }
 
-/** Manajer/Owner boleh langsung memutus pengajuannya sendiri (tetap tercatat). */
-function canSelfApprove(garage: GarageSession) {
-  return canUseApi(garage.profile.role, "approvals:decide");
+/**
+ * Pengaju yang berwenang memutus boleh langsung menjalankan pengajuannya — kecuali risiko tinggi (R3)
+ * oleh bukan-Owner (kebijakan pusat SA-01): itu tetap Menunggu Owner. Agent key tidak pernah.
+ */
+function canSelfApprove(garage: GarageSession, risk: string) {
+  if (garage.profile.agentKey) return false;
+  if (!canUseApi(garage.profile.role, "approvals:decide")) return false;
+  return !(risk === "high" && garage.profile.role !== "Owner");
 }
 
 export type OrderCancelRequestInput = {
@@ -15128,7 +15138,7 @@ export async function requestOrderVoidApproval(
     metadata: { orderId: order.id, orderNo: order.orderNo, approvalId, reason },
   });
 
-  if (canSelfApprove(garage)) {
+  if (canSelfApprove(garage, orderRiskFor(order.total))) {
     await decideApproval(approvalId, { status: "approved", reasonDecided: "Diputus langsung oleh pengaju" }, garage, {
       via: "langsung",
     });
@@ -15258,7 +15268,7 @@ export async function requestOrderRefundApproval(
     metadata: { approvalId, orderId: refundable.orderId, refundAmount, items: payloadItems, reason },
   });
 
-  if (canSelfApprove(garage)) {
+  if (canSelfApprove(garage, orderRiskFor(refundAmount))) {
     await decideApproval(approvalId, { status: "approved", reasonDecided: "Diputus langsung oleh pengaju" }, garage, {
       via: "langsung",
     });
@@ -15362,7 +15372,7 @@ export async function requestUnpaidItemCancelApproval(
   });
   publishProductionChange();
 
-  if (canSelfApprove(garage)) {
+  if (canSelfApprove(garage, orderRiskFor(amount))) {
     await decideApproval(approvalId, { status: "approved", reasonDecided: "Diputus langsung oleh pengaju" }, garage, {
       via: "langsung",
     });
@@ -19492,7 +19502,8 @@ export async function closeCashSession(
           risk: discrepancyStatus === "critical" ? "high" : "medium",
           age: "baru saja",
           status: "pending",
-          payload: { cashSessionId: current.id } satisfies ApprovalPayload,
+          // SA-03: penutup shift = pemohon (tidak boleh menyetujui selisihnya sendiri).
+          payload: { cashSessionId: current.id, requestedBy: garage.user.id } satisfies ApprovalPayload,
           outletId: current.outletId ?? null,
           amountValue: Math.abs(discrepancy),
         })
@@ -19548,16 +19559,25 @@ export async function approveCashSessionDiscrepancy(
   if (current.status !== "closed") {
     throw new Error("Shift harus ditutup sebelum approval selisih kas.");
   }
+  // SA-03 pemisahan tugas (sama dengan reviewCashSession): pembuka/penutup shift tidak menyetujui
+  // selisihnya sendiri. Owner boleh, ditandai "tanpa pemeriksa kedua" di audit.
+  const ownShift = current.openedBy === garage.user.id || current.closedBy === garage.user.id;
+  if (ownShift && garage.profile.role !== "Owner") {
+    throw new Error("Shift ini milik Anda — selisihnya harus disetujui Manajer lain atau Owner.");
+  }
 
   const now = new Date();
-  const [approved] = await db
-    .update(cashSessions)
-    .set({
-      managerSignOffBy: garage.user.id,
-      managerSignOffAt: now,
-    })
-    .where(eq(cashSessions.id, id))
-    .returning();
+  // Sign-off yang sudah ada (mis. PIN Manajer saat tutup shift) tidak ditimpa.
+  const [approved] = current.managerSignOffBy
+    ? [current]
+    : await db
+        .update(cashSessions)
+        .set({
+          managerSignOffBy: garage.user.id,
+          managerSignOffAt: now,
+        })
+        .where(eq(cashSessions.id, id))
+        .returning();
 
   await createAuditLog({
     actor: `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`,
@@ -19570,6 +19590,8 @@ export async function approveCashSessionDiscrepancy(
       discrepancy: current.discrepancy,
       discrepancyStatus: current.discrepancyStatus,
       note: note?.trim() || null,
+      selfVerified: ownShift,
+      existingSignOffBy: current.managerSignOffBy ?? null,
     },
   });
 
@@ -20398,7 +20420,17 @@ async function resolveExpenseIdFromApprovalId(approvalId: string) {
   return prefix?.id ?? null;
 }
 
-export type ApprovalDecisionVia = "board" | "pin" | "langsung" | "auto" | "decision_center";
+export type ApprovalDecisionVia = DecisionChannel;
+
+/** Keputusan ditolak kebijakan pusat Smart Approval (R3 = Owner + 2FA, agent key tidak memutus). */
+export class ApprovalPolicyError extends Error {
+  constructor(
+    readonly code: string,
+    message: string,
+  ) {
+    super(message);
+  }
+}
 
 /** Data pengajuan berubah sejak dilihat (preview) — keputusan lama tidak berlaku. */
 export class ApprovalStaleError extends Error {
@@ -20424,9 +20456,9 @@ export async function decideApproval(
     reasonDecided?: string;
   },
   garage: GarageSession,
-  options: { via?: ApprovalDecisionVia; expectedSnapshotHash?: string } = {},
+  options: { via?: ApprovalDecisionVia; expectedSnapshotHash?: string; stepUpVerified?: boolean } = {},
 ) {
-  const via = options.via ?? "board";
+  const via: ApprovalDecisionVia = garage.profile.agentKey ? "agent_key" : options.via ?? "board";
   const reasonText = input.reasonDecided?.trim().slice(0, 500) || null;
   // Tolak WAJIB punya alasan — dijaga juga di route layer
   if (input.status === "rejected" && !reasonText) {
@@ -20454,6 +20486,16 @@ export async function decideApproval(
   if (ownerOnlyApproval(current.id) && garage.profile.role !== "Owner") {
     throw new Error("Pengajuan dokumen hanya diputus Owner.");
   }
+  // Kebijakan pusat (audit SA-01/SA-02): berlaku sama untuk papan, PIN, ChatGPT, agent, otomatis.
+  const policyBlock = decisionPolicyBlock({
+    tier: approvalRiskTier({ id: current.id, type: current.type, risk: current.risk, amountValue: current.amountValue }),
+    status: input.status,
+    role: garage.profile.role,
+    channel: via,
+    agentKey: Boolean(garage.profile.agentKey),
+    stepUpVerified: options.stepUpVerified === true,
+  });
+  if (policyBlock) throw new ApprovalPolicyError(policyBlock.code, policyBlock.message);
   // Sidik objek sumber saat diputus; bila pemanggil membawa sidik preview dan berbeda → STALE.
   const { approvalSubjectSnapshot } = await import("@/lib/smart-approval-snapshot");
   const { hash: snapshotHash } = await approvalSubjectSnapshot(current);

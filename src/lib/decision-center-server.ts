@@ -7,6 +7,7 @@ import { getDb } from "@/db";
 import { approvals, auditLogs, user } from "@/db/schema";
 import { decisionPriority, explainApproval, type DecisionApproval, type DecisionSubject } from "@/lib/decision-center";
 import {
+  ApprovalPolicyError,
   ApprovalStaleError,
   decideApproval,
   getApprovalById,
@@ -140,7 +141,8 @@ export async function decideFromDecisionCenter(
   const [row] = await getDb().select().from(approvals).where(eq(approvals.id, id)).limit(1);
   if (!row) throw new DecisionCenterError("NOT_FOUND", "Pengajuan tidak ditemukan.", 404);
   const view = await getApprovalById(id);
-  if (view?.riskTier === "R3") {
+  let stepUpVerified = false;
+  if (view?.riskTier === "R3" && input.action === "approve") {
     if (!input.challengeId || !input.nonce || !input.code) {
       throw new DecisionCenterError("STEP_UP_REQUIRED", "Risiko tinggi (R3): masukkan kode 2FA dari aplikasi authenticator.", 401);
     }
@@ -161,18 +163,20 @@ export async function decideFromDecisionCenter(
       if (error instanceof StepUpError) throw new DecisionCenterError(error.code, error.message, error.status);
       throw error;
     }
+    stepUpVerified = true;
   }
   try {
     const approval = await decideApproval(
       id,
       { status: input.action === "approve" ? "approved" : "rejected", reasonDecided: input.note },
       session,
-      { via: "decision_center", expectedSnapshotHash: input.expectedSnapshotHash },
+      { via: "decision_center", expectedSnapshotHash: input.expectedSnapshotHash, stepUpVerified },
     );
     if (!approval) throw new DecisionCenterError("NOT_FOUND", "Pengajuan tidak ditemukan.", 404);
     return { approval, executed: approval.executionStatus === "succeeded" };
   } catch (error) {
     if (error instanceof ApprovalStaleError) throw new DecisionCenterError("STALE", error.message, 409);
+    if (error instanceof ApprovalPolicyError) throw new DecisionCenterError(error.code, error.message, 403);
     if (error instanceof DecisionCenterError) throw error;
     const message = error instanceof Error ? error.message : "Keputusan gagal dicatat.";
     throw new DecisionCenterError("DECISION_FAILED", message.slice(0, 300), 400);

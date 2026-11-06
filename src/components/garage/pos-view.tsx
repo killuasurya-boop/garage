@@ -301,6 +301,7 @@ import {
 } from "@/components/garage/pos/pos-dialogs";
 import { CashPaymentPanel, QrisPaymentPanel, BankTransferPaymentPanel, EWalletPaymentPanel, PaymentWizardProgress, CheckoutSummaryCard, CheckoutOrderStep, CheckoutCustomerStep, CartLineNoteRow, OpenBillSavedPanel } from "@/components/garage/pos/pos-checkout-panels";
 import { PaymentCompletePanel, PrintableReceipt } from "@/components/garage/pos/pos-receipt-panels";
+import { OPENING_CASH_DEFAULT_MAX, OPENING_CASH_STEP, openingCashError } from "@/lib/opening-cash";
 
 const PosModuleFallback = () => (
   <div className="px-4 py-10 text-center text-sm text-zinc-400">Memuat POS...</div>
@@ -687,13 +688,12 @@ export function PosView({
   // "Bayar nanti": tagihan tersimpan (belum lunas) → dilunasi lewat Final Bayar.
   const [openBillSaved, setOpenBillSaved] = useState<OpenBillSaved | null>(null);
   const [qrisImageReady, setQrisImageReady] = useState(true);
-  // Wire: shiftOpeningCashDefault dari /control/settings → Shift & Cash
-  // Default settings 500K, tapi form max 500K & multiple of 50K. Coerce ke valid range.
+  // Wire: shiftOpeningCashDefault dari /control/settings → Shift & Cash (dibulatkan ke Rp100, dalam batas).
   const _shiftOpeningDefault = (() => {
     const raw = Number(settings?.shiftOpeningCashDefault ?? 50000);
-    if (!Number.isFinite(raw) || raw < 50000) return 50000;
-    const capped = Math.min(500000, raw);
-    return Math.round(capped / 50000) * 50000;
+    const max = settings?.shiftOpeningCashMax ?? OPENING_CASH_DEFAULT_MAX;
+    if (!Number.isFinite(raw) || raw <= 0) return 50000;
+    return Math.min(max, Math.round(raw / OPENING_CASH_STEP) * OPENING_CASH_STEP);
   })();
   const [openingCash, setOpeningCash] = useState(String(_shiftOpeningDefault));
   const [openingCounts, setOpeningCounts] = useState<Record<string, string>>({});
@@ -3435,8 +3435,10 @@ export function PosView({
     if (amount === null) {
       return null;
     }
-    if (amount < 50000 || amount > 500000 || amount % 50000 !== 0) {
-      setShiftError("Uang modal awal pilih Rp 50.000 sampai Rp 500.000, kelipatan Rp 50.000.");
+    // Owner 6 Nov 2026: bebas sesuai uang di laci (mis. Rp55.200), kelipatan Rp100, sampai batas Pengaturan.
+    const problem = openingCashError(amount, settings?.shiftOpeningCashMax ?? OPENING_CASH_DEFAULT_MAX);
+    if (problem) {
+      setShiftError(problem);
       return null;
     }
 
@@ -4108,7 +4110,7 @@ export function PosView({
                 onResume={resumeOwnShift}
                 refreshKey={shiftStatusRefresh}
               />
-              <OpeningCashPresetPicker value={openingCash} onChange={setOpeningCash} />
+              <OpeningCashPresetPicker value={openingCash} onChange={setOpeningCash} max={settings?.shiftOpeningCashMax ?? OPENING_CASH_DEFAULT_MAX} />
               <OpeningDenominationCount
                 counts={openingCounts}
                 onChange={setOpeningCounts}
@@ -6063,7 +6065,7 @@ export function PosView({
                 onResume={resumeOwnShift}
                 refreshKey={shiftStatusRefresh}
               />
-              <OpeningCashPresetPicker value={openingCash} onChange={setOpeningCash} />
+              <OpeningCashPresetPicker value={openingCash} onChange={setOpeningCash} max={settings?.shiftOpeningCashMax ?? OPENING_CASH_DEFAULT_MAX} />
               <OpeningDenominationCount
                 counts={openingCounts}
                 onChange={setOpeningCounts}

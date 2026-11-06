@@ -80,12 +80,12 @@ beforeAll(async () => {
     kasir(),
   );
   const deposit: any = await svc.recordCashMovement(
-    { type: "out", categoryKey: "setoran", description: "Setor siang", amount: 50_000, counterparty: "Kasir", depositAccount: "bank_jago", managerPin: PIN } as any,
+    { type: "out", categoryKey: "setoran", description: "Setor siang", amount: 50_000, counterparty: "Kasir", depositAccount: "bank_jago" } as any,
     kasir(),
   );
   depositId = deposit.id;
   const pending: any = await svc.recordCashMovement(
-    { type: "out", categoryKey: "belanja_bar", description: "Susu UHT 1 dus", amount: 150_000, submitForApproval: true } as any,
+    { type: "out", categoryKey: "kasbon", description: "Kasbon 1 minggu", amount: 150_000, employeeUserId: KASIR, submitForApproval: true } as any,
     kasir(),
   );
   pendingId = pending.id;

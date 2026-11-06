@@ -56,6 +56,25 @@ export async function loadRiskFacts(sessionId: string, now = new Date()): Promis
       ),
     );
 
+  // Kas keluar laci yang langsung tercatat tanpa ACC (bukan setoran) — Owner 6 Nov 2026.
+  const settingsForDirect = await getAppSettings(s.outletId ?? null);
+  const [direct] = await db
+    .select({
+      count: sql<number>`count(*)::int`,
+      total: sql<number>`coalesce(sum(${cashMovements.amount}), 0)::int`,
+      withoutReceipt: sql<number>`count(*) filter (where ${cashMovements.receiptPhoto} is null and ${cashMovements.amount} >= ${Number(settingsForDirect.cashMovementPinThreshold) || 50_000})::int`,
+    })
+    .from(cashMovements)
+    .where(
+      and(
+        eq(cashMovements.cashSessionId, sessionId),
+        eq(cashMovements.type, "cash_out"),
+        eq(cashMovements.status, "recorded"),
+        isNull(cashMovements.depositAccount),
+        isNull(cashMovements.approvedBy),
+      ),
+    );
+
   // Riwayat kasir yang sama (denominator = jumlah shift), jendela REPEAT_WINDOW_DAYS.
   const history = s.openedBy
     ? await db
@@ -96,6 +115,12 @@ export async function loadRiskFacts(sessionId: string, now = new Date()): Promis
     refundVoidCount: s.ledgerMode ? await distinctSources(["refund", "void"]) : 0,
     methodFixCount: s.ledgerMode ? await distinctSources(["method_fix"]) : 0,
     unconfirmedDeposits: deposits.map((d) => ({ id: d.id, amount: d.amount, recordedAt: d.at, ref: d.refNo ?? d.id.slice(0, 8) })),
+    cashOutDirect: {
+      count: Number(direct?.count ?? 0),
+      total: Number(direct?.total ?? 0),
+      withoutReceipt: Number(direct?.withoutReceipt ?? 0),
+      limit: Number(settingsForDirect.cashMovementShiftLimit) || 0,
+    },
     history: {
       shifts: Number(history[0]?.shifts ?? 1),
       shortageShifts: Number(history[0]?.shortageShifts ?? 0),

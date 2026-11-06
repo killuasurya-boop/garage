@@ -78,11 +78,11 @@ describe("Pengawasan kas Owner (P5)", () => {
       kasir(),
     );
     const deposit: any = await svc.recordCashMovement(
-      { type: "out", categoryKey: "setoran", description: "Setor siang", amount: 50_000, counterparty: "Kasir", depositAccount: "bank_jago", managerPin: PIN } as any,
+      { type: "out", categoryKey: "setoran", description: "Setor siang", amount: 50_000, counterparty: "Kasir", depositAccount: "bank_jago" } as any,
       kasir(),
     );
     await svc.recordCashMovement(
-      { type: "out", categoryKey: "belanja_bar", description: "Susu UHT 1 dus", amount: 150_000, submitForApproval: true } as any,
+      { type: "out", categoryKey: "kasbon", description: "Kasbon 1 minggu", amount: 150_000, employeeUserId: KASIR, submitForApproval: true } as any,
       kasir(),
     );
     await svc.closeCashSession(s1.id, { actualCash: 105_000, denominations: cashCount(105_000), recountDenominations: cashCount(105_000) } as any, kasir());

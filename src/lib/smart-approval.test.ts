@@ -55,4 +55,12 @@ describe("Smart Approval V3 — aturan murni", () => {
     expect(parseRupiahLabel("Rp 50.000")).toBe(50_000);
     expect(parseRupiahLabel("+10")).toBeNull();
   });
+
+  it("diskon: R3 dari nominal (≥ Rp100.000), bukan persentase", () => {
+    const disc = (risk: string, amountValue: number | null) => approvalRiskTier({ id: "APP-DISC-1", type: "Diskon manual", risk, amountValue });
+    expect(disc("high", 10_000)).toBe("R2");
+    expect(disc("high", 150_000)).toBe("R3");
+    expect(disc("high", null)).toBe("R3");
+    expect(approvalRiskTier({ id: "APP-VOID-1", type: "Void", risk: "high", amountValue: 10_000 })).toBe("R3");
+  });
 });

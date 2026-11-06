@@ -30,9 +30,17 @@ export function isHighRisk(row: Pick<ApprovalRuleRow, "risk">) {
  * R1 = rendah, tanpa uang · R2 = sedang / menyangkut uang · R3 = risiko tinggi dan menyangkut uang
  * (refund, void, selisih kas, pengeluaran besar). R3 tidak pernah boleh otomatis atau massal.
  */
+/** Diskon manual: R3 (Owner + 2FA) mulai nominal ini. */
+export const DISCOUNT_R3_MIN_AMOUNT = 100_000;
+
 export function approvalRiskTier(row: ApprovalRuleRow): ApprovalRiskTier {
   const category = approvalCategoryOf(row);
   const money = MONEY_CATEGORIES.has(category);
+  // Diskon: R3 ditentukan nominal uang (≥ Rp100.000), bukan persentase — diskon kecil berpersentase tinggi tetap
+  // bisa disetujui Manajer di lokasi (R2). Nominal tak terbaca → tetap R3 (aman).
+  if (category === "diskon" && isHighRisk(row) && row.amountValue !== null && row.amountValue !== undefined && row.amountValue < DISCOUNT_R3_MIN_AMOUNT) {
+    return "R2";
+  }
   if (isHighRisk(row) && (money || category === "stok")) return "R3";
   if (money || category === "stok" || /^medium|sedang$/i.test(row.risk.trim())) return "R2";
   return "R1";

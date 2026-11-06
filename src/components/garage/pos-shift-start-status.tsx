@@ -65,7 +65,7 @@ export function ShiftStartStatus({
   refreshKey = 0,
 }: {
   onShiftNumber: (value: number) => void;
-  /** Modal yang ditinggal shift sebelumnya (kelipatan Rp 50.000) → isi otomatis modal awal. */
+  /** Modal yang ditinggal shift sebelumnya (nominal bebas, kelipatan Rp100) → isi otomatis modal awal. */
   onSuggestOpeningCash?: (amount: number) => void;
   managerPin: string;
   onManagerPinChange: (value: string) => void;
@@ -93,7 +93,8 @@ export function ShiftStartStatus({
       const { onShiftNumber: setShift, onSuggestOpeningCash: suggest } = callbacksRef.current;
       setShift(data.nextShiftNumber);
       const float = data.previousFloat?.amount ?? 0;
-      if (suggest && float >= 50_000 && float <= 500_000 && float % 50_000 === 0) {
+      // Sisa laci shift sebelumnya jadi saran modal awal (nominal bebas, mis. Rp55.200).
+      if (suggest && float > 0 && float % 100 === 0) {
         suggest(float);
       }
     } catch (error) {

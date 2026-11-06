@@ -160,6 +160,8 @@ export type AppSettings = {
   receiptShowSignature: boolean;
   // Kas keluar/masuk laci oleh Kasir ≥ nominal ini wajib PIN Manajer/Owner.
   cashMovementPinThreshold: number;
+  /** Owner 6 Nov 2026: batas total kas keluar kasir per shift tanpa ACC (0 = tanpa batas). */
+  cashMovementShiftLimit: number;
   // Tender guard (PRD §09.2/F34): QRIS wajib referensi (No. Ref/RRN merchant).
   qrisReferenceRequired: boolean;
   managementSlipCopies: number;
@@ -192,6 +194,8 @@ export type AppSettings = {
   attendanceRequireActiveGeofence: boolean;
   // Shift extra
   shiftOpeningCashDefault: number;
+  /** Batas atas modal awal laci (modal bebas, kelipatan Rp100). */
+  shiftOpeningCashMax: number;
   shiftRequireManagerSignoff: boolean;
   shiftDiscrepancyThreshold: number;
   // B4 (PRD §10.8): tutup shift wajib hitung ulang #2 (blind, form terpisah); beda → #3.
@@ -325,6 +329,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   receiptShowMemberPoints: true,
   receiptShowSignature: true,
   cashMovementPinThreshold: 50000,
+  cashMovementShiftLimit: 1_000_000,
   qrisReferenceRequired: false,
   managementSlipCopies: 1,
   // Notification extra
@@ -354,9 +359,11 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   attendanceRequireActiveGeofence: false,
   // Shift extra
   shiftOpeningCashDefault: 500_000,
+  shiftOpeningCashMax: 2_000_000,
   shiftRequireManagerSignoff: true,
   shiftDiscrepancyThreshold: 50_000,
-  shiftRequireDoubleCount: true,
+  // Owner 6 Nov 2026: tutup shift cukup hitung sekali (bisa dinyalakan lagi di Pengaturan → Shift).
+  shiftRequireDoubleCount: false,
   // AI Assistant control
   aiAssistantEnabled: true,
   aiAutonomyMode: "controlled",

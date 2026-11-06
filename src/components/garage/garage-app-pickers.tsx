@@ -136,13 +136,18 @@ export function OpeningCashPresetPicker({
   value,
   onChange,
   label = "Uang modal awal di laci",
-  helper = `Minimal ${currency.format(50000)}, maksimal ${currency.format(500000)}.`,
+  helper,
+  max = 2_000_000,
 }: {
   value: string;
   onChange: (value: string) => void;
   label?: string;
   helper?: string;
+  /** Batas atas Pengaturan → Shift (modal bebas, kelipatan Rp100). */
+  max?: number;
 }) {
+  const helperText =
+    helper ?? `Isi sesuai uang yang benar-benar ada di laci — boleh pecahan, mis. Rp55.200. Maksimal ${currency.format(max)}.`;
   const selectedValue = Number(value);
 
   return (
@@ -170,14 +175,15 @@ export function OpeningCashPresetPicker({
       <Input
         type="number"
         inputMode="numeric"
-        min={50000}
-        max={500000}
-        step={50000}
+        min={100}
+        max={max}
+        step={100}
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        aria-label="Nominal modal awal (Rupiah)"
         className="h-11 border-[#34343c] bg-white/[0.06]"
       />
-      {helper ? <p className="text-xs leading-5 text-[#8f8f99]">{helper}</p> : null}
+      {helperText ? <p className="text-xs leading-5 text-[#b8b8bf]">{helperText}</p> : null}
     </div>
   );
 }

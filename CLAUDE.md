@@ -145,7 +145,8 @@ Scroll direction:
   text-only paths (agent, `/api/print/thermal`) drop it via `stripReceiptQr` (URL text stays).
   Kitchen chits print addon no., target time, item/order notes (wrapped), item count and who printed.
 - Cashier accountability (owner, Okt 2026, migration 0142): opening denomination count
-  (`cash_sessions.opening_denominations`, total must equal opening cash; coin Rp1.000 key `1000k`),
+  (`cash_sessions.opening_denominations`, total must equal opening cash; coin Rp1.000 key `1000k`; opening cash is any
+  amount in Rp100 steps up to `shiftOpeningCashMax`, e.g. Rp55.200 — `src/lib/opening-cash.ts`, owner Nov 2026),
   petty cash = separate fund in `petty_cash_entries` (Kasir submits expense, Owner/Manajer approve/topup;
   never touches drawer `expectedCash`), `shift_incidents`, manager review (`review_status`). Full A4 PDF
   `GET /api/reports/cashier-accountability` (`shift-accountability-report.ts` data, `-pdf.ts` render),
@@ -156,8 +157,10 @@ Scroll direction:
   brankas are never costs; cash-in is never sales. Logic in `recordCashMovement` / `decideCashMovement` /
   `voidCashMovement` / `correctCashMovement` (`garage-service.ts`): ref `KAS-YYMMDD-0001`, balance before/after
   from session `expectedCash`; only status `recorded` moves money (`pending_approval` = Kasir request, money not
-  moved yet; rejected/voided kept, never deleted). Kasir ≥ `cashMovementPinThreshold` or refund/setoran needs a
-  Manager PIN or a request; void/correct = Owner/Manajer, session still open, reason + audit before/after.
+  moved yet; rejected/voided kept, never deleted). Kasir cash in/out is recorded at once (owner Nov 2026); only kasbon +
+  refund_pelanggan (`requiresApproval`) or a cash-out pushing the shift total over `cashMovementShiftLimit` need a Manager PIN or
+  a request (`cashDrawerNeedsApproval`). Cash-out ≥ `cashMovementPinThreshold` without receipt photo → Kontrol Kas queue
+  `cash_out_no_receipt`; risk rule `CASH_OUT_DIRECT_HIGH` (review priority only); void/correct = Owner/Manajer, session still open, reason + audit before/after.
   Drawer expenses can't be cancelled from Finance/Payroll (`cancelExpenseInTx` guard). Kasir never sees drawer
   balance while the shift is open (`redactOpenShiftSummary`). Receipt photos live in non-public
   `storage/cash-receipts`, served only via `/api/finance/cash-movements/[id]/receipt`.
@@ -223,7 +226,7 @@ Scroll direction:
     `cashCount(amount)` (`test-helpers/cash-count.ts`) for both `denominations` and `recountDenominations`.
   - B4 (owner, Okt 2026, migration 0167, PRD §10.8/§13):
     - Double blind count: `closeCashSession` needs `recountDenominations` (#2, empty form, never copied from #1)
-      while setting `shiftRequireDoubleCount` is on (default). #1 ≠ #2 per denomination (`denominationMismatches`)
+      while setting `shiftRequireDoubleCount` is on (default OFF since migration 0181, owner Nov 2026: count once). #1 ≠ #2 per denomination (`denominationMismatches`)
       → `CashSessionCountMismatchError` (409 `COUNT_MISMATCH`) until `thirdCountDenominations` (#3) is sent; #3
       becomes `actual_cash`/`denominations`. Every count (+ manager recount) is an append-only row in
       `cash_session_counts` (trigger; purge only with the grand-opening GUC).

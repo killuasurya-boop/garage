@@ -1,5 +1,6 @@
 "use client";
 
+import { VOUCHER_EFFECTIVE_LABEL } from "@/lib/customer-offers";
 import { reportFileName } from "@/lib/report-file-name";
 import { todayWibKey } from "@/lib/date-range";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -149,6 +150,8 @@ type PromoDto = {
   endsAt: string | null;
   usageLimit: number | null;
   usedCount: number;
+  /** Status efektif (CX V4): "active" yang lewat tanggal/kuota tidak dihitung aktif. */
+  effectiveStatus?: "active" | "scheduled" | "expired" | "quota_exhausted" | "inactive";
   redemptionCount: number;
   discountTotal: number;
   createdAt: string;
@@ -2169,7 +2172,7 @@ function MarketingPromos({
   }
 
   const stats = useMemo(() => {
-    const active = rows.filter((p) => p.status === "active").length;
+    const active = rows.filter((p) => (p.effectiveStatus ?? p.status) === "active").length;
     const redeemed = rows.reduce((sum, p) => sum + p.redemptionCount, 0);
     const discount = rows.reduce((sum, p) => sum + p.discountTotal, 0);
     return { active, redeemed, discount, total: rows.length };
@@ -2294,6 +2297,11 @@ function MarketingPromos({
                       <Badge className={statusBadgeTone(PROMO_STATUSES, row.status)}>
                         {statusLabel(PROMO_STATUSES, row.status)}
                       </Badge>
+                      {row.status === "active" && row.effectiveStatus && row.effectiveStatus !== "active" ? (
+                        <p className="mt-1 text-[11px] font-semibold text-[#ffc2c8]">
+                          {VOUCHER_EFFECTIVE_LABEL[row.effectiveStatus]} — tidak bisa dipakai
+                        </p>
+                      ) : null}
                     </td>
                     <td className="px-3 py-2 text-white">
                       {row.type === "fixed" ? "Fixed" : "Percent"}

@@ -12,6 +12,7 @@ import {
   vouchers,
   voucherRedemptions,
 } from "@/db/schema";
+import { voucherEffectiveStatus } from "@/lib/customer-offers";
 
 export type MarketingCampaignStatus =
   | "draft"
@@ -736,6 +737,8 @@ function serializePromo(
     endsAt: row.endsAt?.toISOString() ?? null,
     usageLimit: row.usageLimit,
     usedCount: row.usedCount,
+    // CX V4: status kolom bisa tetap "active" setelah ends_at lewat → tampilkan status efektif.
+    effectiveStatus: voucherEffectiveStatus(row),
     redemptionCount: agg?.count ?? 0,
     discountTotal: agg?.discount ?? 0,
     createdAt: row.createdAt.toISOString(),

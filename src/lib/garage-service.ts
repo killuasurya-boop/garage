@@ -8677,9 +8677,17 @@ export async function getPublicInvoiceTracking(token: string) {
       phone: invoiceReadyOrder.customerPhone,
       note: invoiceReadyOrder.customerNote,
     },
+    // CX V4: outlet untuk setting (nomor WA kasir resmi, aturan poin) — bukan data pribadi.
+    outletId: invoiceReadyOrder.outletId ?? null,
     payment: {
       method: latestPayment?.method ?? null,
       status: latestPayment?.status ?? null,
+      // "Bayar nanti": metode di baris payment hanya placeholder (tampil "Belum dipilih").
+      staffOrder: (metadata as Record<string, unknown>).staffOrder === true,
+      paidAt:
+        latestPayment && ["paid", "captured"].includes(String(latestPayment.status).toLowerCase())
+          ? stringFromMetadata(metadata, "invoiceIssuedAt") ?? latestPayment.createdAt.toISOString()
+          : null,
       provider: stringFromMetadata(metadata, "provider"),
       reference: stringFromMetadata(metadata, "reference"),
       cashReceived: numberFromMetadata(metadata, "cashReceived"),
@@ -8711,7 +8719,7 @@ export async function getPublicInvoiceTracking(token: string) {
 // LIVE INVOICE STATUS — lightweight polling endpoint untuk
 // customer invoice page. Returns minimal payload (~1KB) berisi
 // status step + countdown timer + per-station ticket detail.
-// Dipanggil tiap 8 detik dari InvoiceLiveTracker (client).
+// Dipanggil tiap 8 detik dari InvoiceLiveTrackerV4 (client, invoice-v4/).
 // ────────────────────────────────────────────────────────────
 
 export async function getInvoiceLiveStatus(token: string) {

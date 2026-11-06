@@ -263,6 +263,14 @@ Scroll direction:
   metadata `staffOrder: true` → shown as "Belum dipilih". Final Bayar cash amount is REQUIRED (empty ≠ uang pas). Only bill
   totals are shown, never drawer cash. Nav "Belum Bayar" (F6), sidebar collapse `[`, always-on red edge line (off with reduced
   motion), POS links/`window.open` to internal pages open in `PosV6ModuleSheet` (no new tab; PDFs via `?inline=1`).
+- Invoice Digital V4 / CX Engine (owner, Nov 2026, migration 0181, `docs/CX-ENGINE-V4.md`): `/invoice/[token]` =
+  components in `src/components/garage/invoice-v4/` (`iv-*` CSS in `@layer components`). Pure rules: `invoice-v4.ts`
+  (payment state via `paymentStatusOf`, 5-step flow, station cards, `maskPhone`), `customer-offers.ts` (eligibility,
+  `voucherEffectiveStatus`, `verifiedTierBenefits` from Settings point rules — never unimplemented perks), `cx-whatsapp.ts`,
+  `cx-events.ts`; server `customer-experience-service.ts`. Invoice token ≠ account ownership: member data only from the
+  member session, invoices are never linked to a member from the public page. "Saya Sudah Bayar" only opens WA proof help.
+  wa.me clicks = "opened", never "sent". Promo WA needs latest `customer_marketing_consents` = granted + max 1/7 days.
+  Events (`customer_experience_events`) carry no phone/PIN/token/IP.
 - Browser-dialog printing uses `browserColumns` (huruf Besar → 24 col on 58 mm) with tall
   TOTAL/Kembali lines; cashier can print Bar/Dapur chits manually (`printKitchenChits`).
 - Production Hub V4 (owner, Nov 2026, no migration): UI `src/components/garage/production-hub/` (portal over the shell,

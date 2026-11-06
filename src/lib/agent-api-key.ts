@@ -81,6 +81,8 @@ export function isAgentForbiddenPath(path: string) {
     path.startsWith("/api/owner-ai") ||
     // AYA V4: keputusan/tautan pelaksanaan kasus masalah = manusia (Owner), bukan agent key.
     path.startsWith("/api/ai/problem-cases") ||
+    // Batch 7: AI tidak boleh membaca/mengatur tata kelolanya sendiri.
+    path.startsWith("/api/control/ai-governance") ||
     path.startsWith("/api/admin/security")
   );
 }

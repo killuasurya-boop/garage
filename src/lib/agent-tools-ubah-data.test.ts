@@ -2,7 +2,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { isMoneyPath, matchApiRoute, ubahDataBlockReason } from "@/lib/agent-tools-ubah-data";
+import { isMoneyPath, matchApiRoute, ubahDataBlockReason, ubahDataBodyBlockReason } from "@/lib/agent-tools-ubah-data";
 import { API_ROUTE_CATALOG } from "@/lib/api-route-catalog.generated";
 import { scanApiRoutes } from "@/lib/api-route-scan";
 import { isSecretKey, redactSecrets } from "@/lib/mcp-delegated-api";
@@ -102,5 +102,19 @@ describe("kredensial tidak pernah keluar ke chat", () => {
     for (const key of ["code", "shipping", "opinion", "name", "pinned", "tokenCount"]) {
       expect(isSecretKey(key), key).toBe(false);
     }
+  });
+});
+
+describe("Batch 7: setelan tata kelola AI/keamanan tidak bisa diubah lewat chat", () => {
+  it("menolak saklar MCP & keamanan di /api/admin/settings dan /api/settings", () => {
+    expect(ubahDataBodyBlockReason("/api/admin/settings", { updates: { mcpChatgptWriteEnabled: true } })).toMatch(/mcpChatgptWriteEnabled/);
+    expect(ubahDataBodyBlockReason("/api/admin/settings", { updates: { mcpChatgptPaused: false } })).not.toBeNull();
+    expect(ubahDataBodyBlockReason("/api/settings", { securityRequire2faForOwner: false })).toMatch(/securityRequire2faForOwner/);
+  });
+  it("setelan lain & path lain tetap boleh", () => {
+    expect(ubahDataBodyBlockReason("/api/admin/settings", { updates: { serviceChargePercent: 5 } })).toBeNull();
+    expect(ubahDataBodyBlockReason("/api/settings", { storeName: "Garage" })).toBeNull();
+    expect(ubahDataBodyBlockReason("/api/products", { securityNote: "x" })).toBeNull();
+    expect(ubahDataBodyBlockReason("/api/admin/settings", null)).toBeNull();
   });
 });

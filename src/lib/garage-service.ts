@@ -3,7 +3,7 @@ import { parseDigitalMenuMode } from "@/lib/digital-menu-mode";
 
 import { and, asc, count, desc, eq, gte, ilike, inArray, isNotNull, isNull, lt, lte, ne, not, notIlike, notInArray, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
-import { assertAgentMayWriteSettings } from "@/lib/agent-protected-settings";
+import { assertAgentMayWriteSettings, assertRoleMayWriteSettings } from "@/lib/agent-protected-settings";
 import { releaseEventQuotaForOrder, resolveEventCheckoutCart } from "@/lib/event-menu-service";
 import type { EventCartItem } from "@/lib/event-menu-types";
 
@@ -14586,6 +14586,7 @@ export async function updateAppSettings(
   garage: GarageSession,
 ): Promise<AppSettings> {
   assertAgentMayWriteSettings(garage, Object.keys(patch));
+  assertRoleMayWriteSettings(garage, Object.keys(patch));
   const db = getDb();
   const actor = `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`;
   const now = new Date();

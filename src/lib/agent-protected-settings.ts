@@ -12,8 +12,27 @@ export function isProtectedSettingKey(key: string) {
 
 export class AgentProtectedSettingError extends Error {
   readonly code = "AGENT_PROTECTED_SETTING";
-  constructor(readonly keys: string[]) {
-    super(`Pengaturan keamanan (${keys.join(", ")}) hanya bisa diubah Owner yang login langsung, bukan lewat API key agent.`);
+  constructor(
+    readonly keys: string[],
+    message = `Pengaturan keamanan (${keys.join(", ")}) hanya bisa diubah Owner yang login langsung, bukan lewat API key agent.`,
+  ) {
+    super(message);
+  }
+}
+
+/**
+ * Batch 7 AI Governance: saklar koneksi ChatGPT Owner (MCP = Owner + 2FA saja) dan kewajiban 2FA
+ * Owner hanya diubah Owner. Setelan sesi/lockout lain tetap boleh Manajer (bagian Security).
+ */
+export function isOwnerOnlySettingKey(key: string) {
+  return key.startsWith("mcpChatgpt") || key === "securityRequire2faForOwner";
+}
+
+export function assertRoleMayWriteSettings(garage: { profile: { role: string } }, keys: string[]) {
+  if (garage.profile.role === "Owner") return;
+  const blocked = keys.filter(isOwnerOnlySettingKey);
+  if (blocked.length) {
+    throw new AgentProtectedSettingError(blocked, `Pengaturan ${blocked.join(", ")} hanya bisa diubah Owner.`);
   }
 }
 

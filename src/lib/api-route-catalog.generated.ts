@@ -112,6 +112,7 @@ export const API_ROUTE_CATALOG: ApiRouteEntry[] = [
   {"path":"/api/compliance","methods":["GET","POST"],"note":""},
   {"path":"/api/control/access-requests/{id}/decision","methods":["POST"],"note":"Keputusan pengajuan akses staf (I3). Route menerima Owner & Manajer supaya"},
   {"path":"/api/control/access-requests","methods":["GET"],"note":"Owner Access Approval Center (I3, PRD V4.0 §06.6, SYS-01): daftar pengajuan."},
+  {"path":"/api/control/ai-governance","methods":["GET"],"note":""},
   {"path":"/api/control/cash-opening","methods":["GET","POST"],"note":""},
   {"path":"/api/control/cash-oversight","methods":["GET"],"note":""},
   {"path":"/api/control/decision-center/{id}","methods":["GET","POST"],"note":""},

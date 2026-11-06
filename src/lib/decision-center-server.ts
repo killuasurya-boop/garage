@@ -87,7 +87,7 @@ export async function getDecisionOverview(session: GarageSession) {
   return { generatedAt: new Date().toISOString(), kpi, queue, decided };
 }
 
-export async function getDecisionDetail(session: GarageSession, id: string) {
+export async function getDecisionDetail(session: GarageSession, id: string, options: { stepUp?: boolean } = {}) {
   assertOwner(session);
   const view = await getApprovalById(id);
   if (!view) throw new DecisionCenterError("NOT_FOUND", "Pengajuan tidak ditemukan.", 404);
@@ -110,7 +110,7 @@ export async function getDecisionDetail(session: GarageSession, id: string) {
   const [me] = await getDb().select({ twoFactorEnabled: user.twoFactorEnabled }).from(user).where(eq(user.id, session.user.id)).limit(1);
   // R3 menunggu: siapkan tantangan 2FA terikat ke sidik data yang sedang dilihat (5 menit, sekali pakai).
   const stepUp =
-    approval.status === "pending" && approval.riskTier === "R3"
+    options.stepUp !== false && approval.status === "pending" && approval.riskTier === "R3"
       ? await createStepUpChallenge({ userId: session.user.id, purpose: DECISION_STEP_UP_PURPOSE, subjectId: id, summaryHash: hash })
       : null;
   return {

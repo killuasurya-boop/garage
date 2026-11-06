@@ -443,6 +443,9 @@ export function DecisionCenter() {
                     <TierPill tier={a.riskTier} />
                     <ExecPill a={a} />
                     <span className="dc-money text-lg">{a.amountValue !== null ? rp(a.amountValue) : a.amount}</span>
+                    <a className="dc-btn !min-h-9 !px-3 text-xs" href={`/api/control/decision-center/${encodeURIComponent(a.id)}/pdf`} data-testid="dc-pdf" aria-label="Unduh PDF keputusan">
+                      <FileText className="size-4" aria-hidden /> PDF
+                    </a>
                   </div>
                 </div>
                 <div className="mt-4">

@@ -22,6 +22,7 @@ import {
   SunMedium,
   XCircle,
 } from "lucide-react";
+import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
 
 import type { ProblemDiagnosis } from "@/lib/garage-problem-solver";
@@ -182,7 +183,14 @@ export function AyaProblemSolver() {
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="min-w-0 space-y-3">
-          <section className="dc-card p-4">
+          <section className="dc-hero p-4 sm:p-5">
+            <div className="mb-3 flex items-center gap-3">
+              <Image src="/garage-brand/aya/v5/aya-listening.svg" alt="" width={56} height={56} className="dc-aya !size-14" aria-hidden />
+              <div className="min-w-0">
+                <p className="text-base font-black">Ceritakan masalahnya ke AYA</p>
+                <p className="dc-muted text-xs">AYA memeriksa POS, kas, keuangan, gudang, produksi & lainnya lewat tool baca resmi.</p>
+              </div>
+            </div>
             <label htmlFor="aya-input" className="dc-sec-h mb-2"><Sparkles className="size-4" aria-hidden /> Masalah / pertanyaan</label>
             <textarea id="aya-input" className="dc-textarea" rows={3} value={message} onChange={(e) => setMessage(e.target.value.slice(0, 3000))}
               placeholder="Mis. Kenapa kas shift malam selisih Rp250.000 kemarin? / Stok susu minus terus / Dapur lambat jam makan siang" />
@@ -260,7 +268,7 @@ export function AyaProblemSolver() {
                 <p className="mb-2 text-sm font-bold">⭐ {report.rekomendasi}</p>
                 <div className="grid gap-2 md:grid-cols-3">
                   {report.opsi.map((option) => (
-                    <div key={option.id} className="dc-soft flex flex-col gap-2 p-3" data-recommended={option.recommended}>
+                    <div key={option.id} className="dc-soft dc-option flex flex-col gap-2 p-3" data-recommended={option.recommended}>
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-sm font-black">{option.id}. {option.title}</span>
                         <span className="dc-pill" data-tone={option.risk === "R3" ? "R3" : option.risk === "R2" ? "R2" : "R1"}>{option.risk}</span>

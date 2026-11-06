@@ -68,6 +68,10 @@ const nextConfig: NextConfig = {
   // Opt-in for the constrained manual Webpack builder; normal builds keep defaults.
   experimental: {
     webpackMemoryOptimizations: process.env.GARAGE_STANDALONE === "true" && process.env.GARAGE_BUILD_WEBPACK_MEMORY_OPTIMIZATIONS === "true",
+    // Server E2E (e2e/start-server.mjs): MCP dev Next 16 menulis setiap log browser ke .next/dev/logs, yang
+    // memicu recompile → reload penuh → log baru → loop tanpa akhir di /login (tes "flaky"). Hanya dimatikan
+    // untuk server uji; dev biasa tetap default.
+    ...(process.env.GARAGE_E2E_SERVER === "1" ? { mcpServer: false } : {}),
   },
   // pdfkit dibiarkan eksternal (jangan di-bundle webpack): kalau di-bundle,
   // __dirname-nya jadi path palsu (mis. "D:\ROOT\...") sehingga file font .afm

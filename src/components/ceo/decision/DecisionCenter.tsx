@@ -28,6 +28,7 @@ import {
   ThumbsUp,
   XCircle,
 } from "lucide-react";
+import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -336,8 +337,8 @@ export function DecisionCenter() {
           { label: "Gagal dijalankan", value: k?.failedExecution, icon: XCircle, tone: k?.failedExecution ? "red" : undefined },
           { label: "Rata-rata waktu keputusan", value: k?.avgDecisionMinutes, suffix: " mnt", icon: Hourglass },
           { label: "Diputus hari ini", value: k?.decidedToday, icon: CheckCircle2, tone: "green", sub: k ? `${k.approvedToday} setuju · ${k.rejectedToday} tolak` : undefined },
-        ].map((kpi) => (
-          <div key={kpi.label} className="dc-card dc-kpi" data-tone={kpi.tone}>
+        ].map((kpi, index) => (
+          <div key={kpi.label} className="dc-card dc-kpi" data-tone={kpi.tone} style={{ animationDelay: `${index * 45}ms` }}>
             <span className="dc-kpi-icon"><kpi.icon className="size-5" aria-hidden /></span>
             <div className="min-w-0">
               <p className="dc-muted text-xs font-bold">{kpi.label}</p>
@@ -391,7 +392,7 @@ export function DecisionCenter() {
               </p>
             ) : (
               items.map((row) => (
-                <button key={row.id} type="button" className="dc-row dc-enter" data-active={row.id === selectedId} onClick={() => select(row.id)} data-testid="dc-row">
+                <button key={row.id} type="button" className="dc-row dc-enter" data-tier={row.riskTier} data-active={row.id === selectedId} onClick={() => select(row.id)} data-testid="dc-row">
                   <span className="dc-kpi-icon !size-9"><Scale className="size-4" aria-hidden /></span>
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-extrabold">{APPROVAL_CATEGORY_LABEL[row.category as ApprovalCategory] ?? row.type}</span>
@@ -455,9 +456,14 @@ export function DecisionCenter() {
                   <p className="dc-muted mt-1 text-xs">Alasan pemohon: {a.reason}</p>
                 </Section>
                 <section className={`dc-reco dc-enter p-4`} data-tone={recTone}>
-                  <h3 className="dc-sec-h mb-1"><Bot className="size-4" aria-hidden /> Rekomendasi AYA</h3>
-                  <p className="text-lg font-black">{ex.recommendation.title}</p>
-                  <p className="dc-text-2 text-sm">{ex.recommendation.reason}</p>
+                  <div className="flex items-start gap-3">
+                    <Image src="/garage-brand/aya/v5/aya-guiding.svg" alt="" width={64} height={64} className="dc-aya" aria-hidden />
+                    <div className="min-w-0">
+                      <h3 className="dc-sec-h mb-1"><Bot className="size-4" aria-hidden /> Rekomendasi AYA</h3>
+                      <p className="text-lg font-black leading-tight">{ex.recommendation.title}</p>
+                      <p className="dc-text-2 mt-0.5 text-sm">{ex.recommendation.reason}</p>
+                    </div>
+                  </div>
                   <p className="dc-muted mt-1 text-[11px]">Berbasis aturan & data saat diperiksa ({when(detail.checkedAt)}). Bukan keputusan — keputusan tetap di tangan Anda.</p>
                 </section>
                 <Section title="Hasil pemeriksaan" icon={ListChecks}>

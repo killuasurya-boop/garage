@@ -44,4 +44,4 @@ bukan perkiraan.
 
 ## Catatan lingkungan uji
 Server E2E (`e2e/start-server.mjs`) memakai PGlite baru per run. `GARAGE_E2E_SERVER=1` mematikan
-`experimental.mcpServer` Next hanya di server uji. Loop reload `/login` masih bisa muncul sesekali di server uji (bukan bug aplikasi; terlihat dari ratusan "Compiled in" tanpa perubahan kode). Bila terjadi, ulangi E2E; penyebab pastinya belum ditemukan (bukan `mcpServer`, bukan sisa `next build`, bukan `.next/dev/types`).
+`experimental.mcpServer` Next hanya di server uji. Loop reload `/login` di server uji: akar masalahnya cache Turbopack `.next/dev` yang basi — sejak 6 Nov 2026 `e2e/start-server.mjs` selalu menghapusnya sebelum `next dev` (diverifikasi: 0 kompilasi ulang).

@@ -69,3 +69,14 @@ Rollback: revert commit; kolom `expires_at` boleh dibiarkan (nullable).
 | SA-12 … SA-20 (P2) | Diperbaiki + tes |
 | SA-21 | Diperbaiki |
 | SA-22 | Bukan bug (diverifikasi ulang), safe-area ditambah |
+
+## Verifikasi gabungan (6 Nov 2026)
+
+- Release check: katalog API, lockfile, audit, tsc, lint, build OK; vitest penuh **1862/1862**; E2E **13/13**.
+- Satu regresi ditemukan & diperbaiki: diskon kecil berpersentase tinggi (Rp10.000 dari Rp40.000) menjadi R3 → Manajer
+  tak bisa menyetujui. Diskon kini R3 hanya dari nominal ≥ Rp100.000 (`DISCOUNT_R3_MIN_AMOUNT`).
+- Probe audit F-01/F-02/F-03 kini **ditolak** (`approval-policy.integration.test.ts`), F-04/F-05/F-06 tertutup
+  (`approval-reconcile.integration.test.ts`, preview nominal benar, kolom `expires_at`).
+- Visual 1366×900 & 390×844: Decision Center (kelengkapan bukti, dialog R3 2FA), papan Approval (R3 → "Setujui di
+  Decision Center (2FA)"), AI Governance (Kualitas keputusan) — tanpa overflow / error konsol.
+- Loop reload E2E: akar = cache `.next/dev` basi; server uji kini membersihkannya.

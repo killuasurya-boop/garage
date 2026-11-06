@@ -42,6 +42,7 @@ type Overview = {
   kpi: { pending: number; highRisk: number; failedExecution: number; parked: number; decidedToday: number; avgDecisionMinutes: number | null; approvedToday: number; rejectedToday: number };
   queue: QueueItem[];
   decided: QueueItem[];
+  otherQueues?: Array<{ key: string; label: string; count: number; href: string; note: string }>;
 };
 type Detail = {
   approval: DecisionApproval;
@@ -411,6 +412,24 @@ export function DecisionCenter() {
               ))
             )}
           </div>
+          {/* SA-16: antrean keputusan modul lain — hitungan + tautan ke aksi resmi modulnya (baca-saja). */}
+          {overview?.otherQueues?.some((q) => q.count !== 0) ? (
+            <div className="dc-soft mt-3 p-3" data-testid="dc-other-queues">
+              <p className="dc-sec-h mb-2"><ListChecks className="size-4" aria-hidden /> Antrean keputusan lain</p>
+              <ul className="space-y-1 text-sm">
+                {overview.otherQueues
+                  .filter((q) => q.count !== 0)
+                  .map((q) => (
+                    <li key={q.key}>
+                      <a href={q.href} className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 hover:bg-[var(--dc-surface)]" title={q.note}>
+                        <span className="min-w-0 truncate">{q.label}</span>
+                        <span className="dc-pill shrink-0" data-tone={q.count < 0 ? "neutral" : "amber"}>{q.count < 0 ? "tidak terbaca" : q.count}</span>
+                      </a>
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          ) : null}
         </section>
 
         {/* Detail */}
@@ -478,6 +497,14 @@ export function DecisionCenter() {
                       <p className="dc-text-2 mt-0.5 text-sm">{ex.recommendation.reason}</p>
                     </div>
                   </div>
+                  {ex.confidence ? (
+                    <p className="mt-2 flex flex-wrap items-center gap-1.5 text-xs" data-testid="dc-confidence">
+                      <span className="dc-pill" data-tone={ex.confidence.level === "tinggi" ? "green" : ex.confidence.level === "sedang" ? "amber" : "red"}>
+                        Kelengkapan bukti: {ex.confidence.level}
+                      </span>
+                      <span className="dc-muted">{ex.confidence.reason}</span>
+                    </p>
+                  ) : null}
                   <p className="dc-muted mt-1 text-[11px]">Berbasis aturan & data saat diperiksa ({when(detail.checkedAt)}). Bukan keputusan — keputusan tetap di tangan Anda.</p>
                 </section>
                 <Section title="Hasil pemeriksaan" icon={ListChecks}>
@@ -608,7 +635,10 @@ export function DecisionCenter() {
                   Kode 2FA (6 angka) — wajib untuk R3
                   <input className="dc-input mt-1 font-mono tracking-[0.3em]" inputMode="numeric" autoComplete="one-time-code" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} aria-label="Kode 2FA" />
                   {detail?.stepUp && !detail.stepUp.twoFactorEnabled ? (
-                    <span className="mt-1 block text-[12px]" style={{ color: "var(--dc-amber)" }}>2FA belum aktif di akun Anda — aktifkan di Control → 2FA dulu.</span>
+                    <span className="mt-1 block text-[12px]" style={{ color: "var(--dc-amber)" }}>
+                      2FA belum aktif di akun Anda — R3 hanya bisa disetujui setelah 2FA aktif.{" "}
+                      <a href="/control/2fa" className="underline">Aktifkan 2FA sekarang</a>
+                    </span>
                   ) : null}
                 </label>
               ) : null}

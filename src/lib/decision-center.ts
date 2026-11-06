@@ -33,6 +33,15 @@ export type DecisionSubject = {
   order?: { id: string; orderNo: string; status: string; total: number } | null;
   cashSession?: { id: string; status: string; expectedCash: number; actualCash: number | null; discrepancy: number } | null;
   expense?: { id: string; status: string; amount: number } | null;
+  /** SA-17: bukti lintas modul (deterministik, dari DB). */
+  context?: {
+    requesterTotal: number;
+    requesterApproved: number;
+    requesterRejected: number;
+    sameCategory: number;
+    openRiskAlerts: number | null;
+    sameOrderRequests: number;
+  } | null;
   document?: {
     id: string;
     title: string;
@@ -56,6 +65,8 @@ export type DecisionExplanation = {
   changes: string[];
   beforeAfter: Array<{ label: string; before: number | null; after: number | null }> | null;
   followUp: string[];
+  /** SA-17: seberapa lengkap bukti untuk rekomendasi ini (bukan peluang benar). */
+  confidence: { level: "tinggi" | "sedang" | "rendah"; reason: string };
 };
 
 const rp = (n: number | null | undefined) => (n === null || n === undefined ? "—" : `Rp${Math.round(n).toLocaleString("id-ID")}`);
@@ -177,6 +188,25 @@ export function explainApproval(a: DecisionApproval, s: DecisionSubject): Decisi
     unknowns.push("Isi dokumen belum diperiksa AYA (hanya metadata & sidik file).");
   }
 
+  // SA-17: konteks lintas modul — fakta netral & prioritas pemeriksaan, bukan tuduhan.
+  const ctx = s.context ?? null;
+  if (ctx) {
+    facts.push(
+      `Pemohon: ${ctx.requesterTotal} pengajuan dalam 30 hari (${ctx.requesterApproved} disetujui, ${ctx.requesterRejected} ditolak); ${ctx.sameCategory} sejenis.`,
+    );
+    if (ctx.sameOrderRequests > 0) facts.push(`Order ini punya ${ctx.sameOrderRequests} pengajuan lain sebelumnya.`);
+    if (ctx.openRiskAlerts === null) unknowns.push("Alert risiko pemohon tidak bisa dibaca (pemohon tanpa ID akun).");
+    else if (ctx.openRiskAlerts > 0) facts.push(`Ada ${ctx.openRiskAlerts} alert risiko terbuka terkait pemohon (prioritas pemeriksaan, bukan kesimpulan).`);
+    if (ctx.sameCategory >= 3 && a.category !== "dokumen") {
+      hypotheses.push(`Pengajuan sejenis berulang (${ctx.sameCategory}× dalam 30 hari) — layak dilihat polanya sebelum memutus; belum berarti ada kesalahan.`);
+      if (rec.action === "approve" || rec.action === "approve_with_note") {
+        rec = { ...rec, action: "approve_with_note", reason: `${rec.reason} Catatan: pengajuan sejenis berulang ${ctx.sameCategory}× dalam 30 hari.` };
+      }
+    }
+  } else {
+    unknowns.push("Riwayat pemohon tidak dimuat.");
+  }
+
   if (a.reviewState === "revision_requested") followUp.push(`Menunggu bukti/revisi: ${a.reviewNote ?? "-"}`);
   if (a.executionStatus === "failed") {
     followUp.push(`Pelaksanaan gagal (${a.executionAttempts}×): ${a.executionError ?? "-"}. Perbaiki penyebab lalu putuskan ulang.`);
@@ -184,6 +214,13 @@ export function explainApproval(a: DecisionApproval, s: DecisionSubject): Decisi
   }
   if (a.executionStatus === "running") followUp.push("Pelaksanaan belum terverifikasi — cek objek sumber sebelum mengambil tindakan lain.");
 
+  const failedChecks = checks.filter((c) => c.ok === false).length;
+  const sourceMissing = unknowns.some((u) => /tidak ditemukan/i.test(u));
+  const confidence: DecisionExplanation["confidence"] = sourceMissing
+    ? { level: "rendah", reason: "Data sumber tidak ditemukan — rekomendasi hanya dari aturan umum." }
+    : failedChecks > 0 || unknowns.length > 1
+      ? { level: "sedang", reason: `${failedChecks} pemeriksaan tidak sesuai, ${unknowns.length} hal belum diketahui.` }
+      : { level: "tinggi", reason: `Semua ${checks.length} pemeriksaan sesuai dan bukti utama tersedia.` };
   const money = a.category !== "stok" && a.category !== "lainnya" && a.category !== "dokumen";
   return {
     problem: PROBLEM[a.category],
@@ -217,6 +254,7 @@ export function explainApproval(a: DecisionApproval, s: DecisionSubject): Decisi
     changes: CHANGES[a.category],
     beforeAfter,
     followUp,
+    confidence,
   };
 }
 

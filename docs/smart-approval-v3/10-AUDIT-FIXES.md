@@ -36,3 +36,15 @@ Rollback: revert commit Tahap A (tanpa migrasi).
 
 Catatan: biaya besar tetap dua tingkat — review Manajer (uang belum bergerak) lalu final Owner + kode 2FA.
 Rollback: revert commit; kolom `expires_at` boleh dibiarkan (nullable).
+
+## Tahap C — P2 kecerdasan & UX (tanpa migrasi)
+
+| Temuan | Perbaikan | Bukti tes |
+|---|---|---|
+| SA-17 rekomendasi = aturan tetap | Bukti lintas modul deterministik di Decision Center: riwayat pemohon 30 hari (total/disetujui/ditolak/sejenis), alert risiko B6 yang masih terbuka atas nama pemohon, pengajuan lain untuk order yang sama. Pola berulang (≥3 sejenis) → dugaan netral + rekomendasi "setujui dengan catatan". **Kelengkapan bukti** tinggi/sedang/rendah dari hasil pemeriksaan (bukan peluang benar), tampil di kartu rekomendasi & PDF. Tes memastikan tidak ada kata menuduh. | `decision-intel.integration.test.ts` |
+| SA-16 antrean terpecah | `getDecisionQueues` (baca-saja): final Owner shift, kas keluar laci, petty cash (diajukan / belum dibayar), PO, waste, opname — hitungan + tautan ke aksi resmi modulnya. Modul yang gagal dibaca tampil "tidak terbaca". | idem |
+| SA-15 riwayat tanpa batas | Overview = semua pending + riwayat 30 hari (maks 150). | idem |
+| SA-14 timeline tanpa peristiwa pembuatan | Timeline juga mencari `metadata.approvalId`. | idem |
+| SA-18 istilah menuduh | Smart Audit: "Tren naik" / "Perlu pemeriksaan berulang". | — |
+| SA-19 Tanya AYA membuat tantangan 2FA | `getDecisionDetail(..., { stepUp: false })`. | idem |
+| SA-20 Owner tanpa 2FA | Pesan + tautan "Aktifkan 2FA sekarang" di dialog R3; jalur lain kini juga menolak R3 tanpa 2FA. | Tahap A |

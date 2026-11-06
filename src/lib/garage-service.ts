@@ -5647,7 +5647,14 @@ export async function requestManualDiscountApproval(
   return { approvalId, status: "pending" as const, amount };
 }
 
-export async function getApprovalData(params?: { status?: string; viewer?: GarageSession }) {
+export async function getApprovalData(params?: {
+  status?: string;
+  viewer?: GarageSession;
+  /** Audit SA-15: riwayat dibatasi (Decision Center tidak memuat seluruh sejarah tiap 60 detik). */
+  excludeStatus?: string;
+  createdSince?: Date;
+  limit?: number;
+}) {
   // Manajer melihat pengajuan outletnya + pengajuan lama tanpa outlet; Owner semua.
   const viewer = params?.viewer;
   const outletScope =
@@ -5659,8 +5666,17 @@ export async function getApprovalData(params?: { status?: string; viewer?: Garag
   const rows = await getDb()
     .select()
     .from(approvals)
-    .where(and(params?.status ? eq(approvals.status, params.status) : undefined, outletScope, ownerOnlyScope))
-    .orderBy(desc(approvals.createdAt));
+    .where(
+      and(
+        params?.status ? eq(approvals.status, params.status) : undefined,
+        params?.excludeStatus ? ne(approvals.status, params.excludeStatus) : undefined,
+        params?.createdSince ? gte(approvals.createdAt, params.createdSince) : undefined,
+        outletScope,
+        ownerOnlyScope,
+      ),
+    )
+    .orderBy(desc(approvals.createdAt))
+    .limit(params?.limit ?? 100_000);
 
   return rows.map(mapApprovalRow);
 }

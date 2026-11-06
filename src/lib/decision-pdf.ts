@@ -90,6 +90,7 @@ export async function renderDecisionPdf(d: DecisionPdfInput) {
   const recAction = REC_LABEL[ex.recommendation.action] ?? ex.recommendation.action;
   w.paragraph(ex.recommendation.title.startsWith(recAction) ? ex.recommendation.title : `${recAction}: ${ex.recommendation.title}`, { bold: true });
   w.paragraph(ex.recommendation.reason);
+  if (ex.confidence) w.paragraph(`Kelengkapan bukti: ${ex.confidence.level} — ${ex.confidence.reason}`);
   w.paragraph("Rekomendasi aturan, bukan keputusan. Keputusan tetap di tangan Owner.", { color: PDF_MUTED, size: 7.5 });
 
   w.section("E. Konsekuensi tiap pilihan");

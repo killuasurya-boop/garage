@@ -1,10 +1,11 @@
 // Owner Decision Center — loader & aksi server (Smart Approval V3, Batch 4). Owner saja.
 // Keputusan memakai jalur resmi `decideApproval` (STALE + status pelaksanaan) dan R3 wajib 2FA lewat
 // tantangan step-up yang terikat ke sidik data yang dilihat Owner.
-import { desc, eq } from "drizzle-orm";
+import { and, count, desc, eq, gte, ne, or, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { approvals, auditLogs, user } from "@/db/schema";
+import { approvals, auditLogs, riskAlerts, user } from "@/db/schema";
+import { approvalCategoryOf } from "@/lib/approval-rules";
 import { decisionPriority, explainApproval, type DecisionApproval, type DecisionSubject } from "@/lib/decision-center";
 import {
   ApprovalPolicyError,
@@ -15,6 +16,7 @@ import {
   reviewApproval,
 } from "@/lib/garage-service";
 import type { GarageSession } from "@/lib/server-auth";
+import { getDecisionQueues } from "@/lib/decision-queues";
 import { approvalSubjectSnapshot } from "@/lib/smart-approval-snapshot";
 import { consumeStepUpChallenge, createStepUpChallenge, StepUpError } from "@/lib/step-up-totp";
 
@@ -65,7 +67,14 @@ function toDecision(row: ApprovalView): DecisionApproval {
 
 export async function getDecisionOverview(session: GarageSession) {
   assertOwner(session);
-  const rows = (await getApprovalData({ viewer: session })).map(toDecision);
+  // SA-15: semua yang menunggu + riwayat 30 hari (maks 150) — bukan seluruh sejarah.
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const [pendingRows, decidedRows, otherQueues] = await Promise.all([
+    getApprovalData({ status: "pending", viewer: session }),
+    getApprovalData({ viewer: session, excludeStatus: "pending", createdSince: since, limit: 150 }),
+    getDecisionQueues(),
+  ]);
+  const rows = [...pendingRows, ...decidedRows].map(toDecision);
   const now = Date.now();
   const dayStart = new Date(`${new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date())}T00:00:00+07:00`).getTime();
   const pending = rows.filter((row) => row.status === "pending");
@@ -85,7 +94,57 @@ export async function getDecisionOverview(session: GarageSession) {
     .map((row) => ({ ...row, priority: decisionPriority(row, now) }))
     .sort((a, b) => b.priority - a.priority);
   const decided = rows.filter((row) => row.status !== "pending").slice(0, 100);
-  return { generatedAt: new Date().toISOString(), kpi, queue, decided };
+  return { generatedAt: new Date().toISOString(), kpi, queue, decided, otherQueues };
+}
+
+/** SA-17: bukti lintas modul untuk satu pengajuan (30 hari). Gagal dibaca → null (ditandai "belum diketahui"). */
+async function loadDecisionContext(row: typeof approvals.$inferSelect): Promise<DecisionSubject["context"]> {
+  try {
+    const db = getDb();
+    const payload = (row.payload ?? {}) as { requestedBy?: string; orderId?: string };
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const requesterId = payload.requestedBy && !payload.requestedBy.includes(" / ") ? payload.requestedBy : null;
+    const history = await db
+      .select({ id: approvals.id, type: approvals.type, status: approvals.status })
+      .from(approvals)
+      .where(
+        and(
+          gte(approvals.createdAt, since),
+          ne(approvals.id, row.id),
+          requesterId
+            ? or(sql`${approvals.payload}->>'requestedBy' = ${requesterId}`, eq(approvals.requester, row.requester))
+            : eq(approvals.requester, row.requester),
+        ),
+      );
+    const category = approvalCategoryOf(row);
+    let openRiskAlerts: number | null = null;
+    if (requesterId) {
+      const [alerts] = await db
+        .select({ n: count() })
+        .from(riskAlerts)
+        .where(and(eq(riskAlerts.personUserId, requesterId), eq(riskAlerts.disposition, "OPEN")));
+      openRiskAlerts = Number(alerts?.n ?? 0);
+    }
+    let sameOrderRequests = 0;
+    if (payload.orderId) {
+      const [same] = await db
+        .select({ n: count() })
+        .from(approvals)
+        .where(and(ne(approvals.id, row.id), sql`${approvals.payload}->>'orderId' = ${payload.orderId}`));
+      sameOrderRequests = Number(same?.n ?? 0);
+    }
+    return {
+      requesterTotal: history.length,
+      requesterApproved: history.filter((h) => h.status === "approved").length,
+      requesterRejected: history.filter((h) => h.status === "rejected").length,
+      sameCategory: history.filter((h) => approvalCategoryOf(h) === category).length,
+      openRiskAlerts,
+      sameOrderRequests,
+    };
+  } catch (error) {
+    console.error("[decision-center] konteks gagal dimuat", error);
+    return null;
+  }
 }
 
 export async function getDecisionDetail(session: GarageSession, id: string, options: { stepUp?: boolean } = {}) {
@@ -100,12 +159,14 @@ export async function getDecisionDetail(session: GarageSession, id: string, opti
     cashSession: snapshot.cashSession ?? null,
     expense: snapshot.expense ?? null,
     document: snapshot.document ?? null,
+    context: await loadDecisionContext(row),
   };
   const explanation = explainApproval(approval, subject);
   const timeline = await getDb()
     .select({ time: auditLogs.createdAt, actor: auditLogs.actor, action: auditLogs.action, status: auditLogs.status })
     .from(auditLogs)
-    .where(eq(auditLogs.object, id))
+    // SA-14: audit pembuatan void/refund/PCX memakai object = no. order; id pengajuan ada di metadata.
+    .where(or(eq(auditLogs.object, id), sql`${auditLogs.metadata}->>'approvalId' = ${id}`))
     .orderBy(desc(auditLogs.createdAt))
     .limit(40);
   const [me] = await getDb().select({ twoFactorEnabled: user.twoFactorEnabled }).from(user).where(eq(user.id, session.user.id)).limit(1);
@@ -186,7 +247,8 @@ export async function decideFromDecisionCenter(
 /** Tanya AYA tentang satu pengajuan. Konteks hanya angka/status/kategori; jawaban = saran, bukan keputusan. */
 export async function askAyaAboutApproval(session: GarageSession, id: string, question: string) {
   assertOwner(session);
-  const detail = await getDecisionDetail(session, id);
+  // SA-19: bertanya ke AYA tidak membuat tantangan 2FA.
+  const detail = await getDecisionDetail(session, id, { stepUp: false });
   const context = {
     task: "Jawab pertanyaan Owner tentang pengajuan ini dalam bahasa Indonesia singkat. JANGAN memutus atau mengeksekusi.",
     question: question.slice(0, 500),

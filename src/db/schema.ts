@@ -2224,7 +2224,7 @@ export const crmCampaignLogs = pgTable(
   }),
 );
 
-// CX Engine V4 (Nov 2026, migration 0181): izin promosi WhatsApp member — append-only.
+// CX Engine V4 (Nov 2026, migration 0182): izin promosi WhatsApp member — append-only.
 // Izin aktif = baris terbaru per (customer, channel). Opt-out = baris baru granted=false.
 export const customerMarketingConsents = pgTable(
   "customer_marketing_consents",

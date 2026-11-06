@@ -169,7 +169,8 @@ describe("Kas laci — pencatatan & klasifikasi", () => {
       svc.recordCashMovement({ type: "out", categoryKey: "kasbon", description: "Kasbon mendesak", amount: 20_000 }, kasir()),
     ).rejects.toMatchObject({ code: "FIELD_REQUIRED" });
     const res = await svc.recordCashMovement(
-      { type: "out", categoryKey: "kasbon", description: "Kasbon mendesak", amount: 20_000, employeeUserId: BARISTA },
+      // Owner 6 Nov 2026: kasbon tetap perlu ACC (PIN Manajer).
+      { type: "out", categoryKey: "kasbon", description: "Kasbon mendesak", amount: 20_000, employeeUserId: BARISTA, managerPin: MANAGER_PIN },
       kasir(),
     );
     ids.kasbon = res.id;
@@ -287,19 +288,13 @@ describe("Kas laci — persetujuan, refund, setoran", () => {
     expect(await expectedCash()).toBe(100_000);
   });
 
-  it("setoran ke rekening pakai PIN Manajer → tercatat, bukan biaya; penerima lain mengonfirmasi bukti setor", async () => {
-    await expect(
-      svc.recordCashMovement(
-        { type: "out", categoryKey: "setoran", description: "Setoran siang", amount: 40_000, counterparty: "Kasir A", depositAccount: "bank_jago", managerPin: "000000" },
-        kasir(),
-      ),
-    ).rejects.toThrow(/PIN salah/);
+  it("setoran ke rekening langsung tercatat tanpa ACC (Owner 6 Nov 2026), bukan biaya; penerima lain mengonfirmasi bukti setor", async () => {
     const res = await svc.recordCashMovement(
-      { type: "out", categoryKey: "setoran", description: "Setoran siang", amount: 40_000, counterparty: "Kasir A", depositAccount: "bank_jago", managerPin: MANAGER_PIN },
+      { type: "out", categoryKey: "setoran", description: "Setoran siang", amount: 40_000, counterparty: "Kasir A", depositAccount: "bank_jago" },
       kasir(),
     );
     expect(res.status).toBe("recorded");
-    expect(res.approvedByName).toBe("Manajer Kas");
+    expect(res.approvedByName).toBeNull();
     expect(res.expenseId).toBeNull();
     expect(await expectedCash()).toBe(60_000);
     const { accountBalance } = await import("@/lib/cash-ledger");
@@ -322,11 +317,12 @@ describe("Kas laci — persetujuan, refund, setoran", () => {
     ).rejects.toMatchObject({ code: "CATEGORY_RETIRED" });
   });
 
-  it("pengajuan di atas batas yang ditolak tetap tersimpan dengan alasan", async () => {
+  it("pengajuan (kasbon wajib ACC) yang ditolak tetap tersimpan dengan alasan", async () => {
     const pending = await svc.recordCashMovement(
-      { type: "out", categoryKey: "belanja_bar", description: "Beli biji kopi 1 kg", amount: 60_000, submitForApproval: true },
+      { type: "out", categoryKey: "kasbon", description: "Kasbon tambahan", amount: 60_000, employeeUserId: BARISTA, submitForApproval: true },
       kasir(),
     );
+    expect(pending.status).toBe("pending_approval");
     await expect(svc.decideCashMovement(pending.id, { action: "reject" }, manajer())).rejects.toMatchObject({
       code: "REASON_REQUIRED",
     });
@@ -414,7 +410,8 @@ describe("Kas laci — koreksi, pembatalan, akses", () => {
 describe("Kas laci — rekonsiliasi, tutup & ganti shift, PDF", () => {
   it("ringkasan shift: hanya transaksi tercatat, per kelompok, rumus kas akhir konsisten", async () => {
     const pending = await svc.recordCashMovement(
-      { type: "out", categoryKey: "setoran", description: "Setoran sore", amount: 50_000, counterparty: "Kasir A", depositAccount: "bank_bni", submitForApproval: true },
+      // Kasbon tetap wajib ACC → pengajuan tertunda (uang belum bergerak).
+      { type: "out", categoryKey: "kasbon", description: "Kasbon sore", amount: 50_000, employeeUserId: BARISTA, submitForApproval: true },
       kasir(),
     );
     expect(pending.status).toBe("pending_approval");

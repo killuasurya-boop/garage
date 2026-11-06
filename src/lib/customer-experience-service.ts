@@ -2,7 +2,7 @@
 // Customer Experience Engine V4 (Nov 2026) — lapisan server (DB). Tidak membuat
 // database pelanggan/loyalty kedua: membaca customers, member_accounts, vouchers,
 // voucher_redemptions, point_redemptions, crm_campaign_logs yang sudah ada.
-// Tabel baru (migration 0181) hanya: izin promosi (append-only) + event funnel.
+// Tabel baru (migration 0182) hanya: izin promosi (append-only) + event funnel.
 //
 // Keamanan:
 // - Token invoice ≠ bukti kepemilikan akun. Konteks member hanya dari sesi member

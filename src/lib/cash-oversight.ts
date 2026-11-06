@@ -213,6 +213,41 @@ export async function getCashOversight(input: { fromDate: string; toDate: string
     (m.status === "pending_approval" ? queues.cash_out_pending : queues.deposit_unconfirmed).push(item);
   }
 
+  // ── Kas keluar tanpa nota (Owner 6 Nov 2026: kas keluar langsung tercatat tanpa ACC → diperiksa setelahnya) ──
+  const { getAppSettings } = await import("@/lib/garage-service");
+  const receiptMin = Number((await getAppSettings(outletId)).cashMovementPinThreshold ?? 50_000);
+  const noReceipt = await db
+    .select({ movement: cashMovements, createdByName: creator.name })
+    .from(cashMovements)
+    .leftJoin(creator, eq(creator.id, cashMovements.createdBy))
+    .where(
+      and(
+        gte(cashMovements.movementAt, from),
+        lt(cashMovements.movementAt, to),
+        outletCond(cashMovements.outletId),
+        eq(cashMovements.type, "cash_out"),
+        eq(cashMovements.status, "recorded"),
+        isNull(cashMovements.receiptPhoto),
+        isNull(cashMovements.depositAccount),
+        gte(cashMovements.amount, receiptMin),
+      ),
+    )
+    .orderBy(asc(cashMovements.movementAt));
+  for (const { movement: m, createdByName } of noReceipt) {
+    queues.cash_out_no_receipt.push({
+      id: m.id,
+      ref: m.refNo ?? m.id.slice(0, 8),
+      title: `${m.category} · ${rupiah(m.amount)}`,
+      detail: `${m.description} · belum ada foto nota`,
+      outletCode: codeOf(m.outletId),
+      person: createdByName ?? null,
+      amount: m.amount,
+      at: m.movementAt.toISOString(),
+      ageHours: ageHours(m.movementAt),
+      href: "/pos",
+    });
+  }
+
   // ── Petty cash terbuka ───────────────────────────────────────────────────
   const petty = await db
     .select({ entry: pettyCashEntries, createdByName: user.name })

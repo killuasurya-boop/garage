@@ -243,6 +243,7 @@ import {
   type ApprovalReviewState,
 } from "@/lib/smart-approval";
 import { hashPin, pinHashEquals } from "@/lib/attendance";
+import { OPENING_CASH_DEFAULT_MAX, openingCashError } from "@/lib/opening-cash";
 import {
   APPROVAL_PIN_OUTLET_POLICY,
   APPROVAL_PIN_POLICY,
@@ -448,6 +449,11 @@ type CashSessionInput = {
   /** Hitungan lembar/keping modal awal; bila diisi, totalnya wajib = openingCash. */
   openingDenominations?: Record<string, number>;
 };
+
+/** Modal awal di luar aturan (bukan kelipatan Rp100 / melewati batas Pengaturan). */
+export class OpeningCashInvalidError extends Error {
+  code = "OPENING_CASH_INVALID";
+}
 
 export class OpeningDenominationMismatchError extends Error {
   code = "OPENING_DENOMINATION_MISMATCH";
@@ -17093,13 +17099,52 @@ async function insertCashMovementInTx(
   return movement;
 }
 
+/** Total kas keluar tercatat (bukan pengajuan/batal) di shift kasir yang sedang buka. 0 bila tidak ada shift. */
+async function cashOutTotalForOpenShift(garage: GarageSession) {
+  const db = getDb();
+  const [session] = await db
+    .select({ id: cashSessions.id })
+    .from(cashSessions)
+    .where(
+      and(
+        eq(cashSessions.outletId, garage.profile.outlet.id),
+        eq(cashSessions.openedBy, garage.user.id),
+        eq(cashSessions.status, "open"),
+      ),
+    )
+    .limit(1);
+  if (!session) return 0;
+  const [row] = await db
+    .select({ total: sql<number>`coalesce(sum(${cashMovements.amount}), 0)::int` })
+    .from(cashMovements)
+    .where(
+      and(
+        eq(cashMovements.cashSessionId, session.id),
+        eq(cashMovements.type, "cash_out"),
+        eq(cashMovements.status, "recorded"),
+      ),
+    );
+  return Number(row?.total ?? 0);
+}
+
 export async function recordCashMovement(input: CashMovementInput, garage: GarageSession) {
   const prepared = await prepareCashMovement(input, garage);
   const settings = await getAppSettings(garage.profile.outlet.id);
   const isSupervisor = garage.profile.role === "Owner" || garage.profile.role === "Manajer";
   let approver: { userId: string; name: string } | null = null;
   let status: "recorded" | "pending_approval" = "recorded";
-  if (!isSupervisor && cashDrawerNeedsApproval(prepared.def, prepared.amount, settings.cashMovementPinThreshold)) {
+  // Owner 6 Nov 2026: kas keluar/masuk langsung tercatat; ACC hanya kasbon/refund atau bila total kas keluar
+  // kasir di shift ini melewati batas per shift (Pengaturan → Shift & Cash).
+  const shiftUsage =
+    !isSupervisor && prepared.def.direction === "out" ? await cashOutTotalForOpenShift(garage) : null;
+  const needsApproval =
+    !isSupervisor &&
+    cashDrawerNeedsApproval(
+      prepared.def,
+      prepared.amount,
+      shiftUsage !== null ? { outTotalBefore: shiftUsage, limit: settings.cashMovementShiftLimit } : null,
+    );
+  if (needsApproval) {
     if (input.managerPin?.trim()) {
       const found = await resolveApproverByPin(
         input.managerPin.trim(),
@@ -17113,7 +17158,7 @@ export async function recordCashMovement(input: CashMovementInput, garage: Garag
       throw new CashMovementPinRequiredError(
         prepared.def.requiresApproval
           ? `${prepared.def.label} perlu persetujuan Manajer/Owner (PIN atau kirim pengajuan).`
-          : `Kas keluar/masuk mulai ${idrFormatter.format(settings.cashMovementPinThreshold)} perlu PIN Manajer/Owner atau kirim pengajuan.`,
+          : `Total kas keluar shift ini melewati batas ${idrFormatter.format(settings.cashMovementShiftLimit)} — perlu PIN Manajer/Owner atau kirim pengajuan.`,
       );
     }
   }
@@ -18870,6 +18915,10 @@ export async function getTodayCashShiftStatus(garage: GarageSession) {
 }
 
 export async function createCashSession(input: CashSessionInput, garage: GarageSession) {
+  // Owner 6 Nov 2026: modal awal bebas (kelipatan Rp100) sampai batas Pengaturan → Shift.
+  const openingPolicy = await getAppSettings(garage.profile.outlet.id);
+  const openingProblem = openingCashError(input.openingCash, openingPolicy.shiftOpeningCashMax ?? OPENING_CASH_DEFAULT_MAX);
+  if (openingProblem) throw new OpeningCashInvalidError(openingProblem);
   const openingDenominations = Object.fromEntries(
     Object.entries(input.openingDenominations ?? {}).filter(
       ([key, qty]) => isValidDenominationKey(key) && Number.isInteger(qty) && qty > 0,

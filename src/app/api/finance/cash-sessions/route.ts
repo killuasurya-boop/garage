@@ -2,12 +2,14 @@ import { z } from "zod";
 
 import { fail, ok, readJson } from "@/lib/api-response";
 import { isValidDenominationKey } from "@/lib/cash-denominations";
+import { OPENING_CASH_HARD_MAX, OPENING_CASH_STEP } from "@/lib/opening-cash";
 import {
   CashSessionAlreadyOpenError,
   CashSessionDailyLimitError,
   CashSessionOutletAlreadyOpenError,
   CashSessionShiftMismatchError,
   createCashSession,
+  OpeningCashInvalidError,
   OpeningDenominationMismatchError,
 } from "@/lib/garage-service";
 import { requireAnyPermission } from "@/lib/server-auth";
@@ -15,13 +17,14 @@ import { requireAnyPermission } from "@/lib/server-auth";
 export const runtime = "nodejs";
 
 const cashSessionSchema = z.object({
+  // Owner 6 Nov 2026: modal awal bebas sesuai uang di laci (kelipatan Rp100); batas atas dari Pengaturan dicek di server.
   openingCash: z
     .number()
     .int()
-    .min(50000, "Opening cash minimal Rp 50.000.")
-    .max(500000, "Opening cash maksimal Rp 500.000.")
-    .refine((value) => value % 50000 === 0, {
-      message: "Opening cash harus kelipatan Rp 50.000.",
+    .positive("Modal awal harus lebih dari Rp0.")
+    .max(OPENING_CASH_HARD_MAX, "Modal awal terlalu besar.")
+    .refine((value) => value % OPENING_CASH_STEP === 0, {
+      message: "Modal awal harus kelipatan Rp100 (koin terkecil).",
     }),
   shiftNumber: z.number().int().min(1).max(9).optional(),
   managerPin: z.string().trim().regex(/^\d{4,8}$/, "PIN harus 4–8 digit angka.").optional(),
@@ -44,6 +47,9 @@ export async function POST(request: Request) {
   try {
     return ok(await createCashSession(body.data, session.data), { status: 201 });
   } catch (error) {
+    if (error instanceof OpeningCashInvalidError) {
+      return fail(422, error.code, error.message);
+    }
     if (error instanceof OpeningDenominationMismatchError) {
       return fail(422, error.code, error.message);
     }

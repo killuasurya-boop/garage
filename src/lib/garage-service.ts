@@ -1,9 +1,9 @@
 import { createHash, randomBytes, randomInt, randomUUID } from "crypto";
 import { parseDigitalMenuMode } from "@/lib/digital-menu-mode";
 
-import { and, asc, count, desc, eq, gte, ilike, inArray, isNotNull, isNull, lt, lte, ne, not, notInArray, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, inArray, isNotNull, isNull, lt, lte, ne, not, notIlike, notInArray, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
-import { assertAgentMayWriteSettings } from "@/lib/agent-protected-settings";
+import { assertAgentMayWriteSettings, assertRoleMayWriteSettings } from "@/lib/agent-protected-settings";
 import { releaseEventQuotaForOrder, resolveEventCheckoutCart } from "@/lib/event-menu-service";
 import type { EventCartItem } from "@/lib/event-menu-types";
 
@@ -229,6 +229,19 @@ import {
   type ApprovalPayload,
   type RefundPayloadItem,
 } from "@/lib/approval-rules";
+import {
+  approvalRiskTier,
+  autoApprovalDecision,
+  bulkDecisionBlockReason,
+  approvalExpiresAt,
+  canDecideForOutlet,
+  decisionPolicyBlock,
+  ownerOnlyApproval,
+  type DecisionChannel,
+  parseRupiahLabel,
+  type ApprovalExecutionStatus,
+  type ApprovalReviewState,
+} from "@/lib/smart-approval";
 import { hashPin, pinHashEquals } from "@/lib/attendance";
 import {
   APPROVAL_PIN_OUTLET_POLICY,
@@ -5462,12 +5475,82 @@ function mapApprovalRow(row: typeof approvals.$inferSelect) {
     reasonDecided: row.reasonDecided,
     payload: (row.payload ?? {}) as ApprovalPayload,
     createdAt: row.createdAt.toISOString(),
+    // Smart Approval V3
+    outletId: row.outletId ?? null,
+    amountValue: row.amountValue ?? null,
+    riskTier: approvalRiskTier(row),
+    executionStatus: row.executionStatus as ApprovalExecutionStatus,
+    executionError: row.executionError ?? null,
+    executionAttempts: row.executionAttempts,
+    executedAt: row.executedAt?.toISOString() ?? null,
+    reviewState: (row.reviewState ?? null) as ApprovalReviewState | null,
+    reviewNote: row.reviewNote ?? null,
+    reviewAt: row.reviewAt?.toISOString() ?? null,
   };
 }
 
 export async function getApprovalById(id: string) {
   const [row] = await getDb().select().from(approvals).where(eq(approvals.id, id)).limit(1);
   if (!row) return null;
+  return mapApprovalRow(row);
+}
+
+/** Sidik objek sumber pengajuan saat ini (untuk preview; dibandingkan lagi saat diputus). */
+export async function getApprovalSnapshotHash(id: string) {
+  const [row] = await getDb().select().from(approvals).where(eq(approvals.id, id)).limit(1);
+  if (!row) return null;
+  const { approvalSubjectSnapshot } = await import("@/lib/smart-approval-snapshot");
+  return (await approvalSubjectSnapshot(row)).hash;
+}
+
+/**
+ * Tunda / Minta bukti-revisi (Smart Approval V3): keputusan tetap "pending", tidak ada efek ke uang/stok.
+ * Hanya pemutus yang berwenang untuk outlet itu; catatan wajib; tercatat di audit.
+ */
+export async function reviewApproval(
+  id: string,
+  input: { action: "defer" | "request_revision" | "clear"; note?: string },
+  garage: GarageSession,
+) {
+  const note = input.note?.trim().slice(0, 500) || null;
+  if (input.action !== "clear" && (!note || note.length < 5)) {
+    throw new Error("Catatan wajib diisi minimal 5 karakter.");
+  }
+  const db = getDb();
+  const [current] = await db.select().from(approvals).where(eq(approvals.id, id)).limit(1);
+  if (!current) return null;
+  if (current.status !== "pending") throw new Error("Pengajuan ini sudah diputuskan.");
+  if (!canDecideForOutlet(garage.profile.role, garage.profile.outlet?.id, current.outletId)) {
+    throw new Error("Pengajuan ini milik outlet lain.");
+  }
+  if (garage.profile.agentKey) {
+    throw new ApprovalPolicyError("AGENT_CANNOT_DECIDE", "API key agent tidak boleh menunda atau meminta revisi pengajuan.");
+  }
+  if (ownerOnlyApproval(current.id) && garage.profile.role !== "Owner") {
+    throw new Error("Pengajuan dokumen hanya diputus Owner.");
+  }
+  const reviewState = input.action === "defer" ? "deferred" : input.action === "request_revision" ? "revision_requested" : null;
+  const [row] = await db
+    .update(approvals)
+    .set({
+      reviewState,
+      reviewNote: reviewState ? note : null,
+      reviewBy: reviewState ? garage.user.id : null,
+      reviewAt: reviewState ? new Date() : null,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(approvals.id, id), eq(approvals.status, "pending")))
+    .returning();
+  if (!row) throw new Error("Pengajuan ini sudah diputuskan.");
+  await createAuditLog({
+    actor: `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`,
+    action:
+      input.action === "defer" ? "Pengajuan ditunda" : input.action === "request_revision" ? "Minta bukti/revisi pengajuan" : "Status tunda/revisi dihapus",
+    object: id,
+    device: garage.profile.deviceLabel,
+    status: reviewState ?? "pending",
+    metadata: { note, before: current.reviewState ?? null, after: reviewState },
+  });
   return mapApprovalRow(row);
 }
 
@@ -5541,6 +5624,9 @@ export async function requestManualDiscountApproval(
       status: "pending",
       // Approval terkunci ke nominal ini & kasir peminta (dipakai saat order).
       payload: { discountAmount: amount, requestedBy: garage.user.id } satisfies ApprovalPayload,
+      outletId: garage.profile.outlet?.id ?? null,
+      amountValue: Math.round(amount),
+      expiresAt: approvalExpiresAt(approvalId, new Date()),
     });
 
   await createAuditLog({
@@ -5561,21 +5647,51 @@ export async function requestManualDiscountApproval(
   return { approvalId, status: "pending" as const, amount };
 }
 
-export async function getApprovalData(params?: { status?: string }) {
+export async function getApprovalData(params?: {
+  status?: string;
+  viewer?: GarageSession;
+  /** Audit SA-15: riwayat dibatasi (Decision Center tidak memuat seluruh sejarah tiap 60 detik). */
+  excludeStatus?: string;
+  createdSince?: Date;
+  limit?: number;
+}) {
+  // Manajer melihat pengajuan outletnya + pengajuan lama tanpa outlet; Owner semua.
+  const viewer = params?.viewer;
+  const outletScope =
+    viewer && viewer.profile.role !== "Owner" && viewer.profile.outlet?.id
+      ? or(eq(approvals.outletId, viewer.profile.outlet.id), isNull(approvals.outletId))
+      : undefined;
+  // Batch 7: pengajuan dokumen (APP-DOC) hanya untuk Owner.
+  const ownerOnlyScope = viewer && viewer.profile.role !== "Owner" ? notIlike(approvals.id, "APP-DOC-%") : undefined;
   const rows = await getDb()
     .select()
     .from(approvals)
-    .where(params?.status ? eq(approvals.status, params.status) : undefined)
-    .orderBy(desc(approvals.createdAt));
+    .where(
+      and(
+        params?.status ? eq(approvals.status, params.status) : undefined,
+        params?.excludeStatus ? ne(approvals.status, params.excludeStatus) : undefined,
+        params?.createdSince ? gte(approvals.createdAt, params.createdSince) : undefined,
+        outletScope,
+        ownerOnlyScope,
+      ),
+    )
+    .orderBy(desc(approvals.createdAt))
+    .limit(params?.limit ?? 100_000);
 
   return rows.map(mapApprovalRow);
 }
 
 // Aggregate stats untuk header bar di Approvals Board.
 // Hitung on-the-fly, no caching needed (volume harian biasanya <100 baris).
-export async function getApprovalStats() {
+export async function getApprovalStats(viewer?: GarageSession) {
   const db = getDb();
-  const allRows = await db.select().from(approvals);
+  // Smart Approval V3: Manajer hanya menghitung pengajuan outletnya (+ lama tanpa outlet).
+  const outletScope =
+    viewer && viewer.profile.role !== "Owner" && viewer.profile.outlet?.id
+      ? or(eq(approvals.outletId, viewer.profile.outlet.id), isNull(approvals.outletId))
+      : undefined;
+  const ownerOnlyScope = viewer && viewer.profile.role !== "Owner" ? notIlike(approvals.id, "APP-DOC-%") : undefined;
+  const allRows = await db.select().from(approvals).where(and(outletScope, ownerOnlyScope));
 
   const now = Date.now();
   const todayMs = getJakartaTodayRange().start.getTime();
@@ -11577,7 +11693,7 @@ async function createOrderOnce(
         );
       }
       const [approval] = await db
-        .select({ id: approvals.id, status: approvals.status, type: approvals.type, payload: approvals.payload })
+        .select({ id: approvals.id, status: approvals.status, type: approvals.type, payload: approvals.payload, expiresAt: approvals.expiresAt })
         .from(approvals)
         .where(eq(approvals.id, approvalId))
         .limit(1);
@@ -11586,6 +11702,10 @@ async function createOrderOnce(
       }
       if (approval.status !== "approved") {
         throw new Error("Approval diskon manual belum disetujui.");
+      }
+      // Audit SA-05: persetujuan diskon berlaku terbatas (lihat APPROVAL_TTL_HOURS).
+      if (approval.expiresAt && approval.expiresAt.getTime() < Date.now()) {
+        throw new Error("Approval diskon ini sudah kedaluwarsa. Minta approval baru.");
       }
       // Approval hanya berlaku untuk kasir peminta & maksimal nominal yang
       // disetujui (dulu approval apa pun membuka diskon sampai batas maksimum).
@@ -13953,6 +14073,8 @@ export async function createStockOpname(input: StockOpnameInput, garage: GarageS
           risk: Math.abs(totalDelta) >= 10 ? "high" : "medium",
           age: "baru saja",
           status: "pending",
+          outletId: targetOutletId ?? null,
+          payload: { requestedBy: garage.user.id } satisfies ApprovalPayload,
         })
         .onConflictDoNothing();
     }
@@ -14491,6 +14613,7 @@ export async function updateAppSettings(
   garage: GarageSession,
 ): Promise<AppSettings> {
   assertAgentMayWriteSettings(garage, Object.keys(patch));
+  assertRoleMayWriteSettings(garage, Object.keys(patch));
   const db = getDb();
   const actor = `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`;
   const now = new Date();
@@ -14929,9 +15052,14 @@ function orderRiskFor(amount: number) {
   return amount >= 500_000 ? "high" : amount >= 100_000 ? "medium" : "low";
 }
 
-/** Manajer/Owner boleh langsung memutus pengajuannya sendiri (tetap tercatat). */
-function canSelfApprove(garage: GarageSession) {
-  return canUseApi(garage.profile.role, "approvals:decide");
+/**
+ * Pengaju yang berwenang memutus boleh langsung menjalankan pengajuannya — kecuali risiko tinggi (R3)
+ * oleh bukan-Owner (kebijakan pusat SA-01): itu tetap Menunggu Owner. Agent key tidak pernah.
+ */
+function canSelfApprove(garage: GarageSession, risk: string) {
+  if (garage.profile.agentKey) return false;
+  if (!canUseApi(garage.profile.role, "approvals:decide")) return false;
+  return !(risk === "high" && garage.profile.role !== "Owner");
 }
 
 export type OrderCancelRequestInput = {
@@ -15017,6 +15145,8 @@ export async function requestOrderVoidApproval(
     age: "baru saja",
     status: "pending",
     payload,
+    outletId: order.outletId ?? garage.profile.outlet?.id ?? null,
+    amountValue: order.total,
   };
 
   await db.insert(approvals).values({ id: approvalId, ...values });
@@ -15030,7 +15160,7 @@ export async function requestOrderVoidApproval(
     metadata: { orderId: order.id, orderNo: order.orderNo, approvalId, reason },
   });
 
-  if (canSelfApprove(garage)) {
+  if (canSelfApprove(garage, orderRiskFor(order.total))) {
     await decideApproval(approvalId, { status: "approved", reasonDecided: "Diputus langsung oleh pengaju" }, garage, {
       via: "langsung",
     });
@@ -15077,6 +15207,7 @@ export async function getRefundableOrder(idOrOrderNo: string, garage: GarageSess
     orderId: order.id,
     orderNo: order.orderNo,
     tableLabel: order.tableLabel,
+    outletId: order.outletId ?? null,
     status: order.status,
     subtotal: order.subtotal,
     total: order.total,
@@ -15146,6 +15277,8 @@ export async function requestOrderRefundApproval(
     age: "baru saja",
     status: "pending",
     payload,
+    outletId: refundable.outletId ?? garage.profile.outlet?.id ?? null,
+    amountValue: refundAmount,
   });
 
   await createAuditLog({
@@ -15157,7 +15290,7 @@ export async function requestOrderRefundApproval(
     metadata: { approvalId, orderId: refundable.orderId, refundAmount, items: payloadItems, reason },
   });
 
-  if (canSelfApprove(garage)) {
+  if (canSelfApprove(garage, orderRiskFor(refundAmount))) {
     await decideApproval(approvalId, { status: "approved", reasonDecided: "Diputus langsung oleh pengaju" }, garage, {
       via: "langsung",
     });
@@ -15233,7 +15366,9 @@ export async function requestUnpaidItemCancelApproval(
     reasonCode: input.reasonCode,
     note: input.note?.trim() || null,
     items: payloadItems,
-    requestedBy: actor,
+    // A8 (Smart Approval V3): ID user, bukan nama — dipakai cek "bukan pengajuan sendiri" & auto-approval.
+    requestedBy: garage.user.id,
+    requestedByName: actor,
   };
   await db.insert(approvals).values({
     id: approvalId,
@@ -15246,6 +15381,8 @@ export async function requestUnpaidItemCancelApproval(
     age: "baru saja",
     status: "pending",
     payload,
+    outletId: order.outletId ?? garage.profile.outlet?.id ?? null,
+    amountValue: amount,
   });
   await createAuditLog({
     actor,
@@ -15257,7 +15394,7 @@ export async function requestUnpaidItemCancelApproval(
   });
   publishProductionChange();
 
-  if (canSelfApprove(garage)) {
+  if (canSelfApprove(garage, orderRiskFor(amount))) {
     await decideApproval(approvalId, { status: "approved", reasonDecided: "Diputus langsung oleh pengaju" }, garage, {
       via: "langsung",
     });
@@ -17839,6 +17976,8 @@ export async function createExpense(input: ExpenseInput, garage: GarageSession) 
           age: "baru saja",
           status: "pending",
           payload: { expenseId: createdExpense.id } satisfies ApprovalPayload,
+          outletId: createdExpense.outletId ?? null,
+          amountValue: createdExpense.amount,
         })
         .onConflictDoNothing();
     }
@@ -19385,7 +19524,10 @@ export async function closeCashSession(
           risk: discrepancyStatus === "critical" ? "high" : "medium",
           age: "baru saja",
           status: "pending",
-          payload: { cashSessionId: current.id } satisfies ApprovalPayload,
+          // SA-03: penutup shift = pemohon (tidak boleh menyetujui selisihnya sendiri).
+          payload: { cashSessionId: current.id, requestedBy: garage.user.id } satisfies ApprovalPayload,
+          outletId: current.outletId ?? null,
+          amountValue: Math.abs(discrepancy),
         })
         .onConflictDoNothing();
     }
@@ -19439,16 +19581,25 @@ export async function approveCashSessionDiscrepancy(
   if (current.status !== "closed") {
     throw new Error("Shift harus ditutup sebelum approval selisih kas.");
   }
+  // SA-03 pemisahan tugas (sama dengan reviewCashSession): pembuka/penutup shift tidak menyetujui
+  // selisihnya sendiri. Owner boleh, ditandai "tanpa pemeriksa kedua" di audit.
+  const ownShift = current.openedBy === garage.user.id || current.closedBy === garage.user.id;
+  if (ownShift && garage.profile.role !== "Owner") {
+    throw new Error("Shift ini milik Anda — selisihnya harus disetujui Manajer lain atau Owner.");
+  }
 
   const now = new Date();
-  const [approved] = await db
-    .update(cashSessions)
-    .set({
-      managerSignOffBy: garage.user.id,
-      managerSignOffAt: now,
-    })
-    .where(eq(cashSessions.id, id))
-    .returning();
+  // Sign-off yang sudah ada (mis. PIN Manajer saat tutup shift) tidak ditimpa.
+  const [approved] = current.managerSignOffBy
+    ? [current]
+    : await db
+        .update(cashSessions)
+        .set({
+          managerSignOffBy: garage.user.id,
+          managerSignOffAt: now,
+        })
+        .where(eq(cashSessions.id, id))
+        .returning();
 
   await createAuditLog({
     actor: `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`,
@@ -19461,6 +19612,8 @@ export async function approveCashSessionDiscrepancy(
       discrepancy: current.discrepancy,
       discrepancyStatus: current.discrepancyStatus,
       note: note?.trim() || null,
+      selfVerified: ownShift,
+      existingSignOffBy: current.managerSignOffBy ?? null,
     },
   });
 
@@ -20289,7 +20442,35 @@ async function resolveExpenseIdFromApprovalId(approvalId: string) {
   return prefix?.id ?? null;
 }
 
-export type ApprovalDecisionVia = "board" | "pin" | "langsung" | "auto";
+export type ApprovalDecisionVia = DecisionChannel;
+
+/** Keputusan ditolak kebijakan pusat Smart Approval (R3 = Owner + 2FA, agent key tidak memutus). */
+export class ApprovalPolicyError extends Error {
+  constructor(
+    readonly code: string,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+/** Data pengajuan berubah sejak dilihat (preview) — keputusan lama tidak berlaku. */
+export class ApprovalStaleError extends Error {
+  readonly code = "STALE";
+  constructor() {
+    super("Data pengajuan berubah sejak Anda melihatnya. Muat ulang dan periksa lagi sebelum memutus.");
+  }
+}
+
+/** Pesan error pelaksanaan yang aman disimpan/ditampilkan (tanpa teks SQL/stack). */
+function safeExecutionError(error: unknown) {
+  const message = error instanceof Error ? error.message : "";
+  // Audit SA-11: teks error database/SQL tidak pernah diteruskan ke layar atau respon.
+  if (!message || /\b(relation|violates|syntax|column|constraint|duplicate key|ECONN|timeout expired|failed query|params:)\b|\b(select|insert|update|delete)\s.+\b(from|into|set)\b/i.test(message)) {
+    return "Pelaksanaan gagal karena kesalahan sistem. Detail ada di log server.";
+  }
+  return message.slice(0, 300);
+}
 
 export async function decideApproval(
   id: string,
@@ -20298,9 +20479,9 @@ export async function decideApproval(
     reasonDecided?: string;
   },
   garage: GarageSession,
-  options: { via?: ApprovalDecisionVia } = {},
+  options: { via?: ApprovalDecisionVia; expectedSnapshotHash?: string; stepUpVerified?: boolean } = {},
 ) {
-  const via = options.via ?? "board";
+  const via: ApprovalDecisionVia = garage.profile.agentKey ? "agent_key" : options.via ?? "board";
   const reasonText = input.reasonDecided?.trim().slice(0, 500) || null;
   // Tolak WAJIB punya alasan — dijaga juga di route layer
   if (input.status === "rejected" && !reasonText) {
@@ -20320,15 +20501,42 @@ export async function decideApproval(
   if (current.status !== "pending") {
     throw new Error("Pengajuan ini sudah diputuskan.");
   }
+  if (current.expiresAt && current.expiresAt.getTime() < Date.now()) {
+    throw new ApprovalPolicyError("APPROVAL_EXPIRED", "Pengajuan ini sudah kedaluwarsa. Pemohon perlu mengajukan ulang.");
+  }
+  // Smart Approval V3: Manajer hanya memutus pengajuan outletnya sendiri.
+  if (!canDecideForOutlet(garage.profile.role, garage.profile.outlet?.id, current.outletId)) {
+    throw new Error("Pengajuan ini milik outlet lain — diputus oleh Manajer outlet tersebut atau Owner.");
+  }
+  // Batch 7: dokumen perusahaan = hak Owner (company:manage) — Manajer tidak bisa menerbitkan.
+  if (ownerOnlyApproval(current.id) && garage.profile.role !== "Owner") {
+    throw new Error("Pengajuan dokumen hanya diputus Owner.");
+  }
+  // Kebijakan pusat (audit SA-02): API key agent tidak pernah memutus — diperiksa sebelum langkah apa pun.
+  if (garage.profile.agentKey) {
+    throw new ApprovalPolicyError("AGENT_CANNOT_DECIDE", "API key agent hanya boleh membaca dan mengajukan — keputusan diambil manusia (Owner/Manajer).");
+  }
+  // Sidik objek sumber saat diputus; bila pemanggil membawa sidik preview dan berbeda → STALE.
+  const { approvalSubjectSnapshot } = await import("@/lib/smart-approval-snapshot");
+  const { hash: snapshotHash } = await approvalSubjectSnapshot(current);
+  if (options.expectedSnapshotHash && options.expectedSnapshotHash !== snapshotHash) {
+    throw new ApprovalStaleError();
+  }
 
   // Approval expense 2 tingkat: di atas batas Owner, persetujuan Manajer = review saja.
   if (input.status === "approved") {
     const pendingExpenseId =
       (current.payload as ApprovalPayload | null)?.expenseId ??
       (id.startsWith("APP-EXP-") ? id.slice("APP-EXP-".length) : null);
-    // Tidak boleh menyetujui pengajuan sendiri (kecuali Owner).
-    if (garage.profile.role !== "Owner") {
-      const payload = (current.payload ?? {}) as ApprovalPayload & { requestedBy?: string };
+    // Tidak boleh menyetujui pengajuan sendiri (kecuali Owner). Jalur "langsung" = pengaju yang berhak
+    // memutus mengeksekusi pengajuannya sendiri saat dibuat (kode internal, tidak bisa dikirim dari request).
+    if (garage.profile.role !== "Owner" && via !== "langsung") {
+      const payload = (current.payload ?? {}) as ApprovalPayload;
+      // Baris PCX lama menyimpan nama "Nama / Peran" di requestedBy — cocokkan juga dengan nama pemutus.
+      const selfName = `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`;
+      if (payload.requestedBy && payload.requestedBy === selfName) {
+        throw new Error("Pengajuan Anda sendiri harus disetujui orang lain.");
+      }
       let ownerOfRequest = payload.requestedBy ?? null;
       if (!ownerOfRequest && pendingExpenseId) {
         const [exp] = await db
@@ -20343,10 +20551,22 @@ export async function decideApproval(
       }
     }
     if (pendingExpenseId) {
+      // Review Manajer pada biaya di atas batas Owner = tanda tangan pertama, uang belum bergerak.
       const held = await holdExpenseForOwner(pendingExpenseId, garage);
       if (held) return held;
     }
   }
+
+  // Kebijakan pusat (audit SA-01): berlaku sama untuk papan, PIN, ChatGPT, otomatis, Decision Center.
+  const policyBlock = decisionPolicyBlock({
+    tier: approvalRiskTier({ id: current.id, type: current.type, risk: current.risk, amountValue: current.amountValue }),
+    status: input.status,
+    role: garage.profile.role,
+    channel: via,
+    agentKey: false,
+    stepUpVerified: options.stepUpVerified === true,
+  });
+  if (policyBlock) throw new ApprovalPolicyError(policyBlock.code, policyBlock.message);
 
   const deciderName = `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`;
   // Klaim atomik: hanya satu keputusan yang lolos walau dua Manajer klik bersamaan.
@@ -20359,6 +20579,13 @@ export async function decideApproval(
       decidedAt: new Date(),
       decidedVia: via,
       reasonDecided: reasonText,
+      // Keputusan ≠ pelaksanaan: "running" sampai efek resmi selesai dan tercatat.
+      executionStatus: "running",
+      executionError: null,
+      executionAttempts: sql`${approvals.executionAttempts} + 1`,
+      decisionSnapshotHash: snapshotHash,
+      // Diskon disetujui: masa pakai dihitung dari saat disetujui.
+      ...(input.status === "approved" && approvalExpiresAt(id, new Date()) ? { expiresAt: approvalExpiresAt(id, new Date()) } : {}),
       updatedAt: new Date(),
     })
     .where(and(eq(approvals.id, id), eq(approvals.status, "pending")))
@@ -20368,10 +20595,13 @@ export async function decideApproval(
     throw new Error("Pengajuan ini sudah diputuskan.");
   }
 
+  let executed = false;
   try {
-    await applyApprovalDecision(id, current, input.status, reasonText, garage);
+    executed = await applyApprovalDecision(id, current, input.status, reasonText, garage);
   } catch (error) {
-    // Eksekusi gagal → kembalikan ke Menunggu supaya bisa diputus ulang.
+    // Pelaksanaan gagal → kembali ke Menunggu supaya bisa diputus ulang, TAPI kegagalan tercatat
+    // (execution_status = failed + alasan + audit). Langkah yang sudah jalan bersifat idempoten.
+    const executionError = safeExecutionError(error);
     await db
       .update(approvals)
       .set({
@@ -20381,11 +20611,30 @@ export async function decideApproval(
         decidedAt: null,
         decidedVia: null,
         reasonDecided: null,
+        executionStatus: "failed",
+        executionError,
         updatedAt: new Date(),
       })
       .where(eq(approvals.id, id));
-    throw error;
+    await createAuditLog({
+      actor: deciderName,
+      action: "Pelaksanaan keputusan gagal",
+      object: id,
+      device: garage.profile.deviceLabel,
+      status: "failed",
+      metadata: { approvalType: approval.type, decision: input.status, via, executionError },
+    }).catch(() => undefined);
+    if (executionError !== (error instanceof Error ? error.message : "")) console.error("[approval] pelaksanaan gagal", id, error);
+    // Pesan aman (tanpa SQL) yang sama dengan yang tersimpan di execution_error.
+    throw new Error(executionError);
   }
+  const executedAt = new Date();
+  await db
+    .update(approvals)
+    .set({ executionStatus: executed ? "succeeded" : "not_required", executedAt: executed ? executedAt : null, updatedAt: executedAt })
+    .where(eq(approvals.id, id));
+  approval.executionStatus = executed ? "succeeded" : "not_required";
+  approval.executedAt = executed ? executedAt : null;
 
   await createAuditLog({
     actor: deciderName,
@@ -20398,39 +20647,63 @@ export async function decideApproval(
       category: approvalCategoryOf(approval),
       reasonDecided: reasonText,
       via,
+      executionStatus: approval.executionStatus,
+      snapshotHash,
     },
   });
 
   return approval;
 }
 
-/** Efek samping keputusan per kategori (void, refund, pengeluaran, kas, opname). */
+async function orderStatusOf(orderId: string) {
+  const [row] = await getDb().select({ status: orders.status }).from(orders).where(eq(orders.id, orderId)).limit(1);
+  return row?.status ?? null;
+}
+
+/**
+ * Efek samping keputusan per kategori (void, refund, pengeluaran, kas, opname).
+ * Mengembalikan true bila ada pelaksanaan resmi yang dijalankan. Langkah berlapis dibuat idempoten
+ * supaya pengulangan setelah gagal tidak menggandakan efek (mis. pisah bill dua kali).
+ */
 async function applyApprovalDecision(
   id: string,
   current: typeof approvals.$inferSelect,
   status: "approved" | "rejected",
   reasonText: string | null,
   garage: GarageSession,
-) {
+): Promise<boolean> {
   const payload = (current.payload ?? {}) as ApprovalPayload;
   const requestReason = payload.reasonCode
     ? composeCancelReason(payload.reasonCode, payload.note)
     : current.reason;
+  let executed = false;
 
   if (id.startsWith("APP-VOID-") && status === "approved") {
     const orderId = payload.orderId ?? id.slice("APP-VOID-".length);
-    await voidOrder(orderId, requestReason, garage);
+    if ((await orderStatusOf(orderId)) !== "voided") await voidOrder(orderId, requestReason, garage);
+    executed = true;
   }
 
   if (id.startsWith("APP-RFD-") && status === "approved") {
     await executeOrderRefund(payload, requestReason, garage);
+    executed = true;
   }
 
   // Production Hub V4: batal item bill belum lunas = pisah bill + void bill pisahan (jalur resmi).
+  // Bill pisahan dicatat di payload dulu: bila void gagal lalu diulang, pisah tidak terjadi dua kali.
   if (id.startsWith("APP-PCX-") && status === "approved" && payload.orderId) {
-    const items = (payload.items ?? []).map((item) => ({ orderItemId: item.orderItemId, qty: item.qty }));
-    const split = await splitCustomerOrder(payload.orderId, { items, guestName: `Batal item ${payload.orderNo ?? ""}`.trim() }, garage);
-    await voidOrder(split.child.id, requestReason, garage);
+    let childId = payload.splitChildId ?? null;
+    if (!childId) {
+      const items = (payload.items ?? []).map((item) => ({ orderItemId: item.orderItemId, qty: item.qty }));
+      const split = await splitCustomerOrder(payload.orderId, { items, guestName: `Batal item ${payload.orderNo ?? ""}`.trim() }, garage);
+      childId = split.child.id;
+      await getDb()
+        .update(approvals)
+        .set({ payload: { ...payload, splitChildId: childId } satisfies ApprovalPayload })
+        .where(eq(approvals.id, id));
+    }
+    if ((await orderStatusOf(childId)) !== "voided") await voidOrder(childId, requestReason, garage);
+    executed = true;
   }
 
   // Item yang batal bisa membuat sisa order langsung "selesai" tanpa transisi READY baru →
@@ -20446,6 +20719,7 @@ async function applyApprovalDecision(
 
   if (id.startsWith("APP-CASH-") && status === "approved" && payload.cashSessionId) {
     await approveCashSessionDiscrepancy(payload.cashSessionId, garage, reasonText ?? undefined);
+    executed = true;
   }
 
   const expenseId = payload.expenseId ?? (await resolveExpenseIdFromApprovalId(id));
@@ -20455,8 +20729,20 @@ async function applyApprovalDecision(
     } else {
       await rejectExpense(expenseId, garage);
     }
+    executed = true;
   }
 
+  // Batch 7 Document Approval: versi dokumen jadi berlaku / ditolak.
+  if (id.startsWith("APP-DOC-") && payload.versionId) {
+    const { decideCompanyDocumentVersion } = await import("@/lib/company-control");
+    await decideCompanyDocumentVersion(payload.versionId, status, reasonText, garage);
+    executed = true;
+  }
+
+  // Audit SA-07: opname lama tidak bisa diterapkan ke stok lagi (endpoint 410) — jangan pernah tercatat "berhasil".
+  if (id.startsWith("APP-OPN-") && status === "approved") {
+    throw new Error("Opname lama tidak bisa diterapkan lagi. Hitung ulang lewat Gudang → Stok Opname.");
+  }
   if (id.startsWith("APP-OPN-")) {
     const opnameId = id.slice("APP-OPN-".length);
     try {
@@ -20471,7 +20757,9 @@ async function applyApprovalDecision(
         throw error;
       }
     }
+    executed = true;
   }
+  return executed;
 }
 
 /**
@@ -20582,7 +20870,22 @@ export async function decideApprovalsBulk(
   garage: GarageSession,
 ) {
   const results: Array<{ id: string; ok: boolean; error?: string }> = [];
+  // Smart Approval V3: setuju massal tidak boleh menyentuh risiko tinggi (R3) atau pengajuan yang
+  // menggerakkan uang laci/stok — diperiksa di server, bukan hanya di UI.
+  const rows = ids.length
+    ? await getDb()
+        .select({ id: approvals.id, type: approvals.type, risk: approvals.risk, amountValue: approvals.amountValue })
+        .from(approvals)
+        .where(inArray(approvals.id, ids))
+    : [];
+  const rowById = new Map(rows.map((row) => [row.id, row]));
   for (const id of ids) {
+    const row = rowById.get(id);
+    const blocked = row ? bulkDecisionBlockReason(row, input.status) : null;
+    if (blocked) {
+      results.push({ id, ok: false, error: blocked });
+      continue;
+    }
     try {
       const r = await decideApproval(id, input, garage);
       results.push({ id, ok: Boolean(r) });
@@ -21542,11 +21845,18 @@ export type AutoApprovalResult = {
   }>;
 };
 
-function parseAmountIdr(label: string): number {
-  // Format: "Rp1.234.567" atau "+10" atau "-5"
-  const cleaned = label.replace(/[^\d.,-]/g, "").replace(/\./g, "").replace(/,/g, "");
-  const n = Number(cleaned);
-  return Number.isFinite(n) ? Math.abs(n) : 0;
+/** Pemohon pengajuan: payload.requestedBy, atau pembuat biaya untuk APP-EXP. */
+async function approvalRequesterId(row: typeof approvals.$inferSelect) {
+  const payload = (row.payload ?? {}) as ApprovalPayload;
+  if (payload.requestedBy) return payload.requestedBy;
+  const expenseId = payload.expenseId ?? (row.id.startsWith("APP-EXP-") ? row.id.slice("APP-EXP-".length) : null);
+  if (!expenseId || !/^[0-9a-f-]{36}$/i.test(expenseId)) return null;
+  const [expense] = await getDb()
+    .select({ createdBy: expenses.createdBy })
+    .from(expenses)
+    .where(eq(expenses.id, expenseId))
+    .limit(1);
+  return expense?.createdBy ?? null;
 }
 
 export async function runAutoApprovalSweep(garage: GarageSession): Promise<AutoApprovalResult> {
@@ -21561,30 +21871,55 @@ export async function runAutoApprovalSweep(garage: GarageSession): Promise<AutoA
     .where(eq(approvals.status, "pending"))
     .orderBy(asc(approvals.createdAt));
 
+  // Smart Approval V3: batas harian auto-approval per pemohon (hitung dari keputusan otomatis hari ini, WIB).
+  const dayStart = new Date(`${jakartaDateKey(new Date())}T00:00:00+07:00`);
+  const autoToday = await db
+    .select()
+    .from(approvals)
+    .where(and(eq(approvals.decidedVia, "auto"), eq(approvals.status, "approved"), gte(approvals.decidedAt, dayStart)));
+  const autoCountByRequester = new Map<string, number>();
+  for (const row of autoToday) {
+    const requester = await approvalRequesterId(row);
+    if (requester) autoCountByRequester.set(requester, (autoCountByRequester.get(requester) ?? 0) + 1);
+  }
+
   const decisions: AutoApprovalResult["decisions"] = [];
   let autoApproved = 0;
 
   for (const row of pending) {
-    const amount = parseAmountIdr(row.amount);
+    const amountValue = row.amountValue ?? parseRupiahLabel(row.amount);
+    const amount = amountValue ?? 0;
     let decision: "auto_approved" | "skipped" = "skipped";
-    let reason = "Tipe approval tidak masuk auto-decide.";
-
-    if (approvalCategoryOf(row) === "pengeluaran") {
-      if (amount > 0 && amount < expenseThreshold) {
-        decision = "auto_approved";
-        reason = `Nominal Rp${amount.toLocaleString("id-ID")} di bawah batas Rp${expenseThreshold.toLocaleString("id-ID")}.`;
-      } else {
-        reason = `Nominal ≥ batas; perlu dicek manual.`;
-      }
+    const requestedBy = approvalCategoryOf(row) === "pengeluaran" ? await approvalRequesterId(row) : null;
+    const verdict = autoApprovalDecision(
+      { id: row.id, type: row.type, risk: row.risk, amountValue, requestedBy },
+      {
+        threshold: expenseThreshold,
+        sweeperUserId: garage.user.id,
+        autoApprovedTodayForRequester: requestedBy ? autoCountByRequester.get(requestedBy) ?? 0 : 0,
+      },
+    );
+    let reason = verdict.reason;
+    if (verdict.approve) decision = "auto_approved";
+    // Audit SA-04: pengajuan yang Ditunda / Diminta revisi tidak pernah diputus otomatis.
+    if (decision === "auto_approved" && row.reviewState) {
+      decision = "skipped";
+      reason = "Sedang ditunda/diminta revisi — diputus manual.";
+    }
+    // Outlet lain tidak disentuh oleh sweep Manajer.
+    if (decision === "auto_approved" && !canDecideForOutlet(garage.profile.role, garage.profile.outlet?.id, row.outletId)) {
+      decision = "skipped";
+      reason = "Pengajuan outlet lain — tidak disentuh.";
     }
 
     if (decision === "auto_approved") {
       try {
         await decideApproval(row.id, { status: "approved", reasonDecided: reason }, garage, { via: "auto" });
         autoApproved += 1;
+        if (requestedBy) autoCountByRequester.set(requestedBy, (autoCountByRequester.get(requestedBy) ?? 0) + 1);
       } catch (error) {
         decision = "skipped";
-        reason = error instanceof Error ? error.message : "Gagal disetujui otomatis.";
+        reason = safeExecutionError(error);
       }
     }
 

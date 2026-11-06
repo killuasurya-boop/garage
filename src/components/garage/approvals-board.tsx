@@ -26,6 +26,7 @@ import {
   type ApprovalCategory,
   type ApprovalPayload,
 } from "@/lib/approval-rules";
+import { EXECUTION_STATUS_LABEL, REVIEW_STATE_LABEL, type ApprovalExecutionStatus, type ApprovalReviewState } from "@/lib/smart-approval";
 import { GarageConnectedNav } from "@/components/garage/garage-connected-nav";
 import { GarageEmpty } from "@/components/garage/garage-state-display";
 import { useDateFilterContext } from "@/components/garage/date-filter";
@@ -61,6 +62,12 @@ type ApprovalRow = {
   reasonDecided: string | null;
   payload: ApprovalPayload;
   createdAt: string;
+  // Smart Approval V3: keputusan ≠ pelaksanaan; Tunda/Minta revisi.
+  executionStatus?: ApprovalExecutionStatus;
+  executionError?: string | null;
+  reviewState?: ApprovalReviewState | null;
+  reviewNote?: string | null;
+  riskTier?: "R1" | "R2" | "R3";
 };
 
 type ApprovalStats = {
@@ -330,16 +337,22 @@ export function ApprovalsBoard({
     id: string,
     status: "approved" | "rejected",
     reasonDecided?: string,
+    expectedSnapshotHash?: string,
   ) => {
     const res = await fetch(`/api/approvals/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status, reasonDecided }),
+      // Audit SA-09: sidik data saat detail dibuka — bila data berubah, server menolak (STALE).
+      body: JSON.stringify({ status, reasonDecided, expectedSnapshotHash }),
     });
     if (!res.ok) {
       const json = (await res.json().catch(() => ({}))) as {
-        error?: { message?: string };
+        error?: { code?: string; message?: string };
       };
+      if (json.error?.code === "STALE") {
+        await load();
+        throw new Error("Data pengajuan berubah sejak dibuka. Tutup lalu buka lagi untuk melihat data terbaru.");
+      }
       throw new Error(json.error?.message || "Gagal menyimpan keputusan.");
     }
     const row = rows.find((r) => r.id === id);
@@ -358,7 +371,6 @@ export function ApprovalsBoard({
       return row && !isHighRisk(row.risk);
     });
     if (!ids.length) return;
-    const decidedRows = rows.filter((r) => ids.includes(r.id));
     const res = await fetch("/api/approvals/bulk", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -371,6 +383,10 @@ export function ApprovalsBoard({
     if (!res.ok) {
       throw new Error(json.error?.message || "Keputusan massal gagal.");
     }
+    // Smart Approval V3: server bisa menolak sebagian (R3/void/refund/kas/stok harus satu per satu) —
+    // WA hanya untuk yang benar-benar berhasil diputus.
+    const okIds = new Set((json.data?.results ?? []).filter((r) => r.ok).map((r) => r.id));
+    const decidedRows = rows.filter((r) => okIds.has(r.id));
 
     // WA: buka tab pertama, salin sisanya ke clipboard (hindari popup blocker).
     const rowsWithPhone = decidedRows.filter((r) => r.requesterPhone);
@@ -752,6 +768,7 @@ export function ApprovalsBoard({
         onClose={() => setDetail(null)}
         onDecide={handleDecide}
         onOpenAudit={onOpenModule ? () => onOpenModule("audit") : undefined}
+        role={role}
       />
 
       <BulkDecideDialog
@@ -816,6 +833,16 @@ function ApprovalRowCard({
           <Badge className={`text-[11px] ${STATUS_TONE[row.status] ?? ""}`}>
             {approvalStatusLabel(row.status)}
           </Badge>
+          {row.reviewState ? (
+            <Badge className="border-[#f5a742]/60 bg-[#f5a742]/12 text-[11px] text-[#ffd08a]" title={row.reviewNote ?? undefined}>
+              {REVIEW_STATE_LABEL[row.reviewState]}
+            </Badge>
+          ) : null}
+          {row.executionStatus === "failed" || row.executionStatus === "running" ? (
+            <Badge className="border-[#e5484d]/60 bg-[#e5484d]/12 text-[11px] text-[#ffb4bd]" title={row.executionError ?? undefined}>
+              {EXECUTION_STATUS_LABEL[row.executionStatus]}
+            </Badge>
+          ) : null}
         </div>
         <p className="mt-1 text-xs text-[#d6d6dc]">
           {row.requester} ·{" "}
@@ -843,13 +870,32 @@ function ApprovalDetailModal({
   onClose,
   onDecide,
   onOpenAudit,
+  role,
 }: {
   row: ApprovalRow | null;
   onClose: () => void;
-  onDecide: (id: string, status: "approved" | "rejected", reason?: string) => Promise<void>;
+  onDecide: (id: string, status: "approved" | "rejected", reason?: string, snapshotHash?: string) => Promise<void>;
   onOpenAudit?: () => void;
+  role?: Role;
 }) {
   const [mode, setMode] = useState<"view" | "approve" | "reject">("view");
+  // Sidik data saat detail dibuka (STALE guard). Kosong = server tetap memutus tanpa pembanding.
+  const [snapshotHash, setSnapshotHash] = useState<string | undefined>(undefined);
+  const rowId = row?.id ?? null;
+  const rowPending = row?.status === "pending";
+  useEffect(() => {
+    if (!rowId || !rowPending) return;
+    let cancelled = false;
+    void fetch(`/api/approvals/${rowId}`, { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json: { data?: { snapshotHash?: string } } | null) => {
+        if (!cancelled) setSnapshotHash(json?.data?.snapshotHash);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [rowId, rowPending]);
   const [reasonInput, setReasonInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -868,7 +914,7 @@ function ApprovalDetailModal({
     setSubmitting(true);
     setError(null);
     try {
-      await onDecide(row.id, status, trimmed || undefined);
+      await onDecide(row.id, status, trimmed || undefined, snapshotHash);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal menyimpan keputusan.");
@@ -1112,17 +1158,33 @@ function ApprovalDetailModal({
 
           {isPending && mode === "view" && (
             <div className="grid gap-2 sm:grid-cols-2">
-              <Button
-                type="button"
-                className="garage-press h-11 gap-2 bg-[#22c55e] text-black hover:bg-[#34d76b]"
-                onClick={() => {
-                  setMode("approve");
-                  setReasonInput("");
-                }}
-              >
-                <Check className="size-4" />
-                Setujui
-              </Button>
+              {row.riskTier === "R3" ? (
+                // Kebijakan pusat (SA-01): R3 hanya disetujui Owner dengan kode 2FA di Decision Center.
+                role === "Owner" ? (
+                  <Button asChild className="garage-press h-11 gap-2 bg-[#22c55e] text-black hover:bg-[#34d76b]">
+                    <a href="/control/decision" data-testid="approval-r3-decision-center">
+                      <Check className="size-4" />
+                      Setujui di Decision Center (2FA)
+                    </a>
+                  </Button>
+                ) : (
+                  <p className="flex h-11 items-center justify-center rounded-md border border-[#f5a742]/50 px-3 text-center text-xs font-semibold text-[#ffd79a]" data-testid="approval-r3-owner-only">
+                    Risiko tinggi — menunggu Owner (2FA)
+                  </p>
+                )
+              ) : (
+                <Button
+                  type="button"
+                  className="garage-press h-11 gap-2 bg-[#22c55e] text-black hover:bg-[#34d76b]"
+                  onClick={() => {
+                    setMode("approve");
+                    setReasonInput("");
+                  }}
+                >
+                  <Check className="size-4" />
+                  Setujui
+                </Button>
+              )}
               <Button
                 type="button"
                 className="garage-press h-11 gap-2 bg-[#d11a2a] text-white hover:bg-[#e72c3c]"

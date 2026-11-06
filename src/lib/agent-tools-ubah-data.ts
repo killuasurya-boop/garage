@@ -14,6 +14,7 @@
 import { z } from "zod";
 
 import { AgentToolError, type AgentTool } from "@/lib/agent-tool-core";
+import { isProtectedSettingKey } from "@/lib/agent-protected-settings";
 import { isAgentForbiddenPath } from "@/lib/agent-api-key";
 import { API_ROUTE_CATALOG } from "@/lib/api-route-catalog.generated";
 import type { GarageSession } from "@/lib/server-auth";
@@ -58,6 +59,21 @@ const MONEY_PATHS: RegExp[] = [
   /^\/api\/pos\/sync-transaction$/,
   /^\/api\/waiter\/tables\/[^/]+\/bill$/,
 ];
+
+/**
+ * Batch 7 AI Governance: AI tidak boleh mengubah saklar tata kelolanya sendiri atau setelan keamanan
+ * lewat chat (meski dengan konfirmasi) — hanya dari layar Owner (AI Connect / AI Governance / Pengaturan).
+ */
+const SETTINGS_PATHS = new Set(["/api/settings", "/api/admin/settings"]);
+
+export function ubahDataBodyBlockReason(path: string, body: unknown): string | null {
+  if (!SETTINGS_PATHS.has(path) || !body || typeof body !== "object") return null;
+  const record = body as Record<string, unknown>;
+  const nested = record.updates && typeof record.updates === "object" ? Object.keys(record.updates as object) : [];
+  const keys = [...Object.keys(record), ...nested].filter(isProtectedSettingKey);
+  if (!keys.length) return null;
+  return `Setelan AI/keamanan (${keys.join(", ")}) hanya diubah dari layar Owner (AI Governance / Pengaturan), tidak lewat chat.`;
+}
 
 export function isMoneyPath(path: string) {
   return MONEY_PATHS.some((pattern) => pattern.test(path));
@@ -155,7 +171,7 @@ export const ubahDataTools: AgentTool[] = [
     async preview(session, args) {
       assertOwnerViaChat(session);
       const path = String(args.path);
-      const reason = ubahDataBlockReason(path);
+      const reason = ubahDataBlockReason(path) ?? ubahDataBodyBlockReason(path, args.body);
       const route = matchApiRoute(path);
       const base = {
         aksi: `${args.method} ${path}`,
@@ -186,7 +202,7 @@ export const ubahDataTools: AgentTool[] = [
         throw new AgentToolError("CONFIRMATION_REQUIRED", "ubah_data_garage hanya berjalan lewat konfirmasi Owner di ChatGPT.", 403);
       }
       const path = String(args.path);
-      const reason = ubahDataBlockReason(path);
+      const reason = ubahDataBlockReason(path) ?? ubahDataBodyBlockReason(path, args.body);
       if (reason) throw new AgentToolError("UBAH_DATA_DITOLAK", reason, 403);
       const route = matchApiRoute(path);
       if (!route) throw new AgentToolError("ENDPOINT_TIDAK_DIKENAL", `Endpoint ${path} tidak ada di katalog. Cek katalog_endpoint.`, 404);

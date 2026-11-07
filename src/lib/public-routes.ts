@@ -42,6 +42,9 @@ export const PUBLIC_API_ROUTES: Record<string, PublicRoute> = {
   "member/auth/register": { reason: "Daftar member", abuseGuard: "rateLimit" },
   "member/auth/refresh": { reason: "Perbarui sesi member (refresh token)", abuseGuard: "rateLimit" },
   "member/auth/logout": { reason: "Keluar member (hanya menghapus cookie)", abuseGuard: "none" },
+  "member/auth/otp/status": { reason: "Apakah OTP WhatsApp aktif (tanpa data)", abuseGuard: "rateLimit" },
+  "member/auth/otp/request": { reason: "Kirim kode OTP WhatsApp pendaftar (batas per IP + per nomor)", abuseGuard: "rateLimit" },
+  "member/auth/otp/verify": { reason: "Cek kode OTP (maks. 5 percobaan per kode)", abuseGuard: "rateLimit" },
   // Rekrutmen publik
   "recruitment/positions": { reason: "Lowongan terbuka", abuseGuard: "readonly" },
   "recruitment/apply": { reason: "Lamaran kerja", abuseGuard: "rateLimit" },

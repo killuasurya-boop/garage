@@ -88,8 +88,8 @@ transaksi lunas, sertakan promo member nyata bila ada), E Ulang tahun (ucapan; h
   kartu → voucher → WA diuji di browser.
 
 ## 7. Risiko & rekomendasi sebelum deploy
-1. **P1 — klaim akun via nomor telepon** (`registerMember` existing): perlu verifikasi WA (OTP/kasir) sebelum
-   menggabungkan poin customer POS lama. Butuh keputusan Owner (provider OTP = integrasi baru).
+1. ~~**P1 — klaim akun via nomor telepon**~~ — **selesai** (Owner pilih OTP WhatsApp): lihat
+   `docs/MEMBER-OTP-WHATSAPP.md`. Data POS ber-riwayat hanya bisa diklaim setelah OTP; OTP wajib saat provider aktif.
 2. ~~Progres level `/member` memakai ambang poin lama~~ — **selesai**: `/member` memakai `tierProgressBySpend`
    ("Belanja Rp… lagi"), kartu level menampilkan syarat belanja. `memberResponseData.progress` (berbasis poin) masih
    dikirim API untuk kompatibilitas tapi tidak lagi ditampilkan.

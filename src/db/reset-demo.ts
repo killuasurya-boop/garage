@@ -32,6 +32,7 @@ const TABLES_TO_CLEAR = [
   "customer_tags",
   "member_accounts",
   "member_sessions",
+  "member_otp_challenges",
   "member_transactions",
   "point_redemptions",
   // orders & payments

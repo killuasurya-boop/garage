@@ -11,6 +11,7 @@ import { CinematicBackground } from "./cinematic-background";
 import { MemberButton } from "./member-button";
 import { MemberField } from "./member-field";
 import { MemberLoginCard } from "./member-login-card";
+import { MemberPhoneOtp, useMemberOtpStatus } from "./member-phone-otp";
 import { MotionReveal } from "./motion-reveal";
 import "./member-auth.css";
 
@@ -67,6 +68,10 @@ export function MemberLoginPage({
   const [referralCode, setReferralCode] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
   const [showOptional, setShowOptional] = useState(false);
+  const otpEnabled = useMemberOtpStatus();
+  const [otpResult, setOtpResult] = useState<{ token: string; digits: string } | null>(null);
+  // Token hanya berlaku untuk nomor yang diverifikasi; nomor diganti → harus verifikasi ulang.
+  const otpToken = otpResult && otpResult.digits === phone.replace(/\D/g, "") ? otpResult.token : null;
   const [identifierError, setIdentifierError] = useState("");
   const [status, setStatus] = useState<AuthStatus | null>(null);
   const [busy, setBusy] = useState(false);
@@ -141,6 +146,10 @@ export function MemberLoginPage({
 
   async function handleRegister(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (otpEnabled && !otpToken) {
+      setStatus({ tone: "error", message: "Verifikasi nomor WhatsApp dulu dengan kode yang dikirim ke WhatsApp kamu." });
+      return;
+    }
     setBusy(true);
     setStatus(null);
     try {
@@ -151,6 +160,7 @@ export function MemberLoginPage({
         birthday,
         referralCode,
         password: registerPassword,
+        otpToken: otpToken ?? undefined,
       });
       finish("Akun member aktif. Mengalihkan…");
     } catch (error) {
@@ -305,6 +315,7 @@ export function MemberLoginPage({
                       inputMode="tel"
                       required
                     />
+                    {otpEnabled ? <MemberPhoneOtp phone={phone} onVerified={setOtpResult} /> : null}
                     <MemberField
                       label="Buat PIN"
                       icon={<LockKeyhole size={19} />}

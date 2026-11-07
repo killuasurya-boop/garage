@@ -31,6 +31,11 @@ function authSecret() {
   return "garage-dev-only-member-auth-secret";
 }
 
+/** Secret HMAC untuk kode/token OTP member (sama dengan secret JWT member). */
+export function memberOtpSecret() {
+  return authSecret();
+}
+
 function base64Url(input: Buffer | string) {
   return Buffer.from(input).toString("base64url");
 }

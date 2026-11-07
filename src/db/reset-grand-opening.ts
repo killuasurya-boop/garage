@@ -107,8 +107,8 @@ export const CLEAR_TABLES = [
   // marketing & publikasi transaksional
   "wifi_access_logs", "crm_campaign_logs", "customer_experience_events", "marketing_broadcasts", "marketing_broadcast_deliveries", "whatsapp_messaging_queue",
   "content_publishing_queue", "content_publishing_results",
-  // member (sesi)
-  "member_sessions",
+  // member (sesi, kode OTP WhatsApp)
+  "member_sessions", "member_otp_challenges",
   // SDM/payroll transaksional
   "employee_attendances", "staff_attendance_v2", "staff_daily_wages", "staff_leaves", "fee_pool_daily",
   "fee_pool_splits", "staff_payroll_payments", "staff_payrolls", "staff_advances", "staff_cash_advances",

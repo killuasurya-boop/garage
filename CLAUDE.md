@@ -145,7 +145,8 @@ Scroll direction:
   text-only paths (agent, `/api/print/thermal`) drop it via `stripReceiptQr` (URL text stays).
   Kitchen chits print addon no., target time, item/order notes (wrapped), item count and who printed.
 - Cashier accountability (owner, Okt 2026, migration 0142): opening denomination count
-  (`cash_sessions.opening_denominations`, total must equal opening cash; coin Rp1.000 key `1000k`),
+  (`cash_sessions.opening_denominations`, total must equal opening cash; coin Rp1.000 key `1000k`; opening cash is any
+  amount in Rp100 steps up to `shiftOpeningCashMax`, e.g. Rp55.200 — `src/lib/opening-cash.ts`, owner Nov 2026),
   petty cash = separate fund in `petty_cash_entries` (Kasir submits expense, Owner/Manajer approve/topup;
   never touches drawer `expectedCash`), `shift_incidents`, manager review (`review_status`). Full A4 PDF
   `GET /api/reports/cashier-accountability` (`shift-accountability-report.ts` data, `-pdf.ts` render),
@@ -156,8 +157,10 @@ Scroll direction:
   brankas are never costs; cash-in is never sales. Logic in `recordCashMovement` / `decideCashMovement` /
   `voidCashMovement` / `correctCashMovement` (`garage-service.ts`): ref `KAS-YYMMDD-0001`, balance before/after
   from session `expectedCash`; only status `recorded` moves money (`pending_approval` = Kasir request, money not
-  moved yet; rejected/voided kept, never deleted). Kasir ≥ `cashMovementPinThreshold` or refund/setoran needs a
-  Manager PIN or a request; void/correct = Owner/Manajer, session still open, reason + audit before/after.
+  moved yet; rejected/voided kept, never deleted). Kasir cash in/out is recorded at once (owner Nov 2026); only kasbon +
+  refund_pelanggan (`requiresApproval`) or a cash-out pushing the shift total over `cashMovementShiftLimit` need a Manager PIN or
+  a request (`cashDrawerNeedsApproval`). Cash-out ≥ `cashMovementPinThreshold` without receipt photo → Kontrol Kas queue
+  `cash_out_no_receipt`; risk rule `CASH_OUT_DIRECT_HIGH` (review priority only); void/correct = Owner/Manajer, session still open, reason + audit before/after.
   Drawer expenses can't be cancelled from Finance/Payroll (`cancelExpenseInTx` guard). Kasir never sees drawer
   balance while the shift is open (`redactOpenShiftSummary`). Receipt photos live in non-public
   `storage/cash-receipts`, served only via `/api/finance/cash-movements/[id]/receipt`.
@@ -223,7 +226,7 @@ Scroll direction:
     `cashCount(amount)` (`test-helpers/cash-count.ts`) for both `denominations` and `recountDenominations`.
   - B4 (owner, Okt 2026, migration 0167, PRD §10.8/§13):
     - Double blind count: `closeCashSession` needs `recountDenominations` (#2, empty form, never copied from #1)
-      while setting `shiftRequireDoubleCount` is on (default). #1 ≠ #2 per denomination (`denominationMismatches`)
+      while setting `shiftRequireDoubleCount` is on (default OFF since migration 0182, owner Nov 2026: count once). #1 ≠ #2 per denomination (`denominationMismatches`)
       → `CashSessionCountMismatchError` (409 `COUNT_MISMATCH`) until `thirdCountDenominations` (#3) is sent; #3
       becomes `actual_cash`/`denominations`. Every count (+ manager recount) is an append-only row in
       `cash_session_counts` (trigger; purge only with the grand-opening GUC).
@@ -250,6 +253,27 @@ Scroll direction:
   - B7c: `cash-ledger-report.ts` (period cash book per account from `cash_ledger_entries`, running balance, opening+in−out=closing
     checked against `accountBalance`, `external` = flows only), PDF `cash-ledger-pdf.ts`, Excel `cash-ledger-xlsx.ts`;
     `type=ledger&month=|from&to[&format=pdf|xlsx]` (all outlets — bank accounts are global). Query schema: `owner-reports-query.ts`.
+- POS V6 (owner, Nov 2026, `docs/design-system/POS-V6-DESIGN-SYSTEM.md`): visual only — topbar/sidebar/catalog/cart/cash panel in
+  `src/components/garage/pos/pos-v6*.tsx|css`; handlers stay in `pos-view.tsx` (no second transaction logic). 4 themes =
+  `garage-signature` (default; old `garage-default` maps to it), `garage-clear`, `warm-light` (Warm Coffee), `focus-blue`; colours =
+  `--pos-*` tokens in `globals.css`, AA contrast enforced by `pos-v6.test.ts`. Theme Studio = per-device prefs (`CashierPosSettings`:
+  productView/showPhotos/sidebarMode/reducedMotion/textSize). Cashier topbar never shows omzet/expected cash (blind count).
+  Legacy cashier CSS lives in `@layer components` with `!important`: V6 overrides must stay in the same layer with higher specificity.
+- Belum Bayar (owner, Nov 2026): one place for every unpaid order of the staff outlet, all dates
+  (`GET /api/customer/orders?scope=unpaid`). Pure rules in `src/lib/pos-pending-bills.ts` (Cash pending vs QRIS/Transfer/
+  E-Wallet pending, age 30/60 min/yesterday, one next action, priority); UI `pos/pos-v6-pending.tsx` (sheet + detail popup with
+  name/WA/items + `PosV6FinalizeDialog`). "Bayar nanti" stores `paymentMethod: "Cash"` only as a placeholder: payment
+  metadata `staffOrder: true` → shown as "Belum dipilih". Final Bayar cash amount is REQUIRED (empty ≠ uang pas). Only bill
+  totals are shown, never drawer cash. Nav "Belum Bayar" (F6), sidebar collapse `[`, always-on red edge line (off with reduced
+  motion), POS links/`window.open` to internal pages open in `PosV6ModuleSheet` (no new tab; PDFs via `?inline=1`).
+- Invoice Digital V4 / CX Engine (owner, Nov 2026, migration 0182, `docs/CX-ENGINE-V4.md`): `/invoice/[token]` =
+  components in `src/components/garage/invoice-v4/` (`iv-*` CSS in `@layer components`). Pure rules: `invoice-v4.ts`
+  (payment state via `paymentStatusOf`, 5-step flow, station cards, `maskPhone`), `customer-offers.ts` (eligibility,
+  `voucherEffectiveStatus`, `verifiedTierBenefits` from Settings point rules — never unimplemented perks), `cx-whatsapp.ts`,
+  `cx-events.ts`; server `customer-experience-service.ts`. Invoice token ≠ account ownership: member data only from the
+  member session, invoices are never linked to a member from the public page. "Saya Sudah Bayar" only opens WA proof help.
+  wa.me clicks = "opened", never "sent". Promo WA needs latest `customer_marketing_consents` = granted + max 1/7 days.
+  Events (`customer_experience_events`) carry no phone/PIN/token/IP.
 - Browser-dialog printing uses `browserColumns` (huruf Besar → 24 col on 58 mm) with tall
   TOTAL/Kembali lines; cashier can print Bar/Dapur chits manually (`printKitchenChits`).
 - Production Hub V4 (owner, Nov 2026, no migration): UI `src/components/garage/production-hub/` (portal over the shell,
@@ -298,6 +322,43 @@ Scroll direction:
   `UPDATE … WHERE status='pending'`. Never log the token. Tools may define a read-only `preview()`.
   R3 (D-01a): preview also creates a step-up challenge (subject = operation id, hash = args digest); the confirmed
   call needs `kode2fa` (Owner TOTP), verified BEFORE the token is claimed.
+
+- Smart Approval V3 (owner, Nov 2026, migration 0177, `docs/smart-approval-v3/`): `approvals` carries `outlet_id`,
+  `amount_value`, `execution_status` (decision ≠ execution: running/succeeded/failed/not_required/legacy), error/attempts,
+  `decision_snapshot_hash`, `review_state` (Tunda/Minta revisi, status stays pending). Rules pure in `src/lib/smart-approval.ts`
+  (tier R1–R3, `bulkDecisionBlockReason`, `autoApprovalDecision`, `canDecideForOutlet`). `decideApproval` checks outlet, optional
+  `expectedSnapshotHash` (`approvalSubjectSnapshot`, 409 STALE), records failed execution (back to pending + audit), PCX split is
+  idempotent (`payload.splitChildId`). Bulk approve never touches R3/void/refund/cash/stock; auto-approval = expense, low/medium,
+  < threshold, requester ≠ sweeper, max 3/day/requester. Owner Decision Center `/control/decision` (`decision-center*.ts`,
+  `/api/control/decision-center`): explanation A–J is rule-based; R3 = Owner TOTP step-up bound to the snapshot hash.
+- Smart Approval Batch 7 (Nov 2026, migration 0179, `docs/smart-approval-v3/09-BATCH7.md`):
+  - Document Approval: a new company document version = `review_status` pending + sha256 + approval `APP-DOC-<versionId>` (one tx);
+    effective version = `company_documents.approved_version` (set only when approved; rejected keeps the old one, file kept).
+    `ownerOnlyApproval` (`smart-approval.ts`): APP-DOC hidden from and undecidable by non-Owner. Snapshot hash covers doc/version.
+  - A8: APP-PCX `payload.requestedBy` = user id (name in `requestedByName`); self-approval check also matches legacy "Nama / Peran".
+  - AI Governance `/control/ai-governance` (`ai-governance.ts` pure, `-server.ts`, Owner screen only): mode = the two existing
+    switches (`settingsForMode`; paused also turns writes off), tool risk from the code registry (read-only). `mcpChatgpt*` and
+    `securityRequire2faForOwner` are Owner-only (`assertRoleMayWriteSettings`); `ubah_data_garage` refuses protected setting keys.
+  - Decision PDF `GET /api/control/decision-center/[id]/pdf` (`decision-pdf.ts`): DRAFT until decided AND execution recorded;
+    printing never creates a step-up challenge (`getDecisionDetail(..., { stepUp: false })`).
+- Smart Approval decision policy (audit Nov 2026, `docs/smart-approval-v3/10-AUDIT-FIXES.md`): ONE rule set in
+  `decisionPolicyBlock` (`smart-approval.ts`), called inside `decideApproval` for every channel (board, pin, langsung, auto,
+  decision_center, chatgpt, owner_command, agent_key). Agent API keys never decide/defer (`AGENT_CANNOT_DECIDE`). Approving R3 =
+  Owner + 2FA verified for that decision (`stepUpVerified`, set only by Decision Center after TOTP or by the MCP R3 confirm flow);
+  rejecting is always allowed. Non-Owner "langsung" on high risk stays pending (`canSelfApprove(garage, risk)`). `putuskan_approval`
+  is R3. APP-CASH: opener/closer can't approve own discrepancy; an existing sign-off is never overwritten.
+  Tahap B (migration 0180): `approvals.expires_at` (discount 6 h, `APPROVAL_TTL_HOURS`), statuses `expired`/`superseded`
+  (never deleted); `reconcileApprovals` (`approval-reconcile.ts`, rules pure in `-rules.ts`, every minute from the server
+  sweeper) expires/supersedes, verifies stuck `running` executions (succeeded only with proof, else `uncertain`) and pushes
+  R3 / R2>30 min to Owners. Sweep skips `reviewState`; errors never carry SQL (`safeExecutionError`).
+  Tahap C/D: Decision Center loads deterministic cross-module context (requester 30 days, open risk alerts, same order) +
+  evidence-completeness `confidence`; `getDecisionQueues` = read-only index of other modules' approval queues; decisions
+  record `payload.decisionCenter` (recommendation, confidence, followed) → AI Governance "Kualitas keputusan".
+- AYA Problem Solver V4 (`docs/smart-problem-solver-v4/`, migration 0178): `garage-problem-solver.ts` (R0 whitelist, facts,
+  hypotheses, report; tool errors never forwarded — ref only), service sends only `aiSafeExcerpt` to AI providers; MCP tool
+  `garage_analisis_masalah` (R0, Owner). Cases `ai_problem_cases` + append-only `ai_problem_case_events` (`ai-problem-cases.ts`):
+  analysis → decision (STALE) → link the Owner's own executed `mcp_operations` → verification (`compareOutcome`). UI
+  `/control/aya-solver`; Living Intelligence `/control/intelligence` (16 registry domains, real signals, no signal = unverified).
 
 ## Product Management Rules
 
@@ -466,6 +527,9 @@ Scroll direction:
   `/order?table=NN&mode=waiter&daftar=<base64url ids/qty/notes, no prices>`; waiter's Pesankan opens prefilled, validated
   against the current menu). `/api/customer/orders` returns 403 `DIGITAL_MENU_VIEW_ONLY` in `waiter_list`; delivery is off and
   no table hold is needed in that mode. Staff orders are unaffected. Daftar Pilihan is kept in sessionStorage per outlet & table.
+- Menu V5 customer extras (5 Nov 2026): table pick in `waiter_list` = info only (`table-info-v5.tsx`, GET only, never holds/occupies);
+  Signature = product tag "Signature", Unggulan = `featured` (never the same badge); AYA 3D = lazy `three` (`aya-stage-3d.tsx`, official
+  V5 layers, 2D fallback); AYA chat stays rule-based (no AI key in frontend). Details: skill `garage-menu-v5`.
 
 ## Event Menu Rules
 

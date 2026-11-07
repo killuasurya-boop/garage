@@ -152,6 +152,8 @@ export const CASH_DRAWER_CATEGORIES: CashDrawerCategory[] = [
     placeholder: "Kasbon untuk kebutuhan mendesak",
     hint: "Bukan biaya. Masuk kasbon karyawan & dipotong otomatis saat gajian.",
     alwaysConfirm: true,
+    // Owner 6 Nov 2026: kasbon tetap perlu ACC (kasir bisa memberi kasbon ke dirinya sendiri).
+    requiresApproval: true,
   },
   {
     key: "refund_pelanggan",
@@ -178,8 +180,8 @@ export const CASH_DRAWER_CATEGORIES: CashDrawerCategory[] = [
     counterpartyLabel: "Disetor oleh",
     placeholder: "Setor tunai ke Rekening Jago",
     hint: "Bukan biaya — uang pindah ke rekening. Status \"dalam perjalanan\" sampai Owner/Manajer lain mengonfirmasi bukti setor.",
+    // Owner 6 Nov 2026: langsung tercatat tanpa ACC; kontrolnya = konfirmasi bukti setor oleh orang lain.
     alwaysConfirm: true,
-    requiresApproval: true,
   },
   {
     key: "brankas",
@@ -342,14 +344,23 @@ export function formatRupiahInput(raw: string): string {
   return new Intl.NumberFormat("id-ID").format(value);
 }
 
-/** Kasir perlu persetujuan Manajer/Owner untuk transaksi ini? */
+/**
+ * Kasir perlu persetujuan Manajer/Owner untuk transaksi ini? (Owner, 6 Nov 2026)
+ * Kas keluar/masuk langsung tercatat & memotong laporan, KECUALI kategori `requiresApproval` (kasbon, refund pelanggan)
+ * atau bila total kas keluar kasir di shift ini (termasuk transaksi ini) melewati batas per shift.
+ */
 export function cashDrawerNeedsApproval(
   category: CashDrawerCategory,
   amount: number,
-  threshold: number,
+  shift: { outTotalBefore: number; limit: number } | null = null,
 ): boolean {
-  return Boolean(category.requiresApproval) || amount >= threshold;
+  if (category.requiresApproval) return true;
+  if (category.direction !== "out" || !shift || !(shift.limit > 0)) return false;
+  return shift.outTotalBefore + amount > shift.limit;
 }
+
+/** Kas keluar mulai nominal ini sebaiknya berfoto nota (ditandai di Kontrol Kas bila belum ada). */
+export const CASH_OUT_RECEIPT_MIN = 50_000;
 
 /** Saldo laci: kas keluar mengurangi, kas masuk menambah. */
 export function cashDrawerDelta(direction: CashDrawerDirection, amount: number) {

@@ -173,4 +173,41 @@ describe("Bayar nanti (open bill)", () => {
     expect(deletedReceipt.order.paymentStatus).toBe("cancelled");
     expect(deletedReceipt.items.length).toBe(1);
   });
+
+  it("Belum Bayar: scope unpaid = outlet sendiri, semua status belum lunas, ditandai staffOrder + WA", async () => {
+    const created = await svc.createCustomerOrder({
+      orderType: "takeaway",
+      outletId,
+      customerMode: "guest",
+      guestName: "Citra",
+      guestPhone: "081234567890",
+      source: "qr_takeaway",
+      staffOrder: true,
+      allowHiddenItems: true,
+      paymentMethod: "Cash",
+      items: [{ itemId: "itm-food", variantId: "reg", qty: 1 }],
+    });
+    await svc.updateCustomerOrderStatus(created.order.id, { action: "accept" }, kasir(), { openBill: true });
+
+    const unpaid = await svc.getCustomerOrderData({ scope: "unpaid", outletId });
+    const row = unpaid.find((order: any) => order.id === created.order.id);
+    expect(row).toBeTruthy();
+    expect(row.staffOrder).toBe(true);
+    expect(row.customerPhone).toBe("081234567890");
+    expect(row.items).toHaveLength(1);
+    expect(unpaid.every((order: any) => ["pending_cashier", "awaiting_payment", "accepted"].includes(order.status))).toBe(true);
+
+    // Outlet lain tidak melihat tagihan ini.
+    const other = await svc.getCustomerOrderData({ scope: "unpaid", outletId: "00000000-0000-0000-0000-000000000000" });
+    expect(other.some((order: any) => order.id === created.order.id)).toBe(false);
+
+    // Setelah lunas, hilang dari daftar Belum Bayar.
+    await svc.updateCustomerOrderStatus(
+      created.order.id,
+      { action: "paid", paymentMethod: "Cash", cashReceived: created.order.total },
+      kasir(),
+    );
+    const after = await svc.getCustomerOrderData({ scope: "unpaid", outletId });
+    expect(after.some((order: any) => order.id === created.order.id)).toBe(false);
+  });
 });

@@ -50,7 +50,7 @@ test("2. POS: buka shift, jual tunai uang pas lalu QRIS", async ({ page }, info)
   assertNoErrors();
 });
 
-test("3. tutup shift: hitung #1/#2, modal ditinggal, setoran BNI masuk antrean", async ({ page }, info) => {
+test("3. tutup shift: hitung sekali, modal ditinggal, setoran BNI masuk antrean", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop-1366", "alur kasir diuji di tablet/desktop");
   const assertNoErrors = failOnPageErrors(page);
   await login(page, "kasir@garage.id");
@@ -70,12 +70,8 @@ test("3. tutup shift: hitung #1/#2, modal ditinggal, setoran BNI masuk antrean",
   for (let i = 0; i < (await boxes.count()); i += 1) await boxes.nth(i).check();
   await dialog.getByRole("button", { name: /Periksa & tutup shift/ }).click();
 
-  // Hitungan #2 (blind, form kosong).
-  await expect(dialog.getByText(/Hitung ulang #2/)).toBeVisible();
-  await expect(dialog.getByTestId("close-denom-2-100000")).toHaveValue("");
-  await dialog.getByTestId("close-denom-2-100000").fill("1");
-  await dialog.getByTestId("close-denom-2-5000").fill("1");
-  await dialog.getByRole("button", { name: "Lanjut" }).click();
+  // Hitung sekali saja (Owner, Nov 2026): tidak ada form hitungan #2.
+  await expect(dialog.getByText(/Hitung ulang #2/)).toHaveCount(0);
   await dialog.getByRole("button", { name: /Ya, tutup shift|Sign-off & Tutup Shift/ }).click();
   await expect(dialog).toBeHidden({ timeout: 90_000 });
   assertNoErrors();

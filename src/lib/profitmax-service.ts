@@ -32,6 +32,7 @@ import {
   profitMaxRecipes,
   profitMaxScenarios,
 } from "@/components/ceo/data/profitMaxData";
+import { parseRupiahLabel } from "@/lib/smart-approval";
 import type { GarageSession } from "@/lib/server-auth";
 
 const profitMaxSavedCalculationsKey = "profitmax.savedCalculations";
@@ -298,6 +299,10 @@ export async function createProfitMaxApproval(
       risk: input.risk,
       age: "baru saja",
       status: "pending",
+      // Audit SA-08: lengkap seperti pengajuan lain. Disetujui = catatan keputusan (tanpa eksekusi otomatis).
+      outletId: garage.profile.outlet?.id ?? null,
+      amountValue: parseRupiahLabel(input.amount.trim()),
+      payload: { requestedBy: garage.user.id, requestedByName: actor, actionType: input.actionType, ...(input.payload ?? {}) },
     })
     .returning();
 

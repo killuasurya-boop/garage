@@ -64,7 +64,7 @@ export function MemberLevelCard({
 
         <div className="grid grid-cols-2 gap-3 border-t border-white/12 pt-4 text-sm">
           <div>
-            <p className="garage-mono">Point</p>
+            <p className="garage-mono">Syarat</p>
             <p className="mt-1 font-semibold text-white">{points}</p>
           </div>
           <div>

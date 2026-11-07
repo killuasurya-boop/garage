@@ -4,7 +4,7 @@
 // grid/list, sidebar (desktop & laci HP), navigasi bawah HP, kartu AYA, kartu lokasi & media sosial.
 // Tidak ada fitur palsu: chip hanya muncul bila datanya ada; lonceng/scan/mic baru muncul di fase berikutnya.
 import { useEffect, useState } from "react";
-import { ArrowUpRight, BadgeCheck, ChevronDown, ChevronRight, Crown, Gift, Flame, Grid2x2, Heart, Home, Info, LayoutGrid, List, MapPin, ClipboardList, Sparkles, TicketPercent, UtensilsCrossed } from "lucide-react";
+import { ArrowUpRight, BadgeCheck, ChevronDown, ChevronRight, Crown, Gift, Flame, Grid2x2, Heart, Home, Info, LayoutGrid, List, MapPin, ClipboardList, Sparkles, Star, TicketPercent, UtensilsCrossed } from "lucide-react";
 
 import { AyaMascot } from "@/components/garage/aya/aya-mascot";
 import type { MenuItem } from "@/lib/garage-api-types";
@@ -19,8 +19,9 @@ import { CHIP_LABEL, type MenuChip } from "./menu-v5-model";
 export type CategoryLink = { id: string; label: string; photo: MenuItem | null };
 
 function ChipIcon({ chip }: { chip: MenuChip }) {
-  if (chip === "signature") return <Crown className="size-4 text-[#f5c451]" aria-hidden />;
-  if (chip === "best") return <Flame className="size-4 text-[#ff7a45]" aria-hidden />;
+  if (chip === "signature") return <Crown className="size-4 text-[#ff8a86]" aria-hidden />;
+  if (chip === "unggulan") return <Star className="size-4 text-[#ffd978]" fill="currentColor" aria-hidden />;
+  if (chip === "best") return <Flame className="size-4 text-[#e0e0e0]" aria-hidden />;
   if (chip === "promo") return <TicketPercent className="size-4 text-[#f5a742]" aria-hidden />;
   if (chip === "favorite") return <Heart className="size-4 text-[#ff8a86]" aria-hidden />;
   return null;
@@ -271,7 +272,7 @@ export function SidebarV5({
   staff?: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(true);
-  const shortcuts = chips.filter((chip) => chip === "signature" || chip === "best" || chip === "promo");
+  const shortcuts = chips.filter((chip) => chip === "signature" || chip === "unggulan" || chip === "best" || chip === "promo");
   return (
     <div className="flex flex-col gap-4">
       <nav className="gm5-panel flex flex-col gap-1 p-2" aria-label="Navigasi menu">

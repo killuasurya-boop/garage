@@ -14,6 +14,7 @@ export async function GET(request: Request) {
   return ok(
     await getApprovalData({
       status: url.searchParams.get("status") ?? undefined,
+      viewer: session.data,
     }),
   );
 }

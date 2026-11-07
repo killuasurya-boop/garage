@@ -1,953 +1,423 @@
 import type { Metadata } from "next";
-import { componentLabel, groupOrderLines } from "@/lib/order-package-lines";
+import { Suspense } from "react";
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import {
-  Bike,
-  CheckCircle2,
-  ChefHat,
-  Clock,
-  CreditCard,
-  FileText,
-  MapPin,
-  MessageCircle,
-  PackageCheck,
-  Phone,
-  QrCode,
-  ReceiptText,
-  Smartphone,
-  Star,
-  Utensils,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { CalendarDays, Clock3, CreditCard, FileText, MapPin, ReceiptText, Star, Utensils } from "lucide-react";
 
+import { CinematicInvoiceHero } from "@/components/garage/invoice-v4/cinematic-invoice-hero";
+import { InvoiceActions } from "@/components/garage/invoice-v4/invoice-actions";
+import { InvoiceLiveTrackerV4 } from "@/components/garage/invoice-v4/invoice-live-tracker";
+import { InvoiceMembership } from "@/components/garage/invoice-v4/invoice-membership";
+import { InvoiceMotion } from "@/components/garage/invoice-v4/invoice-motion";
+import { InvoiceQrisCard } from "@/components/garage/invoice-v4/invoice-qris-card";
+import { BenefitIcon } from "@/components/garage/invoice-v4/member-offers";
+import { WhatsAppOrderShare, type WhatsAppInvoiceData } from "@/components/garage/invoice-v4/whatsapp-order-share";
+import "@/components/garage/invoice-v4/invoice-v4.css";
+import { verifiedTierBenefits } from "@/lib/customer-offers";
+import { cashierWhatsappNumber } from "@/lib/cx-whatsapp";
 import { GARAGE_LOCATION } from "@/lib/garage-location";
-import { getInvoiceLiveStatus, getPublicInvoiceTracking } from "@/lib/garage-service";
+import { getAppSettings, getInvoiceLiveStatus, getPublicInvoiceTracking } from "@/lib/garage-service";
+import {
+  fulfillmentLabel,
+  INVOICE_PAYMENT_LABEL,
+  invoiceNeedsPayment,
+  invoicePaymentState,
+  maskPhone,
+  type FulfillmentKind,
+  type InvoicePaymentState,
+} from "@/lib/invoice-v4";
+import { componentLabel, groupOrderLines } from "@/lib/order-package-lines";
 import { InvoiceContact } from "./invoice-contact";
-import { InvoiceLiveTracker } from "./invoice-live-tracker";
-import { InvoicePrintButton } from "./invoice-print-button";
 import { InvoiceQrCode } from "./invoice-qr";
-import { QRIS_IMAGE_SRC } from "@/lib/garage-qris";
+
+// Invoice Digital V4 — Customer Experience Engine (owner, Nov 2026).
+// Satu invoice: tagihan, QRIS, tracking, WhatsApp kasir, membership, promo.
+// Nilai uang & status selalu dari data order/pembayaran asli (tidak ada "Lunas" palsu).
 
 export const metadata: Metadata = {
-  title: "Invoice Tracking - GARAGE Coffee",
-  description: "Tracking invoice customer GARAGE Coffee.",
+  title: "Invoice Digital - Garage Coffee",
+  description: "Invoice, pembayaran, dan tracking pesanan Garage Coffee.",
+  robots: { index: false, follow: false, nocache: true, googleBot: { index: false, follow: false } },
+  referrer: "no-referrer",
 };
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const rupiah = new Intl.NumberFormat("id-ID", {
-  style: "currency",
-  currency: "IDR",
-  maximumFractionDigits: 0,
-});
+const rupiah = (value: number) => `Rp${Math.round(value).toLocaleString("id-ID")}`;
 
-function dateTime(value: string | null | undefined) {
+function dateLabel(value: string | null | undefined) {
   if (!value) return "-";
-  return new Intl.DateTimeFormat("id-ID", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
+  return new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Jakarta" }).format(new Date(value));
 }
 
-function orderStatusBadge(status: string) {
-  const map: Record<string, { label: string; cls: string }> = {
-    pending_cashier: { label: "Menunggu Kasir", cls: "bg-amber-500/15 border-amber-500/40 text-amber-300" },
-    awaiting_payment: { label: "Menunggu Bayar", cls: "bg-amber-500/15 border-amber-500/40 text-amber-300" },
-    accepted: { label: "Diproses", cls: "bg-blue-500/15 border-blue-500/40 text-blue-300" },
-    paid: { label: "Lunas", cls: "bg-green-500/15 border-green-500/40 text-green-300" },
-    rejected: { label: "Ditolak", cls: "bg-red-500/15 border-red-500/40 text-red-300" },
-    cancelled: { label: "Dibatalkan", cls: "bg-red-500/15 border-red-500/40 text-red-300" },
-  };
-  const badge = map[status];
-  if (!badge) return <span className="rounded-md border border-[#34343c] px-2 py-1 font-mono text-[10px] text-[#b8b8bf]">{status}</span>;
-  return <span className={`rounded-md border px-2 py-1 font-mono text-[10px] ${badge.cls}`}>{badge.label}</span>;
+function timeLabel(value: string | null | undefined) {
+  if (!value) return "-";
+  return `${new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" }).format(new Date(value))} WIB`;
 }
 
-function kitchenStatusBadge(status: string) {
-  const map: Record<string, { label: string; cls: string }> = {
-    waiting_cashier: { label: "Menunggu Validasi", cls: "bg-amber-500/15 border-amber-500/40 text-amber-300" },
-    queue: { label: "Masuk Antrian", cls: "bg-blue-500/15 border-blue-500/40 text-blue-300" },
-    cooking: { label: "Sedang Dibuat", cls: "bg-orange-500/15 border-orange-500/40 text-orange-300" },
-    ready: { label: "Siap Diambil", cls: "bg-green-500/15 border-green-500/40 text-green-300" },
-    delivered: { label: "Sudah Diterima", cls: "bg-green-500/15 border-green-500/40 text-green-300" },
-    completed: { label: "Selesai", cls: "bg-green-500/15 border-green-500/40 text-green-300" },
-    rejected: { label: "Ditolak", cls: "bg-red-500/15 border-red-500/40 text-red-300" },
-  };
-  const badge = map[status];
-  if (!badge) return <span className="rounded-md border border-[#34343c] px-2 py-1 font-mono text-[10px] text-[#b8b8bf]">{status}</span>;
-  return <span className={`rounded-md border px-2 py-1 font-mono text-[10px] ${badge.cls}`}>{badge.label}</span>;
-}
-
-function paymentStatusBadge(status: string) {
-  const map: Record<string, { label: string; cls: string }> = {
-    pending: { label: "Belum Bayar", cls: "bg-amber-500/15 border-amber-500/40 text-amber-300" },
-    paid: { label: "Lunas", cls: "bg-green-500/15 border-green-500/40 text-green-300" },
-    issued: { label: "Terbit", cls: "bg-green-500/15 border-green-500/40 text-green-300" },
-    failed: { label: "Gagal", cls: "bg-red-500/15 border-red-500/40 text-red-300" },
-    cancelled: { label: "Batal", cls: "bg-red-500/15 border-red-500/40 text-red-300" },
-  };
-  const badge = map[status.toLowerCase()];
-  if (!badge) return <span className="rounded-md border border-[#34343c] px-2 py-1 font-mono text-[10px] text-[#b8b8bf]">{status}</span>;
-  return <span className={`rounded-md border px-2 py-1 font-mono text-[10px] ${badge.cls}`}>{badge.label}</span>;
-}
-
-function valueOrDash(value: string | null | undefined) {
-  return value?.trim() || "-";
-}
-
-const trackingSteps: Array<{
-  id: string;
-  label: string;
-  description: string;
-  icon: LucideIcon;
-}> = [
-  {
-    id: "received",
-    label: "Order Masuk",
-    description: "Pesanan berhasil terkirim.",
-    icon: ReceiptText,
-  },
-  {
-    id: "cashier",
-    label: "Diproses Kasir",
-    description: "Kasir sedang cek order dan pembayaran.",
-    icon: Clock,
-  },
-  {
-    id: "kitchen",
-    label: "Masuk Dapur",
-    description: "Order sudah masuk antrian kitchen/bar.",
-    icon: Utensils,
-  },
-  {
-    id: "cooking",
-    label: "Dimasak",
-    description: "Pesanan sedang dibuat.",
-    icon: ChefHat,
-  },
-  {
-    id: "ready",
-    label: "Siap Diantar",
-    description: "Pesanan sudah siap.",
-    icon: PackageCheck,
-  },
-  {
-    id: "delivered",
-    label: "Diantar / Selesai",
-    description: "Pesanan sudah diterima customer.",
-    icon: CheckCircle2,
-  },
-];
-
-function trackingStepIndex(input: { orderStatus: string; kitchenStatus: string }) {
-  if (input.orderStatus === "rejected" || input.kitchenStatus === "rejected") return -1;
-  if (input.kitchenStatus === "delivered" || input.kitchenStatus === "completed") return 5;
-  if (input.kitchenStatus === "ready") return 4;
-  if (input.kitchenStatus === "cooking") return 3;
-  if (input.kitchenStatus === "queue") return 2;
-  if (input.orderStatus === "accepted" || input.orderStatus === "paid") return 2;
-  return 1;
-}
-
-// Step timestamps are derived from order timing; if audit trail available use it
-const STEP_LABELS: Record<string, string> = {
-  received: "Order dibuat",
-  cashier: "Dicek kasir",
-  kitchen: "Masuk dapur",
-  cooking: "Mulai dibuat",
-  ready: "Selesai dibuat",
-  delivered: "Diserahkan",
+const PILL_TONE: Record<InvoicePaymentState, string> = {
+  paid: "paid",
+  pending: "pending",
+  awaiting_confirmation: "awaiting",
+  failed: "pending",
+  cancelled: "muted",
+  refund: "muted",
 };
 
-export default async function InvoiceTrackingPage({
-  params,
-}: {
-  params: Promise<{ token: string }>;
-}) {
+export default async function InvoiceTrackingPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const [invoice, liveStatus] = await Promise.all([
-    getPublicInvoiceTracking(token),
-    getInvoiceLiveStatus(token),
-  ]);
-  if (!invoice) {
-    notFound();
-  }
+  const [invoice, liveStatus] = await Promise.all([getPublicInvoiceTracking(token), getInvoiceLiveStatus(token)]);
+  if (!invoice) notFound();
 
-  const activeTrackingStep = trackingStepIndex({
+  const settings = await getAppSettings(invoice.outletId);
+  const paymentState = invoicePaymentState({
     orderStatus: invoice.orderStatus,
-    kitchenStatus: invoice.kitchenStatus,
+    paymentStatus: invoice.payment.status,
+    paymentMethod: invoice.payment.method,
+    invoiceStatus: invoice.invoiceStatus,
   });
+  const paid = paymentState === "paid";
+  const needsPayment = invoiceNeedsPayment(paymentState);
+  const fulfillment = (liveStatus?.fulfillment ?? null) as FulfillmentKind | null;
+  const kindLabel = fulfillmentLabel(fulfillment, null);
+  const methodLabel =
+    invoice.payment.staffOrder && !paid ? "Belum dipilih" : invoice.payment.method?.trim() || (paid ? "-" : "Belum dipilih");
+  const lines = groupOrderLines(invoice.items);
+  const itemCount = invoice.items.reduce((sum, item) => sum + item.qty, 0);
+  const benefits = verifiedTierBenefits(
+    "Silver",
+    {
+      pointsPerThousand: Number(settings.pointsPerThousand ?? 0),
+      pointValue: Number(settings.memberPointValue ?? 0),
+      redeemMaxPct: Number(settings.memberRedeemMaxPct ?? 0),
+      redeemMinPoints: Number(settings.memberRedeemMinPoints ?? 0),
+    },
+    { includeWelcome: true },
+  );
 
-  const orderTime = dateTime(invoice.createdAt);
-  // Lunas = order berstatus paid, atau pembayaran tercatat captured/paid, atau
-  // invoice terbit. (Dulu hanya dicek "paid" pada payment → pembayaran sukses
-  // yang tercatat "captured" dianggap belum lunas & panel QRIS tetap muncul.)
-  const isPaid =
-    invoice.orderStatus === "paid" ||
-    ["paid", "captured"].includes((invoice.payment.status ?? "").toString().toLowerCase()) ||
-    (invoice.invoiceStatus ?? "").toString().toLowerCase() === "issued";
+  const waData: WhatsAppInvoiceData = {
+    token,
+    orderNo: invoice.orderNo,
+    invoiceNo: invoice.invoiceNo,
+    customerName: invoice.customer.name?.trim() || null,
+    tableLabel: fulfillment === "delivery" || fulfillment === "takeaway" ? null : invoice.tableLabel,
+    fulfillmentLabel: kindLabel,
+    total: invoice.total,
+    paymentMethod: methodLabel === "Belum dipilih" ? null : methodLabel,
+    paymentStatusLabel: INVOICE_PAYMENT_LABEL[paymentState],
+    cashierWhatsapp: cashierWhatsappNumber(settings.garageWhatsapp),
+  };
+  const maskedPhone = maskPhone(invoice.customer.phone);
 
   return (
-    <main className="invoice-web-print min-h-screen bg-[#08080a] text-[#f4f4f5]">
-      <style
-        dangerouslySetInnerHTML={{
-          __html: `
-            .print-only { display: none; }
+    <main className="iv-root">
+      <Suspense fallback={null}>
+        <InvoiceMotion token={token} />
+      </Suspense>
 
-            @media print {
-              /* === PAGE SETUP === */
-              @page { size: A4; margin: 8mm 10mm; }
-              html, body { background: #ffffff !important; }
-              body * { visibility: hidden !important; }
-              .invoice-web-print, .invoice-web-print * { visibility: visible !important; }
-              .invoice-web-print {
-                background: #ffffff !important;
-                color: #111827 !important;
-                inset: 0 auto auto 0;
-                position: absolute;
-                width: 100%;
-                font-size: 9pt !important;
-                line-height: 1.35 !important;
-              }
+      {/* ── SECTION 01 — Header ── */}
+      <header className="iv-header">
+        <div className="iv-container iv-header-inner">
+          <div className="flex min-w-0 items-center gap-4 lg:gap-8">
+            <Image
+              src="/garage-brand/garage-coffee-logo.png"
+              alt="Garage Coffee"
+              width={180}
+              height={60}
+              priority
+              className="h-9 w-auto object-contain sm:h-10"
+            />
+            <span className="iv-nav-tab hidden sm:inline">Invoice Digital</span>
+          </div>
+          <InvoiceActions token={token} orderNo={invoice.orderNo} />
+        </div>
+      </header>
 
-              /* === HIDE INTERACTIVE / WEB-ONLY === */
-              .invoice-web-print a,
-              .invoice-web-print button,
-              .no-print,
-              .invoice-status-cards,
-              .invoice-timeline,
-              .invoice-info-order {
-                display: none !important;
-              }
-
-              /* === RESET DARK THEME → LIGHT === */
-              .invoice-web-print section,
-              .invoice-web-print div,
-              .invoice-web-print aside {
-                box-shadow: none !important;
-                background: transparent !important;
-                border-color: #d1d5db !important;
-                color: #111827 !important;
-              }
-              .invoice-web-print p,
-              .invoice-web-print span,
-              .invoice-web-print h1,
-              .invoice-web-print h2,
-              .invoice-web-print th,
-              .invoice-web-print td { color: #111827 !important; }
-              .invoice-web-print .text-\\[\\#b8b8bf\\],
-              .invoice-web-print .text-\\[\\#8f8f99\\],
-              .invoice-web-print .text-\\[\\#d6d6dc\\] { color: #6b7280 !important; }
-              .invoice-web-print .text-\\[\\#ffd79a\\],
-              .invoice-web-print .text-\\[\\#f5a742\\],
-              .invoice-web-print .text-\\[\\#ffe7b8\\] { color: #b45309 !important; }
-
-              /* === PRINT-ONLY ELEMENTS === */
-              .print-only { display: block !important; }
-              .invoice-web-print .print-logo { display: block !important; }
-
-              /* === HEADER (compact, 2-col) === */
-              .invoice-header-print {
-                border-bottom: 2px solid #f5a742 !important;
-                padding: 0 0 6px 0 !important;
-                margin: 0 0 8px 0 !important;
-              }
-
-              /* === MAIN HEADER section: tighten === */
-              .invoice-web-print > section:first-of-type {
-                border: none !important;
-                padding: 0 !important;
-              }
-              .invoice-web-print > section:first-of-type > div {
-                max-width: 100% !important;
-                padding: 0 !important;
-                margin: 0 !important;
-              }
-
-              /* Brand + total bill row: keep compact */
-              .invoice-web-print h1 {
-                font-size: 14pt !important;
-                margin: 4px 0 0 0 !important;
-              }
-              .invoice-web-print .invoice-total-bill {
-                padding: 6px 10px !important;
-                background: #fff7ed !important;
-                border: 1px solid #fbbf24 !important;
-              }
-              .invoice-web-print .invoice-total-bill p:nth-child(2) {
-                font-size: 16pt !important;
-                color: #b45309 !important;
-              }
-
-              /* === BODY: items + sidebar → stacked compact === */
-              .invoice-web-print > section:nth-of-type(2) {
-                display: block !important;
-                padding: 0 !important;
-                margin: 0 !important;
-                gap: 0 !important;
-              }
-              .invoice-web-print > section:nth-of-type(2) > div,
-              .invoice-web-print > section:nth-of-type(2) > aside {
-                display: block !important;
-                width: 100% !important;
-              }
-
-              /* === ITEMS table compact === */
-              .invoice-items-scroll { overflow: visible !important; }
-              .invoice-items-table { min-width: 0 !important; width: 100% !important; }
-              .invoice-items-table thead tr {
-                color: #6b7280 !important;
-                border-color: #9ca3af !important;
-                border-bottom-width: 1px !important;
-              }
-              .invoice-items-table tbody tr { border-color: #e5e7eb !important; }
-              .invoice-items-table th,
-              .invoice-items-table td {
-                padding: 4px 6px !important;
-                font-size: 8.5pt !important;
-                color: #111827 !important;
-              }
-              .invoice-item-row { border-color: #e5e7eb !important; }
-
-              /* === PRINT-ONLY META STRIP (date + customer + status) === */
-              .invoice-print-meta-strip {
-                display: grid !important;
-                grid-template-columns: repeat(3, 1fr) !important;
-                gap: 8px !important;
-                margin: 0 0 8px 0 !important;
-                padding: 6px 8px !important;
-                border: 1px solid #d1d5db !important;
-                border-radius: 4px !important;
-                background: #f9fafb !important;
-                font-size: 8.5pt !important;
-              }
-              .invoice-print-meta-strip .label {
-                font-size: 7pt !important;
-                text-transform: uppercase !important;
-                letter-spacing: 0.5px !important;
-                color: #6b7280 !important;
-                margin: 0 0 1px 0 !important;
-              }
-              .invoice-print-meta-strip .value {
-                font-weight: 600 !important;
-                color: #111827 !important;
-              }
-
-              /* === SECTION HEADINGS compact === */
-              .invoice-web-print section > div > p:first-child,
-              .invoice-web-print section > div > div > p:first-child {
-                font-size: 7.5pt !important;
-              }
-
-              /* === TOTAL + QR side-by-side === */
-              .invoice-print-summary-grid {
-                display: grid !important;
-                grid-template-columns: 1fr 110px !important;
-                gap: 12px !important;
-                margin: 8px 0 0 0 !important;
-                padding: 8px 0 0 0 !important;
-                border-top: 1px solid #d1d5db !important;
-              }
-              .invoice-total-row { border-top: 1px solid #9ca3af !important; }
-              .invoice-web-print .invoice-grand-total-value {
-                font-size: 13pt !important;
-                color: #b45309 !important;
-              }
-
-              /* === QR for print: smaller, no card === */
-              .invoice-qr-print canvas,
-              .invoice-qr-print svg,
-              .invoice-qr-print img {
-                width: 90px !important;
-                height: 90px !important;
-              }
-
-              /* === CUSTOMER inline === */
-              .invoice-customer-card {
-                padding: 4px 0 !important;
-                border: none !important;
-                background: transparent !important;
-              }
-              .invoice-customer-card h2 {
-                font-size: 9.5pt !important;
-                margin: 2px 0 !important;
-              }
-
-              /* === Hide section card chrome on print === */
-              .invoice-web-print section[class*="rounded"],
-              .invoice-web-print div[class*="rounded-md"] {
-                border-radius: 0 !important;
-              }
-
-              /* === FOOTER compact === */
-              .invoice-web-print footer {
-                border-top: 1px solid #d1d5db !important;
-                padding: 6px 0 0 0 !important;
-                margin: 8px 0 0 0 !important;
-              }
-            }
-          `,
-        }}
-      />
-
-      {/* ─── PRINT HEADER (logo) ─── */}
-      <div className="print-only print-logo mb-3 text-center" style={{ display: "none" }}>
-        <Image
-          src="/garage-brand/garage-coffee-logo-dark.png"
-          alt="GARAGE Coffee"
-          width={240}
-          height={80}
-          className="mx-auto h-12 object-contain"
-        />
+      {/* Print header (A4 terang) */}
+      <div className="iv-print-only iv-container pt-2">
+        <div className="flex items-center justify-between border-b-2 border-black pb-2">
+          <Image src="/garage-brand/garage-coffee-logo-dark.png" alt="Garage Coffee" width={200} height={66} className="h-12 w-auto object-contain" />
+          <div className="text-right text-xs">
+            <p className="font-bold">INVOICE {invoice.invoiceNo}</p>
+            <p>Order {invoice.orderNo}</p>
+            <p>{GARAGE_LOCATION.phoneDisplay} · garagecoffee.id</p>
+          </div>
+        </div>
       </div>
 
-      {/* ─── MAIN HEADER ─── */}
-      <section className="border-b border-[#34343c] bg-[#111116]">
-        <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
-
-          {/* Outlet identity row */}
-          <div className="mb-5 flex items-start justify-between gap-4 print-only invoice-header-print" style={{ display: "none" }}>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-widest text-[#f5a742]">
-                GARAGE Coffee
-              </p>
-              <p className="mt-1 text-xs text-gray-500">
-                Outlet: {invoice.tableLabel}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="font-mono text-xs font-bold text-gray-800">MASTER INVOICE</p>
-              <p className="mt-0.5 font-mono text-xs text-gray-600">{invoice.invoiceNo}</p>
-            </div>
+      {/* ── Hero ── */}
+      <section className="relative overflow-hidden border-b border-[var(--iv-border)] iv-no-print">
+        <div className="iv-container relative z-[1] flex min-h-[112px] items-center py-5 md:min-h-[150px] lg:min-h-[176px]">
+          <div className="max-w-xl">
+            <h1 className="iv-heading text-[28px] leading-none sm:text-[36px] lg:text-[44px]">
+              Invoice <span className="text-[var(--iv-red)]">Digital</span>
+            </h1>
+            <p className="mt-2 text-[13px] text-[var(--iv-text-2)] sm:text-[14px]">
+              Transaksi • Pembayaran • Tracking • Member • Reward
+            </p>
           </div>
+        </div>
+        <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-[46%] md:block" aria-hidden>
+          <Image
+            src="/garage-brand/member/member-scene.webp"
+            alt=""
+            fill
+            sizes="46vw"
+            className="object-cover object-[center_60%] opacity-80 [mask-image:linear-gradient(90deg,transparent,black_45%)]"
+          />
+        </div>
+        <div className="pointer-events-none absolute inset-y-0 left-[38%] hidden w-[22%] lg:block">
+          <CinematicInvoiceHero />
+        </div>
+      </section>
 
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            {/* Left: Brand + invoice meta */}
-            <div>
-              {/* Desktop logo */}
-              <div className="hidden sm:block">
-                <Image
-                  src="/garage-brand/garage-coffee-logo.png"
-                  alt="GARAGE Coffee"
-                  width={240}
-                  height={80}
-                  className="h-10 w-auto object-contain"
-                />
-              </div>
-              {/* Mobile logo */}
-              <div className="sm:hidden">
-                <Image
-                  src="/garage-brand/garage-coffee-icon.png"
-                  alt="GARAGE"
-                  width={80}
-                  height={80}
-                  className="h-10 w-auto object-contain"
-                />
-              </div>
-              <p className="mt-3 font-mono text-xs uppercase tracking-[0.18em] text-[#f5a742]">
-                GARAGE Coffee
-              </p>
-
-              {/* Outlet info */}
-              <div className="mt-3 flex flex-col gap-1">
-                {invoice.tableLabel && (
-                  <div className="flex items-center gap-2 text-xs text-[#b8b8bf]">
-                    <MapPin className="size-3 shrink-0 text-[#f5a742]" />
-                    <span>{invoice.tableLabel}</span>
-                  </div>
-                )}
-                <a
-                  href={GARAGE_LOCATION.directionsUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-start gap-2 text-xs text-[#b8b8bf] hover:text-white"
-                >
-                  <MapPin className="mt-0.5 size-3 shrink-0 text-[#f5a742]" />
-                  <span>Jl. Mayjen Sutoyo, Rambung, Tebing Tinggi <span className="no-print text-[#f5a742]">· Rute</span></span>
-                </a>
-                <a
-                  href={`tel:+${GARAGE_LOCATION.phone}`}
-                  className="flex items-center gap-2 text-xs text-[#b8b8bf] hover:text-white"
-                >
-                  <Phone className="size-3 shrink-0 text-[#f5a742]" />
-                  <span>{GARAGE_LOCATION.phoneDisplay}</span>
-                </a>
-                <div className="flex items-center gap-2 text-xs text-[#b8b8bf]">
-                  <Smartphone className="size-3 shrink-0 text-[#f5a742]" />
-                  <span>garagecoffee.id</span>
-                </div>
-              </div>
-
-              {/* Invoice meta */}
-              <div className="mt-4">
-                <h1 className="text-2xl font-black tracking-tight text-white sm:text-3xl">
-                  Master Invoice
-                </h1>
-                <p className="mt-1 font-mono text-xs text-[#b8b8bf]">
-                  {invoice.invoiceNo} &nbsp;/&nbsp; {invoice.orderNo}
+      {/* ── Grid utama: mobile 1 kolom (urutan spesifikasi), tablet 2, desktop 3 ── */}
+      <div className="iv-container py-5 lg:py-6">
+        <div className="iv-print-grid grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,340px)_minmax(0,1fr)] lg:grid-cols-[minmax(0,330px)_minmax(0,1fr)_minmax(0,360px)] xl:grid-cols-[360px_minmax(0,1fr)_390px]">
+          {/* Kolom A */}
+          <div className="contents md:flex md:flex-col md:gap-4">
+            {/* SECTION 02 — Payment hero */}
+            <section className="iv-card iv-card-pad iv-reveal order-1" aria-labelledby="iv-invoice-title">
+              <div className="flex items-center justify-between gap-2">
+                <p className="flex items-center gap-2 text-[14px] font-semibold text-[var(--iv-cream)]">
+                  <ReceiptText className="size-4 text-[var(--iv-red)]" aria-hidden /> Invoice Digital
                 </p>
-                <p className="mt-0.5 font-mono text-xs text-[#b8b8bf]">
-                  {orderTime}
-                </p>
+                <span className="iv-pill" data-tone="outline">
+                  {kindLabel}
+                </span>
               </div>
-            </div>
+              <h2 id="iv-invoice-title" className="iv-heading mt-3 break-all text-[20px] leading-tight sm:text-[22px]">
+                {invoice.invoiceNo}
+              </h2>
+              <p className="mt-1 text-[13px] text-[var(--iv-text-2)]">Order: {invoice.orderNo}</p>
+              <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
+                {invoice.tableLabel && fulfillment !== "delivery" && fulfillment !== "takeaway" ? (
+                  <span className="iv-chip">
+                    <Utensils className="size-3.5" aria-hidden /> {invoice.tableLabel}
+                  </span>
+                ) : null}
+                <span className="iv-chip">
+                  <CalendarDays className="size-3.5" aria-hidden /> {dateLabel(invoice.createdAt)}
+                </span>
+                <span className="iv-chip">
+                  <Clock3 className="size-3.5" aria-hidden /> {timeLabel(invoice.createdAt)}
+                </span>
+              </div>
 
-            {/* Right: Total bill */}
-            <div className="invoice-total-bill rounded-md border border-[#f5a742]/35 bg-[#f5a742]/10 px-4 py-3 text-left sm:text-right">
-              <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-[#ffd79a]">
-                Total Tagihan
-              </p>
-              <p className="mt-1 text-2xl font-black text-white">{rupiah.format(invoice.total)}</p>
-              <div className="mt-2 flex items-center gap-2 sm:justify-end">
-                {orderStatusBadge(invoice.orderStatus)}
-                {paymentStatusBadge(invoice.payment.status ?? invoice.invoiceStatus)}
-              </div>
-              {invoice.channel && (
-                <div className="mt-1 flex items-center gap-1 sm:justify-end">
-                  {invoice.channel === "Grab" && <Bike className="size-3 text-green-400" />}
-                  <span className="rounded-md border border-[#34343c] px-2 py-0.5 font-mono text-[10px] text-[#8f8f99]">
-                    {invoice.channel}
+              <div className="iv-total mt-4 p-4" data-state={paid ? "paid" : "open"}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-[13px] font-semibold text-[var(--iv-text-2)]">Total Tagihan</p>
+                  <span className="iv-pill" data-tone={PILL_TONE[paymentState]} role="status">
+                    {INVOICE_PAYMENT_LABEL[paymentState]}
                   </span>
                 </div>
-              )}
-            </div>
-          </div>
+                <p className="iv-money mt-1.5 text-[30px] leading-none text-[var(--iv-cream)] sm:text-[34px]">{rupiah(invoice.total)}</p>
+              </div>
 
-          {/* Status summary cards (web only — print hides ini, ada di meta strip) */}
-          <div className="invoice-status-cards mt-5 grid gap-3 md:grid-cols-3">
-            <div className="rounded-md border border-[#34343c] bg-[#17171c] p-4">
-              <div className="flex items-center gap-2">
-                <Clock className="size-4 text-[#f5a742]" />
-                <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#b8b8bf]">Status Order</p>
-              </div>
-              <div className="mt-2 flex flex-wrap gap-1">
-                {orderStatusBadge(invoice.orderStatus)}
-              </div>
-            </div>
-            <div className="rounded-md border border-[#34343c] bg-[#17171c] p-4">
-              <div className="flex items-center gap-2">
-                <ReceiptText className="size-4 text-[#f5a742]" />
-                <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#b8b8bf]">Status Kitchen</p>
-              </div>
-              <div className="mt-2 flex flex-wrap gap-1">
-                {kitchenStatusBadge(invoice.kitchenStatus)}
-              </div>
-            </div>
-            <div className="rounded-md border border-[#34343c] bg-[#17171c] p-4">
-              <div className="flex items-center gap-2">
-                <CreditCard className="size-4 text-[#22c55e]" />
-                <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#b8b8bf]">Pembayaran</p>
-              </div>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <span className="text-sm font-semibold text-white">{invoice.payment.method ?? "-"}</span>
-                {paymentStatusBadge(invoice.payment.status ?? invoice.invoiceStatus)}
-              </div>
-            </div>
-          </div>
-
-          {/* Ajakan ulasan Google — hanya saat LUNAS (momen pelanggan paling puas). Web-only. */}
-          {isPaid ? (
-            <div className="mt-4 rounded-md border border-[#f5a742]/40 bg-gradient-to-r from-[#1a1510] to-[#161616] p-4 print:hidden">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <div className="flex-1">
-                  <div className="flex items-center gap-1 text-[#f5a742]">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <Star key={i} className="size-4 fill-[#f5a742]" />
-                    ))}
-                  </div>
-                  <p className="mt-1 text-sm font-semibold text-white">Puas dengan GARAGE? Beri bintang 5 di Google</p>
-                  <p className="mt-0.5 text-xs text-[#b8b8bf]">
-                    Cuma 10 detik — sangat membantu kami. Rating sekarang {GARAGE_LOCATION.rating.toFixed(1)} dari{" "}
-                    {GARAGE_LOCATION.reviewCount} ulasan.
-                  </p>
+              <dl className="mt-3 grid gap-2 text-[13.5px]">
+                <div className="flex items-center justify-between gap-3">
+                  <dt className="flex items-center gap-2 text-[var(--iv-text-2)]">
+                    <CreditCard className="size-4 text-[var(--iv-text-3)]" aria-hidden /> Metode Pembayaran
+                  </dt>
+                  <dd className="font-semibold text-[var(--iv-cream)]">{methodLabel}</dd>
                 </div>
-                <a
-                  href={GARAGE_LOCATION.reviewUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-md bg-[#f5a742] px-4 py-2 text-sm font-bold uppercase tracking-wider text-[#1a1208] transition hover:bg-[#ffb95c]"
-                >
-                  <Star className="size-4" />
-                  Tulis Ulasan
-                </a>
-              </div>
-            </div>
-          ) : null}
-
-          {/* QRIS pay panel — hanya tampil saat BELUM lunas. Web-only (hidden di print). */}
-          {(() => {
-            if (isPaid) return null;
-            const fullScreenHref =
-              `/display/payment?amount=${encodeURIComponent(String(invoice.total))}` +
-              `&order=${encodeURIComponent(invoice.orderNo ?? "")}`;
-            return (
-              <div className="invoice-qris-panel mt-4 rounded-md border border-[#f5a742]/40 bg-gradient-to-r from-[#1a1014] to-[#161616] p-4 print:hidden">
-                <div className="flex items-start gap-4 sm:items-center">
-                  <div className="hidden h-24 w-24 shrink-0 overflow-hidden rounded-md border border-[#34343c] bg-white p-1 sm:block">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={QRIS_IMAGE_SRC}
-                      alt="QRIS Garage"
-                      className="h-full w-full object-contain"
-                    />
+                {paid && invoice.payment.paidAt ? (
+                  <div className="flex items-center justify-between gap-3">
+                    <dt className="text-[var(--iv-text-2)]">Waktu Pembayaran</dt>
+                    <dd className="font-semibold text-[var(--iv-cream)]">{timeLabel(invoice.payment.paidAt)}</dd>
                   </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <CreditCard className="size-4 text-[#f5a742]" />
-                      <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-[#ffd79a]">
-                        Bayar via QRIS
-                      </p>
-                    </div>
-                    <p className="mt-1 text-sm font-semibold text-white">
-                      Scan QRIS untuk bayar Rp{rupiah.format(invoice.total).replace(/^Rp\s?/, "")}
-                    </p>
-                    <p className="mt-0.5 text-xs text-[#b8b8bf]">
-                      GoPay · DANA · OVO · ShopeePay · LinkAja · BCA Mobile · semua e-wallet QRIS
-                    </p>
-                  </div>
-                  <a
-                    href={fullScreenHref}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex shrink-0 items-center gap-2 rounded-md border border-[#f5a742]/60 bg-[#f5a742]/10 px-3 py-2 text-xs font-bold uppercase tracking-wider text-[#ffd79a] transition hover:bg-[#f5a742]/20"
-                  >
-                    <QrCode className="size-4" />
-                    Layar QRIS
-                  </a>
-                </div>
-              </div>
-            );
-          })()}
+                ) : null}
+                {paymentState === "awaiting_confirmation" ? (
+                  <p className="text-[12.5px] text-[var(--iv-amber)]">Kasir sedang mengecek pembayaran Anda.</p>
+                ) : null}
+              </dl>
+            </section>
 
-          {/* Live Tracking (web only — print hides) */}
-          <div className="invoice-timeline mt-4">
-            {liveStatus ? (
-              <InvoiceLiveTracker token={token} initialStatus={liveStatus} />
-            ) : (
-              <InvoiceTrackingTimeline
-                activeStep={activeTrackingStep}
-                orderCreatedAt={invoice.createdAt}
-                orderUpdatedAt={invoice.updatedAt}
-              />
-            )}
-          </div>
-
-          {/* Chat kasir + notifikasi HP (web only) */}
-          <div className="invoice-timeline mt-3">
-            <InvoiceContact
-              token={token}
-              orderId={invoice.id}
-              orderNo={invoice.orderNo}
-              label={
-                liveStatus?.fulfillment === "delivery"
-                  ? "Delivery"
-                  : liveStatus?.fulfillment === "takeaway"
-                    ? "Take away"
-                    : (invoice.tableLabel ?? "Pelanggan")
-              }
-            />
-          </div>
-
-          {/* === PRINT-ONLY: META STRIP ringkas (info kunci) === */}
-          <div className="print-only invoice-print-meta-strip" style={{ display: "none" }}>
-            <div>
-              <p className="label">Tanggal Order</p>
-              <p className="value">{orderTime}</p>
-            </div>
-            <div>
-              <p className="label">Lokasi / Meja</p>
-              <p className="value">{invoice.tableLabel || "-"}</p>
-            </div>
-            <div>
-              <p className="label">Pembayaran</p>
-              <p className="value">
-                {invoice.payment.method ?? "-"}
-                {invoice.payment.provider ? ` · ${invoice.payment.provider}` : ""}
-              </p>
-            </div>
-            <div>
-              <p className="label">Status Order</p>
-              <p className="value">{invoice.orderStatus.replace(/_/g, " ").toUpperCase()}</p>
-            </div>
-            <div>
-              <p className="label">Status Kitchen</p>
-              <p className="value">{invoice.kitchenStatus.replace(/_/g, " ").toUpperCase()}</p>
-            </div>
-            <div>
-              <p className="label">Reference</p>
-              <p className="value">{valueOrDash(invoice.payment.reference)}</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ─── BODY: Items + Sidebar ─── */}
-      <section className="mx-auto grid max-w-5xl grid-cols-[minmax(0,1fr)] gap-4 px-4 py-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:px-8">
-
-        {/* Left column */}
-        <div className="min-w-0 space-y-4">
-
-          {/* ── Items ── */}
-          <div className="rounded-md border border-[#34343c] bg-[#111116] p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-[#b8b8bf]">
-                  Detail Item
-                </p>
-                <h2 className="mt-1 text-lg font-bold text-white">{invoice.items.length} item</h2>
-              </div>
-              {invoice.channel ? (
-                <span className="rounded-md border border-[#34343c] px-2 py-1 font-mono text-[10px] text-[#b8b8bf]">
-                  {invoice.channel}
-                </span>
-              ) : null}
-            </div>
-
-            <div className="invoice-items-scroll mt-3 -mx-1 overflow-x-auto px-1">
-              <table className="invoice-items-table w-full min-w-[520px] border-collapse text-sm">
-                <thead>
-                  <tr className="border-b border-[#34343c] font-mono text-[10px] uppercase tracking-wider text-[#8f8f99]">
-                    <th className="w-8 py-2 pr-2 text-left font-normal">#</th>
-                    <th className="py-2 pr-2 text-left font-normal">Item</th>
-                    <th className="w-24 py-2 pr-2 text-right font-normal">Harga</th>
-                    <th className="w-14 py-2 pr-2 text-center font-normal">Qty</th>
-                    <th className="w-28 py-2 text-right font-normal">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {groupOrderLines(invoice.items).map((group, idx) =>
-                    group.kind === "package" ? (
-                      <tr key={group.groupId} className="invoice-item-row border-b border-[#23232a] last:border-b-0 align-top">
-                        <td className="py-2.5 pr-2 font-mono text-xs text-[#b8b8bf]">{idx + 1}</td>
-                        <td className="py-2.5 pr-2">
-                          <span className="font-semibold text-white">{group.name}</span>
-                          <span className="ml-1.5 rounded border border-[#f5a742]/40 px-1.5 py-0.5 font-mono text-[11px] text-[#ffd79a]">Paket</span>
-                          <ul className="mt-1 space-y-0.5 text-xs text-[#d0d0d6]">
-                            {group.components.map((line) => <li key={line.id}>– {componentLabel(line, group.qty)}</li>)}
-                          </ul>
-                        </td>
-                        <td className="py-2.5 pr-2 text-right font-mono text-xs text-[#d6d6dc]">{rupiah.format(Math.round(group.total / Math.max(1, group.qty)))}</td>
-                        <td className="py-2.5 pr-2 text-center font-mono text-xs font-semibold text-white">{group.qty}x</td>
-                        <td className="py-2.5 text-right font-mono text-sm font-semibold text-[#ffd79a]">{rupiah.format(group.total)}</td>
-                      </tr>
-                    ) : (
-                    <tr
-                      key={group.line.id}
-                      className="invoice-item-row border-b border-[#23232a] last:border-b-0 align-top"
-                    >
-                      <td className="py-2.5 pr-2 font-mono text-xs text-[#8f8f99]">
-                        {idx + 1}
-                      </td>
-                      <td className="py-2.5 pr-2">
-                        <span className="font-semibold text-white">
-                          {group.line.itemName}
-                        </span>
-                        {group.line.variantLabel ? (
-                          <span className="text-[#b8b8bf]">
-                            {" "}
-                            &middot; {group.line.variantLabel}
-                          </span>
-                        ) : null}
-                        {group.line.note ? (
-                          <p className="mt-0.5 text-[11px] italic text-[#f5a742]/85">
-                            {group.line.note}
-                          </p>
-                        ) : null}
-                      </td>
-                      <td className="py-2.5 pr-2 text-right font-mono text-xs text-[#d6d6dc]">
-                        {rupiah.format(group.line.unitPrice)}
-                      </td>
-                      <td className="py-2.5 pr-2 text-center font-mono text-xs font-semibold text-white">
-                        {group.line.qty}x
-                      </td>
-                      <td className="py-2.5 text-right font-mono text-sm font-semibold text-[#ffd79a]">
-                        {rupiah.format(group.line.lineTotal)}
-                      </td>
-                    </tr>
-                    ),
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* ── Tracking info (web only — print hides, info di meta strip) ── */}
-          <div className="invoice-info-order rounded-md border border-[#34343c] bg-[#111116] p-4">
-            <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-[#b8b8bf]">
-              Informasi Order
-            </p>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <InfoRow label="Tanggal & Waktu Order" value={dateTime(invoice.createdAt)} />
-              <InfoRow label="Update Terakhir" value={dateTime(invoice.updatedAt)} />
-              <InfoRow label="Lokasi / Meja" value={invoice.tableLabel} />
-              <InfoRow label="Status Invoice" value={invoice.invoiceStatus} />
-              <InfoRow label="Provider Pembayaran" value={valueOrDash(invoice.payment.provider)} />
-              <InfoRow label="Reference ID" value={valueOrDash(invoice.payment.reference)} />
-            </div>
-          </div>
-
-        </div>
-
-        {/* Right column: Customer + Summary */}
-        <aside className="space-y-4">
-
-          {/* ── Customer ── */}
-          <div className="invoice-customer-card rounded-md border border-[#34343c] bg-[#111116] p-4">
-            <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-[#b8b8bf]">
-              Customer
-            </p>
-            <h2 className="mt-2 text-lg font-bold text-white">
-              {invoice.customer.name ?? "Customer"}
-            </h2>
-            <p className="mt-1 flex items-center gap-1.5 text-sm text-[#b8b8bf]">
-              <Phone className="size-3 shrink-0" />
-              {invoice.customer.phone}
-            </p>
-            {invoice.customer.note ? (
-              <div className="mt-3 rounded-md border border-[#f5a742]/20 bg-[#f5a742]/06 p-3">
-                <p className="text-xs font-medium text-[#f5a742]/90">
-                  Catatan:
-                </p>
-                <p className="mt-1 text-sm leading-relaxed text-[#d6d6dc]">
-                  {invoice.customer.note}
-                </p>
+            {/* QRIS fallback — hanya saat belum lunas */}
+            {needsPayment ? (
+              <div className="order-2">
+                <InvoiceQrisCard data={waData} />
               </div>
             ) : null}
-          </div>
 
-          {/* ── Ringkasan ── */}
-          <div className="rounded-md border border-[#34343c] bg-[#111116] p-4">
-            <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-[#b8b8bf]">
-              Ringkasan
-            </p>
-            <div className="mt-4 space-y-2 text-sm">
-              <TotalRow
-                label="Subtotal"
-                value={`${rupiah.format(invoice.subtotal)}`}
-              />
-              {/* Dulu label tertulis tetap "Service (5%)" & "Ppn (11%)" (salah: yang
-                  dipakai PB1). Baris hanya tampil bila nilainya ada. */}
-              {invoice.service > 0 && (
-                <TotalRow label="Service" value={`${rupiah.format(invoice.service)}`} />
-              )}
-              {invoice.tax > 0 && <TotalRow label="PB1" value={`${rupiah.format(invoice.tax)}`} />}
-              {invoice.discount > 0 && (
-                <TotalRow
-                  label="Diskon"
-                  value={`-${rupiah.format(invoice.discount)}`}
-                  discount
-                />
-              )}
-              {invoice.deliveryFee > 0 && (
-                <TotalRow label="Ongkir delivery" value={rupiah.format(invoice.deliveryFee)} />
-              )}
-              <div className="mt-3 border-t border-[#34343c] pt-3 invoice-total-row">
-                <TotalRow
-                  label="Total"
-                  value={rupiah.format(invoice.total)}
-                  strong
-                />
-              </div>
-              {(() => {
-                const paymentAny = invoice.payment as { cashReceived?: number; change?: number } | null;
-                if (invoice.payment.method === "Cash" && paymentAny?.cashReceived) {
-                  return (
-                    <>
-                      <TotalRow
-                        label="Tunai"
-                        value={rupiah.format(paymentAny.cashReceived)}
-                      />
-                      <TotalRow
-                        label="Kembalian"
-                        value={rupiah.format(Math.max(0, paymentAny.cashReceived - invoice.total))}
-                      />
-                    </>
-                  );
-                }
-                return null;
-              })()}
+            {/* SECTION 05 — WhatsApp */}
+            <div className="iv-reveal order-5">
+              <WhatsAppOrderShare data={waData} />
             </div>
-          </div>
 
-          {/* QR Code Tracking */}
-          <div className="invoice-qr-print rounded-md border border-[#34343c] bg-[#111116] p-4">
-            <div className="flex items-center gap-2">
-              <QrCode className="size-4 text-[#f5a742]" />
-              <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-[#b8b8bf]">
-                Scan Tracking
-              </p>
-            </div>
-            <p className="mt-2 text-xs leading-relaxed text-[#8f8f99]">
-              Scan QR ini untuk track pesanan dan kirim ulang link invoice.
-            </p>
-            <div className="mt-3 flex justify-center">
-              <InvoiceQrCode url={`/invoice/${token}`} size={144} />
-            </div>
-          </div>
-
-          {/* ── Actions ── */}
-          <div className="space-y-2 no-print">
-            {invoice.whatsappInvoiceUrl ? (
+            {/* SECTION 09 — Aksi pelanggan */}
+            <section className="iv-card iv-card-pad iv-reveal order-8 grid gap-3 iv-no-print" aria-label="Aksi invoice">
+              <InvoiceActions token={token} orderNo={invoice.orderNo} variant="stack" />
               <a
-                href={invoice.whatsappInvoiceUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="flex h-11 items-center justify-center gap-2 rounded-md bg-[#22c55e] px-4 text-sm font-bold text-white"
-              >
-                <MessageCircle className="size-4" />
-                Kirim Link Invoice WA
-              </a>
-            ) : null}
-            <InvoicePrintButton />
-          </div>
-
-          {/* ── Print info ── */}
-          <div className="rounded-md border border-[#34343c] bg-white/[0.04] p-3 text-xs leading-5 text-[#b8b8bf] no-print">
-            <FileText className="mb-2 size-4 text-[#f5a742]" />
-            Link ini khusus tracking invoice customer. Export PDF memakai dialog print browser dengan pilihan{" "}
-            <strong className="text-white">Save as PDF</strong>.
-          </div>
-
-        </aside>
-      </section>
-
-      {/* ─── FOOTER ─── */}
-      <footer className="border-t border-[#34343c] py-6 text-center">
-        <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
-          {/* Thank you + tagline */}
-          <div className="print-only mb-4" style={{ display: "none" }}>
-            <p className="text-sm font-semibold text-gray-800">
-              Terima kasih atas kunjungan Anda!
-            </p>
-            <p className="mt-1 text-xs text-gray-500">
-              garagecoffee.id &nbsp;|&nbsp; {GARAGE_LOCATION.phoneDisplay} &nbsp;|&nbsp; Jl. Mayjen Sutoyo, Rambung, Tebing Tinggi
-            </p>
-          </div>
-
-          <div className="no-print">
-            <div className="mb-3 flex items-center justify-center gap-2">
-              <Star className="size-3 text-[#f5a742]" />
-              <span className="text-xs font-semibold uppercase tracking-widest text-[#f5a742]">
-                GARAGE Coffee
-              </span>
-              <Star className="size-3 text-[#f5a742]" />
-            </div>
-            <p className="text-xs text-[#b8b8bf]">
-              Terima kasih atas kunjungan Anda. Jika puas,{" "}
-              <a
-                href={GARAGE_LOCATION.reviewUrl}
+                href={GARAGE_LOCATION.directionsUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="font-semibold text-[#f5a742] underline underline-offset-2"
+                className="iv-btn iv-btn-secondary iv-btn-block justify-start"
               >
-                tinggalkan review di Google
+                <MapPin className="size-4" aria-hidden /> Lihat Lokasi Outlet
               </a>
-              . 🙏
-            </p>
-            <p className="mt-1 text-[11px] text-[#8f8f99]">
-              garagecoffee.id &nbsp;&bull;&nbsp; {GARAGE_LOCATION.phoneDisplay} &nbsp;&bull;&nbsp; Pesanan yang sudah dibuat tidak dapat dikembalikan.
+              {paid && liveStatus && ["delivered", "completed"].includes(liveStatus.kitchenStatus) ? (
+                <a href={GARAGE_LOCATION.reviewUrl} target="_blank" rel="noopener noreferrer" className="iv-btn iv-btn-primary iv-btn-block">
+                  <Star className="size-4" aria-hidden /> Tulis Ulasan di Google
+                </a>
+              ) : null}
+              <div className="iv-divider pt-3">
+                <InvoiceContact
+                  token={token}
+                  orderId={invoice.id}
+                  orderNo={invoice.orderNo}
+                  label={fulfillment === "delivery" ? "Delivery" : fulfillment === "takeaway" ? "Take away" : (invoice.tableLabel ?? "Pelanggan")}
+                />
+              </div>
+              <div className="flex items-center gap-3">
+                <InvoiceQrCode url={`/invoice/${token}`} size={84} />
+                <p className="text-[12.5px] leading-5 text-[var(--iv-text-2)]">
+                  Scan untuk membuka invoice & tracking ini di HP lain. Link bersifat pribadi — bagikan hanya ke orang yang Anda percaya.
+                </p>
+              </div>
+            </section>
+          </div>
+
+          {/* Kolom B + C (tablet: satu kolom; desktop: dua kolom) */}
+          <div className="contents md:flex md:flex-col md:gap-4 lg:contents">
+            <div className="contents lg:flex lg:flex-col lg:gap-4">
+              {/* SECTION 03 — Tracking */}
+              <div className="order-3 iv-no-print">
+                {liveStatus ? (
+                  <InvoiceLiveTrackerV4 token={token} initialStatus={liveStatus} />
+                ) : (
+                  <section className="iv-card iv-card-pad text-[13px] text-[var(--iv-text-2)]">Status pesanan belum tersedia.</section>
+                )}
+              </div>
+
+              {/* SECTION 04 — Detail pesanan */}
+              <section className="iv-card iv-card-pad iv-reveal order-4" aria-labelledby="iv-items-title">
+                <h2 id="iv-items-title" className="iv-card-title">
+                  <FileText className="size-5" aria-hidden />
+                  Detail Pesanan <span className="text-[13px] font-semibold text-[var(--iv-text-3)]">({itemCount} item)</span>
+                </h2>
+                <div className="mt-3 overflow-x-auto">
+                  <table className="iv-items min-w-[420px]">
+                    <thead>
+                      <tr>
+                        <th scope="col">Item</th>
+                        <th scope="col" className="iv-num">Qty</th>
+                        <th scope="col" className="iv-num">Harga</th>
+                        <th scope="col" className="iv-num">Subtotal</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {lines.map((group) =>
+                        group.kind === "package" ? (
+                          <tr key={group.groupId}>
+                            <td>
+                              <span className="font-semibold">{group.name}</span>{" "}
+                              <span className="iv-pill ml-1 !min-h-0 !px-2 !py-0.5 !text-[11px]" data-tone="awaiting">
+                                Paket
+                              </span>
+                              <ul className="mt-1 text-[12.5px] text-[var(--iv-text-2)]">
+                                {group.components.map((line) => (
+                                  <li key={line.id}>– {componentLabel(line, group.qty)}</li>
+                                ))}
+                              </ul>
+                            </td>
+                            <td className="iv-num">{group.qty}</td>
+                            <td className="iv-num">{rupiah(Math.round(group.total / Math.max(1, group.qty)))}</td>
+                            <td className="iv-num font-semibold">{rupiah(group.total)}</td>
+                          </tr>
+                        ) : (
+                          <tr key={group.line.id}>
+                            <td>
+                              <span className="font-semibold">{group.line.itemName}</span>
+                              {group.line.variantLabel && group.line.variantLabel !== "Regular" ? (
+                                <span className="text-[var(--iv-text-2)]"> · {group.line.variantLabel}</span>
+                              ) : null}
+                              {group.line.note ? <p className="mt-0.5 text-[12px] italic text-[var(--iv-amber)]">{group.line.note}</p> : null}
+                            </td>
+                            <td className="iv-num">{group.line.qty}</td>
+                            <td className="iv-num">{rupiah(group.line.unitPrice)}</td>
+                            <td className="iv-num font-semibold">{rupiah(group.line.lineTotal)}</td>
+                          </tr>
+                        ),
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <dl className="iv-divider mt-3 grid gap-1.5 pt-3 text-[14px]">
+                  <SummaryRow label="Subtotal" value={rupiah(invoice.subtotal)} />
+                  {invoice.service > 0 ? <SummaryRow label="Service" value={rupiah(invoice.service)} /> : null}
+                  {invoice.tax > 0 ? <SummaryRow label="PB1" value={rupiah(invoice.tax)} /> : null}
+                  {invoice.service <= 0 && invoice.tax <= 0 ? <SummaryRow label="Pajak / Service" value={rupiah(0)} /> : null}
+                  {invoice.discount > 0 ? <SummaryRow label="Diskon" value={`-${rupiah(invoice.discount)}`} accent /> : null}
+                  {invoice.deliveryFee > 0 ? <SummaryRow label="Ongkir delivery" value={rupiah(invoice.deliveryFee)} /> : null}
+                  <div className="iv-divider mt-1.5 flex items-center justify-between gap-3 pt-2.5">
+                    <dt className="iv-heading text-[17px]">Total Tagihan</dt>
+                    <dd className="iv-money text-[20px] text-[var(--iv-cream)]">{rupiah(invoice.total)}</dd>
+                  </div>
+                  {invoice.payment.method === "Cash" && paid && invoice.payment.cashReceived ? (
+                    <>
+                      <SummaryRow label="Tunai" value={rupiah(invoice.payment.cashReceived)} />
+                      <SummaryRow label="Kembalian" value={rupiah(Math.max(0, invoice.payment.cashReceived - invoice.total))} />
+                    </>
+                  ) : null}
+                </dl>
+                {invoice.customer.name || maskedPhone || invoice.customer.note ? (
+                  <div className="iv-subcard mt-3 grid gap-1 p-3 text-[13px]">
+                    {invoice.customer.name ? (
+                      <p>
+                        <span className="text-[var(--iv-text-3)]">Atas nama:</span> <span className="font-semibold">{invoice.customer.name}</span>
+                      </p>
+                    ) : null}
+                    {maskedPhone ? <p className="text-[var(--iv-text-2)]">WA {maskedPhone}</p> : null}
+                    {invoice.customer.note ? <p className="text-[var(--iv-text-2)]">Catatan: {invoice.customer.note}</p> : null}
+                  </div>
+                ) : null}
+              </section>
+            </div>
+
+            {/* SECTION 06–08 — Membership & promo */}
+            <div className="order-6 lg:flex lg:flex-col lg:gap-4">
+              <InvoiceMembership token={token} customerName={invoice.customer.name?.trim() || null} />
+            </div>
+          </div>
+        </div>
+
+        {/* Mengapa jadi member — benefit terverifikasi dari aturan aktif */}
+        <section className="iv-card iv-card-pad iv-reveal mt-4 iv-no-print" aria-labelledby="iv-why-title">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
+            <h2 id="iv-why-title" className="iv-heading flex shrink-0 items-center gap-2 text-[18px]">
+              <Star className="size-5 text-[var(--iv-red)]" aria-hidden /> Mengapa Jadi Member?
+            </h2>
+            <ul className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {benefits.map((benefit) => (
+                <li key={benefit.key} className="flex items-start gap-3 lg:border-l lg:border-[var(--iv-border)] lg:pl-4">
+                  <BenefitIcon benefitKey={benefit.key} className="mt-0.5 size-5 shrink-0 text-[var(--iv-red-text)]" />
+                  <div className="min-w-0">
+                    <p className="text-[14px] font-bold">{benefit.title}</p>
+                    <p className="text-[12.5px] leading-5 text-[var(--iv-text-2)]">{benefit.detail}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      </div>
+
+      {/* ── SECTION 10 — Footer ── */}
+      <footer className="border-t border-[var(--iv-border)] py-6">
+        <div className="iv-container flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-4">
+            <Image src="/garage-brand/garage-coffee-logo.png" alt="Garage Coffee" width={140} height={46} className="h-9 w-auto object-contain iv-no-print" />
+            <div className="text-[13px] text-[var(--iv-text-2)] sm:border-l sm:border-[var(--iv-border)] sm:pl-4">
+              <p>Terima kasih telah berkunjung ke Garage Coffee.</p>
+              <p>Sampai jumpa di kunjungan berikutnya!</p>
+            </div>
+          </div>
+          <div className="text-[13px] text-[var(--iv-text-2)] sm:text-right">
+            <p className="font-semibold text-[var(--iv-cream)]">garagecoffee.id</p>
+            <p>
+              {GARAGE_LOCATION.phoneDisplay} · Jl. Mayjen Sutoyo, Tebing Tinggi
             </p>
           </div>
         </div>
@@ -956,185 +426,11 @@ export default async function InvoiceTrackingPage({
   );
 }
 
-// ─── Invoice Tracking Timeline ───
-function InvoiceTrackingTimeline({
-  activeStep,
-  orderCreatedAt,
-  orderUpdatedAt,
-}: {
-  activeStep: number;
-  orderCreatedAt: string;
-  orderUpdatedAt: string;
-}) {
-  if (activeStep < 0) {
-    return (
-      <div className="rounded-md border border-[#d11a2a]/45 bg-[#d11a2a]/12 p-4">
-        <div className="flex items-start gap-3">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-md border border-[#d11a2a]/45 bg-[#d11a2a]/16 text-[#ffc2c8]">
-            <FileText className="size-5" />
-          </div>
-          <div>
-            <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-[#ffc2c8]">
-              Order Ditolak
-            </p>
-            <p className="mt-1 text-sm leading-6 text-[#ffe1e5]">
-              Pesanan ditolak kasir. Silakan hubungi outlet jika butuh bantuan.
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-md border border-[#34343c] bg-[#17171c] p-4">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div>
-          <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-[#f5a742]">
-            Tracking Pesanan
-          </p>
-          <h2 className="mt-1 text-base font-bold text-white sm:text-lg">
-            {trackingSteps[activeStep]?.label ?? "Diproses Kasir"}
-          </h2>
-          <p className="mt-0.5 text-xs text-[#8f8f99]">
-            {STEP_LABELS[trackingSteps[activeStep]?.id] ?? ""} &bull;{" "}
-            {activeStep > 0 ? `Step ${activeStep + 1} dari ${trackingSteps.length}` : "Step 1"}
-          </p>
-        </div>
-        <span className="rounded-md border border-[#f5a742]/35 bg-[#f5a742]/10 px-2 py-1 font-mono text-[10px] text-[#ffd79a]">
-          {Math.min(activeStep + 1, trackingSteps.length)} / {trackingSteps.length}
-        </span>
-      </div>
-
-      {/* Desktop timeline — horizontal steps */}
-      <div className="hidden grid-cols-6 gap-2 md:grid">
-        {trackingSteps.map((step, index) => (
-          <TrackingStep
-            key={step.id}
-            step={step}
-            state={stepState(index, activeStep)}
-            timestamp={index === 0 ? dateTime(orderCreatedAt) : index === activeStep ? dateTime(orderUpdatedAt) : undefined}
-          />
-        ))}
-      </div>
-
-      {/* Mobile timeline — vertical */}
-      <div className="space-y-3 md:hidden">
-        {trackingSteps.map((step, index) => (
-          <TrackingStep
-            key={step.id}
-            step={step}
-            state={stepState(index, activeStep)}
-            mobile
-            timestamp={index === 0 ? dateTime(orderCreatedAt) : index === activeStep ? dateTime(orderUpdatedAt) : undefined}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function stepState(index: number, activeStep: number) {
-  if (index < activeStep) return "done";
-  if (index === activeStep) return "active";
-  return "pending";
-}
-
-function TrackingStep({
-  step,
-  state,
-  mobile = false,
-  timestamp,
-}: {
-  step: (typeof trackingSteps)[number];
-  state: "done" | "active" | "pending";
-  mobile?: boolean;
-  timestamp?: string;
-}) {
-  const Icon = step.icon;
-  const tone =
-    state === "done"
-      ? "border-[#22c55e]/45 bg-[#22c55e]/12 text-[#dcfce7]"
-      : state === "active"
-        ? "border-[#f5a742]/55 bg-[#f5a742]/14 text-[#ffe7b8]"
-        : "border-[#34343c] bg-white/[0.035] text-[#8f8f99]";
-  const dotTone =
-    state === "done"
-      ? "border-[#22c55e]/50 bg-[#22c55e]/18 text-[#dcfce7]"
-      : state === "active"
-        ? "border-[#f5a742]/60 bg-[#f5a742]/18 text-[#ffd79a]"
-        : "border-[#4a4a54] bg-[#111116] text-[#8f8f99]";
-
-  return (
-    <div
-      className={`rounded-md border p-3 ${tone} ${
-        mobile ? "flex items-start gap-3" : "min-h-[160px]"
-      }`}
-    >
-      <div
-        className={`flex size-9 shrink-0 items-center justify-center rounded-md border ${dotTone}`}
-      >
-        <Icon className="size-4" />
-      </div>
-      <div className={mobile ? "min-w-0 flex-1" : "mt-3"}>
-        <p className="text-sm font-bold text-current">{step.label}</p>
-        <p className="mt-1 text-xs leading-5 text-current/75">{step.description}</p>
-        {timestamp && mobile && (
-          <p className="mt-1 text-[10px] text-[#8f8f99]">{timestamp}</p>
-        )}
-      </div>
-      {timestamp && !mobile && (
-        <p className="mt-2 text-[10px] text-[#8f8f99]">{timestamp}</p>
-      )}
-    </div>
-  );
-}
-
-// ─── Helper components ───
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-md border border-[#34343c] bg-[#1b1b21] p-3">
-      <p className="text-xs text-[#b8b8bf]">{label}</p>
-      <p className="mt-1 font-semibold text-white">{value}</p>
-    </div>
-  );
-}
-
-function TotalRow({
-  label,
-  value,
-  strong = false,
-  discount = false,
-}: {
-  label: string;
-  value: string;
-  strong?: boolean;
-  discount?: boolean;
-}) {
+function SummaryRow({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <span
-        className={
-          strong
-            ? "font-bold text-white"
-            : discount
-              ? "text-[#22c55e]"
-              : "text-[#b8b8bf]"
-        }
-      >
-        {label}
-      </span>
-      <span
-        className={
-          strong
-            ? "invoice-grand-total-value text-lg font-black text-[#ffd79a]"
-            : discount
-              ? "font-semibold text-[#22c55e]"
-              : "font-semibold text-white"
-        }
-      >
-        {value}
-      </span>
+      <dt className="text-[var(--iv-text-2)]">{label}</dt>
+      <dd className={`iv-num font-semibold ${accent ? "text-[var(--iv-green-text)]" : "text-[var(--iv-cream)]"}`}>{value}</dd>
     </div>
   );
 }

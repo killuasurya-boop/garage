@@ -6,20 +6,24 @@
 // - Habis → foto abu-abu, badge "Sold Out", tombol mati.
 // Data (nama, harga, varian, foto) selalu dari sistem.
 import type { CSSProperties } from "react";
-import { Crown, Flame, Heart, Leaf, Minus, Plus, TicketPercent, Timer } from "lucide-react";
+import { Crown, Flame, Heart, Minus, Plus, Star, TicketPercent, Timer, TrendingUp } from "lucide-react";
 
 import type { MenuItem } from "@/lib/garage-api-types";
 
 import { MenuPhoto } from "../menu-card";
 import { rupiah } from "../order-ui";
-import { cardBadge, cardPrice, variantSummary, type CardBadge } from "./menu-v5-model";
+import { cardBadges, cardPrice, variantSummary, type CardBadge, type CardBadgeKind } from "./menu-v5-model";
 
 function Badge({ kind }: { kind: CardBadge }) {
   switch (kind) {
     case "best":
-      return <span className="gm5-badge gm5-badge-best"><Crown className="size-3.5" aria-hidden />Best Seller</span>;
+      return <span className="gm5-badge gm5-badge-best"><TrendingUp className="size-3.5" aria-hidden />Best Seller</span>;
     case "signature":
-      return <span className="gm5-badge gm5-badge-signature"><Leaf className="size-3.5" aria-hidden />Signature</span>;
+      // Merah brand + mahkota: menu khas Garage (tag "Signature").
+      return <span className="gm5-badge gm5-badge-signature"><Crown className="size-3.5" aria-hidden />Signature</span>;
+    case "unggulan":
+      // Amber/emas + bintang: rekomendasi yang diatur admin (featured).
+      return <span className="gm5-badge gm5-badge-unggulan"><Star className="size-3.5" fill="currentColor" aria-hidden />Unggulan</span>;
     case "promo":
       return <span className="gm5-badge gm5-badge-promo"><TicketPercent className="size-3.5" aria-hidden />Promo</span>;
     case "limited":
@@ -29,6 +33,18 @@ function Badge({ kind }: { kind: CardBadge }) {
     default:
       return null;
   }
+}
+
+/** Maks. dua badge, membungkus ke baris baru di kartu sempit (tidak menutupi nama/harga). */
+function BadgeRow({ kinds }: { kinds: CardBadgeKind[] }) {
+  if (!kinds.length) return null;
+  return (
+    <span className="gm5-badge-row flex flex-wrap gap-1">
+      {kinds.map((kind) => (
+        <Badge key={kind} kind={kind} />
+      ))}
+    </span>
+  );
 }
 
 function Price({ item, size }: { item: MenuItem; size: "md" | "lg" }) {
@@ -97,7 +113,7 @@ export function MenuCardV5({
   const multi = item.variants.length > 1;
   const single = item.variants[0]?.id;
   const summary = variantSummary(item);
-  const badge = cardBadge(item, popular);
+  const badges = cardBadges(item, popular);
   const style = { ["--gm5-i" as string]: Math.min(index, 8) } as CSSProperties;
 
   const plus = () => (multi || !single ? onOpen() : onAdd(single, 1));
@@ -129,7 +145,7 @@ export function MenuCardV5({
           {soldOut ? <span className="gm5-badge gm5-badge-soldout absolute bottom-1.5 left-1.5">Sold Out</span> : null}
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-1 pr-9">
-          {badge ? <span className="flex"><Badge kind={badge} /></span> : null}
+          {badges.length ? <BadgeRow kinds={badges} /> : null}
           <h3 className="gm5-title break-words text-base leading-snug text-white">{item.name}</h3>
           {summary ? <p className="text-sm text-[#cfc9c4]">{summary}</p> : null}
           {item.description ? <p className="line-clamp-2 text-sm leading-5 text-[#a7a09b]">{item.description}</p> : null}
@@ -148,7 +164,7 @@ export function MenuCardV5({
       <div className="gm5-card-photo relative aspect-[4/3] w-full">
         {photo}
         <span className="pointer-events-none absolute left-2 top-2 z-10 flex max-w-[calc(100%-3.5rem)]">
-          {soldOut ? <span className="gm5-badge gm5-badge-soldout">Sold Out</span> : <Badge kind={badge} />}
+          {soldOut ? <span className="gm5-badge gm5-badge-soldout">Sold Out</span> : <BadgeRow kinds={badges} />}
         </span>
         {heart}
       </div>

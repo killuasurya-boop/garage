@@ -62,4 +62,30 @@ export const ownerAiTools: AgentTool[] = [
       }
     },
   },
+  {
+    name: "garage_analisis_masalah",
+    title: "AYA — Analisis masalah lintas Garage OS",
+    description: "Terima keluhan atau ide Owner, baca bukti dari tool R0 POS/WMS/Kas/Finance/Produksi dan sajikan fakta, hipotesis, rekomendasi, serta tindakan DRAFT. Tidak mengubah data bisnis.",
+    write: false,
+    domain: "sistem",
+    risk: "R0",
+    permission: "dashboard:read",
+    input: z.object({
+      masalah: z.string().trim().min(5).max(3000),
+      mode: z.enum(["quick", "full"]).optional(),
+      gunakanAi: z.boolean().optional(),
+    }),
+    async run(session, args) {
+      if (session.profile.role !== "Owner")
+        throw new AgentToolError("FORBIDDEN", "Analisis lintas modul hanya untuk Owner.", 403);
+      const { runGarageProblemSolver } = await import("@/lib/garage-problem-solver-service");
+      return runGarageProblemSolver({
+        session,
+        message: String(args.masalah),
+        mode: (args.mode as "quick" | "full" | undefined) ?? "quick",
+        withAi: args.gunakanAi !== false,
+      });
+    },
+  },
+
 ];

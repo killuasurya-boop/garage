@@ -64,6 +64,10 @@ import { DaftarListV5, DaftarSheetV5, DaftarSummaryV5, ShowToWaiterSheetV5 } fro
 import { useMenuFavorites } from "@/components/garage/order/v5/use-menu-favorites";
 import { flyToList, playMenuSfx } from "@/components/garage/order/v5/menu-feedback";
 import { AyaChatV5 } from "@/components/garage/order/v5/aya-chat-v5";
+import type { AyaNav } from "@/components/garage/order/v5/aya-menu-assistant";
+import { AyaNavGuideV5, spotlightElement, type AyaNavGuideState } from "@/components/garage/order/v5/aya-nav-guide";
+import { FullscreenExitV5, WelcomeV5, welcomeSeen } from "@/components/garage/order/v5/welcome-v5";
+import { TableInfoPickerV5, readTableInfo, writeTableInfo, type TableInfo } from "@/components/garage/order/v5/table-info-v5";
 import { MENU_TOAST_MS, MenuToastStackV5, SuccessCheckV5, pushMenuToast, type MenuToast } from "@/components/garage/order/v5/toast-v5";
 import { OrderHelpSheet } from "@/components/garage/order/order-help-sheet";
 import {
@@ -826,6 +830,17 @@ export function MemberOrderPage({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [navTab, setNavTab] = useState<BottomNavTab>("home");
   const [ayaChatOpen, setAyaChatOpen] = useState(false);
+  // Master prompt V5: navigasi pintar AYA, welcome fullscreen, meja info (mode Daftar Pilihan), muat ulang menu.
+  const [ayaExpandToken, setAyaExpandToken] = useState(0);
+  const [ayaNavGuide, setAyaNavGuide] = useState<AyaNavGuideState | null>(null);
+  const [ayaAutoNav, setAyaAutoNav] = useState(true);
+  const ayaNavReturn = useRef<{ scrollY: number; chip: MenuChip } | null>(null);
+  const ayaSpotlightCleanup = useRef<(() => void) | null>(null);
+  const [welcomeOpen, setWelcomeOpen] = useState(false);
+  const [tableInfo, setTableInfo] = useState<TableInfo | null>(null);
+  const [tableInfoOpen, setTableInfoOpen] = useState(false);
+  const [menuLoadFailed, setMenuLoadFailed] = useState(false);
+  const [menuReload, setMenuReload] = useState(0);
   // F3: Quick View (varian awal), lembar Daftar Pilihan HP, layar Tunjukkan ke Waiter.
   const [detailVariant, setDetailVariant] = useState<string | null>(null);
   const [daftarOpen, setDaftarOpen] = useState(false);
@@ -968,10 +983,12 @@ export function MemberOrderPage({
         .then((menu) => {
           if (alive) {
             setMenuItems(eventContext?.mode === "main" ? mergeMainEventMenu(menu, eventContext) : menu);
+            setMenuLoadFailed(false);
           }
         })
         .catch((error) => {
           if (alive) {
+            setMenuLoadFailed(true);
             setMessage(error instanceof Error ? error.message : "Menu gagal dimuat.");
           }
         })
@@ -985,7 +1002,7 @@ export function MemberOrderPage({
       window.clearTimeout(profileTimeoutId);
       window.clearTimeout(menuTimeoutId);
     };
-  }, [hasInitialMenuItems, loadProfile, eventContext]);
+  }, [hasInitialMenuItems, loadProfile, eventContext, menuReload]);
 
   // Cek ulang status buka/tutup outlet: tiap 60 dtk + saat checkout dibuka, supaya banner
   // "Belum buka" hilang sendiri begitu kasir membuka shift (tanpa refresh halaman).
@@ -1147,6 +1164,8 @@ export function MemberOrderPage({
   // Mode menu outlet (Menu V5): "waiter_list" = pelanggan hanya menyusun Daftar Pilihan → Tunjukkan ke Waiter.
   // Mode Pesankan waiter (staffOrder) selalu bisa mengirim pesanan.
   const waiterList = !staffOrder && billingSettings.digitalMenuMode === "waiter_list";
+  /** Mode Daftar Pilihan: meja info dari pemilih (tanpa kunci meja) bila QR tidak membawa nomor meja. */
+  const infoTableLabel = waiterList && qrContext.orderType === "dine-in" ? (tableInfo?.tableLabel ?? (/\d/.test(qrContext.tableLabel) ? qrContext.tableLabel : null)) : null;
   // Rekening transfer dari Pengaturan → Pembayaran (bukan lagi hardcode).
   const customerBankAccounts = parseBankAccounts(billingSettings.bankAccountsText);
   const selectedBank = customerBankAccounts.find((account) => account.id === paymentProvider) ?? customerBankAccounts[0] ?? null;
@@ -1168,6 +1187,23 @@ export function MemberOrderPage({
   // Mode Daftar Pilihan (Menu V5): pelanggan tidak checkout → tidak perlu kunci meja (yang butuh shift buka);
   // nomor meja dari QR tetap dipakai untuk layar "Tunjukkan ke Waiter".
   const needsTable = qrContext.orderType === "dine-in" && !staffOrder && !qrContext.tableIssue && !waiterList;
+
+  // Welcome fullscreen (sekali per sesi tab), meja info & pilihan navigasi AYA dipulihkan dari sessionStorage.
+  useEffect(() => {
+    if (staffOrder) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sessionStorage hanya ada di client
+    if (!welcomeSeen()) setWelcomeOpen(true);
+    try {
+      if (window.sessionStorage.getItem("garage:aya-autonav") === "off") setAyaAutoNav(false);
+    } catch {
+      /* abaikan */
+    }
+  }, [staffOrder]);
+  useEffect(() => {
+    if (!waiterList) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sessionStorage hanya ada di client
+    setTableInfo(readTableInfo(qrContext.outletId));
+  }, [waiterList, qrContext.outletId]);
 
   const saveTableHold = useCallback(
     (hold: TableHoldState | null) => {
@@ -1892,7 +1928,7 @@ export function MemberOrderPage({
 
   /** URL Pesankan waiter berisi Daftar Pilihan (hanya dine-in dengan nomor meja). */
   function buildWaiterQrUrl() {
-    const label = tableHold?.tableLabel ?? qrContext.tableLabel;
+    const label = tableHold?.tableLabel ?? infoTableLabel ?? qrContext.tableLabel;
     const table = effectiveOrderType === "dine-in" ? label.match(/\d+/)?.[0] : null;
     if (!table) return null;
     const params = new URLSearchParams({ table, mode: "waiter", daftar: encodeDaftar(cart, cartNotes) });
@@ -1911,6 +1947,67 @@ export function MemberOrderPage({
     if (waiterList) return openShowWaiter();
     setDaftarOpen(false);
     openCheckout();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Navigasi pintar AYA (master prompt §8): buka kategori/filter/bantuan, sorot, bisa dibatalkan.
+  // Setelah pelanggan menekan "Batalkan", AYA hanya menawarkan tombol (tidak pindah otomatis lagi).
+  // ---------------------------------------------------------------------------
+  function handleAyaNavigate(nav: AyaNav) {
+    ayaSpotlightCleanup.current?.();
+    ayaNavReturn.current = { scrollY: window.scrollY, chip: menuChip };
+    let targetId: string | null = null;
+    let note: string | undefined;
+    if (nav.kind === "category") {
+      const match = v5Categories.find((category) => category.label.toLowerCase() === nav.category.toLowerCase());
+      if (match) {
+        jumpToCategory(match.id);
+        targetId = match.id;
+      } else note = `Kategori ${nav.category} belum ada di menu outlet ini.`;
+    } else if (nav.kind === "chip") {
+      chooseChip(nav.chip);
+      targetId = "menu-v5-results";
+    } else if (qrContext.orderType === "dine-in" && !staffOrder) {
+      setHelpOpen(true);
+      note = "Pilih jenis bantuan, waiter akan datang ke mejamu.";
+    } else {
+      note = "Silakan menuju kasir — staf kami siap membantu.";
+    }
+    setAyaNavGuide({ id: Date.now(), label: nav.label, note });
+    if (targetId) {
+      const id = targetId;
+      window.setTimeout(() => {
+        ayaSpotlightCleanup.current = spotlightElement(id);
+      }, window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 60 : 450);
+    }
+  }
+
+  function dismissAyaNav() {
+    setAyaNavGuide(null);
+  }
+
+  function cancelAyaNav() {
+    ayaSpotlightCleanup.current?.();
+    ayaSpotlightCleanup.current = null;
+    const back = ayaNavReturn.current;
+    if (back) {
+      setMenuChip(back.chip);
+      window.requestAnimationFrame(() => window.scrollTo({ top: back.scrollY, behavior: "auto" }));
+    }
+    setAyaAutoNav(false);
+    try {
+      window.sessionStorage.setItem("garage:aya-autonav", "off");
+    } catch {
+      /* abaikan */
+    }
+    setAyaNavGuide(null);
+  }
+
+  function backToAya() {
+    ayaSpotlightCleanup.current?.();
+    setAyaNavGuide(null);
+    setAyaChatOpen(true);
+    setAyaExpandToken((value) => value + 1);
   }
 
   function clearDaftar() {
@@ -2505,8 +2602,9 @@ export function MemberOrderPage({
       <div className="mx-auto w-full max-w-[1560px] px-4 sm:px-6">
         <HeaderV5
           dineIn={effectiveOrderType === "dine-in"}
-          tableLabel={qrContext.tableLabel}
-          tableCode={compactTableNumber(qrContext.tableLabel)}
+          tableLabel={infoTableLabel ?? qrContext.tableLabel}
+          tableCode={compactTableNumber(infoTableLabel ?? qrContext.tableLabel)}
+          onTable={waiterList && effectiveOrderType === "dine-in" ? () => setTableInfoOpen(true) : undefined}
           channelLabel={channelLabel}
           loginHref={loginHref}
           memberName={member?.name}
@@ -2586,6 +2684,26 @@ export function MemberOrderPage({
                         Ganti meja
                       </button>
                     ) : null}
+                  </div>
+                ) : null}
+                {waiterList && effectiveOrderType === "dine-in" ? (
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-white/12 bg-garage-bg-1 px-3 py-2">
+                    <p className="min-w-0 flex-1 text-sm leading-5 text-garage-dim">
+                      {infoTableLabel ? (
+                        <>
+                          Kamu melihat menu untuk <strong className="text-white">{infoTableLabel}</strong>. Penanda untuk waiter, bukan pesanan.
+                        </>
+                      ) : (
+                        <>Pilih nomor mejamu supaya waiter tahu kamu duduk di mana (tidak membuat pesanan).</>
+                      )}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setTableInfoOpen(true)}
+                      className="garage-press min-h-11 rounded-md border border-white/20 px-3 text-sm font-bold text-white hover:bg-white/10"
+                    >
+                      {infoTableLabel ? "Ubah meja" : "Pilih meja"}
+                    </button>
                   </div>
                 ) : null}
                 {qrContext.tableHint ? <p className="px-1 text-sm leading-6 text-garage-dim">{qrContext.tableHint}</p> : null}
@@ -3077,7 +3195,45 @@ export function MemberOrderPage({
           }}
           onStartGuide={orderGuide.start}
           onStaff={qrContext.orderType === "dine-in" ? () => setHelpOpen(true) : canChooseFulfillment ? () => setChatOpen(true) : undefined}
-          staffLabel={qrContext.orderType === "dine-in" ? "Panggil staf" : "Chat kasir"}
+          staffLabel={qrContext.orderType === "dine-in" ? (waiterList ? "Panggil waiter" : "Panggil staf") : "Chat kasir"}
+          onNavigate={handleAyaNavigate}
+          autoNavigate={ayaAutoNav}
+          mode={waiterList ? "waiter_list" : "self_order"}
+          tableLabel={effectiveOrderType === "dine-in" ? (tableHold?.tableLabel ?? infoTableLabel ?? qrContext.tableLabel) : null}
+          historyScope={`${qrContext.outletId ?? "default"}:${qrContext.tableLabel}`}
+          menuState={menuLoadFailed && !regularMenu.length ? "error" : loading && !regularMenu.length ? "loading" : "ready"}
+          onRetryMenu={() => {
+            setLoading(true);
+            setMenuReload((value) => value + 1);
+          }}
+          expandToken={ayaExpandToken}
+        />
+      ) : null}
+
+      {!staffOrder ? (
+        <AyaNavGuideV5 guide={ayaNavGuide} onBackToAya={backToAya} onCancel={cancelAyaNav} onDismiss={dismissAyaNav} />
+      ) : null}
+      {!staffOrder ? <FullscreenExitV5 /> : null}
+      {welcomeOpen ? (
+        <WelcomeV5
+          tableLabel={effectiveOrderType === "dine-in" ? (infoTableLabel ?? qrContext.tableLabel) : null}
+          onDone={({ voice }) => {
+            setWelcomeOpen(false);
+            // Suara dipilih → sapaan suara sudah diputar oleh welcome; jangan dobel.
+            if (!voice) requestAyaChirp("greeting");
+          }}
+        />
+      ) : null}
+      {waiterList ? (
+        <TableInfoPickerV5
+          open={tableInfoOpen}
+          onOpenChange={setTableInfoOpen}
+          outletId={qrContext.outletId}
+          current={tableInfo ?? (infoTableLabel ? { tableNumber: infoTableLabel.match(/\d+/)?.[0]?.padStart(2, "0") ?? "", tableLabel: infoTableLabel } : null)}
+          onConfirm={(info) => {
+            setTableInfo(info);
+            writeTableInfo(qrContext.outletId, info);
+          }}
         />
       ) : null}
 

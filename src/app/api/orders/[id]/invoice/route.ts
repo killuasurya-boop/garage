@@ -6,7 +6,7 @@ import { requirePermission } from "@/lib/server-auth";
 export const runtime = "nodejs";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
   const session = await requirePermission("orders:read");
@@ -27,7 +27,8 @@ export async function GET(
     status: 200,
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="${filename}"`,
+      // ?inline=1 = tampil di popup POS (tanpa tab baru), selain itu unduh.
+      "Content-Disposition": `${new URL(request.url).searchParams.get("inline") === "1" ? "inline" : "attachment"}; filename="${filename}"`,
       "Cache-Control": "no-store",
     },
   });

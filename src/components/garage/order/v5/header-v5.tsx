@@ -41,7 +41,10 @@ export function HeaderV5({
   onAya,
   notice,
   info,
+  onTable,
 }: {
+  /** Mode Daftar Pilihan: ketuk chip meja = buka pemilih meja (info saja). */
+  onTable?: () => void;
   /** Buka AYA Assistant. */
   onAya?: () => void;
   /** Lonceng: status pesanan / chat kasir; kosong = lonceng tidak tampil. */
@@ -72,10 +75,24 @@ export function HeaderV5({
     return () => window.removeEventListener("keydown", onKey);
   }, [onSearch]);
 
-  const tableChip = (
-    <span className="flex h-11 shrink-0 items-center gap-1.5 rounded-xl border border-[color:var(--gm5-line)] bg-[#141214] px-3" aria-label={dineIn ? tableLabel : channelLabel}>
+  const chipInner = (
+    <>
       <span className="text-xs font-semibold text-[#cfc9c4]">{dineIn ? "Meja" : "Order"}</span>
       <span className="font-mono text-base font-bold tabular-nums text-white">{tableCode}</span>
+    </>
+  );
+  const tableChip = onTable ? (
+    <button
+      type="button"
+      onClick={onTable}
+      className="flex h-11 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-[color:var(--gm5-line)] bg-[#141214] px-3 hover:border-[var(--menu-red)]"
+      aria-label={`${tableCode === "?" || !/\d/.test(tableCode) ? "Pilih meja" : tableLabel} — ubah meja`}
+    >
+      {chipInner}
+    </button>
+  ) : (
+    <span className="flex h-11 shrink-0 items-center gap-1.5 rounded-xl border border-[color:var(--gm5-line)] bg-[#141214] px-3" aria-label={dineIn ? tableLabel : channelLabel}>
+      {chipInner}
     </span>
   );
   const account = staff ? (

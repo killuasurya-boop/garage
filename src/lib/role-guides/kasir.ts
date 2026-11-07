@@ -39,7 +39,7 @@ export const kasirGuide: RoleGuide = {
       steps: [
         { text: "Di layar POS tekan Buka Shift." },
         {
-          text: "Hitung uang di laci, lalu isi Modal Awal (Rp50.000–Rp500.000, kelipatan Rp50.000).",
+          text: "Hitung uang di laci, lalu isi Modal Awal sesuai uang yang ada (boleh pecahan, mis. Rp55.200).",
           tip: "Sistem menampilkan sisa uang laci yang ditinggal shift sebelumnya. Pastikan jumlah fisiknya sama.",
         },
         {

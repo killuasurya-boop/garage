@@ -207,8 +207,11 @@ function CashMovementForm({
   const isKasir = role === "Kasir";
   const def = cashDrawerCategory(values.categoryKey);
   const amount = parseRupiahInput(values.amount);
+  // Owner 6 Nov 2026: langsung tercatat; ACC hanya kasbon/refund, atau bila server menolak karena batas kas keluar
+  // per shift terlewati (server = penentu; total shift tidak diketahui di layar).
+  const [overShiftLimit, setOverShiftLimit] = useState(false);
   const needsApproval =
-    mode === "record" && isKasir && def != null && Number.isFinite(amount) && cashDrawerNeedsApproval(def, amount, threshold);
+    mode === "record" && isKasir && def != null && Number.isFinite(amount) && (overShiftLimit || cashDrawerNeedsApproval(def, amount));
   const requiresConfirm =
     mode === "correct" || needsApproval || Boolean(def?.alwaysConfirm) || (Number.isFinite(amount) && amount >= threshold);
 
@@ -319,6 +322,11 @@ function CashMovementForm({
         setManagerPin("");
         setStep("form");
       }
+      if (error instanceof GarageApiError && error.code === "MANAGER_PIN_REQUIRED") {
+        // Batas kas keluar per shift terlewati → minta PIN Manajer/Owner atau kirim pengajuan.
+        setOverShiftLimit(true);
+        setStep("form");
+      }
     } finally {
       setPending(false);
     }
@@ -330,6 +338,7 @@ function CashMovementForm({
     setReceiptAttached(false);
     setManagerPin("");
     setApprovalMode("pin");
+    setOverShiftLimit(false);
     setErrors({});
     setServerError(null);
     setStep("form");
@@ -805,7 +814,7 @@ function CashMovementForm({
                   <p className="flex items-center gap-2 text-sm font-semibold text-[#ffd08a]">
                     <ShieldCheck className="size-4" />
                     Perlu persetujuan Manajer/Owner
-                    {def.requiresApproval ? "" : ` (mulai ${currency.format(threshold)})`}
+                    {def.requiresApproval ? "" : " (batas kas keluar shift ini terlewati)"}
                   </p>
                   <div className="grid grid-cols-2 gap-1.5" role="radiogroup" aria-label="Cara persetujuan">
                     {(

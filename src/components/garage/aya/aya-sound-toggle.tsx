@@ -7,11 +7,22 @@ import { Volume2, VolumeX } from "lucide-react";
 
 import { ayaSoundDefaults, readAyaSound, subscribeAyaSound, writeAyaSound, type AyaAudienceSound } from "@/lib/aya-sound";
 
+// Snapshot server harus objek yang sama di tiap panggilan (React memeriksanya); simpan per audiens.
+const SERVER_DEFAULTS = new Map<AyaAudienceSound, ReturnType<typeof ayaSoundDefaults>>();
+function serverDefaults(audience: AyaAudienceSound) {
+  let value = SERVER_DEFAULTS.get(audience);
+  if (!value) {
+    value = ayaSoundDefaults(audience);
+    SERVER_DEFAULTS.set(audience, value);
+  }
+  return value;
+}
+
 export function useAyaSound(audience: AyaAudienceSound) {
   return useSyncExternalStore(
     subscribeAyaSound,
     () => readAyaSound(audience),
-    () => ayaSoundDefaults(audience),
+    () => serverDefaults(audience),
   );
 }
 

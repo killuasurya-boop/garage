@@ -208,7 +208,9 @@ describe("Approval expense 2 tingkat (PRD §46)", () => {
 
     await expect(svc.decideApproval(approvalId, { status: "approved" }, managerSession())).rejects.toThrow(/Owner/);
 
-    const final = await svc.decideApproval(approvalId, { status: "approved" }, ownerSession());
+    // Audit SA-01: biaya risiko tinggi (R3) = Owner + kode 2FA (Decision Center mengisi stepUpVerified).
+    await expect(svc.decideApproval(approvalId, { status: "approved" }, ownerSession())).rejects.toMatchObject({ code: "R3_STEP_UP_REQUIRED" });
+    const final = await svc.decideApproval(approvalId, { status: "approved" }, ownerSession(), { via: "decision_center", stepUpVerified: true });
     expect(final.status).toBe("approved");
     const [row] = await t
       .getDb()

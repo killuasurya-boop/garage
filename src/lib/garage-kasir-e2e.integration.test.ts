@@ -130,7 +130,7 @@ describe("Kasir end-to-end", () => {
     expect(await expectedCash()).toBe(160_000);
   });
 
-  it("kas keluar di bawah batas langsung tercatat; kas masuk besar wajib PIN Manajer", async () => {
+  it("kas keluar/masuk langsung tercatat tanpa PIN (Owner, Nov 2026)", async () => {
     const out = await svc.recordCashMovement(
       { type: "out", category: "Beli Air/Es", description: "Es batu 2 kantong", amount: 20_000 },
       kasir(),
@@ -138,20 +138,12 @@ describe("Kasir end-to-end", () => {
     expect(out.expenseId).toBeTruthy();
     expect(await expectedCash()).toBe(140_000);
 
-    await expect(
-      svc.recordCashMovement({ type: "in", category: "Tambah Uang Kecil", description: "Pecahan dari Owner", amount: 100_000, counterparty: "Owner" }, kasir()),
-    ).rejects.toBeInstanceOf(svc.CashMovementPinRequiredError);
-    await expect(
-      svc.recordCashMovement(
-        { type: "in", category: "Tambah Uang Kecil", description: "Pecahan dari Owner", amount: 100_000, counterparty: "Owner", managerPin: "000000" },
-        kasir(),
-      ),
-    ).rejects.toThrow(/PIN salah/);
     const inMove = await svc.recordCashMovement(
-      { type: "in", category: "Tambah Uang Kecil", description: "Pecahan dari Owner", amount: 100_000, counterparty: "Owner", managerPin: MANAGER_PIN },
+      { type: "in", category: "Tambah Uang Kecil", description: "Pecahan dari Owner", amount: 100_000, counterparty: "Owner" },
       kasir(),
     );
-    expect(inMove.approvedByName).toBe("Manajer E2E");
+    expect(inMove.status).toBe("recorded");
+    expect(inMove.approvedByName).toBeNull();
     expect(await expectedCash()).toBe(240_000);
   });
 

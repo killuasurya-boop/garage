@@ -33,10 +33,24 @@ function startUnpaidOrderSweeper() {
       const { sweepUnpaidOrders } = await import("@/lib/garage-courier");
       const rejected = await sweepUnpaidOrders();
       if (rejected.length) console.log(`[auto-reject] ${rejected.length} order belum bayar ditolak: ${rejected.join(", ")}`);
+      // Audit Smart Approval: kedaluwarsa/digantikan, pelaksanaan macet, push R3 & eskalasi ke Owner.
+      try {
+        const { reconcileApprovals } = await import("@/lib/approval-reconcile");
+        const r = await reconcileApprovals();
+        if (r.expired || r.superseded || r.verified || r.uncertain) console.log("[approval-reconcile]", JSON.stringify(r));
+      } catch (error) {
+        console.warn("[approval-reconcile] gagal:", error instanceof Error ? error.message : error);
+      }
       // Sekali per jam: bersihkan feed notifikasi staf yang sudah lama (> 14 hari).
       if (new Date().getMinutes() === 7) {
         const { pruneStaffNotifications } = await import("@/lib/staff-notifications");
         await pruneStaffNotifications();
+      }
+      // Sekali per jam: voucher aktif yang tanggal akhirnya lewat → expired (CX V4).
+      if (new Date().getMinutes() === 23) {
+        const { expireEndedVouchers } = await import("@/lib/customer-experience-service");
+        const codes = await expireEndedVouchers();
+        if (codes.length) console.log(`[vouchers] ${codes.length} voucher kedaluwarsa: ${codes.slice(0, 10).join(", ")}`);
       }
       // Sekali sehari 03:17 WIB: poin member tidak aktif hangus (Pengaturan → Loyalty).
       const wib = new Date(Date.now() + 7 * 3_600_000);

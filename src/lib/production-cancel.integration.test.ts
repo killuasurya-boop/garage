@@ -135,6 +135,11 @@ describe("Batal ITEM bill belum lunas dari Bar (APP-PCX)", () => {
     const res = await svc.requestUnpaidItemCancelApproval(order.id, { ...reason, items: [{ orderItemId: coffee.id, qty: 1 }] }, bar());
     expect(res.status).toBe("pending");
     expect(res.approvalId).toMatch(/^APP-PCX-/);
+    // A8: pemohon disimpan sebagai ID user (nama hanya untuk tampilan).
+    const { eq } = await import("drizzle-orm");
+    const [pcx] = await t.getDb().select().from(t.schema.approvals).where(eq(t.schema.approvals.id, res.approvalId));
+    expect((pcx.payload as any).requestedBy).toBe(BAR);
+    expect((pcx.payload as any).requestedByName).toBe("Barista CX / Kasir");
     expect((await itemsOf(order.id)).find((i: any) => i.id === coffee.id).qty).toBe(2);
     expect(await beanNet()).toBe(before);
     const board = await prod.getProductionBoard(bar());

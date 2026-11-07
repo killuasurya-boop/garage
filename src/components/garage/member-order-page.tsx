@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import {
   AlertTriangle,
   Banknote,
@@ -30,24 +30,45 @@ import {
   MapPin,
 } from "lucide-react";
 
-import { AyaFloatingPet, requestAyaChirp } from "@/components/garage/aya/aya-floating-pet";
+import { AyaFloatingPet, requestAyaChirp, type LaneX } from "@/components/garage/aya/aya-floating-pet";
 import { AyaGreeting } from "@/components/garage/order/aya-greeting";
 import { AyaGuideBubble, useAyaOrderGuide } from "@/components/garage/order/aya-order-guide";
 import { CategoryNav, type CategoryTab } from "@/components/garage/order/category-nav";
-import { HeroRail, type HeroKind } from "@/components/garage/order/hero-rail";
 import {
   MENU_GRID_CLASS,
-  MenuCard,
   MenuCardSkeleton,
-  MenuPhoto,
 } from "@/components/garage/order/menu-card";
 import {
   MenuSectionList,
   buildMenuGroups,
   categorySectionId,
 } from "@/components/garage/order/menu-section-list";
-import { OrderCartBar, type LastAdded } from "@/components/garage/order/order-cart-bar";
-import { OrderHeader } from "@/components/garage/order/order-header";
+import "@/components/garage/order/v5/order-v5.css";
+import { HeaderV5 } from "@/components/garage/order/v5/header-v5";
+import { HeroV5, heroPhotoItems } from "@/components/garage/order/v5/hero-v5";
+import {
+  AyaCardV5,
+  BottomNavV5,
+  CategoryTilesV5,
+  FilterChipsV5,
+  SidebarV5,
+  useActiveSection,
+  type BottomNavTab,
+  type CategoryLink,
+} from "@/components/garage/order/v5/layout-v5";
+import { MENU_GRID_V5, MENU_LIST_V5, MenuCardV5 } from "@/components/garage/order/v5/menu-card-v5";
+import { CHIP_LABEL, availableChips, categoryPhoto, filterByChip, heroCtaLabel, type MenuChip } from "@/components/garage/order/v5/menu-v5-model";
+import { decodeDaftar, encodeDaftar, readSavedCart, savedCartKey, writeSavedCart } from "@/components/garage/order/v5/saved-cart";
+import { QuickViewV5 } from "@/components/garage/order/v5/quick-view-v5";
+import { DaftarListV5, DaftarSheetV5, DaftarSummaryV5, ShowToWaiterSheetV5 } from "@/components/garage/order/v5/daftar-pilihan-v5";
+import { useMenuFavorites } from "@/components/garage/order/v5/use-menu-favorites";
+import { flyToList, playMenuSfx } from "@/components/garage/order/v5/menu-feedback";
+import { AyaChatV5 } from "@/components/garage/order/v5/aya-chat-v5";
+import type { AyaNav } from "@/components/garage/order/v5/aya-menu-assistant";
+import { AyaNavGuideV5, spotlightElement, type AyaNavGuideState } from "@/components/garage/order/v5/aya-nav-guide";
+import { FullscreenExitV5, WelcomeV5, welcomeSeen } from "@/components/garage/order/v5/welcome-v5";
+import { TableInfoPickerV5, readTableInfo, writeTableInfo, type TableInfo } from "@/components/garage/order/v5/table-info-v5";
+import { MENU_TOAST_MS, MenuToastStackV5, SuccessCheckV5, pushMenuToast, type MenuToast } from "@/components/garage/order/v5/toast-v5";
 import { OrderHelpSheet } from "@/components/garage/order/order-help-sheet";
 import {
   CustomerTablePicker,
@@ -63,7 +84,6 @@ import {
   categoryIcon,
   itemCartQty,
   itemHasPromo,
-  itemMinPrice,
   rupiah,
   variantPrice,
 } from "@/components/garage/order/order-ui";
@@ -435,144 +455,6 @@ function StepHeading({ step, title, aside }: { step: number; title: string; asid
   );
 }
 
-// Sheet detail item — memilih varian + qty. Foto hanya bila ada; keranjang
-// diperbarui langsung dari stepper per varian.
-function MenuDetailSheet({
-  item,
-  cart,
-  onAdjust,
-  onClose,
-}: {
-  item: MenuItem | null;
-  cart: Record<string, number>;
-  onAdjust: (itemId: string, variantId: string, delta: number) => void;
-  onClose: () => void;
-}) {
-  const totalInCart = item ? itemCartQty(item, cart) : 0;
-  const totalValue = item
-    ? item.variants.reduce(
-        (sum, variant) => sum + variantPrice(item, variant) * (cart[cartKey(item.id, variant.id)] ?? 0),
-        0,
-      )
-    : 0;
-  const multiVariant = (item?.variants.length ?? 0) > 1;
-
-  return (
-    <Sheet open={Boolean(item)} onOpenChange={(open) => (!open ? onClose() : undefined)}>
-      <SheetContent
-        side="bottom"
-        className="inset-x-0 bottom-0 z-[95] mx-auto flex max-h-[90svh] w-full max-w-lg flex-col overflow-hidden rounded-t-xl border-garage-line bg-garage-bg-1 p-0 text-white sm:inset-x-4 sm:bottom-4 sm:w-[min(520px,calc(100vw-32px))] sm:rounded-xl sm:border"
-      >
-        {item ? (
-          <>
-            <div className="relative aspect-[4/3] max-h-[42svh] w-full shrink-0 overflow-hidden bg-garage-bg-2">
-              <MenuPhoto item={item} iconClassName="size-16" eager />
-              <span
-                className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-garage-bg-1 to-transparent"
-                aria-hidden
-              />
-              {itemHasPromo(item) ? (
-                <span className="absolute left-3 top-3 rounded-sm bg-garage-red px-2 py-1 text-xs font-bold uppercase tracking-wide text-white">
-                  Promo
-                </span>
-              ) : null}
-            </div>
-            <SheetHeader className="border-b border-garage-line px-4 pb-4 pt-2 text-left">
-              <div className="flex items-center gap-2 pr-8">
-                {categoryIcon(item.category, "size-4 text-garage-amber")}
-                <span className="text-[13px] font-semibold text-garage-dim">
-                  {item.category} · {item.section}
-                </span>
-              </div>
-              <SheetTitle className="mt-1 font-sans text-xl font-bold leading-snug text-white">{item.name}</SheetTitle>
-              {item.description ? (
-                <p className="text-sm leading-6 text-garage-dim">{item.description}</p>
-              ) : null}
-              <SheetDescription className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-garage-dim">
-                <span className="flex items-baseline gap-1.5">
-                  {multiVariant ? <span className="text-xs font-medium text-garage-dim">mulai</span> : null}
-                  <span className="font-mono text-lg font-bold tabular-nums text-white">
-                    {rupiah.format(itemMinPrice(item))}
-                  </span>
-                </span>
-                {item.prep ? (
-                  <span className="inline-flex items-center gap-1">
-                    <Clock className="size-3.5" aria-hidden /> Siap ± {item.prep.replace(/m$/, " menit")}
-                  </span>
-                ) : null}
-              </SheetDescription>
-            </SheetHeader>
-            <div className="min-h-0 flex-1 overflow-y-auto p-4">
-              <p className="mb-2.5 text-sm font-bold text-garage-dim">
-                {multiVariant ? "Pilih varian" : "Jumlah pesanan"}
-              </p>
-              <div className="space-y-2">
-                {item.variants.map((variant) => {
-                  const qty = cart[cartKey(item.id, variant.id)] ?? 0;
-                  return (
-                    <div
-                      key={variant.id}
-                      className={`flex items-center justify-between gap-3 rounded-md border p-3 transition-colors ${
-                        qty > 0 ? "border-garage-red/70 bg-garage-red/10" : "border-garage-line bg-garage-bg-2"
-                      }`}
-                    >
-                      <div className="min-w-0">
-                        <p className="break-words text-base font-bold text-white">
-                          {multiVariant ? variant.label : item.name}
-                        </p>
-                        {(variant as EventDisplayVariant).eventUnavailable ? <p className="mt-1 text-sm font-semibold text-garage-amber">{(variant as EventDisplayVariant).eventUnavailable === "quota" ? "Kuota event habis" : "Menu event tidak tersedia"}</p> : null}
-                        <p className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5 font-mono text-sm font-bold tabular-nums text-garage-dim">
-                          {variantPrice(item, variant) < variant.price ? (
-                            <>
-                              <span className="text-[#ff8a8a]">{rupiah.format(variantPrice(item, variant))}</span>
-                              <span className="text-xs font-semibold text-garage-mute line-through">
-                                {rupiah.format(variant.price)}
-                              </span>
-                            </>
-                          ) : (
-                            rupiah.format(variant.price)
-                          )}
-                        </p>
-                      </div>
-                      <QuantityControl
-                        label={`${item.name} ${variant.label}`}
-                        qty={qty}
-                        onMinus={() => onAdjust(item.id, variant.id, -1)}
-                        onPlus={() => onAdjust(item.id, variant.id, 1)}
-                        disabled={item.stock === "sold_out" || Boolean((variant as EventDisplayVariant).eventUnavailable)}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-            <div className="border-t border-garage-line bg-garage-bg-1 p-3 sm:p-4">
-              <button
-                type="button"
-                onClick={onClose}
-                className={`garage-press flex h-12 w-full cursor-pointer items-center justify-between gap-2 rounded-md px-4 text-sm font-bold transition-colors ${
-                  totalInCart > 0
-                    ? "bg-garage-red text-white hover:bg-garage-red-bright"
-                    : "justify-center border border-garage-line-2 bg-garage-bg-2 text-white hover:bg-garage-bg-3"
-                }`}
-              >
-                {totalInCart > 0 ? (
-                  <>
-                    <span>Simpan ke pesanan ({totalInCart})</span>
-                    <span className="font-mono tabular-nums">{rupiah.format(totalValue)}</span>
-                  </>
-                ) : (
-                  "Tutup"
-                )}
-              </button>
-            </div>
-          </>
-        ) : null}
-      </SheetContent>
-    </Sheet>
-  );
-}
-
 function StationIcon({ station }: { station: string }) {
   if (station === "Bar") return <Coffee className="size-3.5" aria-hidden />;
   if (station === "Packaging" || station === "Packing") return <Package className="size-3.5" aria-hidden />;
@@ -763,6 +645,57 @@ function OrderTracker({ status }: { status: PublicOrderStatus | null }) {
   );
 }
 
+/** Kartu Menu V5 dengan aksi berbasis id (aksi tidak dibungkus closure saat render induk). */
+function V5CardSlot({
+  item,
+  index,
+  layout,
+  cartQty,
+  popular,
+  favorite,
+  onToggleFavorite,
+  onAdd,
+  onOpen,
+}: {
+  item: MenuItem;
+  index: number;
+  layout: "grid" | "list";
+  cartQty: number;
+  popular: boolean;
+  favorite: boolean;
+  onToggleFavorite: (itemId: string) => void;
+  onAdd: (itemId: string, variantId: string, delta: number) => void;
+  onOpen: (item: MenuItem) => void;
+}) {
+  return (
+    <MenuCardV5
+      item={item}
+      index={index}
+      layout={layout}
+      cartQty={cartQty}
+      popular={popular}
+      favorite={favorite}
+      onToggleFavorite={() => onToggleFavorite(item.id)}
+      onAdd={(variantId, delta) => onAdd(item.id, variantId, delta)}
+      onOpen={() => onOpen(item)}
+    />
+  );
+}
+
+/** Sumber "Menu Pilihan": unggulan admin → promo → terlaris. */
+type HeroKind = "featured" | "promo" | "best";
+
+// Menu V5: jalur aman AYA berbeda di HP (di atas navigasi bawah) dan desktop (tepi bawah layar).
+const DESKTOP_QUERY = "(min-width: 1024px)";
+function subscribeDesktop(onChange: () => void) {
+  const media = window.matchMedia(DESKTOP_QUERY);
+  media.addEventListener("change", onChange);
+  return () => media.removeEventListener("change", onChange);
+}
+function readDesktop() {
+  return window.matchMedia(DESKTOP_QUERY).matches;
+}
+
 export function MemberOrderPage({
   initialQrContext,
   initialReturnPath,
@@ -803,6 +736,8 @@ export function MemberOrderPage({
     | "garageWhatsapp"
     | "unpaidOrderAutoRejectMinutes"
   > & {
+    /** Menu V5: mode menu digital outlet (bawaan "self_order"). */
+    digitalMenuMode?: AppSettings["digitalMenuMode"];
     /** Delivery sementara tidak bisa dipilih (mis. tidak ada kurir siap antar). */
     deliveryUnavailableReason?: string | null;
     /** Semua kurir sedang mengantar → pesanan delivery masuk antrean. */
@@ -853,19 +788,70 @@ export function MemberOrderPage({
   }, [eventContext]);
   // false = kasir belum buka shift → menu tetap bisa dilihat, tapi order belum bisa dikirim.
   const [orderingOpen, setOrderingOpen] = useState(initialOrderingOpen !== false);
-  // Konfirmasi singkat "X masuk keranjang" di bar keranjang mobile (hilang setelah 2,2 dtk).
-  const [lastAdded, setLastAdded] = useState<LastAdded | null>(null);
-  const lastAddedTimerRef = useRef<number | null>(null);
-  useEffect(
-    () => () => {
-      if (lastAddedTimerRef.current) window.clearTimeout(lastAddedTimerRef.current);
+  // Toast bertingkat papan 06 (sukses / stok terbatas / gagal), hilang sendiri atau ditutup.
+  const [toasts, setToasts] = useState<MenuToast[]>([]);
+  const toastTimersRef = useRef(new Map<number, number>());
+  const toastSeqRef = useRef(0);
+  const dismissToast = useCallback((id: number) => {
+    const timer = toastTimersRef.current.get(id);
+    if (timer) window.clearTimeout(timer);
+    toastTimersRef.current.delete(id);
+    setToasts((list) => list.filter((toast) => toast.id !== id));
+  }, []);
+  const showToast = useCallback(
+    (toast: Omit<MenuToast, "id">) => {
+      const id = ++toastSeqRef.current;
+      setToasts((list) => pushMenuToast(list, { ...toast, id }));
+      toastTimersRef.current.set(id, window.setTimeout(() => dismissToast(id), MENU_TOAST_MS[toast.tone]));
     },
-    [],
+    [dismissToast],
   );
+  useEffect(() => {
+    const timers = toastTimersRef.current;
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
+  }, []);
+  // Tombol terakhir yang ditekan = asal titik "terbang ke Daftar".
+  const lastPressRef = useRef<{ el: Element; at: number } | null>(null);
+  useEffect(() => {
+    const onDown = (event: PointerEvent) => {
+      const el = event.target instanceof Element ? event.target.closest("button") : null;
+      if (el) lastPressRef.current = { el, at: performance.now() };
+    };
+    window.addEventListener("pointerdown", onDown, { capture: true, passive: true });
+    return () => window.removeEventListener("pointerdown", onDown, { capture: true });
+  }, []);
   const [query, setQuery] = useState(() =>
     (initialSearchQuery ?? readInitialSearchQuery()).trim().slice(0, 80),
   );
   const [helpOpen, setHelpOpen] = useState(false);
+  // Menu V5 (Owner, Nov 2026): filter chip, tampilan kotak/daftar, laci navigasi HP, tab navigasi bawah, panggil AYA.
+  const [menuChip, setMenuChip] = useState<MenuChip>("all");
+  const [menuView, setMenuView] = useState<"grid" | "list">("grid");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [navTab, setNavTab] = useState<BottomNavTab>("home");
+  const [ayaChatOpen, setAyaChatOpen] = useState(false);
+  // Master prompt V5: navigasi pintar AYA, welcome fullscreen, meja info (mode Daftar Pilihan), muat ulang menu.
+  const [ayaExpandToken, setAyaExpandToken] = useState(0);
+  const [ayaNavGuide, setAyaNavGuide] = useState<AyaNavGuideState | null>(null);
+  const [ayaAutoNav, setAyaAutoNav] = useState(true);
+  const ayaNavReturn = useRef<{ scrollY: number; chip: MenuChip } | null>(null);
+  const ayaSpotlightCleanup = useRef<(() => void) | null>(null);
+  const [welcomeOpen, setWelcomeOpen] = useState(false);
+  const [tableInfo, setTableInfo] = useState<TableInfo | null>(null);
+  const [tableInfoOpen, setTableInfoOpen] = useState(false);
+  const [menuLoadFailed, setMenuLoadFailed] = useState(false);
+  const [menuReload, setMenuReload] = useState(0);
+  // F3: Quick View (varian awal), lembar Daftar Pilihan HP, layar Tunjukkan ke Waiter.
+  const [detailVariant, setDetailVariant] = useState<string | null>(null);
+  const [daftarOpen, setDaftarOpen] = useState(false);
+  const [showWaiterOpen, setShowWaiterOpen] = useState(false);
+  const [waiterQrUrl, setWaiterQrUrl] = useState<string | null>(null);
+  const favorites = useMenuFavorites();
+  const isDesktop = useSyncExternalStore(subscribeDesktop, readDesktop, () => false);
+  // Jalur AYA (audit F2): HP = tepat di atas navigasi bawah (tinggi diukur, ikut safe-area);
+  // desktop = dibatasi kolom tengah supaya tidak berhenti di atas sidebar/panel kanan.
+  const [navHeight, setNavHeight] = useState(72);
+  const [laneX, setLaneX] = useState<LaneX | undefined>(undefined);
   const [guestName, setGuestName] = useState("");
   // Pesan error nama baru tampil setelah kolom disentuh (bukan saat dialog baru dibuka).
   const [guestNameTouched, setGuestNameTouched] = useState(false);
@@ -997,10 +983,12 @@ export function MemberOrderPage({
         .then((menu) => {
           if (alive) {
             setMenuItems(eventContext?.mode === "main" ? mergeMainEventMenu(menu, eventContext) : menu);
+            setMenuLoadFailed(false);
           }
         })
         .catch((error) => {
           if (alive) {
+            setMenuLoadFailed(true);
             setMessage(error instanceof Error ? error.message : "Menu gagal dimuat.");
           }
         })
@@ -1014,7 +1002,7 @@ export function MemberOrderPage({
       window.clearTimeout(profileTimeoutId);
       window.clearTimeout(menuTimeoutId);
     };
-  }, [hasInitialMenuItems, loadProfile, eventContext]);
+  }, [hasInitialMenuItems, loadProfile, eventContext, menuReload]);
 
   // Cek ulang status buka/tutup outlet: tiap 60 dtk + saat checkout dibuka, supaya banner
   // "Belum buka" hilang sendiri begitu kasir membuka shift (tanpa refresh halaman).
@@ -1173,6 +1161,11 @@ export function MemberOrderPage({
   // outlet, lalu promo QR (Pengaturan qrPromoPct/qrPromoMaxAmount) & voucher.
   // Dulu PB1 & pembulatan tidak dihitung → total di HP lebih murah dari tagihan kasir.
   const billingSettings = { ...DEFAULT_APP_SETTINGS, ...(billing ?? {}) };
+  // Mode menu outlet (Menu V5): "waiter_list" = pelanggan hanya menyusun Daftar Pilihan → Tunjukkan ke Waiter.
+  // Mode Pesankan waiter (staffOrder) selalu bisa mengirim pesanan.
+  const waiterList = !staffOrder && billingSettings.digitalMenuMode === "waiter_list";
+  /** Mode Daftar Pilihan: meja info dari pemilih (tanpa kunci meja) bila QR tidak membawa nomor meja. */
+  const infoTableLabel = waiterList && qrContext.orderType === "dine-in" ? (tableInfo?.tableLabel ?? (/\d/.test(qrContext.tableLabel) ? qrContext.tableLabel : null)) : null;
   // Rekening transfer dari Pengaturan → Pembayaran (bukan lagi hardcode).
   const customerBankAccounts = parseBankAccounts(billingSettings.bankAccountsText);
   const selectedBank = customerBankAccounts.find((account) => account.id === paymentProvider) ?? customerBankAccounts[0] ?? null;
@@ -1191,7 +1184,26 @@ export function MemberOrderPage({
   // meja sebelum menu; meja dikunci di server & diperpanjang selama aktif.
   // ---------------------------------------------------------------------------
   const tableHoldKey = `garage:tableHold:${qrContext.outletId ?? "default"}`;
-  const needsTable = qrContext.orderType === "dine-in" && !staffOrder && !qrContext.tableIssue;
+  // Mode Daftar Pilihan (Menu V5): pelanggan tidak checkout → tidak perlu kunci meja (yang butuh shift buka);
+  // nomor meja dari QR tetap dipakai untuk layar "Tunjukkan ke Waiter".
+  const needsTable = qrContext.orderType === "dine-in" && !staffOrder && !qrContext.tableIssue && !waiterList;
+
+  // Welcome fullscreen (sekali per sesi tab), meja info & pilihan navigasi AYA dipulihkan dari sessionStorage.
+  useEffect(() => {
+    if (staffOrder) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sessionStorage hanya ada di client
+    if (!welcomeSeen()) setWelcomeOpen(true);
+    try {
+      if (window.sessionStorage.getItem("garage:aya-autonav") === "off") setAyaAutoNav(false);
+    } catch {
+      /* abaikan */
+    }
+  }, [staffOrder]);
+  useEffect(() => {
+    if (!waiterList) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sessionStorage hanya ada di client
+    setTableInfo(readTableInfo(qrContext.outletId));
+  }, [waiterList, qrContext.outletId]);
 
   const saveTableHold = useCallback(
     (hold: TableHoldState | null) => {
@@ -1339,6 +1351,83 @@ export function MemberOrderPage({
   );
   const total = Math.max(0, regularGrossTotal - regularDiscount - pointsDiscount) + packageSubtotal + deliveryFee;
   const itemCount = cartLines.reduce((sum, line) => sum + line.qty, 0);
+
+  // Daftar Pilihan bertahan saat reload / sempat keluar ke website (audit F2): sessionStorage per outlet & meja.
+  const cartStoreKey = savedCartKey(qrContext.outletId, qrContext.tableLabel);
+  const cartRestored = useRef(false);
+  useEffect(() => {
+    if (cartRestored.current || !menuItems.length) return;
+    cartRestored.current = true;
+    // QR "Tunjukkan ke Waiter" (?daftar=...) menang atas simpanan lokal: waiter langsung mendapat daftar pelanggan.
+    const params = new URLSearchParams(window.location.search);
+    const daftarParam = params.get("daftar");
+    const fromQr = daftarParam ? decodeDaftar(daftarParam, menuItems) : null;
+    if (daftarParam) {
+      params.delete("daftar");
+      const rest = params.toString();
+      window.history.replaceState(null, "", `${window.location.pathname}${rest ? `?${rest}` : ""}${window.location.hash}`);
+    }
+    if (fromQr) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- isi sekali dari QR pelanggan setelah mount
+      setCart(fromQr.cart);
+      setCartNotes(fromQr.notes);
+      const count = Object.values(fromQr.cart).reduce((sum, qty) => sum + qty, 0);
+      setMessage(`Daftar Pilihan pelanggan dimuat (${count} item). Cek jumlah & catatan, lalu kirim.`);
+      return;
+    }
+    const saved = readSavedCart(cartStoreKey, menuItems);
+    if (!saved) return;
+    setCart((current) => (Object.keys(current).length ? current : saved.cart));
+    setCartNotes((current) => (Object.keys(current).length ? current : saved.notes));
+  }, [cartStoreKey, menuItems]);
+  useEffect(() => {
+    if (!cartRestored.current) return;
+    writeSavedCart(cartStoreKey, cart, cartNotes);
+  }, [cartStoreKey, cart, cartNotes]);
+
+  // Ukur navigasi bawah (HP) & kolom tengah (desktop) untuk jalur aman AYA.
+  useEffect(() => {
+    const nav = document.querySelector<HTMLElement>(".gm5-bottom-nav");
+    const main = document.getElementById("menu-v5-main");
+    const measure = () => {
+      if (nav && nav.offsetHeight) setNavHeight(nav.offsetHeight);
+      if (main && window.matchMedia(DESKTOP_QUERY).matches) {
+        const rect = main.getBoundingClientRect();
+        setLaneX({ min: Math.round(rect.left), max: Math.round(rect.right) });
+      } else setLaneX(undefined);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    if (nav) observer.observe(nav);
+    if (main) observer.observe(main);
+    window.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, []);
+
+  // Tab navigasi bawah mengikuti posisi gulir (Beranda di atas, Menu setelah turun).
+  useEffect(() => {
+    let frame = 0;
+    const onScroll = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        setNavTab((tab) => (tab === "home" || tab === "menu" ? (window.scrollY < 240 ? "home" : "menu") : tab));
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, []);
+
+  /** Lembar (checkout/bantuan) ditutup → tab navigasi bawah kembali mengikuti posisi gulir. */
+  function releaseNavTab() {
+    setNavTab((tab) => (tab === "list" || tab === "info" ? (window.scrollY < 240 ? "home" : "menu") : tab));
+  }
   const allowedPaymentMethods: CustomerPaymentMethod[] = isDelivery ? ["QRIS"] : customerPaymentMethods;
   const phoneDigits = guestPhone.replace(/\D/g, "");
   const deliveryPhoneMissing = isDelivery && mode === "guest" && phoneDigits.length < 8;
@@ -1453,10 +1542,12 @@ export function MemberOrderPage({
       if (mainEventMenu && displayVariant?.eventPrice) setMenuItems(current => current.map(row => row.id === item.id ? item : row));
       const variant = item.variants.find((entry) => entry.id === variantId);
       const name = variant && item.variants.length > 1 ? `${item.name} (${variant.label})` : item.name;
-      setLastAdded({ name, stamp: Date.now() });
-      if (lastAddedTimerRef.current) window.clearTimeout(lastAddedTimerRef.current);
-      lastAddedTimerRef.current = window.setTimeout(() => setLastAdded(null), 2200);
+      showToast({ tone: "success", title: name, detail: "masuk Daftar Pilihan" });
+      if (item.stock === "limited") showToast({ tone: "warning", title: "Stok terbatas", detail: `${item.name} tinggal sedikit.` });
+      const press = lastPressRef.current;
+      if (press && press.el.isConnected && performance.now() - press.at < 800) flyToList(press.el);
     }
+    if (delta !== 0) playMenuSfx(delta > 0 ? "add" : "remove", { staff: Boolean(staffOrder) });
 
     const key = cartKey(itemId, variantId);
     setCart((current) => {
@@ -1483,6 +1574,11 @@ export function MemberOrderPage({
   }
 
   function openCheckout() {
+    // Mode Daftar Pilihan: pelanggan tidak checkout sendiri (server juga menolak).
+    if (waiterList) {
+      openShowWaiter();
+      return;
+    }
     setMessage("");
     setLastOrder(null);
     setOrderStatus(null);
@@ -1669,7 +1765,10 @@ export function MemberOrderPage({
       }
       const result = await postJson<CustomerOrderCreateResponse>("/api/customer/orders", attemptedSubmission?.payload ?? orderPayload, attemptedSubmission?.key);
       adoptCustomerOrder(result, attemptedSubmission);
+      playMenuSfx("checkout-success", { staff: Boolean(staffOrder) });
     } catch (error) {
+      playMenuSfx("checkout-error", { staff: Boolean(staffOrder) });
+      showToast({ tone: "error", title: "Pesanan gagal dikirim.", detail: error instanceof Error ? error.message : undefined });
       if (attemptedSubmission && checkoutNeedsRecovery(error instanceof ApiError ? error.status : undefined)) {
         setUncertainSubmission(attemptedSubmission);
         setMessage("Konfirmasi pesanan belum diterima. Periksa pesanan sebelumnya sebelum mengirim lagi agar pesanan tidak ganda.");
@@ -1722,6 +1821,25 @@ export function MemberOrderPage({
     [bundleItems.length, hero.items.length, heroLabel, menuGroups],
   );
 
+  const regularMenu = useMemo(() => menuItems.filter((item) => !item.id.startsWith("event:")), [menuItems]);
+  const v5Categories = useMemo<CategoryLink[]>(
+    () => menuGroups.map((group) => ({ id: categorySectionId(group.category), label: group.category, photo: categoryPhoto(regularMenu, group.category) })),
+    [menuGroups, regularMenu],
+  );
+  const heroPhotos = useMemo(() => heroPhotoItems(hero.items, regularMenu), [hero.items, regularMenu]);
+  const v5SectionIds = useMemo(() => v5Categories.map((category) => category.id), [v5Categories]);
+  const activeSection = useActiveSection(v5SectionIds);
+  const v5Chips = useMemo(() => {
+    const chips = availableChips(regularMenu, bestSellerSet, favorites.ids);
+    return chips.includes(menuChip) ? chips : [...chips, menuChip];
+  }, [regularMenu, bestSellerSet, favorites.ids, menuChip]);
+  const chipItems = useMemo(
+    () => filterByChip(regularMenu, menuChip, bestSellerSet, favorites.ids),
+    [regularMenu, menuChip, bestSellerSet, favorites.ids],
+  );
+  const v5GridClass = menuView === "list" ? MENU_LIST_V5 : MENU_GRID_V5;
+  const heroChip: MenuChip = hero.kind === "featured" ? "signature" : hero.kind === "promo" ? "promo" : "best";
+
   function scrollToSection(id: string) {
     const el = document.getElementById(id);
     if (!el) return;
@@ -1730,21 +1848,171 @@ export function MemberOrderPage({
     window.scrollTo({ top: Math.max(0, window.scrollY + el.getBoundingClientRect().top - 120), behavior: reduce ? "auto" : "smooth" });
   }
 
+  function toggleFavorite(itemId: string) {
+    playMenuSfx(favorites.has(itemId) ? "favorite-off" : "favorite-on", { staff: Boolean(staffOrder) });
+    favorites.toggle(itemId);
+  }
+
+  // Kartu V5 = komponen terpisah yang menerima aksi sebagai prop (bukan closure di render).
+  const renderV5Card = (item: MenuItem, index: number) => (
+    <V5CardSlot
+      key={item.id}
+      item={item}
+      index={index}
+      layout={menuView}
+      cartQty={itemCartQty(item, cart)}
+      popular={bestSellerSet.has(item.id)}
+      favorite={favorites.ids.includes(item.id)}
+      onToggleFavorite={toggleFavorite}
+      onAdd={add}
+      onOpen={openMenuItem}
+    />
+  );
+
+  function smoothTop() {
+    window.scrollTo({ top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  }
+
+  function chooseChip(chip: MenuChip) {
+    setMenuChip(chip);
+    setDrawerOpen(false);
+    setNavTab(chip === "favorite" ? "favorite" : chip === "all" ? "home" : "menu");
+    window.requestAnimationFrame(() => scrollToSection("menu-v5-results"));
+  }
+
+  function jumpToCategory(id: string | undefined) {
+    setMenuChip("all");
+    setDrawerOpen(false);
+    setNavTab("menu");
+    if (id) window.requestAnimationFrame(() => scrollToSection(id));
+  }
+
+  function goHome() {
+    setMenuChip("all");
+    setDrawerOpen(false);
+    setNavTab("home");
+    smoothTop();
+  }
+
+  function openList() {
+    setDrawerOpen(false);
+    setNavTab("list");
+    setDaftarOpen(true);
+  }
+
+  function onBottomNav(tab: BottomNavTab) {
+    if (tab === "home") return goHome();
+    if (tab === "menu") return jumpToCategory(v5Categories[0]?.id);
+    if (tab === "favorite") return chooseChip("favorite");
+    if (tab === "list") return openList();
+    setNavTab("info");
+    if (qrContext.orderType === "dine-in" && !staffOrder) setHelpOpen(true);
+    else setAyaChatOpen(true);
+  }
+
   function focusMenuSearch() {
     const input = document.querySelector<HTMLInputElement>('input[aria-label="Cari menu"]');
     input?.focus({ preventScroll: true });
     input?.scrollIntoView({ block: "center" });
   }
 
-  function quickAdd(item: MenuItem) {
-    if (item.variants.length === 1) add(item.id, item.variants[0].id, 1);
-    else setDetailItem(item);
-  }
-
-  function openMenuItem(item: MenuItem) {
+  function openMenuItem(item: MenuItem, variantId?: string) {
     const entry = eventContext?.entries.find(row => row.kind === "bundle" && `event:${row.id}` === item.id);
     if (entry) openBundle(entry);
-    else setDetailItem(item);
+    else {
+      setDetailVariant(variantId ?? null);
+      setDetailItem(item);
+      playMenuSfx("quickview-open", { staff: Boolean(staffOrder) });
+    }
+  }
+
+  /** URL Pesankan waiter berisi Daftar Pilihan (hanya dine-in dengan nomor meja). */
+  function buildWaiterQrUrl() {
+    const label = tableHold?.tableLabel ?? infoTableLabel ?? qrContext.tableLabel;
+    const table = effectiveOrderType === "dine-in" ? label.match(/\d+/)?.[0] : null;
+    if (!table) return null;
+    const params = new URLSearchParams({ table, mode: "waiter", daftar: encodeDaftar(cart, cartNotes) });
+    if (qrContext.outletId) params.set("outletId", qrContext.outletId);
+    return `${window.location.origin}/order?${params.toString()}`;
+  }
+
+  function openShowWaiter() {
+    setDaftarOpen(false);
+    setWaiterQrUrl(buildWaiterQrUrl());
+    setShowWaiterOpen(true);
+  }
+
+  /** Tombol utama Daftar Pilihan: Checkout (pesan sendiri) atau Tunjukkan ke Waiter (mode Daftar Pilihan). */
+  function daftarPrimary() {
+    if (waiterList) return openShowWaiter();
+    setDaftarOpen(false);
+    openCheckout();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Navigasi pintar AYA (master prompt §8): buka kategori/filter/bantuan, sorot, bisa dibatalkan.
+  // Setelah pelanggan menekan "Batalkan", AYA hanya menawarkan tombol (tidak pindah otomatis lagi).
+  // ---------------------------------------------------------------------------
+  function handleAyaNavigate(nav: AyaNav) {
+    ayaSpotlightCleanup.current?.();
+    ayaNavReturn.current = { scrollY: window.scrollY, chip: menuChip };
+    let targetId: string | null = null;
+    let note: string | undefined;
+    if (nav.kind === "category") {
+      const match = v5Categories.find((category) => category.label.toLowerCase() === nav.category.toLowerCase());
+      if (match) {
+        jumpToCategory(match.id);
+        targetId = match.id;
+      } else note = `Kategori ${nav.category} belum ada di menu outlet ini.`;
+    } else if (nav.kind === "chip") {
+      chooseChip(nav.chip);
+      targetId = "menu-v5-results";
+    } else if (qrContext.orderType === "dine-in" && !staffOrder) {
+      setHelpOpen(true);
+      note = "Pilih jenis bantuan, waiter akan datang ke mejamu.";
+    } else {
+      note = "Silakan menuju kasir — staf kami siap membantu.";
+    }
+    setAyaNavGuide({ id: Date.now(), label: nav.label, note });
+    if (targetId) {
+      const id = targetId;
+      window.setTimeout(() => {
+        ayaSpotlightCleanup.current = spotlightElement(id);
+      }, window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 60 : 450);
+    }
+  }
+
+  function dismissAyaNav() {
+    setAyaNavGuide(null);
+  }
+
+  function cancelAyaNav() {
+    ayaSpotlightCleanup.current?.();
+    ayaSpotlightCleanup.current = null;
+    const back = ayaNavReturn.current;
+    if (back) {
+      setMenuChip(back.chip);
+      window.requestAnimationFrame(() => window.scrollTo({ top: back.scrollY, behavior: "auto" }));
+    }
+    setAyaAutoNav(false);
+    try {
+      window.sessionStorage.setItem("garage:aya-autonav", "off");
+    } catch {
+      /* abaikan */
+    }
+    setAyaNavGuide(null);
+  }
+
+  function backToAya() {
+    ayaSpotlightCleanup.current?.();
+    setAyaNavGuide(null);
+    setAyaChatOpen(true);
+    setAyaExpandToken((value) => value + 1);
+  }
+
+  function clearDaftar() {
+    setCart((current) => Object.fromEntries(Object.entries(current).filter(([key]) => key.startsWith("event:"))));
+    setCartNotes({});
   }
 
   const billLines = (
@@ -2302,26 +2570,71 @@ export function MemberOrderPage({
     </div>
   );
 
+  const v5Sidebar = (
+    <SidebarV5
+      categories={v5Categories}
+      chips={v5Chips}
+      activeChip={menuChip}
+      activeSection={activeSection}
+      favoriteCount={favorites.ids.length}
+      listCount={itemCount}
+      onHome={goHome}
+      onJump={jumpToCategory}
+      onChip={chooseChip}
+      onOpenList={openList}
+      onRecommend={staffOrder ? undefined : () => { setDrawerOpen(false); setAyaChatOpen(true); }}
+      member={member ? { name: member.name, points: member.points ?? member.totalPoints ?? null } : null}
+      memberHref={loginHref}
+      registerHref={`${loginHref}&mode=register`}
+      pointsPerThousand={billingSettings.pointsPerThousand}
+      orderingOpen={staffOrder ? undefined : orderingOpen}
+      staff={Boolean(staffOrder)}
+    />
+  );
+
   const invoiceButtonClass =
     "garage-press inline-flex h-11 w-full items-center justify-center gap-2 rounded-md border px-4 text-sm font-bold transition-colors sm:w-auto";
 
   return (
     <main
-      className={`garage-shell min-h-screen overflow-x-clip text-white ${
-        cartLines.length ? "pb-[calc(8.5rem+env(safe-area-inset-bottom))] lg:pb-12" : "pb-12"
-      }`}
+      className="gm5 garage-shell min-h-screen overflow-x-clip pb-[calc(6.5rem+env(safe-area-inset-bottom))] text-white lg:pb-12"
     >
-      <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8">
-        <OrderHeader
-          tableLabel={qrContext.tableLabel}
-          tableCode={compactTableNumber(qrContext.tableLabel)}
+      <div className="mx-auto w-full max-w-[1560px] px-4 sm:px-6">
+        <HeaderV5
           dineIn={effectiveOrderType === "dine-in"}
+          tableLabel={infoTableLabel ?? qrContext.tableLabel}
+          tableCode={compactTableNumber(infoTableLabel ?? qrContext.tableLabel)}
+          onTable={waiterList && effectiveOrderType === "dine-in" ? () => setTableInfoOpen(true) : undefined}
           channelLabel={channelLabel}
-          etaLabel={etaLabel}
           loginHref={loginHref}
           memberName={member?.name}
-          onHelp={() => setHelpOpen(true)}
           staff={staffOrder}
+          onOpenDrawer={() => setDrawerOpen(true)}
+          onSearch={focusMenuSearch}
+          onAya={staffOrder ? undefined : () => setAyaChatOpen(true)}
+          notice={
+            staffOrder || (!trackId && !chatUnread)
+              ? null
+              : {
+                  count: chatUnread,
+                  label: chatUnread ? "Chat kasir" : "Status pesanan",
+                  onOpen: () => (chatUnread ? setChatOpen(true) : smoothTop()),
+                }
+          }
+          info={etaLabel}
+          nav={[
+            { key: "home", label: "Beranda", onSelect: goHome, current: menuChip === "all" && navTab !== "menu" && !activeSection },
+            {
+              key: "menu",
+              label: "Menu",
+              onSelect: () => jumpToCategory(v5Categories[0]?.id),
+              current: menuChip === "all" && (navTab === "menu" || Boolean(activeSection)),
+              menu: v5Categories.map((category) => ({ key: category.id, label: category.label, icon: categoryIcon(category.label, "size-4 text-[#ede6dc]"), onSelect: () => jumpToCategory(category.id) })),
+            },
+            ...(hero.items.length ? [{ key: "pick", label: "Rekomendasi", onSelect: () => jumpToCategory(HERO_SECTION_ID) }] : []),
+            ...(v5Chips.includes("promo") ? [{ key: "promo", label: "Promo", onSelect: () => chooseChip("promo"), current: menuChip === "promo" }] : []),
+            { key: "about", label: "Tentang", href: "/" },
+          ]}
         />
         {eventContext ? <div className="my-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-garage-amber/35 bg-garage-bg-2 px-4 py-2.5"><div className="min-w-0"><div className="flex flex-wrap items-center gap-x-3 gap-y-1"><p className="text-sm font-semibold text-garage-amber">{eventContext.preview ? "Preview internal" : eventTimeUnavailable ? "Periode event selesai" : "Spesial event"}</p><p className="break-words text-base font-bold text-white">{eventContext.title}</p></div><p className="mt-1 text-sm leading-5 text-garage-dim">{eventContext.preview ? "Tinjau tampilan. Pengiriman order dinonaktifkan." : eventTimeUnavailable ? "Muat ulang untuk melihat menu dan harga yang berlaku saat ini." : mainEventMenu ? "Paket pilihan dan menu satuan, satu keranjang." : "Harga khusus event sesuai periode yang berlaku."}</p></div>{eventTimeUnavailable && mainEventMenu ? <button type="button" disabled={Boolean(uncertainSubmission)} onClick={() => window.location.reload()} className="min-h-11 shrink-0 rounded-md border border-garage-line-2 px-4 text-sm font-bold text-white hover:bg-garage-bg-3 disabled:opacity-40">Muat ulang menu</button> : !mainEventMenu ? <Link href="/order" className="inline-flex min-h-11 shrink-0 items-center rounded-md border border-garage-line-2 px-4 text-sm font-bold text-white hover:bg-garage-bg-3">Menu utama</Link> : null}</div> : null}
         {uncertainSubmission ? <div className="mb-3">{recoveryPanel}</div> : null}
@@ -2336,8 +2649,11 @@ export function MemberOrderPage({
           </div>
         ) : null}
 
-        <div className="mt-2 grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
-          <div className="min-w-0">
+        <div className="mt-3 grid gap-6 lg:grid-cols-[208px_minmax(0,1fr)_300px] lg:items-start xl:grid-cols-[236px_minmax(0,1fr)_340px]">
+          <aside className="gm5-side-scroll hidden lg:sticky lg:top-3 lg:block lg:max-h-[calc(100svh-24px)] lg:overflow-y-auto lg:overscroll-contain lg:pb-2" aria-label="Panel navigasi">
+            {v5Sidebar}
+          </aside>
+          <div id="menu-v5-main" className="min-w-0">
             {!staffOrder && !qrContext.tableIssue ? (
               <div className="mb-3 space-y-2" role="status">
                 {/* Pembeda tipe pesanan: Makan di tempat / Take away / Delivery. */}
@@ -2368,6 +2684,26 @@ export function MemberOrderPage({
                         Ganti meja
                       </button>
                     ) : null}
+                  </div>
+                ) : null}
+                {waiterList && effectiveOrderType === "dine-in" ? (
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-white/12 bg-garage-bg-1 px-3 py-2">
+                    <p className="min-w-0 flex-1 text-sm leading-5 text-garage-dim">
+                      {infoTableLabel ? (
+                        <>
+                          Kamu melihat menu untuk <strong className="text-white">{infoTableLabel}</strong>. Penanda untuk waiter, bukan pesanan.
+                        </>
+                      ) : (
+                        <>Pilih nomor mejamu supaya waiter tahu kamu duduk di mana (tidak membuat pesanan).</>
+                      )}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setTableInfoOpen(true)}
+                      className="garage-press min-h-11 rounded-md border border-white/20 px-3 text-sm font-bold text-white hover:bg-white/10"
+                    >
+                      {infoTableLabel ? "Ubah meja" : "Pilih meja"}
+                    </button>
                   </div>
                 ) : null}
                 {qrContext.tableHint ? <p className="px-1 text-sm leading-6 text-garage-dim">{qrContext.tableHint}</p> : null}
@@ -2487,8 +2823,9 @@ export function MemberOrderPage({
                   return (
                     <>
                       <div className="flex items-start gap-3">
-                        <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-[#86efac]" />
+                        <SuccessCheckV5 className="mt-0.5 size-9 shrink-0" />
                         <div className="min-w-0 flex-1">
+                          <p className="gm5-title text-lg leading-tight text-[#86efac]">Berhasil!</p>
                           <p className="text-base font-bold text-white">
                             <span className="font-mono tabular-nums">{lastOrder.order.orderNo}</span> menunggu
                             validasi kasir
@@ -2575,33 +2912,46 @@ export function MemberOrderPage({
               </section>
             ) : null}
 
-            <CategoryNav
-              query={query}
-              onQueryChange={setQuery}
-              tabs={categoryTabs}
-              resultCount={filteredMenu.length}
-            />
+            {!searching ? (
+              <>
+                <HeroV5
+                  items={heroPhotos}
+                  onSeeMenu={() => jumpToCategory(hero.items.length ? HERO_SECTION_ID : v5Categories[0]?.id)}
+                  onOpenItem={openMenuItem}
+                  ctaLabel={heroCtaLabel({ waiterList, orderingOpen, staff: Boolean(staffOrder) })}
+                  eta={staffOrder ? undefined : etaLabel}
+                />
+                <CategoryTilesV5 categories={v5Categories} onJump={jumpToCategory} />
+              </>
+            ) : null}
+
+            <div className="mt-4">
+              <CategoryNav
+                query={query}
+                onQueryChange={setQuery}
+                tabs={categoryTabs}
+                resultCount={filteredMenu.length}
+                onTabSelect={(id) => {
+                  if (menuChip === "all") return false;
+                  jumpToCategory(id);
+                  return true;
+                }}
+              />
+            </div>
+
+            <div id="menu-v5-results" className="scroll-mt-[124px]">
+              <FilterChipsV5 chips={v5Chips} active={menuChip} onChange={chooseChip} layout={menuView} onLayout={setMenuView} />
+            </div>
 
             {loading ? (
-              <div className={`${MENU_GRID_CLASS} pt-5`}>
+              <div className={`${MENU_GRID_CLASS} gm5-skeleton pt-5`} role="status" aria-label="Memuat menu">
                 {Array.from({ length: 6 }).map((_, index) => (
                   <MenuCardSkeleton key={index} />
                 ))}
               </div>
             ) : searching ? (
               filteredMenu.length ? (
-                <div className={`${MENU_GRID_CLASS} pt-4`}>
-                  {filteredMenu.map((item) => (
-                    <MenuCard
-                      key={item.id}
-                      item={item}
-                      popular={bestSellerSet.has(item.id)}
-                      cartQty={itemCartQty(item, cart)}
-                      onAdd={(variantId, delta) => add(item.id, variantId, delta)}
-                      onOpen={() => openMenuItem(item)}
-                    />
-                  ))}
-                </div>
+                <div className={`${v5GridClass} pt-4`}>{filteredMenu.map(renderV5Card)}</div>
               ) : (
                 <div className="mt-6 flex flex-col items-center rounded-lg border border-dashed border-garage-line-2 p-8 text-center">
                   <Search className="size-7 text-garage-mute" aria-hidden />
@@ -2616,18 +2966,48 @@ export function MemberOrderPage({
                   </button>
                 </div>
               )
+            ) : menuChip !== "all" ? (
+              <section className="pt-5" aria-label={CHIP_LABEL[menuChip]}>
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="gm5-title gm5-section-title text-[22px] leading-none text-white">{CHIP_LABEL[menuChip]}</h2>
+                  <button type="button" onClick={() => chooseChip("all")} className="min-h-11 cursor-pointer px-2 text-sm font-semibold text-[#ede6dc] hover:text-white">
+                    Semua menu
+                  </button>
+                </div>
+                {chipItems.length ? (
+                  <div className={`${v5GridClass} mt-4`}>{chipItems.map(renderV5Card)}</div>
+                ) : (
+                  <div className="gm5-panel mt-4 flex flex-col items-center p-8 text-center">
+                    <p className="text-base font-bold text-white">{menuChip === "favorite" ? "Belum ada favorit" : "Belum ada menu"}</p>
+                    <p className="mt-1 text-sm text-[#cfc9c4]">
+                      {menuChip === "favorite" ? "Ketuk ikon hati pada menu untuk menyimpannya di sini." : "Tidak ada menu di pilihan ini saat ini."}
+                    </p>
+                  </div>
+                )}
+              </section>
             ) : menuGroups.length || bundleItems.length ? (
               <>
                 <EventBundleSection items={bundleItems} entries={eventContext?.entries ?? []} products={eventContext?.products ?? []} cart={cart} now={eventNow} onChoose={openMenuItem} />
-                <HeroRail
-                  id={HERO_SECTION_ID}
-                  kind={hero.kind}
-                  items={hero.items}
-                  cart={cart}
-                  onQuickAdd={quickAdd}
-                  onOpen={openMenuItem}
-                />
+                {hero.items.length ? (
+                  <section id={HERO_SECTION_ID} data-order-section={heroLabel} className="scroll-mt-[124px] pt-6">
+                    <div className="flex items-center justify-between gap-3">
+                      <h2 className="gm5-title gm5-section-title text-[22px] leading-none text-white">Menu Pilihan</h2>
+                      <button type="button" onClick={() => chooseChip(heroChip)} className="min-h-11 cursor-pointer px-2 text-sm font-semibold text-[#ede6dc] hover:text-white">
+                        Lihat Semua →
+                      </button>
+                    </div>
+                    <div className={`${v5GridClass} mt-4`}>{hero.items.map(renderV5Card)}</div>
+                  </section>
+                ) : null}
+                {!staffOrder ? (
+                  <div className="mt-6 lg:hidden">
+                    <AyaCardV5 compact onAsk={() => setAyaChatOpen(true)} />
+                  </div>
+                ) : null}
                 <MenuSectionList
+                  v5
+                  renderItem={renderV5Card}
+                  gridClassName={v5GridClass}
                   groups={menuGroups}
                   cart={cart}
                   bestSellerSet={bestSellerSet}
@@ -2635,7 +3015,7 @@ export function MemberOrderPage({
                   onOpen={openMenuItem}
                 />
                 <p className="mt-8 border-t border-garage-line pt-4 text-center text-sm text-garage-mute">
-                  Pesanan dikonfirmasi kasir sebelum diproses dapur &amp; bar.
+                  {waiterList ? "Pesanan resmi dicatat waiter, lalu diproses dapur & bar." : "Pesanan dikonfirmasi kasir sebelum diproses dapur & bar."}
                 </p>
               </>
             ) : (
@@ -2645,56 +3025,42 @@ export function MemberOrderPage({
             )}
           </div>
 
-          <aside className="hidden lg:sticky lg:top-4 lg:block" aria-label="Ringkasan pesanan">
-            <div className="flex max-h-[calc(100dvh-2rem)] flex-col rounded-lg border border-garage-line-2 bg-garage-bg-2 p-5 shadow-[0_18px_48px_rgba(0,0,0,0.25)]">
+          <aside className="hidden lg:sticky lg:top-3 lg:flex lg:flex-col lg:gap-4" aria-label="Daftar Pilihan">
+            <div className="gm5-panel flex max-h-[calc(100dvh-13rem)] flex-col p-5">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <h2 className="text-lg font-bold text-white">Pesanan Anda</h2>
-                  <p className="mt-0.5 text-sm text-garage-dim">
+                  <h2 className="gm5-title gm5-section-title text-xl text-white">
+                    Daftar Pilihan
+                    {itemCount ? <span className="gm5-count gm5-pop" key={itemCount}>{itemCount}</span> : null}
+                  </h2>
+                  <p className="mt-1 text-sm text-[#cfc9c4]">
                     {channelLabel} · {qrContext.tableLabel}
                   </p>
                 </div>
-                <span className="shrink-0 font-mono text-sm font-bold tabular-nums text-garage-dim">
-                  {itemCount} item
-                </span>
               </div>
 
-              <div className="mt-4 min-h-0 max-h-[38dvh] overflow-y-auto overscroll-contain pr-1">
-                <CartList lines={cartLines} onAdjust={add} onNote={setLineNote} />
+              <div className="mt-2 min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
+                <DaftarListV5 lines={cartLines} onAdjust={add} onEdit={(line) => openMenuItem(line.item, line.variant.id)} compact />
               </div>
-
-              {cartLines.length ? (
-                <div className="mt-3 space-y-1.5 border-t border-garage-line pt-3 text-sm">
-                  {billLines}
-                  <div className="mt-2 flex items-center justify-between border-t border-garage-line pt-3">
-                    <span className="text-sm font-semibold text-garage-dim">Total estimasi</span>
-                    <strong className="font-mono text-xl font-bold tabular-nums text-white">
-                      {rupiah.format(total)}
-                    </strong>
-                  </div>
-                </div>
-              ) : null}
-
-              <button
-                data-aya-anchor="checkout"
-                className="garage-press mt-4 flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-garage-red px-4 text-[15px] font-bold text-white transition-colors hover:bg-garage-red-bright disabled:cursor-not-allowed disabled:opacity-60"
-                onClick={openCheckout}
-                disabled={!cartLines.length}
-              >
-                <ShoppingBag className="size-4" />
-                Checkout
-              </button>
-              {!cartLines.length ? (
-                <p className="mt-3 text-center text-sm text-garage-dim">
-                  Pilih menu untuk melihat total dan lanjut checkout.
-                </p>
-              ) : null}
+              <div className="mt-3 shrink-0">
+                <DaftarSummaryV5
+                  waiterList={waiterList}
+                  hasItems={cartLines.length > 0}
+                  subtotal={subtotal}
+                  total={total}
+                  billLines={billLines}
+                  onPrimary={daftarPrimary}
+                  onClear={clearDaftar}
+                />
+              </div>
             </div>
+            {!staffOrder ? <AyaCardV5 onAsk={() => setAyaChatOpen(true)} /> : null}
           </aside>
         </div>
       </div>
 
-      {cartLines.length ? <OrderCartBar itemCount={itemCount} total={total} onOpen={openCheckout} lastAdded={lastAdded} /> : null}
+      <MenuToastStackV5 toasts={toasts} onDismiss={dismissToast} />
+      <BottomNavV5 active={navTab} listCount={itemCount} listTotal={waiterList ? subtotal : total} onSelect={onBottomNav} staff={Boolean(staffOrder)} />
 
       {showScrollTop ? (
         <button
@@ -2714,11 +3080,53 @@ export function MemberOrderPage({
         </button>
       ) : null}
 
-      <MenuDetailSheet
+      <QuickViewV5
         item={detailItem}
+        initialVariantId={detailVariant}
         cart={cart}
+        notes={cartNotes}
         onAdjust={add}
-        onClose={() => setDetailItem(null)}
+        onNote={setLineNote}
+        onClose={() => {
+          setDetailItem(null);
+          playMenuSfx("quickview-close", { staff: Boolean(staffOrder) });
+        }}
+      />
+      <DaftarSheetV5
+        open={daftarOpen}
+        onOpenChange={(open) => {
+          setDaftarOpen(open);
+          if (!open) releaseNavTab();
+        }}
+        count={itemCount}
+      >
+        <DaftarListV5 lines={cartLines} onAdjust={add} onEdit={(line) => { setDaftarOpen(false); openMenuItem(line.item, line.variant.id); }} />
+        <div className="mt-3">
+          <DaftarSummaryV5
+            waiterList={waiterList}
+            hasItems={cartLines.length > 0}
+            subtotal={subtotal}
+            total={total}
+            billLines={billLines}
+            onPrimary={daftarPrimary}
+            onClear={clearDaftar}
+          />
+        </div>
+      </DaftarSheetV5>
+      <ShowToWaiterSheetV5
+        open={showWaiterOpen}
+        onOpenChange={(open) => {
+          setShowWaiterOpen(open);
+          if (!open) releaseNavTab();
+        }}
+        lines={cartLines}
+        subtotal={subtotal}
+        tableLabel={tableHold?.tableLabel ?? qrContext.tableLabel}
+        dineIn={effectiveOrderType === "dine-in"}
+        qrUrl={waiterQrUrl}
+        onCallWaiter={qrContext.orderType === "dine-in" ? () => void callService("call", "Panggilan waiter") : undefined}
+        callBusy={helpBusy === "call"}
+        callMessage={helpMessage || null}
       />
       {ageGateEntry ? <BundleAgeConfirm onCancel={() => setAgeGateEntry(null)} onConfirm={() => { setBundleEntry(ageGateEntry); setAgeGateEntry(null); }} /> : null}
       {bundleEntry && eventContext ? <EventBundlePicker key={bundleEntry.id} entry={bundleEntry} products={eventContext.products} now={eventNow} onClose={() => setBundleEntry(null)} onConfirm={(selections, label) => {
@@ -2729,11 +3137,12 @@ export function MemberOrderPage({
         const key = cartKey(itemId, variantId);
         setCart((current) => ({ ...current, [key]: (current[key] ?? 0) + 1 }));
         setBundleEntry(null);
-        setLastAdded({ name: bundleEntry.name, stamp: Date.now() });
+        showToast({ tone: "success", title: bundleEntry.name, detail: "masuk Daftar Pilihan" });
+        playMenuSfx("add", { staff: Boolean(staffOrder) });
       }} /> : null}
 
       {!staffOrder ? (
-        <AyaFloatingPet scope="order" guide={orderGuide.petGuide} onGuideExit={orderGuide.stop}>
+        <AyaFloatingPet scope="order" guide={orderGuide.petGuide} onGuideExit={orderGuide.stop} laneBottom={isDesktop ? 12 : navHeight + 4} laneX={isDesktop ? laneX : undefined}>
           {({ close, hide }) =>
             orderGuide.active && orderGuide.step ? (
               <AyaGuideBubble
@@ -2761,6 +3170,7 @@ export function MemberOrderPage({
                 onFocusSearch={focusMenuSearch}
                 onHelp={qrContext.orderType === "dine-in" ? () => setHelpOpen(true) : undefined}
                 onStartGuide={orderGuide.start}
+                onChat={() => setAyaChatOpen(true)}
                 onClose={close}
                 onHide={hide}
               />
@@ -2769,10 +3179,71 @@ export function MemberOrderPage({
         </AyaFloatingPet>
       ) : null}
 
+      {!staffOrder ? (
+        <AyaChatV5
+          open={ayaChatOpen}
+          onOpenChange={(open) => {
+            setAyaChatOpen(open);
+            if (!open) releaseNavTab();
+          }}
+          items={regularMenu}
+          bestSellerIds={bestSellerIds}
+          onAdd={add}
+          onOpenItem={(item) => {
+            setAyaChatOpen(false);
+            openMenuItem(item);
+          }}
+          onStartGuide={orderGuide.start}
+          onStaff={qrContext.orderType === "dine-in" ? () => setHelpOpen(true) : canChooseFulfillment ? () => setChatOpen(true) : undefined}
+          staffLabel={qrContext.orderType === "dine-in" ? (waiterList ? "Panggil waiter" : "Panggil staf") : "Chat kasir"}
+          onNavigate={handleAyaNavigate}
+          autoNavigate={ayaAutoNav}
+          mode={waiterList ? "waiter_list" : "self_order"}
+          tableLabel={effectiveOrderType === "dine-in" ? (tableHold?.tableLabel ?? infoTableLabel ?? qrContext.tableLabel) : null}
+          historyScope={`${qrContext.outletId ?? "default"}:${qrContext.tableLabel}`}
+          menuState={menuLoadFailed && !regularMenu.length ? "error" : loading && !regularMenu.length ? "loading" : "ready"}
+          onRetryMenu={() => {
+            setLoading(true);
+            setMenuReload((value) => value + 1);
+          }}
+          expandToken={ayaExpandToken}
+        />
+      ) : null}
+
+      {!staffOrder ? (
+        <AyaNavGuideV5 guide={ayaNavGuide} onBackToAya={backToAya} onCancel={cancelAyaNav} onDismiss={dismissAyaNav} />
+      ) : null}
+      {!staffOrder ? <FullscreenExitV5 /> : null}
+      {welcomeOpen ? (
+        <WelcomeV5
+          tableLabel={effectiveOrderType === "dine-in" ? (infoTableLabel ?? qrContext.tableLabel) : null}
+          onDone={({ voice }) => {
+            setWelcomeOpen(false);
+            // Suara dipilih → sapaan suara sudah diputar oleh welcome; jangan dobel.
+            if (!voice) requestAyaChirp("greeting");
+          }}
+        />
+      ) : null}
+      {waiterList ? (
+        <TableInfoPickerV5
+          open={tableInfoOpen}
+          onOpenChange={setTableInfoOpen}
+          outletId={qrContext.outletId}
+          current={tableInfo ?? (infoTableLabel ? { tableNumber: infoTableLabel.match(/\d+/)?.[0]?.padStart(2, "0") ?? "", tableLabel: infoTableLabel } : null)}
+          onConfirm={(info) => {
+            setTableInfo(info);
+            writeTableInfo(qrContext.outletId, info);
+          }}
+        />
+      ) : null}
+
       {qrContext.orderType === "dine-in" && !staffOrder ? (
         <OrderHelpSheet
           open={helpOpen}
-          onOpenChange={setHelpOpen}
+          onOpenChange={(open) => {
+            setHelpOpen(open);
+            if (!open) releaseNavTab();
+          }}
           tableLabel={qrContext.tableLabel}
           busyType={helpBusy}
           message={helpMessage}
@@ -2802,7 +3273,22 @@ export function MemberOrderPage({
         />
       ) : null}
 
-      <Sheet open={checkoutOpen} onOpenChange={setCheckoutOpen}>
+      <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
+        <SheetContent side="left" className="gm5 z-[85] w-[86vw] max-w-[340px] overflow-y-auto border-[color:var(--gm5-line)] bg-[var(--menu-charcoal)] p-4 text-white">
+          <SheetHeader className="p-0 text-left">
+            <SheetTitle className="sr-only">Navigasi menu</SheetTitle>
+            <SheetDescription className="sr-only">Kategori, filter, favorit, dan informasi Garage Coffee.</SheetDescription>
+          </SheetHeader>
+          {v5Sidebar}
+        </SheetContent>
+      </Sheet>
+      <Sheet
+        open={checkoutOpen}
+        onOpenChange={(open) => {
+          setCheckoutOpen(open);
+          if (!open) releaseNavTab();
+        }}
+      >
         <SheetContent
           side="bottom"
           className="inset-x-0 bottom-0 z-[90] mx-auto flex max-h-[92svh] w-full max-w-2xl flex-col overflow-hidden rounded-t-xl border-garage-line bg-garage-bg-1 p-0 text-white sm:inset-x-4 sm:bottom-4 sm:w-[min(640px,calc(100vw-32px))] sm:rounded-xl sm:border"

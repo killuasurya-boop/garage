@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { fail, ok, readJson } from "@/lib/api-response";
-import { decideApprovalWithPin } from "@/lib/garage-service";
+import { ApprovalPolicyError, decideApprovalWithPin } from "@/lib/garage-service";
 import { rateLimit } from "@/lib/rate-limit";
 import { requirePermission } from "@/lib/server-auth";
 
@@ -48,6 +48,7 @@ export async function POST(
     }
     return ok(approval);
   } catch (error) {
+    if (error instanceof ApprovalPolicyError) return fail(403, error.code, error.message);
     return fail(
       400,
       "APPROVAL_PIN_FAILED",

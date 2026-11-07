@@ -33,6 +33,10 @@ const CrmAutoSegmentsPanel = dynamic(
   () => import("@/components/garage/crm-auto-segments-panel").then((m) => m.CrmAutoSegmentsPanel),
   { loading: CrmModuleFallback },
 );
+const CrmCxPanel = dynamic(
+  () => import("@/components/garage/crm-cx-panel").then((m) => m.CrmCxPanel),
+  { loading: CrmModuleFallback },
+);
 const GarageMarketingView = dynamic(
   () => import("@/components/garage/garage-marketing").then((m) => m.GarageMarketingView),
   { loading: CrmModuleFallback },
@@ -235,6 +239,8 @@ function CrmDashboardView() {
           sub={`${metrics?.atRiskCustomerCount ?? 0} customer belum order 60 hari`}
         />
       </div>
+
+      <CrmCxPanel />
     </section>
   );
 }

@@ -18,7 +18,7 @@ Tanggal: 3 Nov 2026 · Branch `feat/smart-notification-v2` dari `origin/main` a1
 
 ## 2. File yang diubah
 
-Baru: `src/lib/sound-claim.ts`, `src/lib/hub-sound-rules.ts`, `src/lib/payment-notice.ts`, `drizzle/0177_staff_notification_resolve.sql` (+ snapshot), `src/lib/smart-notification-v2.test.ts`, `src/lib/smart-notification-v2.integration.test.ts`, `docs/notifications/*`.
+Baru: `src/lib/sound-claim.ts`, `src/lib/hub-sound-rules.ts`, `src/lib/payment-notice.ts`, `drizzle/0183_notification_resolve_par_stock.sql` (+ snapshot), `src/lib/smart-notification-v2.test.ts`, `src/lib/smart-notification-v2.integration.test.ts`, `docs/notifications/*`.
 
 Diubah: `src/lib/staff-notifications.ts`, `src/lib/garage-service.ts`, `src/lib/wms-material-request.ts`, `src/lib/garage-voice.ts`, `src/lib/push-client.ts`, `src/db/schema.ts`, `src/components/garage/staff-notification-center.tsx`, `src/components/garage/production-hub/use-hub-sound.ts`, `src/components/garage/production-hub/production-hub-v4.tsx`, `src/components/garage/waiter-view.tsx`, `src/components/garage/garage-app.tsx`, `src/components/garage/garage-ai-alerts-bell.tsx`, `src/components/wms/wms-shell.tsx`, `src/lib/garage-cash-session.integration.test.ts`, `CLAUDE.md`.
 
@@ -65,7 +65,7 @@ Target "P95 realtime ≤ 5 dtk": **belum diukur** (butuh instrumentasi produksi,
 - Voice "order baru → Bar/Dapur" di perangkat kasir tetap default ON (outlet dengan satu speaker); matikan per perangkat lewat Pengaturan suara bila stasiun sudah bersuara sendiri.
 
 ## 5. Risiko deploy & langkah berikut
-- Migrasi 0177 aditif (2 kolom nullable + 1 index) — aman, tanpa backfill.
+- Migrasi 0183 aditif (2 kolom nullable + 1 index) — aman, tanpa backfill.
 - Perilaku baru yang terasa di lantai: waiter kini menerima "siap antar" (urgent, ding + voice); tablet Bar/Dapur dengan Suara ON kini mengucapkan "order baru" untuk stasiunnya.
 - Sebelum merge: uji di staging dengan perangkat nyata — tablet Bar & Dapur, HP waiter, 2 tab di satu tablet, logout di tablet bersama, mode senyap/speaker mati.
 - Deploy hanya dengan OK Owner: `release-check.sh` di main yang sudah di-merge → `deploy-manual.sh --dry-run` → `--yes`.

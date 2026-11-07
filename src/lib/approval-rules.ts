@@ -8,9 +8,10 @@ export type ApprovalCategory =
   | "pengeluaran"
   | "selisih_kas"
   | "stok"
+  | "dokumen"
   | "lainnya";
 
-export type ApprovalStatus = "pending" | "approved" | "rejected";
+export type ApprovalStatus = "pending" | "approved" | "rejected" | "expired" | "superseded";
 
 // Prefix ID approval → kategori. ID dibuat server dengan pola APP-<KODE>-<ref>.
 const CATEGORY_BY_PREFIX: Array<[string, ApprovalCategory]> = [
@@ -23,6 +24,8 @@ const CATEGORY_BY_PREFIX: Array<[string, ApprovalCategory]> = [
   ["APP-CASH-", "selisih_kas"],
   ["APP-OPN-", "stok"],
   ["APP-ADJ-", "stok"],
+  // Batch 7: versi dokumen/SOP baru baru berlaku setelah disetujui.
+  ["APP-DOC-", "dokumen"],
 ];
 
 // Fallback untuk baris lama/seed yang ID-nya tidak mengikuti pola prefix.
@@ -54,6 +57,7 @@ export const APPROVAL_CATEGORY_LABEL: Record<ApprovalCategory, string> = {
   pengeluaran: "Pengeluaran",
   selisih_kas: "Selisih kas",
   stok: "Penyesuaian stok",
+  dokumen: "Dokumen / SOP",
   lainnya: "Lainnya",
 };
 
@@ -61,6 +65,8 @@ export const APPROVAL_STATUS_LABEL: Record<string, string> = {
   pending: "Menunggu",
   approved: "Disetujui",
   rejected: "Ditolak",
+  expired: "Kedaluwarsa",
+  superseded: "Digantikan (sumber sudah berubah)",
 };
 
 export const APPROVAL_RISK_LABEL: Record<string, string> = {
@@ -157,7 +163,18 @@ export type ApprovalPayload = {
   managerReview?: { by: string; name: string; at: string };
   /** Diskon manual: nominal maksimum yang disetujui & kasir peminta. */
   discountAmount?: number;
+  /** ID user pemohon (Better Auth `user.id`). Baris PCX lama (sebelum Nov 2026) berisi nama "Nama / Peran". */
   requestedBy?: string;
   /** Akun pengaju (batal Bar/Dapur/kasir) — penerima notifikasi saat diputus. */
   requestedByUserId?: string;
+  /** Nama tampilan pemohon ("Nama / Peran"), hanya untuk tampilan/audit. */
+  requestedByName?: string;
+  /** APP-DOC: versi dokumen yang diajukan untuk berlaku. */
+  documentId?: string;
+  versionId?: string;
+  documentVersion?: number;
+  documentTitle?: string;
+  sha256?: string;
+  /** APP-PCX: bill pisahan yang sudah dibuat (pelaksanaan diulang tidak memisah dua kali). */
+  splitChildId?: string;
 };

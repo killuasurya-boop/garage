@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 import {
+  Activity,
   Bot,
   TerminalSquare,
   Banknote,
@@ -13,6 +14,7 @@ import {
   ChefHat,
   ChevronLeft,
   ClipboardCheck,
+  Gavel,
   LayoutDashboard,
   Rocket,
   Lock,
@@ -21,6 +23,7 @@ import {
   ReceiptText,
   Settings,
   ShieldAlert,
+  ShieldCheck,
   Sparkles,
   TrendingUp,
   Users,
@@ -35,6 +38,10 @@ import { GlowDot } from "../ui/GlowDot";
 /** Menu Control Center (dipakai sidebar & pencarian topbar). */
 export const controlNav = [
   { href: "/control", label: "Ringkasan", icon: LayoutDashboard },
+  { href: "/control/decision", label: "Decision Center", icon: Gavel },
+  { href: "/control/aya-solver", label: "AYA Solver", icon: Sparkles },
+  { href: "/control/intelligence", label: "Living Intelligence", icon: Activity },
+  { href: "/control/ai-governance", label: "AI Governance", icon: ShieldCheck },
   { href: "/control/onboarding", label: "Onboarding", icon: Rocket },
   { href: "/control/briefing", label: "Briefing", icon: Sparkles },
   { href: "/control/financial", label: "Keuangan", icon: PiggyBank },

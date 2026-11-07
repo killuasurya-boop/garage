@@ -1,11 +1,13 @@
 import { z } from "zod";
 
 import { fail, ok, readJson } from "@/lib/api-response";
+import { VIEW_ONLY_MESSAGE, selfOrderAllowed } from "@/lib/digital-menu-mode";
 import { sweepUnpaidOrdersLazily } from "@/lib/garage-courier";
 import {
   TableClaimError,
   createCustomerOrder,
   getCustomerOrderData,
+  getDigitalMenuMode,
 } from "@/lib/garage-service";
 import { checkIdempotency, readIdempotencyKey } from "@/lib/idempotency";
 import { eventCartItemSchema } from "@/lib/event-menu-service";
@@ -77,9 +79,13 @@ export async function GET(request: Request) {
   // Tolak otomatis order take away/delivery yang lewat batas bayar (sapuan malas).
   await sweepUnpaidOrdersLazily();
   const url = new URL(request.url);
+  const scope = url.searchParams.get("scope") === "unpaid" ? "unpaid" : undefined;
   return ok(
     await getCustomerOrderData({
       status: url.searchParams.get("status") ?? undefined,
+      scope,
+      // Daftar Belum Bayar = outlet staf saja (order lama tanpa outlet tetap ikut).
+      outletId: scope ? session.data.profile.outlet.id : undefined,
     }),
   );
 }
@@ -103,6 +109,11 @@ export async function POST(request: Request) {
   } else if (!body.data.guestName) {
     // Nomor WhatsApp opsional untuk guest — cukup nama untuk lanjut transaksi.
     return fail(400, "GUEST_REQUIRED", "Nama customer wajib diisi.");
+  }
+
+  // Menu V5: outlet bermode "Daftar Pilihan" → pesanan dicatat waiter, bukan checkout dari HP pelanggan.
+  if (!selfOrderAllowed(await getDigitalMenuMode(body.data.outletId))) {
+    return fail(403, "DIGITAL_MENU_VIEW_ONLY", VIEW_ONLY_MESSAGE);
   }
 
   // Anti double-tap QR ordering: klien kirim X-Idempotency-Key per submission.

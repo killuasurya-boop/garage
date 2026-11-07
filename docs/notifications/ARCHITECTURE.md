@@ -41,7 +41,7 @@ Prinsip kompatibilitas: memperluas `staff_notifications` + `notifyStaff` yang su
 | dedup_key | `dedup_key` (unique index) |
 | created / ack | `created_at` / `staff_notification_reads.read_at` |
 
-### Ditambahkan di PR ini (migrasi aditif `0177_staff_notification_resolve`)
+### Ditambahkan di PR ini (migrasi aditif `0183_notification_resolve_par_stock`)
 | Kolom | Tipe | Makna |
 |---|---|---|
 | `resolved_at` | timestamptz null | Kejadian sudah tidak perlu aksi (order diterima, panggilan selesai, tiket diantar). Klien berhenti mengulang bunyi, kartu pindah ke "Selesai", tombol aksi disembunyikan. |

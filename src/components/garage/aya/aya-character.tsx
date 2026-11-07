@@ -1,10 +1,10 @@
-// Adapter API lama Aya (ekspresi + pose D-07) ke maskot V2 (keputusan Owner OD-02): semua
+// Adapter API lama Aya (ekspresi + pose D-07) ke maskot V5 (robot, keputusan Owner 4 Nov 2026): semua
 // pemanggil lama — pet melayang, companion staf, sapaan /order, avatar — otomatis memakai
-// karakter V2 tanpa diubah satu per satu. Kode baru sebaiknya langsung memakai AyaMascot.
+// karakter V5 tanpa diubah satu per satu. Kode baru sebaiknya langsung memakai AyaMascot.
 import { AyaMascot, type AyaAudience, type AyaEffect, type AyaLook, type AyaMotion, type AyaState } from "@/components/garage/aya/aya-mascot";
 
 export type AyaExpression = "default" | "happy" | "centil" | "grumpy" | "sleepy" | "alert" | "thinking" | "surprised";
-export type AyaPose = "idle" | "wave" | "dance" | "cross" | "fly";
+export type AyaPose = "idle" | "wave" | "dance" | "cross" | "fly" | "walk" | "run";
 
 const STATE_FOR_EXPRESSION: Record<AyaExpression, AyaState> = {
   default: "idle",
@@ -23,6 +23,8 @@ const MOTION_FOR_POSE: Record<AyaPose, AyaMotion> = {
   dance: "dance",
   cross: "rest",
   fly: "fly",
+  walk: "walk",
+  run: "run",
 };
 
 export function ayaStateForExpression(expression: AyaExpression): AyaState {

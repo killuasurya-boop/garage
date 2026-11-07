@@ -36,6 +36,9 @@ export const MINOR_DISCREPANCY = 10_000;
 export const REPEAT_WINDOW_DAYS = 30;
 const REFUND_VOID_MANY = 3;
 const METHOD_FIX_MANY = 2;
+/** Kas keluar langsung (tanpa ACC) per shift: banyak transaksi, atau total ≥ 80% batas shift. */
+const CASH_OUT_DIRECT_MANY = 5;
+const CASH_OUT_DIRECT_NEAR_LIMIT = 0.8;
 const DEPOSIT_UNCONFIRMED_HOURS = 24;
 
 export type RiskSessionFacts = {
@@ -59,6 +62,8 @@ export type RiskSessionFacts = {
   refundVoidCount: number;
   methodFixCount: number;
   unconfirmedDeposits: Array<{ id: string; amount: number; recordedAt: Date; ref: string }>;
+  /** Owner 6 Nov 2026: kas keluar kasir yang langsung tercatat tanpa ACC (bukan setoran). Opsional (data lama). */
+  cashOutDirect?: { count: number; total: number; withoutReceipt: number; limit: number };
   /** Riwayat kasir yang sama dalam REPEAT_WINDOW_DAYS (termasuk shift ini). */
   history: { shifts: number; shortageShifts: number; mismatchShifts: number };
   /** shiftDiscrepancyThreshold dari Pengaturan. */
@@ -194,6 +199,24 @@ export function evaluateSessionRisk(f: RiskSessionFacts): RiskAlertDraft[] {
       explanation: `Shift ${f.code}: metode bayar (Tunai/QRIS) dikoreksi ${f.methodFixCount} kali. Cek referensi pembayaran. ${status}`,
       evidence: [shift],
       completeness: "complete",
+    });
+  }
+  const direct = f.cashOutDirect;
+  if (
+    direct &&
+    direct.count > 0 &&
+    (direct.count >= CASH_OUT_DIRECT_MANY || (direct.limit > 0 && direct.total >= direct.limit * CASH_OUT_DIRECT_NEAR_LIMIT))
+  ) {
+    alerts.push({
+      ...base("CASH_OUT_DIRECT_HIGH"),
+      ...cashier,
+      riskLevel: 1,
+      title: `${direct.count} kas keluar tanpa ACC · ${rp(direct.total)}`,
+      explanation: `Shift ${f.code}: ${direct.count} kas keluar laci tercatat langsung tanpa persetujuan, total ${rp(direct.total)}${
+        direct.limit > 0 ? ` (batas shift ${rp(direct.limit)})` : ""
+      }${direct.withoutReceipt ? `; ${direct.withoutReceipt} belum berfoto nota` : ""}. Cocokkan dengan nota/barang yang dibeli. ${status}`,
+      evidence: [shift],
+      completeness: direct.withoutReceipt ? "partial" : "complete",
     });
   }
   for (const deposit of f.unconfirmedDeposits) {

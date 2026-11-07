@@ -4,6 +4,7 @@ import {
 AlertTriangle,
 Banknote,
 Check,
+Copy,
 Equal,
 Landmark,
 Plus,
@@ -868,19 +869,21 @@ export function CashPaymentPanel({
   onCashReceivedChange: (value: string) => void;
 }) {
   const exactCash = cashReceivedValue === totalDue && totalDue > 0;
+  // POS V6 papan 05: input Uang Diterima, nominal cepat (termasuk Uang Pas), kartu Kembalian.
+  // Memilih nominal HANYA mengisi "Uang diterima" — transaksi tetap selesai lewat tombol final.
   return (
-    <div className="garage-surface rounded-md p-3">
-      <div className="mb-2 flex items-center justify-between gap-3">
+    <div className="pos-v6-cash garage-surface rounded-xl p-3">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Banknote className="size-4 text-[#f5a742]" />
-          <p className="garage-mono text-[12px] tracking-wide">UANG DITERIMA DARI PELANGGAN</p>
+          <Banknote className="pos-v6-cash-icon size-4" />
+          <p className="pos-v6-cash-label text-[13px] font-bold">Uang Diterima</p>
         </div>
-        <span className="garage-mono text-[11px] text-[#b8b8bf]">
-          Total Tagihan {currency.format(totalDue)}
+        <span className="pos-v6-cash-muted text-xs font-semibold">
+          Total Tagihan <span className="pos-v6-cash-total font-mono tabular-nums">{currency.format(totalDue)}</span>
         </span>
       </div>
       <div className="relative">
-        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 garage-mono text-base font-semibold text-[#d6d6dc]">
+        <span className="pos-v6-cash-muted pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 font-mono text-base font-semibold">
           Rp
         </span>
         <Input
@@ -892,86 +895,71 @@ export function CashPaymentPanel({
             onCashReceivedChange(event.target.value.replace(/\D/g, ""))
           }
           placeholder="0"
-          className="garage-mono h-14 border-[#34343c] bg-white/[0.06] pl-10 pr-3 text-right text-2xl font-bold tracking-wide text-white"
+          aria-label="Uang diterima dari pelanggan (Rupiah)"
+          className="pos-v6-cash-input h-14 pl-11 pr-3 text-right font-mono text-2xl font-bold tracking-wide tabular-nums"
         />
       </div>
-      <Button
-        type="button"
-        className={`garage-press mt-2 h-11 w-full justify-center gap-2 text-sm font-semibold ${
-          exactCash
-            ? "bg-[#f5a742] text-[#1a1a20] hover:bg-[#ffba5a]"
-            : "border border-[#f5a742]/55 bg-[#f5a742]/12 text-[#ffd08a] hover:bg-[#f5a742]/20"
-        }`}
-        disabled={paymentPending || totalDue <= 0}
-        onClick={() => onCashReceivedChange(String(totalDue))}
-      >
-        <Equal className="size-4" />
-        Uang Pas ({currency.format(totalDue)})
-      </Button>
-      {quickCashAmounts.length > 0 && (
-        <div className="mt-3">
-          <p className="garage-mono mb-1 text-[11px] text-[#b8b8bf]">
-            Pilihan cepat nominal uang
-          </p>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {quickCashAmounts.map((amount) => (
-              <Button
-                key={amount}
-                type="button"
-                variant="outline"
-                className="garage-press h-11 border-[#4a4a54] px-2 text-sm font-semibold"
-                disabled={paymentPending}
-                onClick={() => onCashReceivedChange(String(amount))}
-              >
-                {currency.format(amount)}
-              </Button>
-            ))}
-          </div>
-        </div>
-      )}
-      <div
-        className={`mt-3 rounded-md border p-4 ${
-          cashPaymentReady
-            ? "border-[#f5a742]/45 bg-[#f5a742]/10"
-            : "border-[#d11a2a]/45 bg-[#d11a2a]/12"
-        }`}
-      >
+      <p className="pos-v6-cash-muted mb-1.5 mt-3 text-xs font-semibold">Nominal cepat</p>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <Button
+          type="button"
+          variant="outline"
+          data-selected={exactCash}
+          className="pos-v6-quickcash garage-press h-11 gap-1.5 px-2 text-sm font-bold"
+          disabled={paymentPending || totalDue <= 0}
+          onClick={() => onCashReceivedChange(String(totalDue))}
+        >
+          <Equal className="size-4 shrink-0" />
+          Uang Pas
+          <span className="sr-only"> ({currency.format(totalDue)})</span>
+        </Button>
+        {quickCashAmounts.map((amount) => (
+          <Button
+            key={amount}
+            type="button"
+            variant="outline"
+            data-selected={cashReceivedValue === amount && !exactCash}
+            className="pos-v6-quickcash garage-press h-11 px-2 text-sm font-bold"
+            disabled={paymentPending}
+            onClick={() => onCashReceivedChange(String(amount))}
+          >
+            {currency.format(amount)}
+          </Button>
+        ))}
+      </div>
+      {cashReceived === "" ? (
+        <p className="pos-v6-change mt-3 rounded-xl border p-4 text-sm font-bold" data-state="empty" role="status">
+          Isi uang yang diterima dari pelanggan, atau tekan Uang Pas bila uangnya pas.
+        </p>
+      ) : (
+      <div className="pos-v6-change mt-3 rounded-xl border p-4" data-state={cashPaymentReady ? "ok" : "short"} role="status" aria-live="polite">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="garage-mono text-[12px] tracking-wide text-[#d6d6dc]">
-              {cashPaymentReady ? "KEMBALIAN UNTUK PELANGGAN" : "UANG MASIH KURANG"}
+            <p className="pos-v6-change-label text-[13px] font-extrabold uppercase tracking-wide">
+              {cashPaymentReady ? "Kembalian untuk pelanggan" : "Uang masih kurang"}
             </p>
-            <p
-              className={`garage-display mt-1 text-4xl font-bold leading-none ${
-                cashPaymentReady ? "text-[#ffd08a]" : "text-[#ffc2c8]"
-              }`}
-            >
+            <p className="pos-v6-change-value mt-1 font-mono text-4xl font-extrabold leading-none tabular-nums">
               {currency.format(cashPaymentReady ? cashChange : cashShortage)}
             </p>
           </div>
-          <Badge
-            className={
-              cashPaymentReady
-                ? "border-[#f5a742]/45 bg-[#f5a742]/14 text-[#ffd08a]"
-                : "border-[#d11a2a]/45 bg-[#d11a2a]/14 text-[#ffc2c8]"
-            }
-          >
-            {cashPaymentReady ? "CUKUP" : "KURANG"}
-          </Badge>
+          <Badge className="pos-v6-change-badge">{cashPaymentReady ? "CUKUP" : "KURANG"}</Badge>
         </div>
-        <div className="mt-3 space-y-1 border-t border-white/10 pt-3 text-sm">
-          <BillRow label="Total tagihan" value={currency.format(totalDue)} />
-          <BillRow
-            label="Uang diterima"
-            value={currency.format(cashReceivedValue)}
-          />
-          <BillRow
-            label={cashPaymentReady ? "Kembalian pelanggan" : "Sisa kurang"}
-            value={currency.format(cashPaymentReady ? cashChange : cashShortage)}
-            accent
-          />
+        <div className="pos-v6-change-rows mt-3 space-y-1 border-t pt-3 text-sm">
+          <div className="flex justify-between gap-3">
+            <span>Total tagihan</span>
+            <span className="font-mono font-semibold tabular-nums">{currency.format(totalDue)}</span>
+          </div>
+          <div className="flex justify-between gap-3">
+            <span>Uang diterima</span>
+            <span className="font-mono font-semibold tabular-nums">{currency.format(cashReceivedValue)}</span>
+          </div>
+          <div className="flex justify-between gap-3 font-bold">
+            <span>{cashPaymentReady ? "Kembalian pelanggan" : "Sisa kurang"}</span>
+            <span className="font-mono tabular-nums">{currency.format(cashPaymentReady ? cashChange : cashShortage)}</span>
+          </div>
         </div>
       </div>
+      )}
     </div>
   );
 }
@@ -1002,61 +990,99 @@ export function QrisPaymentPanel({
     window.open(url, "garage-qris-display", "noopener,noreferrer");
   };
   return (
-    <div className="garage-surface rounded-md p-3">
+    <div className="pos-v6-paypanel garage-surface rounded-xl p-3">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <QrCode className="size-4 text-[#f5a742]" />
-          <p className="garage-mono">QRIS GARAGE</p>
+          <QrCode className="pos-v6-cash-icon size-4" />
+          <p className="pos-v6-cash-label text-[13px] font-bold">Pembayaran QRIS</p>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={openCustomerDisplay}
-          className="h-7 gap-1 border-[#f5a742]/55 bg-[#f5a742]/10 px-2 text-[10px] font-bold uppercase tracking-wider text-[#ffd79a] hover:bg-[#f5a742]/20"
-        >
-          <QrCode className="size-3" />
+        <Button type="button" variant="outline" size="sm" onClick={openCustomerDisplay} className="pos-v6-quickcash h-9 gap-1.5 px-2.5 text-xs font-bold">
+          <QrCode className="size-3.5" />
           Layar Customer
         </Button>
       </div>
-      {imageReady ? (
-        <div className="mt-3 flex flex-col items-center rounded-md border border-[#4a4a54] bg-white p-3 text-[#111116]">
-          <Image
-            src={imagePath}
-            alt="QRIS resmi GARAGE"
-            width={180}
-            height={180}
-            className="h-[180px] w-[180px] object-contain"
-            onLoad={() => onImageReadyChange(true)}
-            onError={() => onImageReadyChange(false)}
-          />
-          <p className="mt-2 text-center text-xs font-semibold">
-            Scan QRIS merchant resmi GARAGE
+      <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,220px)_minmax(0,1fr)] sm:items-start">
+        {imageReady ? (
+          <div className="pos-v6-qris-frame flex flex-col items-center rounded-xl bg-white p-3 text-[#111116]">
+            <Image
+              src={imagePath}
+              alt="QRIS resmi GARAGE"
+              width={180}
+              height={180}
+              className="h-[180px] w-[180px] object-contain"
+              onLoad={() => onImageReadyChange(true)}
+              onError={() => onImageReadyChange(false)}
+            />
+            <p className="mt-2 text-center text-xs font-semibold">Scan QRIS merchant resmi GARAGE</p>
+          </div>
+        ) : (
+          <Alert className="border-[#f5a742]/45 bg-[#f5a742]/12 text-[#f4f4f5]">
+            <AlertTriangle className="size-4" />
+            <AlertTitle>QRIS resmi belum dikonfigurasi</AlertTitle>
+            <AlertDescription>Taruh file QRIS merchant resmi di `public/payments/qris-garage.png`.</AlertDescription>
+          </Alert>
+        )}
+        <div className="min-w-0 space-y-3">
+          <p className="pos-v6-cash-muted text-sm leading-snug">Minta pelanggan scan dengan aplikasi e-wallet atau m-banking, lalu cek notifikasi merchant sebelum konfirmasi.</p>
+          {typeof totalDue === "number" ? <PosV6TotalStrip label="Total Pembayaran" amount={totalDue} /> : null}
+          <p className="pos-v6-warn flex gap-2 text-sm font-semibold">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+            Pastikan status BERHASIL di notifikasi merchant/bank. Screenshot pelanggan saja tidak cukup.
           </p>
+          <div>
+            <p className="pos-v6-cash-muted mb-1 text-xs font-semibold">{referenceRequired ? "Referensi wajib" : "Referensi (opsional)"}</p>
+            <Input
+              value={paymentReference}
+              onChange={(event) => onPaymentReferenceChange(event.target.value.slice(0, 80))}
+              className="pos-v6-cash-input h-11"
+              placeholder="No. Ref / RRN dari notifikasi QRIS"
+              aria-label="Referensi QRIS"
+            />
+          </div>
         </div>
-      ) : (
-        <Alert className="mt-3 border-[#f5a742]/45 bg-[#f5a742]/12 text-[#f4f4f5]">
-          <AlertTriangle className="size-4" />
-          <AlertTitle>QRIS resmi belum dikonfigurasi</AlertTitle>
-          <AlertDescription>
-            Taruh file QRIS merchant resmi di `public/payments/qris-garage.png`.
-          </AlertDescription>
-        </Alert>
-      )}
-      <p className="mt-3 flex gap-2 text-sm font-semibold text-[#ffd08a]">
-        <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-        Pastikan status BERHASIL di notifikasi merchant/bank. Screenshot pelanggan saja tidak cukup.
-      </p>
-      <div className="mt-3">
-        <p className="garage-mono mb-1">{referenceRequired ? "Referensi wajib" : "Referensi opsional"}</p>
-        <Input
-          value={paymentReference}
-          onChange={(event) => onPaymentReferenceChange(event.target.value.slice(0, 80))}
-          className="h-10 border-[#34343c] bg-white/[0.06]"
-          placeholder="No. Ref / RRN dari notifikasi QRIS"
-          aria-label="Referensi QRIS"
-        />
       </div>
+    </div>
+  );
+}
+
+/** Kotak total tagihan (papan 05: "Total Pembayaran" merah, angka besar). */
+function PosV6TotalStrip({ label, amount }: { label: string; amount: number }) {
+  return (
+    <div className="pos-v6-total-strip flex items-center justify-between gap-3 rounded-xl px-3.5 py-3">
+      <span className="text-sm font-bold">{label}</span>
+      <span className="font-mono text-2xl font-extrabold tabular-nums">{currency.format(amount)}</span>
+    </div>
+  );
+}
+
+/** Nilai yang bisa disalin (nomor rekening/akun) — kasir tidak perlu mengetik ulang. */
+function PosV6CopyValue({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="pos-v6-copy flex items-center gap-2 rounded-xl px-3 py-2.5">
+      <span className="min-w-0 flex-1">
+        <span className="pos-v6-cash-muted block text-xs font-semibold">{label}</span>
+        <span className="block break-all font-mono text-lg font-bold tabular-nums">{value}</span>
+      </span>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="pos-v6-quickcash h-10 shrink-0 gap-1.5 px-3 text-xs font-bold"
+        onClick={() => {
+          void navigator.clipboard?.writeText(value.replace(/\s/g, "")).then(
+            () => {
+              setCopied(true);
+              window.setTimeout(() => setCopied(false), 1600);
+            },
+            () => setCopied(false),
+          );
+        }}
+        aria-label={`Salin ${label}`}
+      >
+        {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+        {copied ? "Tersalin" : "Salin"}
+      </Button>
     </div>
   );
 }
@@ -1067,42 +1093,49 @@ export function BankTransferPaymentPanel({
   paymentReference,
   onProviderChange,
   onPaymentReferenceChange,
+  totalDue,
 }: {
   selectedProvider: string;
   selectedAccount: (typeof bankAccounts)[number];
   paymentReference: string;
   onProviderChange: (value: string) => void;
   onPaymentReferenceChange: (value: string) => void;
+  totalDue?: number;
 }) {
   return (
-    <div className="garage-surface rounded-md p-3">
+    <div className="pos-v6-paypanel garage-surface space-y-3 rounded-xl p-3">
       <div className="flex items-center gap-2">
-        <Landmark className="size-4 text-[#f5a742]" />
-        <p className="garage-mono">Transfer bank</p>
+        <Landmark className="pos-v6-cash-icon size-4" />
+        <p className="pos-v6-cash-label text-[13px] font-bold">Transfer Bank</p>
       </div>
-      <Select value={selectedProvider} onValueChange={onProviderChange}>
-        <SelectTrigger className="mt-3 h-10 w-full border-[#34343c] bg-white/[0.06]">
-          <SelectValue placeholder="Pilih bank" />
-        </SelectTrigger>
-        <SelectContent>
+      <div>
+        <p className="pos-v6-cash-muted mb-1.5 text-xs font-semibold">Pilih bank tujuan</p>
+        <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Bank tujuan">
           {bankAccounts.map((account) => (
-            <SelectItem key={account.id} value={account.id}>
+            <Button
+              key={account.id}
+              type="button"
+              variant="outline"
+              role="radio"
+              aria-checked={selectedProvider === account.id}
+              data-selected={selectedProvider === account.id}
+              className="pos-v6-quickcash h-12 text-sm font-bold"
+              onClick={() => onProviderChange(account.id)}
+            >
+              <Landmark className="size-4" />
               {account.bank}
-            </SelectItem>
+            </Button>
           ))}
-        </SelectContent>
-      </Select>
-      <div className="mt-3 rounded-md border border-[#4a4a54] bg-[#0f0f14] p-3">
-        <BillRow label="Bank" value={selectedAccount.bank} />
-        <BillRow label="Atas nama" value={selectedAccount.accountName} />
-        <BillRow label="Rekening" value={selectedAccount.accountNumber} accent />
+        </div>
       </div>
-      <div className="mt-3">
-        <p className="garage-mono mb-1">Referensi opsional</p>
+      <PosV6CopyValue label={`Rekening ${selectedAccount.bank} · a.n. ${selectedAccount.accountName}`} value={selectedAccount.accountNumber} />
+      {typeof totalDue === "number" ? <PosV6TotalStrip label="Total Pembayaran" amount={totalDue} /> : null}
+      <div>
+        <p className="pos-v6-cash-muted mb-1 text-xs font-semibold">Referensi (opsional)</p>
         <Input
           value={paymentReference}
           onChange={(event) => onPaymentReferenceChange(event.target.value)}
-          className="h-10 border-[#34343c] bg-white/[0.06]"
+          className="pos-v6-cash-input h-11"
           placeholder="Nomor transaksi / catatan kasir"
         />
       </div>
@@ -1116,42 +1149,49 @@ export function EWalletPaymentPanel({
   paymentReference,
   onProviderChange,
   onPaymentReferenceChange,
+  totalDue,
 }: {
   selectedProvider: string;
   selectedAccount: (typeof eWalletAccounts)[number];
   paymentReference: string;
   onProviderChange: (value: string) => void;
   onPaymentReferenceChange: (value: string) => void;
+  totalDue?: number;
 }) {
   return (
-    <div className="garage-surface rounded-md p-3">
+    <div className="pos-v6-paypanel garage-surface space-y-3 rounded-xl p-3">
       <div className="flex items-center gap-2">
-        <WalletCards className="size-4 text-[#f5a742]" />
-        <p className="garage-mono">E-Wallet</p>
+        <WalletCards className="pos-v6-cash-icon size-4" />
+        <p className="pos-v6-cash-label text-[13px] font-bold">E-Wallet</p>
       </div>
-      <Select value={selectedProvider} onValueChange={onProviderChange}>
-        <SelectTrigger className="mt-3 h-10 w-full border-[#34343c] bg-white/[0.06]">
-          <SelectValue placeholder="Pilih e-wallet" />
-        </SelectTrigger>
-        <SelectContent>
+      <div>
+        <p className="pos-v6-cash-muted mb-1.5 text-xs font-semibold">Pilih e-wallet (akun resmi outlet)</p>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="radiogroup" aria-label="E-wallet">
           {eWalletAccounts.map((account) => (
-            <SelectItem key={account.id} value={account.id}>
+            <Button
+              key={account.id}
+              type="button"
+              variant="outline"
+              role="radio"
+              aria-checked={selectedProvider === account.id}
+              data-selected={selectedProvider === account.id}
+              className="pos-v6-quickcash h-12 text-sm font-bold"
+              onClick={() => onProviderChange(account.id)}
+            >
+              <WalletCards className="size-4" />
               {account.provider}
-            </SelectItem>
+            </Button>
           ))}
-        </SelectContent>
-      </Select>
-      <div className="mt-3 rounded-md border border-[#4a4a54] bg-[#0f0f14] p-3">
-        <BillRow label="Provider" value={selectedAccount.provider} />
-        <BillRow label="Akun" value={selectedAccount.accountName} />
-        <BillRow label="Nomor/ID" value={selectedAccount.accountNumber} accent />
+        </div>
       </div>
-      <div className="mt-3">
-        <p className="garage-mono mb-1">Referensi opsional</p>
+      <PosV6CopyValue label={`${selectedAccount.provider} · a.n. ${selectedAccount.accountName}`} value={selectedAccount.accountNumber} />
+      {typeof totalDue === "number" ? <PosV6TotalStrip label="Total Pembayaran" amount={totalDue} /> : null}
+      <div>
+        <p className="pos-v6-cash-muted mb-1 text-xs font-semibold">Referensi (opsional)</p>
         <Input
           value={paymentReference}
           onChange={(event) => onPaymentReferenceChange(event.target.value)}
-          className="h-10 border-[#34343c] bg-white/[0.06]"
+          className="pos-v6-cash-input h-11"
           placeholder="Nomor transaksi / catatan kasir"
         />
       </div>
@@ -1179,10 +1219,11 @@ export function OpenBillSavedPanel({
         <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-[#ffd08a]">Tagihan disimpan · belum bayar</p>
         <p className="mt-2 text-lg font-bold text-white">{who}</p>
         <p className="garage-display mt-1 text-4xl font-bold tabular-nums text-white">{currency.format(bill.total)}</p>
-        <p className="mt-1 font-mono text-sm text-[#e5e2dc]">{bill.orderNo}</p>
+        {/* Token tema (bukan warna tetap) supaya terbaca di tema terang & gelap. */}
+        <p className="mt-1 font-mono text-sm font-semibold" style={{ color: "var(--pos-text-2, #e5e2dc)" }}>{bill.orderNo}</p>
       </div>
-      <p className="rounded-md border border-[#4a4a54] bg-white/[0.04] p-3 text-sm leading-relaxed text-[#e5e2dc]">
-        Pesanan sudah masuk Bar/Dapur. Saat pelanggan selesai, buka <b>Pesanan Pelanggan</b> atau detail meja lalu tekan{" "}
+      <p className="rounded-md border border-[#4a4a54] bg-white/[0.04] p-3 text-sm leading-relaxed" style={{ color: "var(--pos-text-2, #e5e2dc)" }}>
+        Pesanan sudah masuk Bar/Dapur. Saat pelanggan selesai, buka menu <b>Belum Bayar</b> (F6) lalu tekan <b>Ambil uang</b> /{" "}
         <b>Final Bayar</b> untuk memilih Cash/QRIS/Transfer — kembalian tampil di sana. Voucher, poin, dan diskon dipakai saat Final Bayar.
       </p>
       <div className="flex flex-col gap-2 sm:flex-row">

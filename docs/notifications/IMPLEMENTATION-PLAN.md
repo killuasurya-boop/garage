@@ -13,14 +13,14 @@ Temuan = `AUDIT.md` (F-xx). Skenario = daftar uji Fase 9 (1–15).
 | 0.4 | `claimSound`: satu event = satu bunyi per perangkat (lintas tab, re-render, reconnect, refresh); dipakai voice, lonceng, ulangan urgent, Hub, waiter-view, badge Persetujuan, AI alert, stok menipis | F-06, F-10, F-12 | `sound-claim.ts`, `garage-voice.ts`, `staff-notification-center.tsx`, `waiter-view.tsx`, `garage-app.tsx`, `garage-ai-alerts-bell.tsx` | unit (skenario 5, 6) |
 | 0.5 | Logout melepas langganan push perangkat | F-07 | `push-client.ts`, `garage-app.tsx`, `wms-shell.tsx` | manual (butuh browser + izin notifikasi) |
 | 0.6 | Label pembayaran notifikasi: "menunggu verifikasi kasir" / "lunas (verifikasi manual kasir)" | F-08 | `payment-notice.ts`, `garage-service.ts` | unit + integrasi (skenario 9) |
-| 0.7 | Resolve: kolom `resolved_at`/`resolved_reason` (migrasi aditif 0177); resolve saat order diterima/ditolak/lunas/void, take away diserahkan, panggilan selesai, tiket diantar/dibuka ulang/batal; lonceng: tab Perlu aksi / Dibaca / Selesai, item selesai tidak di-toast, tidak diulang, tidak membuka aksi | F-11 | `schema.ts`, `drizzle/0177_*`, `staff-notifications.ts`, `garage-service.ts`, `staff-notification-center.tsx` | integrasi (skenario 7, 15) |
+| 0.7 | Resolve: kolom `resolved_at`/`resolved_reason` (migrasi aditif 0183); resolve saat order diterima/ditolak/lunas/void, take away diserahkan, panggilan selesai, tiket diantar/dibuka ulang/batal; lonceng: tab Perlu aksi / Dibaca / Selesai, item selesai tidak di-toast, tidak diulang, tidak membuka aksi | F-11 | `schema.ts`, `drizzle/0183_*`, `staff-notifications.ts`, `garage-service.ts`, `staff-notification-center.tsx` | integrasi (skenario 7, 15) |
 | 0.8 | Selisih kas review/critical → notifikasi `management` (nominal hanya untuk manajemen) | F-09 | `garage-service.ts` (`closeCashSession`) | integrasi `garage-cash-session` (skenario 10, 11) |
 
 Feature flag: tidak ditambah. Alasannya: semua perubahan aditif, suara Hub tetap di balik tombol "Suara ON" per perangkat, voice per skenario tetap bisa dimatikan per perangkat (Voice Settings).
 
 ### Rollback
 1. Revert commit PR (kode).
-2. Migrasi 0177 **tidak perlu** di-rollback: dua kolom nullable + satu index; kode lama tidak membacanya. Jika tetap ingin bersih: `DROP INDEX staff_notifications_order_idx; ALTER TABLE staff_notifications DROP COLUMN resolved_reason, DROP COLUMN resolved_at;` (hanya dengan OK Owner).
+2. Migrasi 0183 **tidak perlu** di-rollback: dua kolom nullable + satu index; kode lama tidak membacanya. Jika tetap ingin bersih: `DROP INDEX staff_notifications_order_idx; ALTER TABLE staff_notifications DROP COLUMN resolved_reason, DROP COLUMN resolved_at;` (hanya dengan OK Owner).
 3. `localStorage["garage:sound-ledger:v1"]` di perangkat tidak berbahaya bila dibiarkan.
 
 ### Kriteria terima (Tahap 0)
@@ -66,4 +66,4 @@ Feature flag: tidak ditambah. Alasannya: semua perubahan aditif, suara Hub tetap
 ## Dependensi
 - Tahap 1.3 bergantung pada audience `bar`/`dapur` & resolve (Tahap 0).
 - Tahap 2.1 bergantung pada log pengiriman push (perlu kolom/tabel aditif baru).
-- Deploy: sesuai `docs/DEPLOY_MANUAL.md` — `release-check.sh` di main yang sudah di-merge, lalu `deploy-manual.sh --dry-run`, `--yes`. Migrasi 0177 ikut otomatis dan aditif.
+- Deploy: sesuai `docs/DEPLOY_MANUAL.md` — `release-check.sh` di main yang sudah di-merge, lalu `deploy-manual.sh --dry-run`, `--yes`. Migrasi 0183 ikut otomatis dan aditif.

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
 import { access, copyFile, mkdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -9,6 +10,7 @@ import { z } from "zod";
 import { getDb } from "@/db";
 import { jakartaDateKey } from "@/lib/attendance";
 import {
+  approvals,
   companyDocumentVersions,
   companyDocuments,
   companyOrgRoles,
@@ -18,7 +20,8 @@ import {
 } from "@/db/schema";
 import type { GarageSession } from "@/lib/server-auth";
 import type { Role } from "@/lib/garage-data";
-import { createAuditLog } from "@/lib/garage-service";
+import { createAuditLog, roleDisplayName } from "@/lib/garage-service";
+import type { ApprovalPayload } from "@/lib/approval-rules";
 import {
   getApprovalData,
   getAuditData,
@@ -84,6 +87,8 @@ export type CompanyDocumentDto = {
   confidentiality: string;
   status: string;
   currentVersion: number;
+  /** Versi BERLAKU (disetujui). null = belum ada versi yang disetujui. */
+  approvedVersion: number | null;
   allowedRoles: string[];
   source: string;
   updatedAt: string;
@@ -99,6 +104,12 @@ export type CompanyDocumentVersionDto = {
   sizeBytes: number;
   downloadUrl: string;
   notes: string | null;
+  /** pending | approved | rejected | legacy (sebelum Document Approval, dianggap berlaku). */
+  reviewStatus: string;
+  sha256: string | null;
+  reviewedAt: string | null;
+  reviewNote: string | null;
+  approvalId: string;
   createdAt: string;
 };
 
@@ -583,6 +594,7 @@ function serializeDocument(
     confidentiality: row.confidentiality,
     status: row.status,
     currentVersion: row.currentVersion,
+    approvedVersion: row.approvedVersion ?? null,
     allowedRoles: row.allowedRoles,
     source: row.source,
     updatedAt: row.updatedAt.toISOString(),
@@ -600,6 +612,11 @@ function serializeVersion(row: typeof companyDocumentVersions.$inferSelect): Com
     sizeBytes: row.sizeBytes,
     downloadUrl: versionDownloadUrl(row.documentId, row.id),
     notes: row.notes,
+    reviewStatus: row.reviewStatus,
+    sha256: row.sha256 ?? null,
+    reviewedAt: row.reviewedAt ? row.reviewedAt.toISOString() : null,
+    reviewNote: row.reviewNote ?? null,
+    approvalId: documentApprovalId(row.id),
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -898,24 +915,56 @@ export async function saveCompanyDocumentVersion(input: {
   const targetPath = resolveStoragePath(storagePath);
   await writeFile(targetPath, input.data);
 
-  const [row] = await db
-    .insert(companyDocumentVersions)
-    .values({
+  const sha256 = createHash("sha256").update(input.data).digest("hex");
+  const actor = `${input.garage.user.name} / ${roleDisplayName[input.garage.profile.role]}`;
+  // Document Approval (Batch 7): versi baru = "menunggu terbit" + pengajuan APP-DOC dalam satu transaksi.
+  // Versi berlaku (approvedVersion) tidak berubah sampai pengajuan disetujui.
+  const row = await db.transaction(async (tx) => {
+    const [inserted] = await tx
+      .insert(companyDocumentVersions)
+      .values({
+        documentId: input.documentId,
+        version: nextVersion,
+        originalFileName: input.fileName,
+        mimeType: mimeFromName(input.fileName),
+        sizeBytes: input.sizeBytes,
+        storagePath,
+        uploadedBy: input.garage.user.id,
+        notes: input.notes ?? null,
+        reviewStatus: "pending",
+        sha256,
+      })
+      .returning();
+    await tx
+      .update(companyDocuments)
+      .set({ currentVersion: nextVersion, updatedAt: sql`now()` })
+      .where(eq(companyDocuments.id, input.documentId));
+    const payload: ApprovalPayload = {
       documentId: input.documentId,
-      version: nextVersion,
-      originalFileName: input.fileName,
-      mimeType: mimeFromName(input.fileName),
-      sizeBytes: input.sizeBytes,
-      storagePath,
-      uploadedBy: input.garage.user.id,
-      notes: input.notes ?? null,
-    })
-    .returning();
-
-  await db
-    .update(companyDocuments)
-    .set({ currentVersion: nextVersion, updatedAt: sql`now()` })
-    .where(eq(companyDocuments.id, input.documentId));
+      versionId: inserted.id,
+      documentVersion: nextVersion,
+      documentTitle: document.title,
+      sha256,
+      note: input.notes ?? null,
+      requestedBy: input.garage.user.id,
+      requestedByName: actor,
+    };
+    await tx.insert(approvals).values({
+      id: documentApprovalId(inserted.id),
+      type: "Persetujuan dokumen",
+      requester: actor,
+      requesterPhone: null,
+      amount: "—",
+      reason: `${document.title} v${nextVersion}: ${input.notes?.trim() || input.fileName}`.slice(0, 500),
+      risk: "low",
+      age: "baru saja",
+      status: "pending",
+      payload,
+      outletId: null,
+      amountValue: null,
+    });
+    return inserted;
+  });
 
   await createAuditLog({
     actor: input.garage.user.name ?? input.garage.user.email,
@@ -929,10 +978,55 @@ export async function saveCompanyDocumentVersion(input: {
       fileName: input.fileName,
       sizeBytes: input.sizeBytes,
       mimeType: input.mimeType,
+      sha256,
+      approvalId: documentApprovalId(row.id),
+      reviewStatus: "pending",
     },
   }).catch(() => undefined);
 
   return serializeVersion(row);
+}
+
+export function documentApprovalId(versionId: string) {
+  return `APP-DOC-${versionId}`;
+}
+
+/**
+ * Pelaksanaan keputusan APP-DOC (dipanggil dari decideApproval). Disetujui → versi jadi BERLAKU;
+ * ditolak → versi ditandai ditolak, versi berlaku lama tetap. Idempoten: keputusan yang sama
+ * diulang = sukses tanpa perubahan; versi yang sudah diputus berbeda = error.
+ */
+export async function decideCompanyDocumentVersion(
+  versionId: string,
+  status: "approved" | "rejected",
+  note: string | null,
+  garage: GarageSession,
+) {
+  const db = getDb();
+  return db.transaction(async (tx) => {
+    const [version] = await tx
+      .select()
+      .from(companyDocumentVersions)
+      .where(eq(companyDocumentVersions.id, versionId))
+      .for("update")
+      .limit(1);
+    if (!version) throw new Error("Versi dokumen tidak ditemukan.");
+    if (version.reviewStatus === status) return { changed: false, version: version.version };
+    if (version.reviewStatus !== "pending") {
+      throw new Error(`Versi dokumen sudah diputus (${version.reviewStatus}).`);
+    }
+    await tx
+      .update(companyDocumentVersions)
+      .set({ reviewStatus: status, reviewedBy: garage.user.id, reviewedAt: sql`now()`, reviewNote: note })
+      .where(eq(companyDocumentVersions.id, versionId));
+    if (status === "approved") {
+      await tx
+        .update(companyDocuments)
+        .set({ approvedVersion: version.version, updatedAt: sql`now()` })
+        .where(eq(companyDocuments.id, version.documentId));
+    }
+    return { changed: true, version: version.version };
+  });
 }
 
 export async function getTrainingCourses(garage: GarageSession) {

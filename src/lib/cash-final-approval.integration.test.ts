@@ -88,6 +88,8 @@ beforeAll(async () => {
   const { auth } = await import("@/lib/auth");
   const { eq } = await import("drizzle-orm");
   const d = t.getDb();
+  // Default produksi kini hitung sekali (Owner, Nov 2026); tes B4 ini menyalakan hitung ganda secara eksplisit.
+  await d.insert(t.schema.appSettings).values({ key: "shiftRequireDoubleCount", valueJson: true, outletId: null } as any);
   await d.insert(t.schema.user).values([
     { id: MANAJER, name: "Manajer B4", email: `${MANAJER}@garage.id` },
     { id: OWNER, name: "Owner B4", email: `${OWNER}@garage.id`, twoFactorEnabled: true },
@@ -176,7 +178,10 @@ describe("Tutup shift — hitung ulang ganda (AC-F20)", () => {
   });
 
   it("pengaturan dimatikan → hitungan #2 opsional (perilaku lama)", async () => {
-    await t.getDb().insert(t.schema.appSettings).values({ key: "shiftRequireDoubleCount", valueJson: false, outletId: null } as any);
+    const { eq } = await import("drizzle-orm");
+    const setDouble = (on: boolean) =>
+      t.getDb().update(t.schema.appSettings).set({ valueJson: on } as any).where(eq(t.schema.appSettings.key, "shiftRequireDoubleCount"));
+    await setDouble(false);
     try {
       const opened: any = await svc.createCashSession({ openingCash: 100_000, managerPin: PIN } as any, kasir());
       const closed: any = await svc.closeCashSession(
@@ -186,8 +191,7 @@ describe("Tutup shift — hitung ulang ganda (AC-F20)", () => {
       );
       expect(closed.status).toBe("closed");
     } finally {
-      const { eq } = await import("drizzle-orm");
-      await t.getDb().delete(t.schema.appSettings).where(eq(t.schema.appSettings.key, "shiftRequireDoubleCount"));
+      await setDouble(true);
     }
   });
 });

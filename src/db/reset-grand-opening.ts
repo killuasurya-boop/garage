@@ -51,6 +51,8 @@ export const KEEP_TABLES = [
   "product_categories", "menu_items", "menu_variants", "menu_recipes", "menu_research",
   // pelanggan & member (poin dipertahankan kecuali --reset-member-points)
   "customers", "customer_tags", "member_accounts", "custom_segments", "custom_segment_customers",
+  // izin promosi WA (CX V4): catatan persetujuan pelanggan — ikut customer, bukan transaksi
+  "customer_marketing_consents",
   // marketing (definisi), voucher (definisi; used_count di-reset)
   "marketing_campaigns",
   // supplier (master)
@@ -99,11 +101,11 @@ export const CLEAR_TABLES = [
   "stock_movements", "stock_opname_sessions", "stock_opname_items", "inventory_transfer_requests",
   "inventory_transfer_items",
   // approval, audit, log
-  "approvals", "audit_logs", "mcp_operations", "step_up_challenges", "ai_verification_challenges", "risk_alerts", "rate_limit_counters", "rate_limit", "audit_cases", "login_attempts", "error_events", "feedback_entries",
+  "approvals", "audit_logs", "mcp_operations", "ai_problem_cases", "ai_problem_case_events", "step_up_challenges", "ai_verification_challenges", "risk_alerts", "rate_limit_counters", "rate_limit", "audit_cases", "login_attempts", "error_events", "feedback_entries",
   "notification_logs", "shift_handover_reports", "staff_shift_handovers", "sop_logs", "staff_tasks",
   "kpi_evaluations", "chat_messages",
   // marketing & publikasi transaksional
-  "wifi_access_logs", "crm_campaign_logs", "marketing_broadcasts", "marketing_broadcast_deliveries", "whatsapp_messaging_queue",
+  "wifi_access_logs", "crm_campaign_logs", "customer_experience_events", "marketing_broadcasts", "marketing_broadcast_deliveries", "whatsapp_messaging_queue",
   "content_publishing_queue", "content_publishing_results",
   // member (sesi)
   "member_sessions",

@@ -1,0 +1,48 @@
+{
+  "mcpServers": {
+    "shadcn": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "shadcn@4.23.0",
+        "mcp"
+      ]
+    },
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp@0.0.84",
+        "--headless",
+        "--isolated"
+      ]
+    },
+    "context7": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@upstash/context7-mcp@4.5.0"
+      ]
+    },
+    "chrome-devtools": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "chrome-devtools-mcp@1.12.0",
+        "--headless",
+        "--isolated"
+      ]
+    },
+    "mcp-image": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-image@0.18.2"
+      ],
+      "env": {
+        "GEMINI_API_KEY": "${GEMINI_API_KEY:-}",
+        "IMAGE_OUTPUT_DIR": "${GARAGE_IMAGE_OUTPUT_DIR:-./docs/design-handoff/assets-incoming/generated}"
+      }
+    }
+  }
+}

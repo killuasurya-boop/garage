@@ -378,9 +378,9 @@ export function SmartAuditDashboard() {
             icon={<Shield className="h-4 w-4" />}
           />
           <KpiCard
-            label="Escalating"
+            label="Tren naik"
             value={dashboard.trends.escalatingOffenders.length}
-            sub="repeat offender"
+            sub="perlu pemeriksaan berulang"
             color={dashboard.trends.escalatingOffenders.length > 0 ? "red" : "green"}
             icon={<TrendingUp className="h-4 w-4" />}
           />
@@ -559,17 +559,17 @@ export function SmartAuditDashboard() {
         </Card>
 
         <div className="grid gap-3 lg:grid-cols-2">
-          {/* Repeat offenders */}
+          {/* Catatan berulang — prioritas pemeriksaan, bukan tuduhan */}
           <Card className="garage-panel">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Repeat Offenders</CardTitle>
+              <CardTitle className="text-sm">Perlu pemeriksaan berulang</CardTitle>
               <CardDescription className="text-[10px] text-[#b8b8bf]">
                 Staff dengan flag &ge; 3x
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
               {trendData.repeatOffenders.length === 0 ? (
-                <p className="text-xs text-[#b8b8bf]">Tidak ada repeat offender.</p>
+                <p className="text-xs text-[#b8b8bf]">Tidak ada catatan berulang.</p>
               ) : (
                 trendData.repeatOffenders.map((o, i) => (
                   <div key={i} className="flex items-center gap-2 rounded-md border border-[#4a4a54] bg-[#1e1e26] p-2">

@@ -12,7 +12,7 @@
 <meta property="og:type" content="website">
 <meta property="og:title" content="Unduh Brosur Franchise GARAGE — 12 Halaman, Gratis">
 <meta property="og:description" content="Brosur lengkap 3 paket franchise + unit economics + 5-step onboarding. Dikirim langsung ke WhatsApp kamu.">
-<meta property="og:image" content="https://garagecoffee.id/assets/og-image.png">
+<meta property="og:image" content="https://garagecoffee.id/franchise-site/assets/og-image.png">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -26,7 +26,8 @@
     display: grid; grid-template-columns: 1.1fr 1fr; gap: 64px; align-items: start;
     margin-top: 16px;
   }
-  @media (max-width: 980px) { .lm-grid { grid-template-columns: 1fr; gap: 40px; } }
+  @media (max-width: 980px) { .lm-grid { grid-template-columns: 1fr; gap: 40px; } .preview-wrap { position: static; } }
+  .lm-grid > * { min-width: 0; }
 
   /* Left: brosur preview */
   .preview-wrap {
@@ -46,6 +47,10 @@
     transition: transform .4s;
   }
   .preview:hover { transform: perspective(1500px) rotateY(-4deg) rotateX(1deg) translateY(-6px); }
+  @media (max-width: 720px) {
+    .preview { padding: 24px; transform: none; box-shadow: 0 20px 50px rgba(0,0,0,.5), 0 0 0 1px var(--line); }
+    .preview:hover { transform: none; }
+  }
   .preview::after {
     content: ""; position: absolute; inset: 0;
     background-image:
@@ -85,7 +90,8 @@
   }
   .preview h2 {
     font-family: 'Bebas Neue', sans-serif;
-    font-size: 88px;
+    display: block;
+    font-size: clamp(52px, 13vw, 88px);
     line-height: .85;
     letter-spacing: -.01em;
     margin: 0 0 20px;
@@ -332,7 +338,7 @@
 
 <section class="page-hero" style="padding: 64px 0 32px;">
   <div class="container">
-    <div class="eyebrow">Free Resource · No Bullshit</div>
+    <div class="eyebrow">Gratis · Tanpa Spam</div>
     <h1>Brosur Lengkap.<br>Dikirim ke <span class="red">WhatsApp</span> Kamu.</h1>
     <p class="sub">12 halaman strategis tentang franchise GARAGE — 3 paket investasi, unit economics, paket detail, 5-step onboarding, kontak resmi. Gratis. Tanpa spam.</p>
   </div>

@@ -42,11 +42,12 @@
   }
   .topbar-inner { display: flex; justify-content: space-between; align-items: center; }
   .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--white); }
-  .brand-mark { width: 136px; height: 43px; display: block; background: url("/garage-brand/logo-website.png") center / contain no-repeat; border: 0; }
+  .brand-mark { width: 136px; height: 43px; display: block; background: url("/garage-brand/garage-coffee-logo.png") center / contain no-repeat; border: 0; }
   .brand-mark svg { display: none; }
   .brand-text { display: flex; flex-direction: column; line-height: 1; }
   .brand-text strong { font-family: 'Bebas Neue', sans-serif; font-size: 18px; letter-spacing: .12em; }
   .brand-text small { font-family: 'JetBrains Mono', monospace; font-size: 9px; letter-spacing: .22em; color: var(--chrome-dim); margin-top: 4px; text-transform: uppercase; }
+  @media (max-width: 560px) { .brand-text { display: none; } }
   .top-link {
     color: var(--chrome); text-decoration: none;
     font-family: 'Barlow Condensed', sans-serif;

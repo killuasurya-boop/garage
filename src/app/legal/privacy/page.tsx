@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy | G A R A G E",
-  description: "Kebijakan privasi layanan digital G A R A G E.",
+  title: "Privacy Policy | Garage Coffee",
+  description: "Kebijakan privasi layanan digital Garage Coffee.",
   alternates: { canonical: "/legal/privacy" },
 };
 
@@ -10,7 +10,7 @@ export default function PrivacyPolicyPage() {
   return (
     <main className="min-h-screen bg-[#09090b] px-5 py-14 text-zinc-100 sm:px-8">
       <article className="mx-auto max-w-3xl">
-        <p className="text-sm font-semibold uppercase text-red-500">G A R A G E</p>
+        <p className="text-sm font-semibold uppercase tracking-[0.3em] text-red-500">Garage Coffee</p>
         <h1 className="mt-3 text-4xl font-bold sm:text-5xl">Kebijakan Privasi</h1>
         <p className="mt-4 text-sm text-zinc-400">Berlaku sejak 25 Juni 2026</p>
 
@@ -20,14 +20,14 @@ export default function PrivacyPolicyPage() {
             <p className="mt-2">
               GARAGE OS memproses data akun staf, materi konten, jadwal, status persetujuan,
               token otorisasi platform, tautan publikasi, dan metrik performa yang diperlukan
-              untuk menjalankan operasional serta pemasaran G A R A G E.
+              untuk menjalankan operasional serta pemasaran Garage Coffee.
             </p>
           </section>
           <section>
             <h2 className="text-xl font-semibold text-white">Penggunaan data platform</h2>
             <p className="mt-2">
               Akses TikTok, Instagram, YouTube, dan layanan pihak ketiga hanya digunakan untuk
-              akun resmi G A R A G E. Konten tidak dipublikasikan sebelum mendapat persetujuan
+              akun resmi Garage Coffee. Konten tidak dipublikasikan sebelum mendapat persetujuan
               pengguna yang berwenang di GARAGE OS.
             </p>
           </section>

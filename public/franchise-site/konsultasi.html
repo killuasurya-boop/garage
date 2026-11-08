@@ -505,8 +505,8 @@
             <label class="mode" data-mode="offline">
               <input type="radio" name="mode" value="offline" style="display: none;">
               <div class="ic">// MODE</div>
-              <div class="t">Offline · HQ</div>
-              <div class="d">Jakarta Selatan</div>
+              <div class="t">Offline · Outlet</div>
+              <div class="d">Tebing Tinggi</div>
             </label>
           </div>
 
@@ -741,7 +741,7 @@
     const d = state.date;
     document.getElementById('sumDate').textContent = ID_DAYS[d.getDay()] + ', ' + d.getDate() + ' ' + ID_MONTHS[d.getMonth()] + ' ' + d.getFullYear();
     document.getElementById('sumTime').textContent = state.time + ' WIB';
-    document.getElementById('sumMode').textContent = state.mode === 'online' ? 'Online · Zoom' : 'Offline · HQ Jakarta Selatan';
+    document.getElementById('sumMode').textContent = state.mode === 'online' ? 'Online · Zoom' : 'Offline · Outlet Tebing Tinggi';
     showStep(3);
   });
   document.getElementById('backToStep2').addEventListener('click', () => showStep(2));
@@ -759,7 +759,7 @@
     const d = state.date;
     const fullDate = ID_DAYS[d.getDay()] + ', ' + d.getDate() + ' ' + ID_MONTHS[d.getMonth()] + ' ' + d.getFullYear();
 
-    const msg = `Halo GARAGE, saya book konsultasi franchise:%0A%0AID: ${id}%0ANama: ${data.get('nama')}%0AHP: ${data.get('hp')}%0AEmail: ${data.get('email')}%0AKota: ${data.get('kota') || '—'}%0APaket: ${data.get('paket') || '—'}%0A%0AJadwal: ${fullDate} · ${state.time} WIB%0AMode: ${state.mode === 'online' ? 'Online (Zoom)' : 'Offline (HQ Jakarta Selatan)'}%0A%0ACatatan: ${data.get('catatan') || '—'}%0A%0ATolong konfirmasi. Terima kasih!`;
+    const msg = `Halo GARAGE, saya book konsultasi franchise:%0A%0AID: ${id}%0ANama: ${data.get('nama')}%0AHP: ${data.get('hp')}%0AEmail: ${data.get('email')}%0AKota: ${data.get('kota') || '—'}%0APaket: ${data.get('paket') || '—'}%0A%0AJadwal: ${fullDate} · ${state.time} WIB%0AMode: ${state.mode === 'online' ? 'Online (Zoom)' : 'Offline (Outlet Tebing Tinggi)'}%0A%0ACatatan: ${data.get('catatan') || '—'}%0A%0ATolong konfirmasi. Terima kasih!`;
     const waUrl = `https://wa.me/6281396186251?text=${msg}`;
     document.getElementById('successWa').href = waUrl;
 

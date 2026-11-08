@@ -96,9 +96,11 @@ export function MemberLoginPage({
   // Sudah login → langsung ke tujuan.
   useEffect(() => {
     let alive = true;
-    fetch("/api/member/profile", { credentials: "include" })
-      .then((response) => {
-        if (alive && response.ok) router.replace(returnTarget);
+    // ?optional=1: tamu yang belum login dapat { member: null } (bukan 401 di console).
+    fetch("/api/member/profile?optional=1", { credentials: "include", cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((body: { data?: { member?: unknown } } | null) => {
+        if (alive && body?.data?.member) router.replace(returnTarget);
       })
       .catch(() => undefined);
     return () => {

@@ -23,14 +23,16 @@ test("Smart Table Selector: lantai, cari, konfirmasi meja @mobile", async ({ pag
   await expect(page.getByTestId("table-card-01")).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
   if (process.env.CRYSTAL_SHOTS) await page.screenshot({ path: `${process.env.CRYSTAL_SHOTS}/table-${info.project.name}.png` });
-  // Cari "8" di lantai 1 → Meja 08.
+  // Cari nomor di lantai 1 ("8" → Meja 08). Tiap proyek memakai meja sendiri: meja yang sudah dikunci proyek lain
+  // menjadi "Sedang dipilih" (memang benar) dan tidak bisa dipilih lagi.
+  const table = info.project.name === "mobile-390" ? "18" : "08";
   await page.getByTestId("table-floor-1").click();
-  await page.getByLabel("Cari nomor meja").fill("8");
-  const target = page.getByTestId("table-card-08");
+  await page.getByLabel("Cari nomor meja").fill(table === "08" ? "8" : table);
+  const target = page.getByTestId(`table-card-${table}`);
   await expect(target).toBeVisible();
   await target.click();
   const sheet = page.getByTestId("table-confirm-sheet");
-  await expect(sheet.getByText(/Kamu di Meja 08, benar\?/)).toBeVisible();
+  await expect(sheet.getByText(new RegExp(`Kamu di Meja ${table}, benar\\?`))).toBeVisible();
   if (process.env.CRYSTAL_SHOTS) await page.screenshot({ path: `${process.env.CRYSTAL_SHOTS}/table-sheet-${info.project.name}.png` });
   await sheet.getByRole("button", { name: /Ya, pilih meja ini/ }).click();
   // Server penentu: meja terkunci (picker tertutup) atau ditolak dengan alasan yang jelas (mis. kasir belum buka shift).

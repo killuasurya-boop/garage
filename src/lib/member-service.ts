@@ -827,3 +827,73 @@ export async function syncPosTransaction(input: {
     error: null,
   };
 }
+
+// ── Login Google (Crystal V5, Owner Nov 2026) ───────────────────────────────
+// Urutan pencocokan: google_sub → email terverifikasi Google (akun lama ditautkan, tanpa duplikat) → akun baru
+// (wajib lengkapi profil: nama, WhatsApp, S&K; pemasaran terpisah & default tidak setuju).
+
+export type GoogleIdentityInput = { sub: string; email: string; emailVerified: boolean; name: string; picture: string | null };
+
+export async function signInMemberWithGoogle(identity: GoogleIdentityInput) {
+  const db = getDb();
+  if (!identity.emailVerified) {
+    return { kind: "error" as const, error: "Email Google belum terverifikasi. Pakai akun Google lain atau masuk dengan HP/PIN." };
+  }
+  const [bySub] = await db.select().from(memberAccounts).where(eq(memberAccounts.googleSub, identity.sub)).limit(1);
+  const email = normalizeEmail(identity.email);
+  const [byEmail] = bySub || !email ? [] : await db.select().from(memberAccounts).where(eq(memberAccounts.email, email)).limit(1);
+  const account = bySub ?? byEmail ?? null;
+  if (!account) return { kind: "needs_profile" as const };
+  if (account.status !== "active") return { kind: "error" as const, error: "Akun member tidak aktif. Hubungi kasir Garage." };
+  if (byEmail && byEmail.googleSub && byEmail.googleSub !== identity.sub) {
+    return { kind: "error" as const, error: "Email ini sudah tertaut ke akun Google lain." };
+  }
+  const now = new Date();
+  await db
+    .update(memberAccounts)
+    .set({
+      googleSub: identity.sub,
+      emailVerifiedAt: account.emailVerifiedAt ?? now,
+      avatarUrl: identity.picture ?? account.avatarUrl,
+      updatedAt: now,
+    })
+    .where(eq(memberAccounts.id, account.id));
+  const [customer] = await db.select().from(customers).where(eq(customers.id, account.customerId)).limit(1);
+  return { kind: "login" as const, account, linked: Boolean(byEmail), member: customer ? memberResponseData(customer) : null };
+}
+
+export async function completeGoogleMember(input: {
+  identity: GoogleIdentityInput;
+  name: string;
+  phone: string;
+  acceptTerms: boolean;
+  marketingConsent: boolean;
+  randomPassword: string;
+}) {
+  if (!input.acceptTerms) return { data: null, error: "Setujui Syarat & Ketentuan membership untuk melanjutkan." };
+  // Akun bisa sudah dibuat di tab lain sejak kartu Google diterbitkan → login biasa, bukan duplikat.
+  const again = await signInMemberWithGoogle(input.identity);
+  if (again.kind === "login") return { data: { account: again.account, member: again.member }, error: null };
+  if (again.kind === "error") return { data: null, error: again.error };
+
+  const created = await registerMember({
+    name: input.name,
+    phone: input.phone,
+    email: input.identity.email,
+    password: input.randomPassword,
+  });
+  if (!created.data) return { data: null, error: created.error ?? "Aktivasi member gagal." };
+  const now = new Date();
+  await getDb()
+    .update(memberAccounts)
+    .set({
+      googleSub: input.identity.sub,
+      emailVerifiedAt: now,
+      avatarUrl: input.identity.picture,
+      termsAcceptedAt: now,
+      marketingConsentAt: input.marketingConsent ? now : null,
+      updatedAt: now,
+    })
+    .where(eq(memberAccounts.id, created.data.account.id));
+  return { data: { account: created.data.account, member: created.data.member }, error: null };
+}

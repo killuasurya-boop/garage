@@ -42,6 +42,11 @@ export const PUBLIC_API_ROUTES: Record<string, PublicRoute> = {
   "member/auth/register": { reason: "Daftar member", abuseGuard: "rateLimit" },
   "member/auth/refresh": { reason: "Perbarui sesi member (refresh token)", abuseGuard: "rateLimit" },
   "member/auth/logout": { reason: "Keluar member (hanya menghapus cookie)", abuseGuard: "none" },
+  "member/auth/providers": { reason: "Metode login member yang aktif (tanpa data)", abuseGuard: "readonly" },
+  "member/auth/google/start": { reason: "Mulai login Google member (redirect + state PKCE)", abuseGuard: "rateLimit" },
+  "member/auth/google/callback": { reason: "Kembali dari Google (state + PKCE + ID token diverifikasi)", abuseGuard: "rateLimit" },
+  "member/auth/google/pending": { reason: "Profil Google menunggu dilengkapi (cookie bertanda tangan)", abuseGuard: "rateLimit" },
+  "member/auth/google/complete": { reason: "Aktivasi member dari Google (cookie bertanda tangan + S&K)", abuseGuard: "rateLimit" },
   // Rekrutmen publik
   "recruitment/positions": { reason: "Lowongan terbuka", abuseGuard: "readonly" },
   "recruitment/apply": { reason: "Lamaran kerja", abuseGuard: "rateLimit" },

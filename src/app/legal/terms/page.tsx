@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Terms of Service | G A R A G E",
-  description: "Ketentuan penggunaan layanan digital G A R A G E.",
+  title: "Terms of Service | Garage Coffee",
+  description: "Ketentuan penggunaan layanan digital Garage Coffee.",
   alternates: { canonical: "/legal/terms" },
 };
 
@@ -10,7 +10,7 @@ export default function TermsOfServicePage() {
   return (
     <main className="min-h-screen bg-[#09090b] px-5 py-14 text-zinc-100 sm:px-8">
       <article className="mx-auto max-w-3xl">
-        <p className="text-sm font-semibold uppercase text-red-500">G A R A G E</p>
+        <p className="text-sm font-semibold uppercase tracking-[0.3em] text-red-500">Garage Coffee</p>
         <h1 className="mt-3 text-4xl font-bold sm:text-5xl">Ketentuan Layanan</h1>
         <p className="mt-4 text-sm text-zinc-400">Berlaku sejak 25 Juni 2026</p>
 
@@ -19,7 +19,7 @@ export default function TermsOfServicePage() {
             <h2 className="text-xl font-semibold text-white">Ruang lingkup</h2>
             <p className="mt-2">
               GARAGE OS adalah sistem internal untuk operasional, pemasaran, manajemen konten,
-              persetujuan, penjadwalan, publikasi, dan analitik akun resmi G A R A G E.
+              persetujuan, penjadwalan, publikasi, dan analitik akun resmi Garage Coffee.
             </p>
           </section>
           <section>

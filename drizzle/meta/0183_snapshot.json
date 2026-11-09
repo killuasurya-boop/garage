@@ -1,6 +1,6 @@
 {
-  "id": "62830191-8bf4-47ba-94c0-4f39ee1e4dc7",
-  "prevId": "22716472-cc0d-4660-beee-b87e52a68882",
+  "id": "22716472-cc0d-4660-beee-b87e52a68882",
+  "prevId": "a342da6a-7568-4c60-bbdd-2baf4c0561d3",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -12135,36 +12135,6 @@
           "notNull": true,
           "default": "'active'"
         },
-        "google_sub": {
-          "name": "google_sub",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "email_verified_at": {
-          "name": "email_verified_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "avatar_url": {
-          "name": "avatar_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "terms_accepted_at": {
-          "name": "terms_accepted_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "marketing_consent_at": {
-          "name": "marketing_consent_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -12186,21 +12156,6 @@
           "columns": [
             {
               "expression": "customer_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "member_accounts_google_sub_idx": {
-          "name": "member_accounts_google_sub_idx",
-          "columns": [
-            {
-              "expression": "google_sub",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

@@ -25,6 +25,7 @@ import { MemberAnalytics } from "@/components/garage/member-analytics";
 import "@/components/crystal/crystal.css";
 import { PremiumMembershipCard } from "@/components/garage/premium-membership-card";
 import { useGarageToast } from "@/components/garage/garage-toast";
+import { tierProgressBySpend } from "@/lib/customer-offers";
 import { GOLD_ANNUAL_SPEND, PLATINUM_ANNUAL_SPEND, type MemberLevel } from "@/lib/member-types";
 
 type ApiResponse<T> =
@@ -472,6 +473,8 @@ export function MemberDashboard() {
     return null;
   }
 
+  const spendProgress = tierProgressBySpend(member.annualSpend ?? 0, member.cardTier);
+
   return (
     <main className="garage-shell gc-member min-h-screen overflow-x-hidden px-4 py-4 text-white sm:px-7 sm:py-6 lg:px-10">
       <section className="mx-auto w-full max-w-7xl">
@@ -852,23 +855,24 @@ export function MemberDashboard() {
             </div>
 
             <div className="mt-7">
+              {/* Naik level = belanja lunas 12 bulan (aturan getMemberProfile), bukan ambang poin. */}
               <div className="flex items-center justify-between gap-4">
-                <p className="garage-mono">{member.progress.nextLevel ? `Menuju ${member.progress.nextLevel}` : "Level tertinggi"}</p>
+                <p className="garage-mono">{spendProgress.next ? `Menuju ${spendProgress.next}` : "Level tertinggi"}</p>
                 <p className="garage-mono text-[#f5a742]">
-                  {member.progress.next ? `${number.format(member.progress.remaining)} pts lagi` : "maksimum"}
+                  {spendProgress.next ? `Belanja ${rupiah.format(spendProgress.remaining)} lagi` : "maksimum"}
                 </p>
               </div>
               <div className="mt-3 h-2 overflow-hidden bg-[#222229]">
                 <div
                   className="h-full bg-gradient-to-r from-[#d11a2a] to-[#f5a742] shadow-[0_0_22px_rgba(209,26,42,0.45)]"
-                  style={{ width: `${member.progress.percent}%` }}
+                  style={{ width: `${spendProgress.percent}%` }}
                 />
               </div>
             </div>
           </section>
 
           <section className="grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-            <MemberLevelCard level="Silver" points={`0-${number.format((GOLD_ANNUAL_SPEND / 1000) - 1)} pts`} multiplier="1x" active={member.level === "Silver"} />
+            <MemberLevelCard level="Silver" points={`< Rp${number.format(GOLD_ANNUAL_SPEND)}/tahun`} multiplier="1x" active={member.level === "Silver"} />
             <MemberLevelCard level="Gold" points={`Rp${number.format(GOLD_ANNUAL_SPEND)}/tahun`} multiplier="1.2x" active={member.level === "Gold"} />
             <MemberLevelCard level="Platinum" points={`Rp${number.format(PLATINUM_ANNUAL_SPEND)}/tahun`} multiplier="1.6x" active={member.level === "Platinum"} />
             <MemberLevelCard level="Ultra" points="3 tahun langganan + owner approval" multiplier="2x" active={member.level === "Ultra"} />

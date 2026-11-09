@@ -559,3 +559,11 @@
   cursor: pointer;
 }
 .gm-check input { margin-top: 2px; width: 20px; height: 20px; flex: none; accent-color: var(--gm-accent); }
+
+/* Komponen member yang ditanam di halaman lain (mis. sheet daftar member di invoice V4):
+   token & primitive gm-* tetap sama, tanpa tinggi layar penuh/latar halaman. */
+.gm-root.gm-inline {
+  min-height: 0;
+  background: transparent;
+  overflow: visible;
+}

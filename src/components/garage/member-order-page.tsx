@@ -2622,6 +2622,7 @@ export function MemberOrderPage({
                 }
           }
           info={etaLabel}
+          titleLevel={eventContext && !mainEventMenu ? 2 : 1}
           nav={[
             { key: "home", label: "Beranda", onSelect: goHome, current: menuChip === "all" && navTab !== "menu" && !activeSection },
             {

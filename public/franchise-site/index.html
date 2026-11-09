@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>GARAGE Coffee & Motor — Franchise Coffee yang Punya Teknologi Sendiri</title>
-<meta name="description" content="Franchise GARAGE Coffee & Motor — sistem operasi kedai kopi dengan paket mulai Rp 75 juta, GARAGE OS, SOP, training, loyalty, dan simulasi ROI untuk calon partner.">
+<title>GARAGE Coffee — Franchise Coffee yang Punya Teknologi Sendiri</title>
+<meta name="description" content="Franchise GARAGE Coffee — sistem operasi kedai kopi dengan paket mulai Rp 75 juta, GARAGE OS, SOP, training, loyalty, dan simulasi ROI untuk calon partner.">
 <meta name="keywords" content="franchise kopi, franchise coffee shop, franchise GARAGE, franchise kopi murah, franchise kopi 250 juta, buka coffee shop, franchise resmi terdaftar, sistem POS kopi, kemitraan kopi indonesia">
 <meta name="author" content="PT GARAGE INDONESIA">
 <meta name="robots" content="index, follow">
@@ -13,12 +13,12 @@
 <!-- Open Graph (Facebook, WhatsApp, LinkedIn) -->
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://garagecoffee.id/franchise">
-<meta property="og:title" content="GARAGE Coffee & Motor — Franchise Coffee yang Punya Teknologi Sendiri">
+<meta property="og:title" content="GARAGE Coffee — Franchise Coffee yang Punya Teknologi Sendiri">
 <meta property="og:description" content="Paket franchise mulai Rp 75 juta dengan POS, QR Menu, KDS, Loyalty App, SOP, training, dashboard owner, dan simulasi ROI.">
 <meta property="og:image" content="https://garagecoffee.id/franchise-site/assets/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:site_name" content="GARAGE Coffee & Motor">
+<meta property="og:site_name" content="GARAGE Coffee">
 <meta property="og:locale" content="id_ID">
 
 <!-- Twitter Card -->
@@ -39,10 +39,10 @@
 {
   "@context": "https://schema.org",
   "@type": "Organization",
-  "name": "GARAGE Coffee & Motor",
+  "name": "GARAGE Coffee",
   "legalName": "PT GARAGE INDONESIA",
   "url": "https://garagecoffee.id",
-  "logo": "https://garagecoffee.id/garage-brand/logo-website.png",
+  "logo": "https://garagecoffee.id/garage-brand/garage-coffee-logo.png",
   "description": "Sistem operasi industri kedai kopi. Franchise coffee shop dengan teknologi proprietary — POS, QR Menu, Kitchen Display, Loyalty App, Owner Dashboard.",
   "foundingDate": "2024",
   "slogan": "Built in the Garage, Brewed for the World.",
@@ -122,7 +122,7 @@
   "@type": "Product",
   "name": "GARAGE Franchise Package",
   "description": "Franchise coffee shop dengan sistem operasi proprietary (POS, QR Menu, KDS, Loyalty App, Owner Dashboard). Tiga paket investasi dari Rp 75jt hingga Rp 450jt.",
-  "brand": { "@type": "Brand", "name": "GARAGE Coffee & Motor" },
+  "brand": { "@type": "Brand", "name": "GARAGE Coffee" },
   "offers": [
     { "@type": "Offer", "name": "System Only", "price": "75000000", "priceCurrency": "IDR", "availability": "https://schema.org/InStock" },
     { "@type": "Offer", "name": "Starter Cafe", "price": "250000000", "priceCurrency": "IDR", "availability": "https://schema.org/InStock" },
@@ -304,7 +304,7 @@
   }
   .hero-inner {
     position: relative; z-index: 2;
-    display: grid; grid-template-columns: 1.3fr 1fr; gap: 60px; align-items: end;
+    display: grid; grid-template-columns: 1.3fr 1fr; gap: 60px; align-items: center;
   }
   @media (max-width: 980px) { .hero-inner { grid-template-columns: 1fr; gap: 40px; } }
 
@@ -321,7 +321,7 @@
 
   .hero h1 {
     font-family: 'Bebas Neue', sans-serif;
-    font-size: clamp(56px, 10vw, 156px);
+    font-size: clamp(52px, 8.4vw, 132px);
     line-height: .88;
     letter-spacing: -.01em;
   }
@@ -705,7 +705,7 @@
     font-family: 'JetBrains Mono', monospace;
     font-size: 10px;
     letter-spacing: .22em;
-    color: var(--red);
+    color: #ff6b6b; /* merah terang: #CC0000 di atas hitam hanya ±3,4:1 untuk teks 10px */
     text-transform: uppercase;
     padding: 18px 20px 10px;
     text-align: left;
@@ -1022,7 +1022,6 @@
     background-image: url('/franchise-site/assets/cup.jpeg');
   }
   .story-img.s3 {
-    background-image: url('/franchise-site/assets/uniform.jpg');
     background-color: #0d0d0d;
     background-size: cover;
   }
@@ -1208,10 +1207,9 @@
   .testi-card:hover { background: var(--black-2); }
   .testi-quote-mark {
     font-family: 'Bebas Neue', sans-serif;
-    font-size: 96px; line-height: .6;
+    font-size: 56px; line-height: 1;
     color: var(--red);
-    height: 32px;
-    margin-bottom: 8px;
+    margin-bottom: 16px;
   }
   .testi-card .quote {
     font-family: 'Barlow', sans-serif;
@@ -1415,7 +1413,7 @@
     font-size: 12px;
     clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
   }
-  .mobile-cta .wa { background: #25D366; color: white; }
+  .mobile-cta .wa { background: #25D366; color: #062b14; } /* putih di atas #25D366 = 1.98:1 */
   .mobile-cta .br { background: var(--red); color: white; }
   .mobile-cta .ks { background: transparent; color: var(--white); border: 1px solid var(--line-2); }
   .mobile-cta svg { width: 14px; height: 14px; }
@@ -1423,9 +1421,12 @@
     .mobile-cta { display: flex; }
     /* Push content up so sticky doesn't cover footer too much */
     footer { padding-bottom: 80px; }
-    /* Hide the floating WA bubble on mobile since we have the bar */
-    .wa-float { bottom: 86px; right: 12px; width: 50px; height: 50px; }
-    .wa-float svg { width: 24px; height: 24px; }
+    /* Bar bawah sudah punya tombol WhatsApp: bubble melayang disembunyikan (tidak menumpuk konten) */
+    .wa-float { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+    .reveal { opacity: 1 !important; transform: none !important; }
   }
 </style>
 </head>
@@ -1436,7 +1437,7 @@
   <div class="container nav-inner">
     <a class="brand" href="#top">
       <div class="brand-mark">
-        <img src="/garage-brand/logo-website.png" alt="Garage Coffee & Motor">
+        <img src="/garage-brand/garage-coffee-logo.png" alt="Garage Coffee">
       </div>
       <div class="brand-text">
         <strong>FRANCHISE</strong>
@@ -1474,7 +1475,7 @@
         <span class="strike">Siap Jalan.</span>
       </h1>
       <p class="hero-sub reveal">
-        Franchise coffee &amp; motor untuk calon owner yang ingin membangun outlet dengan
+        Franchise Garage Coffee untuk calon owner yang ingin membangun outlet dengan
         POS, QR Menu, KDS, loyalty, SOP, training, dan owner dashboard dalam satu
         sistem operasi GARAGE.
       </p>
@@ -1488,7 +1489,7 @@
         </a>
       </div>
       <p class="hero-proof reveal">
-        MVP offer: mulai dari System Only untuk outlet existing sampai Full Flagship
+        Pilihan paket: mulai dari System Only untuk outlet existing sampai Full Flagship
         untuk kota dengan potensi traffic tinggi. Angka finansial adalah simulasi
         berbasis asumsi operasional, bukan janji hasil.
       </p>
@@ -1653,7 +1654,7 @@
           <li>15 modul SOP digital lengkap</li>
           <li>Owner Dashboard real-time</li>
           <li>WhatsApp invoice automation</li>
-          <li>Loyalty program GARAGE Pit Stop</li>
+          <li>Loyalty program GARAGE Member</li>
           <li>Support teknis 3 bulan</li>
         </ul>
         <div class="paket-section-h">— Tidak termasuk</div>
@@ -1685,7 +1686,7 @@
         </div>
         <div class="paket-section-h">— Semua di System Only, plus</div>
         <ul>
-          <li>Desain interior konsep GARAGE (industrial-automotive)</li>
+          <li>Desain interior konsep GARAGE (industrial modern)</li>
           <li>Espresso machine pro 2-group + grinder commercial</li>
           <li>Peralatan bar lengkap (blender, kulkas, ice maker)</li>
           <li>Furniture custom branded (meja, kursi, counter)</li>
@@ -1720,7 +1721,7 @@
         <div class="paket-section-h">— Semua di Starter Cafe, plus</div>
         <ul>
           <li>Desain premium (mural, theatrical lighting, merch corner)</li>
-          <li>Motor display / community zone (signature GARAGE)</li>
+          <li>Community zone &amp; area acara (signature GARAGE)</li>
           <li>Espresso machine pro 3-group brand premium</li>
           <li>2 grinder (espresso + filter) + cold brew station</li>
           <li>TV kitchen, customer queue screen, sound system premium</li>
@@ -1770,7 +1771,7 @@
             <tr><td>Desain interior konsep GARAGE</td><td class="n">—</td><td class="y hi">✓</td><td class="y">Premium</td></tr>
             <tr><td>Material industrial (exposed concrete, raw metal, neon)</td><td class="n">—</td><td class="y hi">✓</td><td class="y">✓</td></tr>
             <tr><td>Mural &amp; theatrical lighting</td><td class="n">—</td><td class="n hi">—</td><td class="y">✓</td></tr>
-            <tr><td>Motor display / community zone</td><td class="n">—</td><td class="n hi">—</td><td class="y">✓ Signature</td></tr>
+            <tr><td>Community zone &amp; area acara</td><td class="n">—</td><td class="n hi">—</td><td class="y">✓ Signature</td></tr>
             <tr><td>Branded merchandise corner</td><td class="n">—</td><td class="n hi">—</td><td class="y">✓</td></tr>
 
             <tr class="grp"><td colspan="4">// PERALATAN BAR</td></tr>
@@ -1854,7 +1855,7 @@
             <span class="n">F.05</span>
             <div>
               <h4>Member Loyalty App</h4>
-              <p>GARAGE Pit Stop: tier Mechanic → Engineer → Race Crew. Stamp otomatis. Reward terkurasi.</p>
+              <p>GARAGE Member: tier Silver → Gold → Platinum → Ultra. Poin otomatis. Reward terkurasi.</p>
             </div>
           </div>
           <div class="tech-feat">
@@ -1897,8 +1898,8 @@
         </div>
         <div class="mock-phone">
           <div class="mock-phone-inner">
-            <div class="tier">● GARAGE PIT STOP</div>
-            <div class="lvl">RACE CREW</div>
+            <div class="tier">● GARAGE MEMBER</div>
+            <div class="lvl">PLATINUM</div>
             <div class="pts">102 / 150 CUP · 6 BLN</div>
             <div class="mock-prog"></div>
             <div style="font-family: 'JetBrains Mono', monospace; font-size: 8px; color: var(--chrome-dim); margin-top: 16px; letter-spacing: .15em;">// LAST STAMPS</div>
@@ -2011,7 +2012,7 @@
         <h2 class="h2">Dimulai dari<br>Sebuah Garasi.</h2>
         <p style="margin-top: 32px;">
           <strong>GARAGE</strong> lahir dari obsesi sederhana: bagaimana kalau industri kopi
-          punya sistem operasi yang seketat workshop motor?
+          punya sistem operasi yang seketat dapur restoran kelas dunia?
         </p>
         <p>
           Pendiri kami menghabiskan tahun-tahun pertama membongkar setiap proses outlet —
@@ -2100,71 +2101,59 @@
   </div>
 </section>
 
-<!-- =================== TESTIMONIALS =================== -->
+<!-- =================== BUKTI (pengganti testimoni; hanya fakta yang bisa dicek) =================== -->
 <section class="testi-section" id="testi">
   <div class="container">
     <div class="section-head reveal">
       <div>
-        <div class="sec-tag">07 / Suara Owner</div>
-        <h2 class="h2">Bukan kata kami.<br>Kata <span style="color: var(--red);">mereka</span> yang sudah jalan.</h2>
+        <div class="sec-tag">07 / Cek Sendiri</div>
+        <h2 class="h2">Jangan percaya kata kami.<br><span style="color: var(--red);">Lihat</span> sistemnya jalan.</h2>
       </div>
       <p class="lead">
-        Cerita langsung dari owner outlet GARAGE — pengalaman build, training, dan operasional. Foto dan stats dapat diverifikasi saat tahap konsultasi.
+        Sebelum memutuskan, kamu bisa melihat langsung outlet dan sistem GARAGE beroperasi. Tidak ada angka owner yang kami karang: semua hitungan di halaman ini adalah simulasi, dan kamu bisa mengujinya sendiri.
       </p>
     </div>
 
     <div class="testi-grid reveal">
       <div class="testi-card">
-        <div class="testi-quote-mark">"</div>
-        <p class="quote">Awalnya saya skeptis sama franchise. Tapi GARAGE beda — <span class="hl">sistemnya benar-benar jalan dari hari pertama</span>. Kasir tinggal scan, kitchen langsung tau pesanan, owner dashboard real-time. Saya bisa pantau dari rumah.</p>
+        <div class="testi-quote-mark">01</div>
+        <p class="quote">Datang ke outlet <span class="hl">Garage Coffee Tebing Tinggi</span>. Lihat kasir, bar dan dapur bekerja dengan satu sistem: pesanan QR masuk ke POS, tiket langsung ke Bar/Dapur, struk dan invoice digital keluar otomatis.</p>
         <div class="who">
-          <div class="avatar">R</div>
+          <div class="avatar">TT</div>
           <div>
-            <div class="name">Rian Pratama</div>
-            <div class="role">// Owner · Starter Cafe · Bandung</div>
+            <div class="name">Outlet Garage Coffee</div>
+            <div class="role">// Jl. Mayjen Sutoyo, Rambung · Tebing Tinggi</div>
           </div>
-        </div>
-        <div class="stats">
-          <div class="stat"><div class="v">180</div><div class="l">Cup / Hari</div></div>
-          <div class="stat"><div class="v amber">14 bln</div><div class="l">BEP Aktual</div></div>
         </div>
       </div>
 
       <div class="testi-card">
-        <div class="testi-quote-mark">"</div>
-        <p class="quote">Saya cari franchise yang <span class="hl">support timnya benar-benar ada</span>, bukan cuma waktu setup. Tim GARAGE balas WhatsApp dalam menit, training 30 hari serius, dan pendampingan post-launch terasa. Investasi worth it.</p>
+        <div class="testi-quote-mark">02</div>
+        <p class="quote">Minta <span class="hl">demo GARAGE OS</span> saat konsultasi: POS, menu digital, layar produksi, kontrol kas per shift, stok gudang dan laporan owner. Sistem yang sama dipakai outlet kami setiap hari, bukan presentasi slide.</p>
         <div class="who">
-          <div class="avatar">S</div>
+          <div class="avatar">OS</div>
           <div>
-            <div class="name">Sari Wijaya</div>
-            <div class="role">// Owner · Full Flagship · Jakarta</div>
+            <div class="name">Demo Sistem</div>
+            <div class="role">// Online atau langsung di outlet</div>
           </div>
-        </div>
-        <div class="stats">
-          <div class="stat"><div class="v">240</div><div class="l">Cup / Hari</div></div>
-          <div class="stat"><div class="v amber">11 bln</div><div class="l">BEP Aktual</div></div>
         </div>
       </div>
 
       <div class="testi-card">
-        <div class="testi-quote-mark">"</div>
-        <p class="quote">Saya non-F&amp;B background. Dulu mikir mustahil buka coffee shop. SOP digital GARAGE <span class="hl">benar-benar bikin proses jadi straightforward</span> — ada video, ada checklist, ada KPI mingguan. Staf saya bisa di-onboard 2 minggu.</p>
+        <div class="testi-quote-mark">03</div>
+        <p class="quote">Masukkan angka kotamu di <span class="hl">ROI Calculator</span>: harga jual, cup per hari, sewa dan gaji. Lalu bawa hasilnya ke sesi konsultasi untuk dibahas bersama tim franchise, termasuk skenario terburuknya.</p>
         <div class="who">
-          <div class="avatar">D</div>
+          <div class="avatar">%</div>
           <div>
-            <div class="name">Dimas Hartono</div>
-            <div class="role">// Owner · System Only · Yogyakarta</div>
+            <div class="name">Simulasi Kotamu</div>
+            <div class="role">// <a href="/franchise-site/roi-calculator.html" style="color: inherit;">Buka ROI Calculator →</a></div>
           </div>
-        </div>
-        <div class="stats">
-          <div class="stat"><div class="v">155</div><div class="l">Cup / Hari</div></div>
-          <div class="stat"><div class="v amber">9 bln</div><div class="l">BEP Aktual</div></div>
         </div>
       </div>
     </div>
 
     <p class="testi-note">
-      * Testimoni di atas mewakili pengalaman individual owner. Hasil operasional setiap outlet dapat berbeda tergantung lokasi, eksekusi, dan kondisi pasar. Lihat <a href="/franchise-site/disclaimer.html" style="color: var(--chrome);">Disclaimer</a> untuk detail lengkap. Verifikasi foto, nama, dan data outlet tersedia saat tahap konsultasi serius.
+      * Program franchise GARAGE dibuka untuk batch 2026. Semua angka finansial di halaman ini adalah simulasi berbasis asumsi operasional, bukan janji hasil. Lihat <a href="/franchise-site/disclaimer.html" style="color: var(--chrome);">Disclaimer</a>.
     </p>
   </div>
 </section>
@@ -2295,21 +2284,21 @@
 
       <form class="form reveal" id="leadForm" onsubmit="return handleSubmit(event)">
         <div class="form-row">
-          <label>Nama Lengkap</label>
-          <input required name="nama" placeholder="Nama kamu" autocomplete="name">
+          <label for="leadNama">Nama Lengkap</label>
+          <input required id="leadNama" name="nama" placeholder="Nama kamu" autocomplete="name">
         </div>
         <div class="form-row two">
           <div>
-            <label>Kota</label>
-            <input required name="kota" placeholder="Jakarta, Bandung, ...">
+            <label for="leadKota">Kota</label>
+            <input required id="leadKota" name="kota" placeholder="Jakarta, Bandung, ...">
           </div>
           <div>
-            <label>No. WhatsApp</label>
-            <input required name="hp" type="tel" placeholder="+62 ..." autocomplete="tel">
+            <label for="leadHp">No. WhatsApp</label>
+            <input required id="leadHp" name="hp" type="tel" placeholder="+62 ..." autocomplete="tel">
           </div>
         </div>
         <div class="form-row">
-          <label>Paket yang diminati</label>
+          <label for="paketSelect">Paket yang diminati</label>
           <select required name="paket" id="paketSelect">
             <option value="">— Pilih paket —</option>
             <option>System Only · Rp 75 jt</option>
@@ -2319,8 +2308,8 @@
           </select>
         </div>
         <div class="form-row">
-          <label>Pesan (opsional)</label>
-          <textarea name="pesan" rows="3" placeholder="Ceritakan rencana lokasi, timeline, dll."></textarea>
+          <label for="leadPesan">Pesan (opsional)</label>
+          <textarea id="leadPesan" name="pesan" rows="3" placeholder="Ceritakan rencana lokasi, timeline, dll."></textarea>
         </div>
         <button class="btn btn-primary submit" type="submit">
           <span id="submitText">Kirim Request</span>
@@ -2349,7 +2338,7 @@
       <div class="footer-col">
         <a class="brand" href="#top" style="margin-bottom: 16px;">
           <div class="brand-mark">
-            <img src="/garage-brand/logo-website.png" alt="Garage Coffee & Motor">
+            <img src="/garage-brand/garage-coffee-logo.png" alt="Garage Coffee">
           </div>
           <div class="brand-text">
             <strong>FRANCHISE</strong>
@@ -2392,7 +2381,7 @@
       </div>
     </div>
     <div class="footer-bot">
-      <span>© 2026 GARAGE COFFEE &amp; MOTOR · PT GARAGE INDONESIA</span>
+      <span>© 2026 GARAGE COFFEE · PT GARAGE INDONESIA</span>
       <span>BUILT IN INDONESIA · BREWED FOR THE WORLD</span>
     </div>
   </div>

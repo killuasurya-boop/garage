@@ -63,6 +63,8 @@ const TABLES_TO_CLEAR = [
   // marketing & voucher
   "vouchers",
   "crm_campaign_logs",
+  "customer_experience_events",
+  "customer_marketing_consents",
   "voucher_redemptions",
   "marketing_campaigns",
   "marketing_broadcasts",

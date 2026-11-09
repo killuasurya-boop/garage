@@ -474,7 +474,7 @@ export function AyaChatV5({
   if (minimized) {
     return (
       <div
-        className="gm5 gm5-aya-mini fixed z-[96] flex items-center gap-2 rounded-full border border-[color:var(--gm5-line)] bg-[#141214]/95 p-1.5 pr-2 text-white shadow-[0_12px_32px_rgba(0,0,0,0.55)] backdrop-blur-sm"
+        className="gm5 gm5-aya-mini fixed z-[96] flex items-center gap-2 rounded-full border border-[color:var(--gm5-line)] bg-[#111216]/95 p-1.5 pr-2 text-white shadow-[0_12px_32px_rgba(0,0,0,0.55)] backdrop-blur-sm"
         role="region"
         aria-label="Tanya AYA (diminimalkan)"
       >
@@ -485,7 +485,7 @@ export function AyaChatV5({
           </span>
           <span className="min-w-0">
             <span className="block text-sm font-bold leading-tight">Tanya AYA</span>
-            <span className="block max-w-[11rem] truncate text-xs text-[#cfc9c4] sm:max-w-[14rem]">{statusText}</span>
+            <span className="block max-w-[11rem] truncate text-xs text-[#d4d4da] sm:max-w-[14rem]">{statusText}</span>
           </span>
         </button>
         {speaking ? (
@@ -517,7 +517,7 @@ export function AyaChatV5({
         onKeyDown={onPanelKey}
         data-expanded={expanded}
         style={isMobile ? { bottom: keyboard, maxHeight: keyboard ? `calc(100dvh - ${keyboard}px - 8px)` : undefined } : undefined}
-        className="gm5 gm5-aya-panel fixed z-[96] flex flex-col overflow-hidden border border-[color:var(--gm5-line)] bg-[#0e0e0e] text-white outline-none"
+        className="gm5 gm5-aya-panel fixed z-[96] flex flex-col overflow-hidden border border-[color:var(--gm5-line)] bg-[#08090b] text-white outline-none"
       >
         {/* Handle (HP): ketuk = perbesar/perkecil */}
         <button
@@ -538,7 +538,7 @@ export function AyaChatV5({
             <h2 id="aya-chat-title" className="gm5-title whitespace-nowrap text-base leading-tight text-white md:text-lg">
               Tanya AYA
             </h2>
-            <p className="flex items-center gap-1.5 text-[13px] text-[#cfc9c4]" aria-live="polite">
+            <p className="flex items-center gap-1.5 text-[13px] text-[#d4d4da]" aria-live="polite">
               <span className={`size-2 shrink-0 rounded-full ${shownPresence === "error" ? "bg-[#f5a742]" : busy ? "bg-[var(--menu-red-bright)]" : "bg-[#4ade80]"}`} aria-hidden />
               <span className="truncate">{shownPresence === "idle" ? "Online · siap membantu" : statusText}</span>
               {speaking ? (
@@ -587,11 +587,11 @@ export function AyaChatV5({
         </div>
 
         {settingsOpen ? (
-          <div id="aya-chat-settings" className="gm5-pop space-y-3 border-b border-white/10 bg-[#141214] px-4 py-3" role="group" aria-label="Pengaturan suara AYA">
+          <div id="aya-chat-settings" className="gm5-pop space-y-3 border-b border-white/10 bg-[#111216] px-4 py-3" role="group" aria-label="Pengaturan suara AYA">
             <label className="flex min-h-11 cursor-pointer items-center justify-between gap-3 text-sm font-semibold">
               <span>
                 Suara AYA
-                <span className="block text-xs font-normal text-[#cfc9c4]">Bacakan setiap jawaban (teks tetap tampil).</span>
+                <span className="block text-xs font-normal text-[#d4d4da]">Bacakan setiap jawaban (teks tetap tampil).</span>
               </span>
               <input type="checkbox" role="switch" className="gm5-switch" checked={sound.enabled} onChange={toggleSound} />
             </label>
@@ -608,7 +608,7 @@ export function AyaChatV5({
                 className="gm5-range min-w-0 flex-1"
                 aria-valuetext={`${Math.round(sound.volume * 100)} persen`}
               />
-              <span className="w-10 text-right font-mono text-xs tabular-nums text-[#cfc9c4]">{Math.round(sound.volume * 100)}%</span>
+              <span className="w-10 text-right font-mono text-xs tabular-nums text-[#d4d4da]">{Math.round(sound.volume * 100)}%</span>
             </label>
             <button type="button" className="gm5-btn-ghost min-h-11 w-full gap-2 px-3 text-sm" onClick={resetChat}>
               <Trash2 className="size-4" aria-hidden /> Mulai percakapan baru
@@ -637,9 +637,9 @@ export function AyaChatV5({
                   <AyaMascot state={message.retry ? "error" : "idle"} crop="head" role="customer" />
                 </span>
                 <div className="gm5-pop min-w-0 flex-1 space-y-2">
-                  <p className={`w-fit max-w-full break-words rounded-2xl rounded-tl-md border px-3.5 py-2 text-[15px] leading-snug text-[#f6f2ee] ${message.retry ? "border-[#b97a2c] bg-[#1f1a12]" : "border-white/10 bg-[#1a1819]"}`}>
+                  <p className={`w-fit max-w-full break-words rounded-2xl rounded-tl-md border px-3.5 py-2 text-[15px] leading-snug text-[#ffffff] ${message.retry ? "border-[#b97a2c] bg-[#1f1a12]" : "border-white/10 bg-[#1b1d21]"}`}>
                     {message.text}
-                    <span className="ml-2 align-bottom text-[11px] text-[#a7a09b]">{timeFmt.format(message.at)}</span>
+                    <span className="ml-2 align-bottom text-[11px] text-[#b8b8be]">{timeFmt.format(message.at)}</span>
                   </p>
                   {message.items?.length ? (
                     <ul className="flex gap-2 overflow-x-auto pb-1" aria-label="Menu yang disarankan">
@@ -689,10 +689,10 @@ export function AyaChatV5({
               <span className="relative size-8 shrink-0" aria-hidden>
                 <AyaMascot state="thinking" crop="head" role="customer" />
               </span>
-              <span className="gm5-typing rounded-2xl rounded-tl-md border border-white/10 bg-[#1a1819] px-4 py-3" aria-hidden>
+              <span className="gm5-typing rounded-2xl rounded-tl-md border border-white/10 bg-[#1b1d21] px-4 py-3" aria-hidden>
                 <i /> <i /> <i />
               </span>
-              <span className="text-xs text-[#cfc9c4]">AYA mengetik…</span>
+              <span className="text-xs text-[#d4d4da]">AYA mengetik…</span>
             </div>
           ) : null}
 
@@ -705,7 +705,7 @@ export function AyaChatV5({
                     <button type="button" className="gm5-prompt" onClick={() => ask(prompt.query)}>
                       <Icon className="size-5 shrink-0 text-[var(--menu-red-bright)]" aria-hidden />
                       <span className="min-w-0 flex-1 text-left">{prompt.label}</span>
-                      <ChevronRight className="size-4 shrink-0 text-[#a7a09b]" aria-hidden />
+                      <ChevronRight className="size-4 shrink-0 text-[#b8b8be]" aria-hidden />
                     </button>
                   </li>
                 );
@@ -724,7 +724,7 @@ export function AyaChatV5({
               </button>
             </p>
           ) : null}
-          <p className="mb-1.5 text-xs font-semibold text-[#cfc9c4]">Coba tanyakan:</p>
+          <p className="mb-1.5 text-xs font-semibold text-[#d4d4da]">Coba tanyakan:</p>
           <div className="gm5-chip-row -mx-3 mb-2 flex gap-2 overflow-x-auto px-3 pb-1 md:-mx-4 md:px-4" role="list" aria-label="Saran pertanyaan">
             {quick.map((prompt) => {
               const Icon = ICONS[prompt.icon];
@@ -739,8 +739,8 @@ export function AyaChatV5({
           </div>
 
           {listening ? (
-            <div className="mb-2 flex items-center gap-3 rounded-full border border-[color:var(--gm5-line)] bg-[#141214] px-4 py-2" role="status">
-              <span className="font-mono text-xs tabular-nums text-[#cfc9c4]">0:{String(Math.min(listenSeconds, 59)).padStart(2, "0")}</span>
+            <div className="mb-2 flex items-center gap-3 rounded-full border border-[color:var(--gm5-line)] bg-[#111216] px-4 py-2" role="status">
+              <span className="font-mono text-xs tabular-nums text-[#d4d4da]">0:{String(Math.min(listenSeconds, 59)).padStart(2, "0")}</span>
               <span className="gm5-wave flex-1" aria-hidden>
                 {Array.from({ length: 18 }).map((_, index) => (
                   <i key={index} style={{ animationDelay: `${(index % 6) * 90}ms` }} />
@@ -768,7 +768,7 @@ export function AyaChatV5({
               name="tanya-aya"
               aria-label="Tanya AYA"
               placeholder="Tanya AYA soal menu…"
-              className="h-12 min-w-0 flex-1 rounded-full border border-white/15 bg-[#141214] px-4 text-base text-white outline-none placeholder:text-[#8f8984] hover:border-white/25 focus:border-[var(--menu-red)]"
+              className="h-12 min-w-0 flex-1 rounded-full border border-white/15 bg-[#111216] px-4 text-base text-white outline-none placeholder:text-[#9a9aa4] hover:border-white/25 focus:border-[var(--menu-red)]"
             />
             {micSupported ? (
               <button
@@ -796,19 +796,19 @@ function AyaMenuCard({ item, onAdd, onOpen }: { item: MenuItem; onAdd: (itemId: 
   const single = item.variants.length === 1 ? item.variants[0] : null;
   const detail = item.description?.trim() || (item.section && item.section !== item.category ? item.section : item.category);
   return (
-    <li className="w-[136px] shrink-0 overflow-hidden rounded-xl border border-white/10 bg-[#161416]">
+    <li className="w-[136px] shrink-0 overflow-hidden rounded-xl border border-white/10 bg-[#1b1d21]">
       <button type="button" className="block w-full cursor-pointer text-left" onClick={() => onOpen(item)} aria-label={`Lihat detail ${item.name}`}>
         <span className="block aspect-[4/3] overflow-hidden">
           <MenuPhoto item={item} hideLabel iconClassName="size-7" />
         </span>
         <span className="block px-2.5 pt-2">
           <span className="block truncate text-sm font-bold text-white">{item.name}</span>
-          <span className="block truncate text-xs text-[#cfc9c4]">{detail}</span>
+          <span className="block truncate text-xs text-[#d4d4da]">{detail}</span>
         </span>
       </button>
       <span className="flex items-end justify-between gap-1 px-2.5 pb-2.5 pt-1">
         <span className="min-w-0 font-mono text-[13px] font-bold tabular-nums text-white">
-          {price.from ? <span className="block font-sans text-[11px] font-normal leading-none text-[#cfc9c4]">mulai</span> : null}
+          {price.from ? <span className="block font-sans text-[11px] font-normal leading-none text-[#d4d4da]">mulai</span> : null}
           {rupiah.format(price.price)}
         </span>
         <button

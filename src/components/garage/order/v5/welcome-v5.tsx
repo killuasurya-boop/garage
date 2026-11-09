@@ -95,9 +95,9 @@ export function WelcomeV5({ tableLabel, onDone }: { tableLabel?: string | null; 
         <h2 id="gm5-welcome-title" className="gm5-display gm5-welcome-title mt-1 uppercase text-white">
           Garage Coffee
         </h2>
-        <p id="gm5-welcome-desc" className="mt-2 max-w-sm text-base leading-relaxed text-[#e4ded9]">
+        <p id="gm5-welcome-desc" className="mt-2 max-w-sm text-base leading-relaxed text-[#e4e4e8]">
           Jelajahi menu kami dengan tampilan terbaik.
-          {table ? <span className="mt-1 block text-sm text-[#cfc9c4]">Kamu sedang melihat menu untuk <strong className="text-white">{table}</strong>.</span> : null}
+          {table ? <span className="mt-1 block text-sm text-[#d4d4da]">Kamu sedang melihat menu untuk <strong className="text-white">{table}</strong>.</span> : null}
         </p>
 
         <div className="mt-6 flex w-full max-w-sm flex-col gap-2.5">
@@ -107,17 +107,17 @@ export function WelcomeV5({ tableLabel, onDone }: { tableLabel?: string | null; 
           <button type="button" className="gm5-btn-ghost min-h-12 w-full px-5 text-base" disabled={busy} onClick={() => void finish(false)}>
             Lanjutkan Tanpa Fullscreen
           </button>
-          <label className="mt-1 flex min-h-12 cursor-pointer items-center justify-between gap-3 rounded-2xl border border-[color:var(--gm5-line)] bg-[#141214] px-4 text-left text-sm font-semibold">
+          <label className="mt-1 flex min-h-12 cursor-pointer items-center justify-between gap-3 rounded-2xl border border-[color:var(--gm5-line)] bg-[#111216] px-4 text-left text-sm font-semibold">
             <span className="flex items-center gap-2">
               <Volume2 className="size-5 text-[var(--menu-red-bright)]" aria-hidden />
               <span>
-                Aktifkan Suara AYA <span className="font-normal text-[#cfc9c4]">(opsional)</span>
+                Aktifkan Suara AYA <span className="font-normal text-[#d4d4da]">(opsional)</span>
               </span>
             </span>
             <input type="checkbox" role="switch" className="gm5-switch" checked={voice} onChange={(event) => setVoice(event.target.checked)} />
           </label>
           {!supported ? (
-            <p className="text-xs leading-snug text-[#cfc9c4]">
+            <p className="text-xs leading-snug text-[#d4d4da]">
               Browser ini belum mendukung layar penuh — menu tetap tampil memenuhi layar. Untuk pengalaman terbaik, pilih “Tambahkan ke Layar Utama” dari menu browser.
             </p>
           ) : null}
@@ -143,7 +143,7 @@ export function FullscreenExitV5() {
   return (
     <button
       type="button"
-      className="gm5 fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] left-3 z-[93] inline-flex lg:bottom-4 lg:left-4 min-h-11 cursor-pointer items-center gap-1.5 rounded-full border border-white/20 bg-[#141214]/90 px-3.5 text-sm font-semibold text-white shadow-lg backdrop-blur-sm hover:border-[var(--menu-red)]"
+      className="gm5 fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] left-3 z-[93] inline-flex lg:bottom-4 lg:left-4 min-h-11 cursor-pointer items-center gap-1.5 rounded-full border border-white/20 bg-[#111216]/90 px-3.5 text-sm font-semibold text-white shadow-lg backdrop-blur-sm hover:border-[var(--menu-red)]"
       onClick={() => {
         document.documentElement.removeAttribute("data-gm5-immersive");
         void exitFullscreen();

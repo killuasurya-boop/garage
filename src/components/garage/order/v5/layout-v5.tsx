@@ -76,7 +76,7 @@ export function FilterChipsV5({
           </button>
         ))}
       </div>
-      <div className="hidden shrink-0 rounded-full border border-[color:var(--gm5-line)] bg-[#141214] p-1 sm:flex" role="group" aria-label="Tampilan menu">
+      <div className="hidden shrink-0 rounded-full border border-[color:var(--gm5-line)] bg-[#111216] p-1 sm:flex" role="group" aria-label="Tampilan menu">
         <button type="button" className={`gm5-icon-btn !h-9 !w-11 !rounded-full ${layout === "grid" ? "gm5-btn-red !border-0" : ""}`} aria-pressed={layout === "grid"} aria-label="Tampilan kotak" onClick={() => onLayout("grid")}>
           <LayoutGrid className="size-4" aria-hidden />
         </button>
@@ -100,7 +100,7 @@ export function LocationCardV5({ open }: { open?: boolean } = {}) {
             {open ? "Buka · bisa pesan sekarang" : "Belum buka"}
           </span>
         )}
-        <span className="mt-0.5 block text-sm leading-5 text-[#cfc9c4]">Jl. Mayjen Sutoyo, Rambung, Tebing Tinggi</span>
+        <span className="mt-0.5 block text-sm leading-5 text-[#d4d4da]">Jl. Mayjen Sutoyo, Rambung, Tebing Tinggi</span>
       </span>
       <ArrowUpRight className="size-5 shrink-0 text-white" aria-hidden />
     </a>
@@ -112,7 +112,7 @@ export function SocialCardV5() {
   return (
     <section className="gm5-panel gm5-panel-red p-4" aria-labelledby="gm5-social-title">
       <h2 id="gm5-social-title" className="gm5-title text-base text-white">Ikuti Garage Coffee</h2>
-      <p className="mt-0.5 text-sm leading-5 text-[#cfc9c4]">Promo, menu baru, dan suasana Garage setiap hari.</p>
+      <p className="mt-0.5 text-sm leading-5 text-[#d4d4da]">Promo, menu baru, dan suasana Garage setiap hari.</p>
       <ul className="mt-3 flex flex-col gap-2">
         {GARAGE_SOCIALS.map((social) => (
           <li key={social.id}>
@@ -129,9 +129,9 @@ export function SocialCardV5() {
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-bold leading-tight text-white">{social.label}</span>
-                <span className="block break-all text-[13px] leading-tight text-[#cfc9c4]">{social.handle}</span>
+                <span className="block break-all text-[13px] leading-tight text-[#d4d4da]">{social.handle}</span>
               </span>
-              <ArrowUpRight className="size-4 shrink-0 text-[#cfc9c4]" aria-hidden />
+              <ArrowUpRight className="size-4 shrink-0 text-[#d4d4da]" aria-hidden />
             </a>
           </li>
         ))}
@@ -181,8 +181,8 @@ export function AyaCardV5({ onAsk, compact = false }: { onAsk: () => void; compa
         </span>
         <span className="min-w-0 flex-1">
           <span className="gm5-display block text-xl text-white">AYA</span>
-          <span className="block text-sm font-semibold text-[#ede6dc]">Asisten Menu Garage Coffee</span>
-          <span className="mt-1 block text-sm leading-5 text-[#cfc9c4]">Cari menu, rekomendasi, atau cara pemesanan? Tanya AYA yuk!</span>
+          <span className="block text-sm font-semibold text-[#f3e8da]">Asisten Menu Garage Coffee</span>
+          <span className="mt-1 block text-sm leading-5 text-[#d4d4da]">Cari menu, rekomendasi, atau cara pemesanan? Tanya AYA yuk!</span>
         </span>
         {compact ? (
           <button type="button" onClick={onAsk} className="gm5-btn-red min-h-11 shrink-0 px-4 text-sm">
@@ -281,7 +281,7 @@ export function SidebarV5({
         </button>
         <button type="button" className="gm5-side-item" aria-expanded={menuOpen} aria-controls="gm5-side-categories" onClick={() => setMenuOpen((open) => !open)}>
           <Grid2x2 className="size-5" aria-hidden /> <span className="flex-1">Menu</span>
-          <ChevronDown className={`size-4 text-[#cfc9c4] transition-transform duration-150 ${menuOpen ? "rotate-180" : ""}`} aria-hidden />
+          <ChevronDown className={`size-4 text-[#d4d4da] transition-transform duration-150 ${menuOpen ? "rotate-180" : ""}`} aria-hidden />
         </button>
         {menuOpen ? (
           <div id="gm5-side-categories" className="flex flex-col gap-0.5">
@@ -293,7 +293,7 @@ export function SidebarV5({
                 aria-current={activeChip === "all" && activeSection === category.id ? "location" : undefined}
                 onClick={() => onJump(category.id)}
               >
-                {categoryIcon(category.label, "size-5 text-[#ede6dc]")}
+                {categoryIcon(category.label, "size-5 text-[#f3e8da]")}
                 {category.label}
               </button>
             ))}
@@ -346,7 +346,7 @@ export function MemberCardV5({ member, memberHref, registerHref, pointsPerThousa
         </span>
         <span className="min-w-0 flex-1">
           <span className="gm5-title block truncate text-sm text-white">Hai, {member.name.split(/\s+/)[0]}</span>
-          <span className="block text-sm text-[#cfc9c4]">
+          <span className="block text-sm text-[#d4d4da]">
             {typeof member.points === "number" ? (
               <>
                 <span className="font-mono font-bold tabular-nums text-[var(--garage-amber)]">{member.points.toLocaleString("id-ID")}</span> poin member
@@ -366,7 +366,7 @@ export function MemberCardV5({ member, memberHref, registerHref, pointsPerThousa
         <Gift className="size-5" aria-hidden />
         <span className="gm5-title text-sm">Jadi Member Garage</span>
       </span>
-      <p className="mt-1 text-sm leading-5 text-[#ede6dc]">
+      <p className="mt-1 text-sm leading-5 text-[#f3e8da]">
         {memberPointsLine(pointsPerThousand)}
       </p>
       <div className="mt-3 flex gap-2">

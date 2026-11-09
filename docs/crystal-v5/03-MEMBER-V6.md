@@ -66,3 +66,8 @@ Acuan: `docs/design-references/member-v6/` (01 kartu 3D, 02 login desktop, 03 da
   - Sapuan kilau merah sekali saat input fokus, dan label ikut menyala.
   - Crossfade dan geser 300 ms saat berpindah login ↔ daftar.
   - Semua animasi mati saat reduced-motion.
+
+## V6+ D — Video promo member (Remotion)
+- `video/member-promo/` (package terpisah, tidak masuk bundel/lint/tsc root), komposisi 15 dtk 1080×1920 dan 1920×1080.
+- Isi: logo reveal → kartu Silver/Gold/Platinum → keuntungan nyata → CTA `garagecoffee.id/member-login`. MP4 tidak di-commit (`out/`).
+- Lisensi Remotion: gratis ≤ 3 orang, selebihnya Company License (keputusan Owner). Lihat README folder.

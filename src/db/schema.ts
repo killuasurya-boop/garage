@@ -2166,6 +2166,8 @@ export const diningTables = pgTable(
     tableNumber: text("table_number").notNull(),
     area: text("area").notNull().default(""),
     capacity: integer("capacity").notNull().default(4),
+    // Lantai (Crystal V5, Owner Nov 2026). Null = default dari nomor (01–25 → 1, 26–50 → 2).
+    floor: integer("floor"),
     active: boolean("active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

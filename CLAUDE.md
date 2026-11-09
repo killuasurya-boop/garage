@@ -497,7 +497,8 @@ Scroll direction:
   (strict, never truncates "123" → "23"), `tableLabelFor` → canonical "Meja 06".
   Max 50 (`MAX_TABLE_NUMBER`, matches table-call voice assets & QR cards).
 - Tables in use per outlet live in `dining_tables` (Pengaturan → Meja & QR,
-  `/api/tables/config`). No rows for an outlet → all 01–50 active. Inactive tables
+  `/api/tables/config`). No rows for an outlet → all 01–50 active. `floor` (migration 0182, Crystal V5) = lantai per
+  meja; null → `defaultTableFloor` (01–25 = 1, 26–50 = 2). Customer picker groups/filters via `src/lib/table-floor-view.ts`. Inactive tables
   are hidden from waiter/POS maps and rejected for dine-in orders.
 - Live table state = `getTableLiveData({ outletId })` / `getTableLiveRow` (always pass
   the staff outlet). Bill window = orders since `table_sessions.cleanedAt`; only

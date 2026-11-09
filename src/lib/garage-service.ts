@@ -38,8 +38,10 @@ import {
 } from "@/lib/garage-delivery-rules";
 import {
   ALL_TABLE_NUMBERS,
+  MAX_TABLE_FLOOR,
   MAX_TABLE_NUMBER,
   TABLE_NUMBER_RANGE_MESSAGE,
+  defaultTableFloor,
   parseTableNumber,
   tableLabelFor,
   tableNumberFromLabel,
@@ -6772,6 +6774,7 @@ export type OutletTableConfig = {
   tableLabel: string;
   area: string;
   capacity: number;
+  floor: number;
   active: boolean;
 };
 
@@ -6810,6 +6813,7 @@ export async function getOutletTables(outletId?: string | null): Promise<{
       tableLabel: tableLabelForNumber(tableNumber),
       area: row?.area ?? "",
       capacity: row?.capacity ?? 4,
+      floor: row?.floor ?? defaultTableFloor(tableNumber),
       // Belum dikonfigurasi sama sekali → semua aktif; kalau sudah, nomor tanpa
       // baris berarti tidak dipakai.
       active: rows.length ? Boolean(row?.active) : true,
@@ -6833,20 +6837,21 @@ async function assertTableActive(tableNumber: string, outletId?: string | null) 
 
 export async function saveOutletTables(
   input: {
-    tables: Array<{ tableNumber: string; area?: string; capacity?: number; active: boolean }>;
+    tables: Array<{ tableNumber: string; area?: string; capacity?: number; floor?: number; active: boolean }>;
   },
   garage: GarageSession,
 ) {
   const db = getDb();
   const outletId = garage.profile.outlet.id;
   const now = new Date();
-  const normalized = new Map<string, { area: string; capacity: number; active: boolean }>();
+  const normalized = new Map<string, { area: string; capacity: number; floor: number; active: boolean }>();
   for (const row of input.tables) {
     const tableNumber = parseTableNumber(row.tableNumber);
     if (!tableNumber) throw new Error(TABLE_NUMBER_RANGE_MESSAGE);
     normalized.set(tableNumber, {
       area: (row.area ?? "").trim().slice(0, 40),
       capacity: Math.min(30, Math.max(1, Math.round(row.capacity ?? 4))),
+      floor: Math.min(MAX_TABLE_FLOOR, Math.max(1, Math.round(row.floor ?? defaultTableFloor(tableNumber)))),
       active: Boolean(row.active),
     });
   }
@@ -6868,7 +6873,7 @@ export async function saveOutletTables(
 
   await db.transaction(async (tx) => {
     for (const tableNumber of ALL_TABLE_NUMBERS) {
-      const row = normalized.get(tableNumber) ?? { area: "", capacity: 4, active: false };
+      const row = normalized.get(tableNumber) ?? { area: "", capacity: 4, floor: defaultTableFloor(tableNumber), active: false };
       await tx
         .insert(diningTables)
         .values({ outletId, tableNumber, ...row, updatedAt: now })
@@ -7090,6 +7095,7 @@ export async function getTableLiveData(options: { outletId?: string | null; tabl
       tableLabel: tableLabelForNumber(tableNumber),
       area: tableConfig?.area ?? "",
       capacity: tableConfig?.capacity ?? 4,
+      floor: tableConfig?.floor ?? defaultTableFloor(tableNumber),
       active: tableConfig?.active ?? true,
       status,
       currentOrderId: order?.id ?? null,
@@ -7341,6 +7347,7 @@ export async function getPublicTableLiveData(outletId?: string | null, holdToken
         tableLabel: row.tableLabel,
         area: row.area,
         capacity: row.capacity,
+        floor: row.floor,
         customerStatus,
         mine: mine.has(row.tableNumber) && customerStatus === "held",
         heldUntil: row.heldUntil,

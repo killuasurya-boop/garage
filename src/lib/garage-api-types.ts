@@ -885,6 +885,7 @@ export type OutletTableConfig = {
   tableLabel: string;
   area: string;
   capacity: number;
+  floor: number;
   active: boolean;
 };
 

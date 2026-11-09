@@ -13,6 +13,7 @@ const tableConfigSchema = z.object({
         tableNumber: z.string().trim().min(1).max(8),
         area: z.string().trim().max(40).optional(),
         capacity: z.number().int().min(1).max(30).optional(),
+        floor: z.number().int().min(1).max(9).optional(),
         active: z.boolean(),
       }),
     )

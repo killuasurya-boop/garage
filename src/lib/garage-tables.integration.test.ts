@@ -167,15 +167,23 @@ describe("Master meja (Atur Meja)", () => {
     const config = await svc.getOutletTables(outletId);
     expect(config.configured).toBe(false);
     expect(config.tables).toHaveLength(50);
+    // Lantai default (Crystal V5): 01–25 = 1, 26–50 = 2.
+    expect(config.tables.find((table: any) => table.tableNumber === "25")?.floor).toBe(1);
+    expect(config.tables.find((table: any) => table.tableNumber === "26")?.floor).toBe(2);
 
     // Aktifkan 01–40 saja, kecuali meja yang sedang dipakai tes lain tetap aktif.
     const tables = config.tables.map((table: any) => ({
       tableNumber: table.tableNumber,
       area: Number(table.tableNumber) <= 20 ? "Indoor" : "Outdoor",
       capacity: 4,
+      floor: table.tableNumber === "05" ? 3 : undefined,
       active: Number(table.tableNumber) <= 40,
     }));
     const saved = await svc.saveOutletTables({ tables }, owner());
+    expect(saved.tables.find((table: any) => table.tableNumber === "05")?.floor).toBe(3);
+    expect(saved.tables.find((table: any) => table.tableNumber === "30")?.floor).toBe(2);
+    const publicRows = await svc.getPublicTableLiveData(outletId);
+    expect(publicRows.find((row: any) => row.tableNumber === "05")?.floor).toBe(3);
     expect(saved.configured).toBe(true);
     expect(saved.tables.filter((table: any) => table.active)).toHaveLength(40);
 

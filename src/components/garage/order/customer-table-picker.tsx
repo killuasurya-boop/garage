@@ -1,13 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Bike, Check, Loader2, Lock, RefreshCw, ShoppingBag, Sparkles, Users, UtensilsCrossed, X } from "lucide-react";
+import { Armchair, Bike, Check, Layers, Loader2, Lock, RefreshCw, Search, ShoppingBag, Users, UtensilsCrossed, WifiOff, X } from "lucide-react";
+
+import { CrystalButton, CrystalCard, CrystalChip, CrystalSheet, LaserBorder, StatusDot } from "@/components/crystal/crystal";
 
 import {
   CUSTOMER_TABLE_STATUS_COPY,
   TABLE_STATUS_COLORS,
   type CustomerTableStatus,
 } from "@/lib/garage-table-status";
+import { filterTables, floorsOf, noTableAvailable, occupancySummary, tableFloor, type TableStatusFilter } from "@/lib/table-floor-view";
 
 // =============================================================================
 // Pilih meja di menu digital (PDF owner, Okt 2026). Grid meja dengan warna +
@@ -32,6 +35,7 @@ type PublicTable = {
   tableLabel: string;
   area: string;
   capacity: number;
+  floor?: number | null;
   customerStatus: CustomerTableStatus;
   mine: boolean;
 };
@@ -88,13 +92,19 @@ export async function releaseTableHold(token: string, outletId?: string) {
   }).catch(() => null);
 }
 
+const STATUS_FILTERS: Array<{ key: TableStatusFilter; label: string; color?: string }> = [
+  { key: "all", label: "Semua" },
+  { key: "available", label: "Kosong", color: TABLE_STATUS_COLORS.available.dot },
+  { key: "occupied", label: "Terisi", color: TABLE_STATUS_COLORS.occupied.dot },
+  { key: "reserved", label: "Reserved", color: TABLE_STATUS_COLORS.reserved.dot },
+];
+
 function StatusLegend() {
   return (
-    <ul className="flex flex-wrap gap-x-3 gap-y-1.5 text-xs font-semibold text-[#d4d4d8]" aria-label="Arti warna meja">
+    <ul className="flex flex-wrap gap-x-3 gap-y-1.5 text-xs font-semibold text-[var(--gc-text-2)]" aria-label="Arti warna meja">
       {(Object.keys(CUSTOMER_TABLE_STATUS_COPY) as CustomerTableStatus[]).map((key) => (
-        <li key={key} className="flex items-center gap-1.5">
-          <span className="size-2.5 rounded-full" style={{ background: TABLE_STATUS_COLORS[key].dot }} aria-hidden />
-          {CUSTOMER_TABLE_STATUS_COPY[key].label}
+        <li key={key}>
+          <StatusDot color={TABLE_STATUS_COLORS[key].dot} label={CUSTOMER_TABLE_STATUS_COPY[key].label} />
         </li>
       ))}
       <li className="flex items-center gap-1.5">
@@ -123,7 +133,9 @@ export function CustomerTablePicker({
 }) {
   const [tables, setTables] = useState<PublicTable[] | null>(null);
   const [loadError, setLoadError] = useState("");
-  const [area, setArea] = useState<string>("all");
+  const [floor, setFloor] = useState<number | null>(null);
+  const [statusFilter, setStatusFilter] = useState<TableStatusFilter>("all");
+  const [query, setQuery] = useState("");
   const [confirmTable, setConfirmTable] = useState<PublicTable | null>(null);
   const [joinTable, setJoinTable] = useState<PublicTable | null>(null);
   const [joinCode, setJoinCode] = useState("");
@@ -171,17 +183,25 @@ export function CustomerTablePicker({
       setActionError(`Meja ${presetTable} tidak tersedia. Pilih meja lain di bawah.`);
       return;
     }
+    setFloor(tableFloor(table));
     if (table.customerStatus === "available" || table.mine) setConfirmTable(table);
     else if (table.customerStatus === "occupied") setJoinTable(table);
     else setActionError(`${table.tableLabel} ${CUSTOMER_TABLE_STATUS_COPY[table.customerStatus].label.toLowerCase()}. Pilih meja lain.`);
   }, [presetHandled, presetTable, tables]);
 
-  const areas = useMemo(() => {
-    const set = new Set((tables ?? []).map((row) => row.area.trim()).filter(Boolean));
-    return [...set].sort((a, b) => a.localeCompare(b));
-  }, [tables]);
-  const visible = (tables ?? []).filter((row) => area === "all" || row.area.trim() === area);
-  const availableCount = (tables ?? []).filter((row) => row.customerStatus === "available").length;
+  const floors = useMemo(() => floorsOf(tables ?? []), [tables]);
+  // Lantai aktif: pilihan pelanggan → lantai meja milik sendiri → lantai pertama yang masih ada meja kosong.
+  const activeFloor =
+    floor ??
+    (current ? tableFloor({ tableNumber: current.tableNumber, floor: tables?.find((row) => row.tableNumber === current.tableNumber)?.floor }) : null) ??
+    floors.find((row) => row.available > 0)?.floor ??
+    floors[0]?.floor ??
+    1;
+  const floorTables = (tables ?? []).filter((row) => tableFloor(row) === activeFloor);
+  const summary = occupancySummary(floorTables);
+  const visible = filterTables(tables ?? [], { floor: activeFloor, status: statusFilter, query });
+  const allUnavailable = noTableAvailable(tables ?? []);
+  const otherFloorWithSpace = floors.find((row) => row.floor !== activeFloor && row.available > 0);
 
   async function confirm(table: PublicTable) {
     setBusy(true);
@@ -230,75 +250,121 @@ export function CustomerTablePicker({
     }
   }
 
+  const summaryItems: Array<{ key: CustomerTableStatus | "total"; label: string; value: number; color?: string }> = [
+    { key: "available", label: "Kosong", value: summary.available, color: "var(--gc-emerald)" },
+    { key: "occupied", label: "Terisi", value: summary.occupied, color: "var(--gc-laser-bright)" },
+    { key: "reserved", label: "Reserved", value: summary.reserved, color: "var(--gc-blue-text)" },
+    { key: "cleaning", label: "Disiapkan", value: summary.cleaning, color: "var(--gc-text-2)" },
+    { key: "total", label: "Total", value: summary.total },
+  ];
+
   return (
     <div
-      className="fixed inset-0 z-[70] flex flex-col bg-[#0b0b0d]/96 backdrop-blur-sm"
+      className="gc-root fixed inset-0 z-[70] flex flex-col"
       role="dialog"
       aria-modal="true"
       aria-labelledby="table-picker-title"
+      data-testid="table-picker"
     >
-      <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col overflow-hidden px-4 pb-4 pt-5">
+      <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col overflow-hidden px-4 pb-3 pt-[calc(14px+env(safe-area-inset-top))]">
         <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-garage-amber">Dine-in</p>
-            <h2 id="table-picker-title" className="mt-1 text-2xl font-black text-white">
+          <div className="min-w-0">
+            <p className="gc-eyebrow text-[var(--gc-amber)]">Dine-in</p>
+            <h2 id="table-picker-title" className="mt-1 text-[28px] font-extrabold leading-tight text-white">
               Pilih meja kamu
             </h2>
-            <p className="mt-1 text-sm text-[#c4c4cc]">
-              Hanya meja <strong className="text-[#bbf7d0]">hijau (Kosong)</strong> yang bisa dipilih. Teman semeja yang
-              sudah pesan? Ketuk meja <strong className="text-[#fecaca]">merah</strong> lalu masukkan kode gabung.
+            <p className="mt-1 text-sm leading-5 text-[var(--gc-text-2)]">
+              Pilih meja <strong className="text-[var(--gc-emerald)]">hijau (Kosong)</strong>. Teman semeja sudah pesan? Ketuk meja{" "}
+              <strong className="text-[var(--gc-laser-bright)]">Terisi</strong> lalu masukkan kode gabung.
             </p>
           </div>
           {onClose ? (
-            <button
-              type="button"
-              onClick={onClose}
-              className="garage-press grid size-10 shrink-0 place-items-center rounded-md border border-white/15 bg-white/5 text-white"
-              aria-label="Tutup pilih meja"
-            >
+            <CrystalButton tone="icon" onClick={onClose} aria-label="Tutup pilih meja">
               <X className="size-5" />
-            </button>
+            </CrystalButton>
           ) : null}
         </div>
 
-        <div className="mt-3 rounded-lg border border-white/10 bg-[#151518] p-3">
-          <StatusLegend />
-        </div>
-
-        {areas.length ? (
-          <div className="mt-3 flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Filter area">
-            {["all", ...areas].map((value) => (
+        {floors.length > 1 ? (
+          <div className="mt-3 grid grid-cols-2 gap-2" role="tablist" aria-label="Pilih lantai">
+            {floors.map((row) => (
               <button
-                key={value}
+                key={row.floor}
                 type="button"
                 role="tab"
-                aria-selected={area === value}
-                onClick={() => setArea(value)}
-                className={`garage-press shrink-0 rounded-full border px-3 py-1.5 text-sm font-bold ${
-                  area === value
-                    ? "border-garage-red bg-garage-red/20 text-white"
-                    : "border-white/15 bg-white/5 text-[#d4d4d8]"
-                }`}
+                aria-selected={row.floor === activeFloor}
+                data-testid={`table-floor-${row.floor}`}
+                onClick={() => setFloor(row.floor)}
+                className="gc-glass flex min-h-12 items-center justify-center gap-2 px-3 text-sm font-bold"
+                data-interactive="true"
+                data-variant={row.floor === activeFloor ? "active" : "elevated"}
               >
-                {value === "all" ? "Semua area" : value}
+                <Layers className="size-4" aria-hidden />
+                <span>{row.label}</span>
+                <span className="font-semibold text-[var(--gc-text-2)]">({row.range})</span>
               </button>
             ))}
           </div>
         ) : null}
 
+        {tables ? (
+          <dl className="gc-glass mt-3 grid grid-cols-5 divide-x divide-white/10 py-2 text-center" aria-label="Ringkasan meja lantai ini">
+            {summaryItems.map((item) => (
+              <div key={item.key} className="px-1">
+                <dd className="text-xl font-extrabold tabular-nums leading-none" style={{ color: item.color ?? "var(--gc-text)" }}>
+                  {item.value}
+                </dd>
+                <dt className="mt-1 truncate text-[11px] font-semibold text-[var(--gc-text-2)]">{item.label}</dt>
+              </div>
+            ))}
+          </dl>
+        ) : null}
+
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+          <label className="gc-glass flex min-h-11 flex-1 items-center gap-2 px-3" data-variant="elevated">
+            <Search className="size-4 shrink-0 text-[var(--gc-text-2)]" aria-hidden />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value.slice(0, 12))}
+              inputMode="numeric"
+              placeholder="Cari nomor meja (contoh: 08)"
+              aria-label="Cari nomor meja"
+              className="h-11 min-w-0 flex-1 bg-transparent text-[15px] text-white placeholder:text-[var(--gc-text-2)] focus:outline-none"
+            />
+          </label>
+          <div className="gc-scroll flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Filter status meja">
+            {STATUS_FILTERS.map((item) => (
+              <CrystalChip key={item.key} active={statusFilter === item.key} onClick={() => setStatusFilter(item.key)}>
+                {item.color ? <span className="gc-dot" style={{ color: item.color }} aria-hidden /> : null}
+                {item.label}
+              </CrystalChip>
+            ))}
+          </div>
+        </div>
+
         {actionError ? (
-          <p role="alert" className="mt-3 rounded-md border border-garage-amber/45 bg-garage-amber/12 px-3 py-2 text-sm font-semibold text-[#ffe2b0]">
+          <p role="alert" className="mt-3 rounded-xl border border-[var(--gc-amber)]/45 bg-[var(--gc-amber)]/12 px-3 py-2 text-sm font-semibold text-[#ffe2b0]">
             {actionError}
           </p>
         ) : null}
+        {loadError && tables ? (
+          <p role="status" className="mt-3 flex items-center justify-between gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm text-[var(--gc-text-2)]">
+            <span className="inline-flex items-center gap-2">
+              <WifiOff className="size-4 text-[var(--gc-amber)]" aria-hidden /> Sinkronisasi terganggu — status meja mungkin belum terbaru.
+            </span>
+            <button type="button" onClick={() => void load()} className="shrink-0 font-bold text-white">
+              Muat ulang
+            </button>
+          </p>
+        ) : null}
 
-        <div className="mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
+        <div className="gc-scroll mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
           {!tables ? (
-            <div className="flex items-center justify-center gap-2 py-16 text-[#c4c4cc]">
+            <div className="flex items-center justify-center gap-2 py-16 text-[var(--gc-text-2)]">
               {loadError ? (
                 <>
                   <span>{loadError}</span>
-                  <button type="button" onClick={() => void load()} className="garage-press inline-flex items-center gap-1 font-bold text-white">
+                  <button type="button" onClick={() => void load()} className="inline-flex items-center gap-1 font-bold text-white">
                     <RefreshCw className="size-4" /> Coba lagi
                   </button>
                 </>
@@ -308,99 +374,125 @@ export function CustomerTablePicker({
                 </>
               )}
             </div>
-          ) : (
-            <>
-              <p className="mb-2 text-sm font-semibold text-[#c4c4cc]">
-                {availableCount} meja kosong{area !== "all" ? ` · area ${area}` : ""}
+          ) : allUnavailable ? (
+            <CrystalCard className="mx-auto mt-6 max-w-md p-5 text-center" data-testid="table-all-unavailable">
+              <p className="text-lg font-extrabold text-white">Semua meja sedang tidak tersedia.</p>
+              <p className="mt-1 text-sm text-[var(--gc-text-2)]">
+                Teman semeja sudah pesan? Ketuk meja Terisi untuk gabung. Atau tanya waiter/kasir untuk bantuan.
               </p>
-              <ul className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-                {visible.map((table) => {
-                  const colors = TABLE_STATUS_COLORS[table.customerStatus];
-                  const copy = CUSTOMER_TABLE_STATUS_COPY[table.customerStatus];
-                  const isMine = table.mine || current?.tableNumber === table.tableNumber;
-                  const clickable = table.customerStatus === "available" || table.customerStatus === "occupied" || isMine;
-                  return (
-                    <li key={table.tableNumber}>
-                      <button
-                        type="button"
-                        onClick={() => tap(table)}
-                        aria-disabled={!clickable}
-                        aria-label={`${table.tableLabel}, ${isMine ? "meja kamu" : copy.label}, ${table.capacity} kursi${table.area ? `, ${table.area}` : ""}`}
-                        className={`garage-press relative flex min-h-[92px] w-full flex-col items-center justify-center rounded-lg px-1 py-2 text-center transition ${
-                          clickable ? "" : "cursor-not-allowed opacity-80"
-                        }`}
-                        style={{
-                          background: colors.bg,
-                          border: `${isMine ? 3 : 1.5}px solid ${isMine ? "#ffffff" : colors.border}`,
-                        }}
-                      >
-                        {isMine ? (
-                          <span className="absolute right-1.5 top-1.5 grid size-5 place-items-center rounded-full bg-white text-black">
-                            <Check className="size-3.5" strokeWidth={3.5} aria-hidden />
+              <CrystalButton className="mt-4" icon={<RefreshCw className="size-4" />} onClick={() => void load()}>
+                Muat ulang status
+              </CrystalButton>
+            </CrystalCard>
+          ) : null}
+          {tables ? (
+            <>
+              {!allUnavailable && summary.available === 0 && otherFloorWithSpace ? (
+                <button
+                  type="button"
+                  onClick={() => setFloor(otherFloorWithSpace.floor)}
+                  className="mb-3 w-full rounded-xl border border-[var(--gc-emerald)]/50 bg-[var(--gc-emerald)]/10 px-3 py-2.5 text-left text-sm font-semibold text-white"
+                >
+                  Lantai ini penuh — {otherFloorWithSpace.label} masih ada {otherFloorWithSpace.available} meja kosong. Lihat →
+                </button>
+              ) : null}
+              {visible.length ? (
+                <ul className="grid grid-cols-3 gap-2.5 sm:grid-cols-5">
+                  {visible.map((table) => {
+                    const colors = TABLE_STATUS_COLORS[table.customerStatus];
+                    const copy = CUSTOMER_TABLE_STATUS_COPY[table.customerStatus];
+                    const isMine = table.mine || current?.tableNumber === table.tableNumber;
+                    const isPicking = confirmTable?.tableNumber === table.tableNumber;
+                    const clickable = table.customerStatus === "available" || table.customerStatus === "occupied" || isMine;
+                    return (
+                      <li key={table.tableNumber}>
+                        <button
+                          type="button"
+                          onClick={() => tap(table)}
+                          aria-disabled={!clickable}
+                          data-testid={`table-card-${table.tableNumber}`}
+                          aria-label={`${table.tableLabel}, ${isMine ? "meja kamu" : copy.label}, ${table.capacity} kursi${table.area ? `, ${table.area}` : ""}`}
+                          className={`gc-glass relative flex min-h-[96px] w-full flex-col items-center justify-center px-1 py-2 text-center ${clickable ? "" : "cursor-not-allowed"}`}
+                          data-interactive={clickable ? "true" : undefined}
+                          data-selected={isPicking || isMine ? "true" : undefined}
+                          style={{
+                            background: `linear-gradient(165deg, ${colors.bg}, rgb(255 255 255 / 0.02) 55%, rgb(0 0 0 / 0.25)), var(--gc-surface)`,
+                            borderColor: isMine ? "#ffffff" : colors.border,
+                            borderWidth: isMine ? 3 : 1,
+                            opacity: clickable ? 1 : 0.82,
+                          }}
+                        >
+                          {isPicking ? <LaserBorder radius={16} /> : null}
+                          {isMine ? (
+                            <span className="absolute right-1.5 top-1.5 grid size-5 place-items-center rounded-full bg-white text-black">
+                              <Check className="size-3.5" strokeWidth={3.5} aria-hidden />
+                            </span>
+                          ) : table.customerStatus !== "available" && table.customerStatus !== "occupied" ? (
+                            <Lock className="absolute right-1.5 top-1.5 size-3.5 text-white/70" aria-hidden />
+                          ) : null}
+                          <span className="text-[28px] font-extrabold leading-none tabular-nums text-white">{table.tableNumber}</span>
+                          <span className="mt-1 text-xs font-bold" style={{ color: colors.text }}>
+                            {isMine ? "Meja kamu" : copy.label}
                           </span>
-                        ) : table.customerStatus !== "available" && table.customerStatus !== "occupied" ? (
-                          <Lock className="absolute right-1.5 top-1.5 size-3.5 text-white/70" aria-hidden />
-                        ) : null}
-                        <span className="text-2xl font-black leading-none text-white">{table.tableNumber}</span>
-                        <span className="mt-1 text-xs font-bold" style={{ color: colors.text }}>
-                          {isMine ? "Meja kamu" : copy.label}
-                        </span>
-                        <span className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-semibold text-[#d4d4d8]">
-                          <Users className="size-3" aria-hidden /> {table.capacity}
-                          {table.area ? <span className="max-w-[64px] truncate">· {table.area}</span> : null}
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
+                          <span className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--gc-text-2)]">
+                            <Users className="size-3" aria-hidden /> {table.capacity}
+                            {table.area ? <span className="max-w-[64px] truncate">· {table.area}</span> : null}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : !allUnavailable ? (
+                <p className="py-10 text-center text-sm text-[var(--gc-text-2)]">Tidak ada meja yang cocok dengan filter ini.</p>
+              ) : null}
+              <div className="mt-4 pb-2">
+                <StatusLegend />
+              </div>
             </>
-          )}
+          ) : null}
         </div>
       </div>
 
-      {confirmTable ? (
-        <div className="fixed inset-0 z-[80] grid place-items-end bg-black/60 p-3 sm:place-items-center" role="alertdialog" aria-modal="true" aria-labelledby="confirm-table-title">
-          <div className="w-full max-w-sm rounded-xl border border-white/15 bg-[#18181b] p-5 shadow-2xl">
-            <Sparkles className="size-6 text-garage-amber" aria-hidden />
-            <h3 id="confirm-table-title" className="mt-2 text-xl font-black text-white">
-              Kamu di {confirmTable.tableLabel}, benar?
-            </h3>
-            <p className="mt-1 text-sm text-[#c4c4cc]">
+      <CrystalSheet open={Boolean(confirmTable)} onClose={() => setConfirmTable(null)} title="Konfirmasi meja">
+        {confirmTable ? (
+          <div data-testid="table-confirm-sheet">
+            <div className="flex items-center gap-3">
+              <span className="grid size-14 place-items-center rounded-2xl border border-white/15 bg-white/5">
+                <Armchair className="size-7 text-white" aria-hidden />
+              </span>
+              <div>
+                <h3 id="confirm-table-title" className="text-[22px] font-extrabold leading-tight text-white">
+                  Kamu di {confirmTable.tableLabel}, benar?
+                </h3>
+                <p className="text-sm text-[var(--gc-text-2)]">
+                  Lantai {tableFloor(confirmTable)} · {confirmTable.capacity} kursi{confirmTable.area ? ` · ${confirmTable.area}` : ""}
+                </p>
+              </div>
+            </div>
+            <p className="mt-3 text-sm leading-5 text-[var(--gc-text-2)]">
               Meja ini dikunci sementara untukmu selama memilih menu. Nomor meja bisa diganti sebelum checkout.
             </p>
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setConfirmTable(null)}
-                className="garage-press rounded-md border border-white/15 bg-white/5 px-3 py-3 text-sm font-bold text-white"
-              >
-                Bukan, pilih lain
-              </button>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void confirm(confirmTable)}
-                className="garage-press inline-flex items-center justify-center gap-2 rounded-md bg-garage-red px-3 py-3 text-sm font-black text-white disabled:opacity-60"
-              >
-                {busy ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
-                Ya, benar
-              </button>
+            <div className="mt-4 grid gap-2">
+              <CrystalButton tone="primary" loading={busy} onClick={() => void confirm(confirmTable)} icon={<Check className="size-5" />}>
+                Ya, pilih meja ini
+              </CrystalButton>
+              <CrystalButton onClick={() => setConfirmTable(null)}>Bukan, pilih lain</CrystalButton>
             </div>
           </div>
-        </div>
-      ) : null}
+        ) : null}
+      </CrystalSheet>
 
-      {joinTable ? (
-        <div className="fixed inset-0 z-[80] grid place-items-end bg-black/60 p-3 sm:place-items-center" role="alertdialog" aria-modal="true" aria-labelledby="join-table-title">
-          <div className="w-full max-w-sm rounded-xl border border-white/15 bg-[#18181b] p-5 shadow-2xl">
-            <h3 id="join-table-title" className="text-xl font-black text-white">
+      <CrystalSheet open={Boolean(joinTable)} onClose={() => setJoinTable(null)} title="Gabung meja">
+        {joinTable ? (
+          <div>
+            <h3 id="join-table-title" className="text-[22px] font-extrabold text-white">
               Gabung ke {joinTable.tableLabel}?
             </h3>
-            <p className="mt-1 text-sm text-[#c4c4cc]">
+            <p className="mt-1 text-sm text-[var(--gc-text-2)]">
               Meja ini sudah terisi. Masukkan <strong className="text-white">kode gabung 4 angka</strong>.
             </p>
-            <ul className="mt-2 space-y-1 text-sm text-[#c4c4cc]">
+            <ul className="mt-2 space-y-1 text-sm text-[var(--gc-text-2)]">
               <li>• Lihat di layar pesanan atau struk teman semeja, atau</li>
               <li>• tanya waiter / kasir — mereka bisa melihat kodenya.</li>
             </ul>
@@ -411,29 +503,17 @@ export function CustomerTablePicker({
               autoComplete="one-time-code"
               aria-label="Kode gabung meja"
               placeholder="••••"
-              className="mt-3 w-full rounded-md border border-white/20 bg-black/40 px-3 py-3 text-center text-2xl font-black tracking-[0.5em] text-white placeholder:text-white/30 focus:border-garage-red focus:outline-none"
+              className="mt-3 w-full rounded-2xl border border-white/20 bg-black/40 px-3 py-3 text-center text-2xl font-black tracking-[0.5em] text-white placeholder:text-white/30 focus:border-[var(--gc-laser)] focus:outline-none"
             />
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setJoinTable(null)}
-                className="garage-press rounded-md border border-white/15 bg-white/5 px-3 py-3 text-sm font-bold text-white"
-              >
-                Pilih meja lain
-              </button>
-              <button
-                type="button"
-                disabled={busy || joinCode.length !== 4}
-                onClick={() => void join(joinTable)}
-                className="garage-press inline-flex items-center justify-center gap-2 rounded-md bg-garage-red px-3 py-3 text-sm font-black text-white disabled:opacity-60"
-              >
-                {busy ? <Loader2 className="size-4 animate-spin" /> : null}
+            <div className="mt-4 grid gap-2">
+              <CrystalButton tone="primary" loading={busy} disabled={joinCode.length !== 4} onClick={() => void join(joinTable)}>
                 Gabung
-              </button>
+              </CrystalButton>
+              <CrystalButton onClick={() => setJoinTable(null)}>Pilih meja lain</CrystalButton>
             </div>
           </div>
-        </div>
-      ) : null}
+        ) : null}
+      </CrystalSheet>
     </div>
   );
 }

@@ -42,7 +42,6 @@ export default function SuryaScene({ control, mobile, onReady }: Props) {
     const metal = track(new THREE.MeshStandardMaterial({ color: 0x1a1a1e, metalness: 0.85, roughness: 0.38 }));
     const chrome = track(new THREE.MeshStandardMaterial({ color: 0xc8c8cc, metalness: 1, roughness: 0.22 }));
     const redGlow = track(new THREE.MeshBasicMaterial({ color: 0xff3045 }));
-    const screenMat = track(new THREE.MeshBasicMaterial({ color: 0x5a1520 }));
     const edgeMat = track(new THREE.LineBasicMaterial({ color: 0xd11a2a, transparent: true, opacity: 0.55 }));
 
     scene.add(new THREE.AmbientLight(0xffffff, 0.55));
@@ -103,19 +102,7 @@ export default function SuryaScene({ control, mobile, onReady }: Props) {
       const base = platform(m.id === "owner" ? 22 : 16, m.id === "owner" ? 11 : 9, 1.6, 4);
       base.rotation.x = Math.PI / 2;
       g.add(base);
-      // Layar / unit sederhana di atas dudukan (representasi modul perangkat lunak)
-      const unit = new THREE.Mesh(track(new THREE.BoxGeometry(m.id === "owner" ? 15 : 9, m.id === "kitchen" || m.id === "bar" ? 7 : 8, 1.4)), metal);
-      unit.position.set(0, 4.6, 1);
-      unit.rotation.x = 0.25;
-      g.add(unit);
-      const scr = new THREE.Mesh(track(new THREE.PlaneGeometry(m.id === "owner" ? 13.6 : 7.6, m.id === "owner" ? 6.2 : 5.6)), screenMat);
-      scr.position.set(0, 4.7, 1.75);
-      scr.rotation.x = 0.25;
-      g.add(scr);
-      const bar = new THREE.Mesh(track(new THREE.BoxGeometry(0.5, 1, 0.2)), redGlow);
-      bar.position.set(-1, 4.2, 1.9);
-      g.add(bar);
-      g.position.copy(toWorld(m.x, m.y - 8));
+      g.position.copy(toWorld(m.x, m.y - 9));
       g.position.z = 4;
       root.add(g);
       modules.set(m.id, g);

@@ -11,6 +11,7 @@ import {
   SURYA_CAPABILITIES, SURYA_CORE, SURYA_HUD, SURYA_MODULES, SURYA_PATHS, SURYA_PORTFOLIO_URL,
   SURYA_READY, SURYA_SERVICES, SURYA_WA_URL, type SuryaModuleId,
 } from "./surya-data";
+import { SuryaIllustration } from "./surya-illustrations";
 import type { SuryaSceneControl } from "./surya-scene";
 import "./surya-showcase.css";
 
@@ -170,6 +171,11 @@ export function SuryaShowcase() {
                 <strong>GARAGE OS</strong><span>BUSINESS SYSTEM ECOSYSTEM</span>
               </div>
               <div className="sdv-ready" style={{ left: `${SURYA_READY.x}%`, top: `${(SURYA_READY.y / 70) * 100}%` }}>ORDER READY</div>
+              {SURYA_MODULES.map((m) => (
+                <div key={`ill-${m.id}`} className={`sdv-ill${focus === m.id ? " is-focus" : ""}`} style={{ left: `${m.x}%`, top: `${((m.y - 9) / 70) * 100}%` }}>
+                  <SuryaIllustration id={m.id} />
+                </div>
+              ))}
               {SURYA_MODULES.map((m) => { const I = MODULE_ICON[m.id]; return (
                 <button
                   type="button" key={m.id}

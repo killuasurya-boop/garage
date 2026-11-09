@@ -35,7 +35,7 @@
 .sdv-sign a:hover { text-decoration: underline; }
 /* Panggung */
 .sdv-stage-wrap { min-width:0; }
-.sdv-stage { position:relative; width:100%; aspect-ratio: 100/70; border-radius:14px; background: radial-gradient(ellipse at 50% 55%, rgba(60,20,24,.55), rgba(8,8,10,.2) 70%); }
+.sdv-stage { margin-top: 28px; position:relative; width:100%; aspect-ratio: 100/70; border-radius:14px; background: radial-gradient(ellipse at 50% 55%, rgba(60,20,24,.55), rgba(8,8,10,.2) 70%); }
 .sdv-canvas-host { position:absolute; inset:0; opacity:0; transition: opacity .8s; }
 .sdv-canvas-host.is-ready { opacity:1; }
 .sdv-canvas { width:100%; height:100%; }
@@ -105,3 +105,17 @@
 @media (max-width: 479px) { .sdv-mini { grid-template-columns: repeat(5, minmax(0,1fr)); gap:6px; } .sdv-mini li { font-size:11.5px; } .sdv-mini li span { width:38px; height:38px; } .sdv-cards, .sdv-caps { grid-template-columns: 1fr; } .sdv-flow-card { font-size:10px; } }
 .sdv.sdv-paused *, .sdv.sdv-paused { animation-play-state: paused !important; }
 @media (prefers-reduced-motion: reduce) { .sdv * { animation: none !important; transition: none !important; } .sdv-laser { display:none; } }
+/* Ilustrasi vektor modul */
+.sdv-ill { position:absolute; transform: translate(-50%,-50%); width: clamp(96px, 13.5%, 190px); pointer-events:none; transition: filter .25s, transform .25s; filter: drop-shadow(0 6px 10px rgba(0,0,0,.6)); }
+.sdv-ill.is-focus { transform: translate(-50%,-52%) scale(1.06); filter: drop-shadow(0 0 12px rgba(255,48,69,.6)); }
+.sdi svg { display:block; width:100%; height:auto; overflow:visible; }
+.sdi-blink { animation: sdi-blink 2.8s ease-in-out infinite; }
+@keyframes sdi-blink { 50% { opacity:.45; } }
+.sdi-steam { opacity:0; animation: sdi-steam 3s ease-out infinite; }
+.sdi-steam--b { animation-delay: 1.4s; }
+@keyframes sdi-steam { 0% { opacity:0; transform: translateY(4px); } 30% { opacity:.7; } 100% { opacity:0; transform: translateY(-8px); } }
+.sdi-tablet { transform-origin: 69px 57px; animation: sdi-tab 4s ease-in-out infinite; }
+@keyframes sdi-tab { 50% { transform: translateY(-1.5px) rotate(2deg); } }
+.sdi-bar { transform-box: fill-box; transform-origin: bottom; animation: sdi-bar 3.6s ease-in-out infinite; }
+@keyframes sdi-bar { 50% { transform: scaleY(.78); } }
+.sdv.sdv-paused .sdi *, .sdv.sdv-paused .sdi { animation-play-state: paused !important; }

@@ -278,6 +278,19 @@
   }
   .gc-member .garage-mono { color: var(--gc-cream); letter-spacing: 0.22em; }
 
+  /* ── Sidebar Garage OS: indikator aktif laser (di atas tema OS pilihan Owner) ── */
+  .gc-nav-item[data-active="true"]::before {
+    content: "";
+    position: absolute;
+    left: -1px;
+    top: 18%;
+    bottom: 18%;
+    width: 3px;
+    border-radius: 99px;
+    background: linear-gradient(180deg, #ff8a93, var(--gc-laser) 50%, #ff8a93);
+    box-shadow: 0 0 10px var(--gc-laser), 0 0 18px rgb(255 38 56 / 0.55);
+  }
+
   /* ── Scrollbar halus ──────────────────────────────────────────────── */
   .gc-scroll { scrollbar-width: thin; scrollbar-color: rgb(255 255 255 / 0.18) transparent; }
   .gc-scroll::-webkit-scrollbar { width: 6px; height: 6px; }

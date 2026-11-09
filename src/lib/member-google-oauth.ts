@@ -14,6 +14,18 @@ export const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 export const GOOGLE_JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs";
 const GOOGLE_ISSUERS = new Set(["accounts.google.com", "https://accounts.google.com"]);
 
+/**
+ * Endpoint Google. Hanya untuk uji E2E (server lokal yang meniru Google), base bisa diganti lewat
+ * MEMBER_GOOGLE_TEST_ENDPOINT — diabaikan total di produksi, jadi tidak bisa dipakai mengalihkan login asli.
+ */
+export function googleEndpoints(env: NodeJS.ProcessEnv = process.env) {
+  const testBase = env.NODE_ENV !== "production" ? env.MEMBER_GOOGLE_TEST_ENDPOINT?.trim().replace(/\/+$/, "") : "";
+  if (testBase && /^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(testBase)) {
+    return { auth: `${testBase}/authorize`, token: `${testBase}/token`, jwks: `${testBase}/jwks` };
+  }
+  return { auth: GOOGLE_AUTH_URL, token: GOOGLE_TOKEN_URL, jwks: GOOGLE_JWKS_URL };
+}
+
 export const GOOGLE_STATE_COOKIE = "garage_member_google";
 export const GOOGLE_PENDING_COOKIE = "garage_member_google_pending";
 const STATE_TTL_SECONDS = 10 * 60;
@@ -82,7 +94,7 @@ export function buildGoogleAuthorization(config: GoogleConfig, next: string) {
   const state = randomToken(24);
   const verifier = randomToken(48);
   const nonce = randomToken(24);
-  const url = new URL(GOOGLE_AUTH_URL);
+  const url = new URL(googleEndpoints().auth);
   url.searchParams.set("client_id", config.clientId);
   url.searchParams.set("redirect_uri", config.redirectUri);
   url.searchParams.set("response_type", "code");
@@ -114,7 +126,7 @@ let jwksCache: { at: number; jwks: Jwks } | null = null;
 
 async function loadJwks(fetchImpl: typeof fetch): Promise<Jwks> {
   if (jwksCache && Date.now() - jwksCache.at < 60 * 60 * 1000) return jwksCache.jwks;
-  const response = await fetchImpl(GOOGLE_JWKS_URL, { cache: "no-store" });
+  const response = await fetchImpl(googleEndpoints().jwks, { cache: "no-store" });
   if (!response.ok) throw new GoogleAuthError("JWKS_UNAVAILABLE");
   const jwks = (await response.json()) as Jwks;
   jwksCache = { at: Date.now(), jwks };
@@ -178,7 +190,7 @@ export async function exchangeGoogleCode(
   input: { code: string; verifier: string; nonce: string },
   fetchImpl: typeof fetch = fetch,
 ): Promise<GoogleIdentity> {
-  const response = await fetchImpl(GOOGLE_TOKEN_URL, {
+  const response = await fetchImpl(googleEndpoints().token, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({

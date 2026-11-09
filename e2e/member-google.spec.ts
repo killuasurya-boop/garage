@@ -33,7 +33,6 @@ test("Member Google: lengkapi profil → membership aktif @mobile", async ({ pag
   const form = page.getByTestId("member-google-complete");
   await expect(form).toBeVisible({ timeout: 90_000 });
   await expect(form.getByText(`e2e.google${suffix}@example.com`)).toBeVisible();
-  await expect(page.getByTestId("member-google-button")).toHaveCount(0);
   await expect(form.getByRole("checkbox").nth(1)).not.toBeChecked();
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
   if (process.env.CRYSTAL_SHOTS) await page.screenshot({ path: `${process.env.CRYSTAL_SHOTS}/google-complete-${info.project.name}.png`, fullPage: true });

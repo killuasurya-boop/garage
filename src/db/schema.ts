@@ -863,6 +863,9 @@ export const memberAccounts = pgTable(
     // Persetujuan S&K membership (wajib) dan pemasaran (terpisah, default tidak setuju).
     termsAcceptedAt: timestamp("terms_accepted_at", { withTimezone: true }),
     marketingConsentAt: timestamp("marketing_consent_at", { withTimezone: true }),
+    // Kapan member memilih PIN sendiri. Null = akun dibuat lewat Google (PIN acak, belum diketahui member) →
+    // boleh "Buat PIN" sekali tanpa PIN lama (V6+, Owner Nov 2026).
+    pinSetAt: timestamp("pin_set_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

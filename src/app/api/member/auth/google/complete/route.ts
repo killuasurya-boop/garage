@@ -5,6 +5,7 @@ import { clearOauthCookie, GOOGLE_PENDING_COOKIE, openPendingProfile, randomUnus
 import { memberWhatsappSchema } from "@/lib/member-phone";
 import { completeGoogleMember } from "@/lib/member-service";
 import { errorJson, readMemberJson, successJson } from "@/lib/member-types";
+import { guardLockedFor, guardRecordFail, guardReset, lockedMessage, MEMBER_LOGIN_POLICY } from "@/lib/pin-guard";
 import { rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -14,6 +15,8 @@ const completeSchema = z.object({
   phone: memberWhatsappSchema,
   acceptTerms: z.literal(true, { message: "Setujui Syarat & Ketentuan membership." }),
   marketingConsent: z.boolean().default(false),
+  /** PIN akun lama bila nomor HP sudah terdaftar (tautkan Google ke akun itu). */
+  existingPin: z.string().min(6).max(72).optional(),
 });
 
 // Aktivasi member baru dari Google: email diambil dari ID token terverifikasi (cookie), bukan dari body.
@@ -25,6 +28,11 @@ export async function POST(request: Request) {
   const body = await readMemberJson(request, completeSchema);
   if (body.response) return body.response;
 
+  // Kunci per nomor HP untuk tebakan PIN akun lama (sama dengan login PIN).
+  const guardKey = `member-login:${body.data.phone.replace(/[^0-9]/g, "")}`;
+  const lockedFor = guardLockedFor(guardKey);
+  if (body.data.existingPin && lockedFor) return errorJson(429, lockedMessage(lockedFor));
+
   const result = await completeGoogleMember({
     identity: { sub: pending.sub, email: pending.email, emailVerified: true, name: pending.name, picture: pending.picture },
     name: body.data.name,
@@ -32,8 +40,14 @@ export async function POST(request: Request) {
     acceptTerms: body.data.acceptTerms,
     marketingConsent: body.data.marketingConsent,
     randomPassword: randomUnusablePassword(),
+    existingPin: body.data.existingPin ?? null,
   });
-  if (!result.data) return errorJson(409, result.error ?? "Aktivasi member gagal.");
+  if (!result.data) {
+    if (result.code === "PIN_WRONG") guardRecordFail(guardKey, MEMBER_LOGIN_POLICY);
+    // Kode dikirim agar form menampilkan kolom PIN akun lama (PHONE_NEEDS_PIN) tanpa menebak dari teks.
+    return Response.json({ success: false, message: result.error, code: result.code ?? "COMPLETE_FAILED" }, { status: result.code === "PIN_WRONG" ? 403 : 409 });
+  }
+  if (body.data.existingPin) guardReset(guardKey);
 
   const tokens = await createMemberTokenPair(result.data.account.id, request);
   const headers = new Headers();

@@ -290,6 +290,7 @@ function ReferralPanel({
 export function MemberDashboard() {
   const router = useRouter();
   const [member, setMember] = useState<MemberProfile | null>(null);
+  const [needsPin, setNeedsPin] = useState(false);
   const [transactions, setTransactions] = useState<MemberTransaction[]>([]);
   const [redemptions, setRedemptions] = useState<PointRedemption[]>([]);
   const [walletVouchers, setWalletVouchers] = useState<WalletVoucher[]>([]);
@@ -316,7 +317,8 @@ export function MemberDashboard() {
 
   const load = useCallback(async () => {
     try {
-      const profile = await getJson<{ member: MemberProfile }>("/api/member/profile");
+      const profile = await getJson<{ member: MemberProfile; security?: { needsPin?: boolean } }>("/api/member/profile");
+      setNeedsPin(Boolean(profile.security?.needsPin));
       const history = await getJson<{
         transactions: MemberTransaction[];
         redemptions: PointRedemption[];
@@ -428,15 +430,16 @@ export function MemberDashboard() {
     setPasswordBusy(true);
     try {
       await patchJson<{ updated: boolean }>("/api/member/profile/password", {
-        currentPassword,
+        currentPassword: needsPin ? undefined : currentPassword,
         newPassword,
       });
+      setNeedsPin(false);
       setPasswordForm({
         currentPassword: "",
         newPassword: "",
         confirmPassword: "",
       });
-      toast.push({ tone: "success", title: "Password member diperbarui." });
+      toast.push({ tone: "success", title: needsPin ? "PIN dibuat. Sekarang bisa masuk dengan nomor HP + PIN." : "Password member diperbarui." });
     } catch (error) {
       toast.push({
         tone: "error",
@@ -746,11 +749,16 @@ export function MemberDashboard() {
                 <Lock size={16} className="text-[#f5a742]" />
                 <div>
                   <p className="garage-mono">Keamanan</p>
-                  <h4 className="text-lg font-semibold text-white">Update password</h4>
+                  <h4 className="text-lg font-semibold text-white">{needsPin ? "Buat PIN untuk login tanpa Google" : "Update password"}</h4>
                 </div>
               </div>
+              {needsPin ? (
+                <p className="mt-2 text-sm text-[#d0d0d6]" data-testid="member-needs-pin">
+                  Akunmu dibuat lewat Google. Buat PIN (min. 6 karakter) supaya bisa masuk juga dengan nomor HP di kasir atau perangkat lain.
+                </p>
+              ) : null}
               <div className="mt-4 grid gap-3">
-                <label className="grid gap-1.5">
+                <label className={needsPin ? "hidden" : "grid gap-1.5"}>
                   <span className="garage-mono">Password lama</span>
                   <input
                     type="password"
@@ -771,7 +779,7 @@ export function MemberDashboard() {
                     type="password"
                     value={passwordForm.newPassword}
                     autoComplete="new-password"
-                    minLength={8}
+                    minLength={6}
                     maxLength={72}
                     onChange={(event) =>
                       setPasswordForm((prev) => ({
@@ -788,7 +796,7 @@ export function MemberDashboard() {
                     type="password"
                     value={passwordForm.confirmPassword}
                     autoComplete="new-password"
-                    minLength={8}
+                    minLength={6}
                     maxLength={72}
                     onChange={(event) =>
                       setPasswordForm((prev) => ({
@@ -804,14 +812,14 @@ export function MemberDashboard() {
                   onClick={handlePasswordSave}
                   disabled={
                     passwordBusy ||
-                    passwordForm.currentPassword.length < 6 ||
-                    passwordForm.newPassword.length < 8 ||
-                    passwordForm.confirmPassword.length < 8
+                    (!needsPin && passwordForm.currentPassword.length < 6) ||
+                    passwordForm.newPassword.length < 6 ||
+                    passwordForm.confirmPassword.length < 6
                   }
                   className="btn justify-center"
                 >
                   <Lock size={14} />
-                  <span>{passwordBusy ? "Memproses..." : "Update password"}</span>
+                  <span>{passwordBusy ? "Memproses..." : needsPin ? "Buat PIN" : "Update password"}</span>
                 </button>
               </div>
             </div>

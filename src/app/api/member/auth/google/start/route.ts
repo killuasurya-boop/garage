@@ -12,7 +12,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const config = googleConfig();
   if (!config) {
-    return Response.redirect(new URL(`/member-login?error=google_unavailable`, url.origin), 302);
+    return new Response(null, { status: 302, headers: { Location: "/member-login?error=google_unavailable", "Cache-Control": "no-store" } });
   }
   const auth = buildGoogleAuthorization(config, url.searchParams.get("next") ?? "/member");
   const headers = new Headers({ Location: auth.url, "Cache-Control": "no-store" });

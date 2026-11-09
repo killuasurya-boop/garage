@@ -37,7 +37,7 @@ function GoogleMark() {
 
 type GooglePending = { email: string; name: string; picture: string | null; next: string };
 
-type ApiResponse<T> = { success: true; data: T } | { success: false; message: string };
+type ApiResponse<T> = { success: true; data: T } | { success: false; message: string; code?: string };
 
 async function postJson<T>(url: string, payload: unknown) {
   const response = await fetch(url, {
@@ -48,7 +48,7 @@ async function postJson<T>(url: string, payload: unknown) {
   });
   const json = (await response.json()) as ApiResponse<T>;
   if (!response.ok || !json.success) {
-    throw new Error(json.success ? "Request gagal." : json.message);
+    throw Object.assign(new Error(json.success ? "Request gagal." : json.message), { code: json.success ? undefined : json.code });
   }
   return json.data;
 }
@@ -167,6 +167,9 @@ export function MemberLoginPage({
   const [registered, setRegistered] = useState<{ name: string; tier: string } | null>(null);
   const [shakeKey, setShakeKey] = useState(0);
   const [showIntro, setShowIntro] = useState(false);
+  // Nomor HP Google sudah milik akun lama → minta PIN akun itu lalu tautkan (tanpa akun ganda).
+  const [linkPinNeeded, setLinkPinNeeded] = useState(false);
+  const [linkPin, setLinkPin] = useState("");
 
   // Intro sinematik sekali per sesi tab; tidak tampil saat reduced-motion; tidak pernah memblokir form.
   useEffect(() => {
@@ -261,10 +264,18 @@ export function MemberLoginPage({
     setBusy(true);
     setStatus(null);
     try {
-      const data = await postJson<{ next?: string }>("/api/member/auth/google/complete", { name, phone, acceptTerms, marketingConsent });
-      setStatus({ tone: "success", message: "Membership aktif. Mengalihkan…" });
+      const data = await postJson<{ next?: string; linked?: boolean }>("/api/member/auth/google/complete", {
+        name,
+        phone,
+        acceptTerms,
+        marketingConsent,
+        existingPin: linkPinNeeded && linkPin ? linkPin : undefined,
+      });
+      setStatus({ tone: "success", message: data.linked ? "Google tertaut ke akun member lama. Mengalihkan…" : "Membership aktif. Mengalihkan…" });
       router.replace(sanitizeMemberRedirectTarget(data.next ?? returnTarget));
     } catch (error) {
+      const code = (error as { code?: string }).code;
+      if (code === "PHONE_NEEDS_PIN") setLinkPinNeeded(true);
       fail(error instanceof Error ? error.message : "Aktivasi member gagal.");
       setBusy(false);
     }
@@ -450,6 +461,22 @@ export function MemberLoginPage({
                       hint="Dipakai kasir untuk menemukan kartu member & poinmu."
                       required
                     />
+                    {linkPinNeeded ? (
+                      <MemberField
+                        label="PIN akun lama"
+                        icon={<LockKeyhole size={19} />}
+                        value={linkPin}
+                        onChange={(event) => setLinkPin(event.target.value)}
+                        placeholder="PIN yang biasa dipakai di kasir"
+                        type={showPin ? "text" : "password"}
+                        autoComplete="current-password"
+                        minLength={6}
+                        trailing={pinToggle}
+                        hint="Nomor ini sudah terdaftar. Masukkan PIN-nya untuk menautkan Google ke akun yang sama (poin & riwayat tetap)."
+                        data-testid="member-link-pin"
+                        required
+                      />
+                    ) : null}
                     <label className="gm6-check">
                       <input type="checkbox" checked={acceptTerms} onChange={(event) => setAcceptTerms(event.target.checked)} required />
                       <span>

@@ -55,3 +55,20 @@ Tanpa langkah ini tombol Google tidak tampil, sehingga tidak ada tombol palsu.
 ## Catatan
 - Member yang mendaftar lewat Google belum punya PIN yang diketahui. Mereka tetap bisa masuk lewat Google.
 - Penukaran poin tetap dilakukan di kasir. Katalog reward belum ada dan tidak dipalsukan.
+
+## V6+ (9 Nov 2026)
+- **Tautkan akun lama via HP:**
+  - Kalau nomor WhatsApp di form Lengkapi Profil sudah dipakai akun member lama, form meminta **PIN akun lama**.
+  - PIN benar: Google ditautkan ke akun itu, jadi poin dan riwayat tetap dan tidak ada akun baru.
+  - PIN salah: memakai kunci per nomor yang sama dengan login PIN.
+  - Nomor yang sudah tertaut ke Google lain ditolak.
+- **Buat PIN untuk akun Google:**
+  - Kolom baru `member_accounts.pin_set_at` (migrasi **0184**; akun lama diisi otomatis, akun Google = null).
+  - Selama masih null, dashboard menampilkan "Buat PIN untuk login tanpa Google", tanpa perlu PIN lama dan hanya sekali.
+  - PIN/password baru minimal 6 karakter, sama dengan saat daftar.
+- **Perbaikan:**
+  - Redirect callback memakai alamat relatif. Sebelumnya redirect ke `request.url.origin` bisa pindah host (localhost vs 127.0.0.1, atau http di belakang proxy), sehingga cookie sesi Google hilang.
+  - Ditemukan oleh tes E2E penuh.
+- **Uji penuh:**
+  - `e2e/member-google-oauth.spec.ts` menjalankan Google palsu lokal (`e2e/fake-google.ts`, port 3199): authorize dengan PKCE, token, jwks, dan ID token RS256.
+  - Override endpoint (`MEMBER_GOOGLE_TEST_ENDPOINT`) hanya berlaku di luar produksi dan hanya ke localhost.

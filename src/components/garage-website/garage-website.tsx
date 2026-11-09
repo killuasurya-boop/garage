@@ -9,6 +9,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { SiteAsset } from "@/lib/site-assets";
 import type { PublicEvent } from "@/lib/event-format";
 import { GrandOpeningBanner } from "@/components/garage-website/grand-opening-banner";
+import { SuryaShowcase } from "@/components/surya/surya-showcase";
+import { SuryaDeveloperCredit } from "@/components/surya/surya-developer-credit";
 import {
   Award,
   ChevronDown,
@@ -5571,7 +5573,7 @@ function FooterMvp() {
         </div>
 
         <div className="footer-mvp-bottom">
-          <div className="mono">© 2026 GARAGE COFFEE TEBING TINGGI · SEMUA HAK CIPTA DILINDUNGI</div>
+          <SuryaDeveloperCredit variant="compact" />
           <div className="footer-mvp-bottom-links">
             <a href={MEMBER_LOGIN_URL} className="footer-mvp-link">Login Member</a>
             <a href={LOGIN_URL} onClick={(event) => goToAccess(event, LOGIN_URL)} className="footer-mvp-link">Login Karyawan</a>
@@ -6206,6 +6208,7 @@ function GarageWebsiteRoot({
       <PromoProducts />
       <FeaturedMenu />
       <HowToOrder />
+      <SuryaShowcase />
       {/* 2. Live outlet: meja, keramaian, estimasi, lacak pesanan */}
       <LiveVisitBoard />
       {/* 3. Member */}

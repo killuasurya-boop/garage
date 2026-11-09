@@ -1,3 +1,4 @@
+import { SuryaDeveloperCredit } from "@/components/surya/surya-developer-credit";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import Image from "next/image";
@@ -422,6 +423,9 @@ export default async function InvoiceTrackingPage({ params }: { params: Promise<
           </div>
         </div>
       </footer>
+      <div className="px-4 pb-8 pt-2">
+        <SuryaDeveloperCredit variant="invoice" />
+      </div>
     </main>
   );
 }

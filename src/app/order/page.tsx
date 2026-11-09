@@ -1,3 +1,4 @@
+import { SuryaDeveloperCredit } from "@/components/surya/surya-developer-credit";
 import type { Metadata } from "next";
 
 import {
@@ -164,7 +165,7 @@ export default async function OrderPage({
     startsAt: featured.event.startsAt, endsAt: featured.event.endsAt, entries: featured.entries, products: featured.products,
   } : undefined;
   const menuItems = eventContext && initialMenuItems ? mergeMainEventMenu(initialMenuItems, eventContext) : initialMenuItems;
-  return (
+  const page = (
     <MemberOrderPage
       initialQrContext={qrContext}
       initialReturnPath={buildReturnPath(params)}
@@ -176,5 +177,15 @@ export default async function OrderPage({
       initialOrderingOpen={ordering?.open}
       staffOrder={staffOrder}
     />
+  );
+  // Kredit hanya untuk pelanggan; alur waiter/staf tidak memuatnya.
+  if (staffOrder) return page;
+  return (
+    <>
+      {page}
+      <div className="bg-[#08080a] px-4 py-6 pb-24 sm:px-8">
+        <SuryaDeveloperCredit variant="compact" />
+      </div>
+    </>
   );
 }

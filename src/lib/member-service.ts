@@ -37,6 +37,8 @@ type RegisterMemberInput = {
   referralCode?: string | null;
   memberCode?: string | null;
   tier?: string | null;
+  /** Member V6: centang S&K saat daftar → dicatat di member_accounts.terms_accepted_at. */
+  acceptTerms?: boolean;
 };
 
 type LoginMemberInput = {
@@ -284,6 +286,7 @@ export async function registerMember(input: RegisterMemberInput) {
       email,
       passwordHash: await hashPassword(input.password),
       status: "active",
+      termsAcceptedAt: input.acceptTerms ? new Date() : null,
     })
     .returning();
 

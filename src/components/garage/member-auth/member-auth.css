@@ -538,7 +538,7 @@
   background: #ffffff;
 }
 .gm-btn-google:hover:not(:disabled) { background: #f6f7f8; }
-.gm-divider {
+.gm-or {
   display: flex;
   align-items: center;
   gap: 14px;
@@ -547,8 +547,8 @@
   font-weight: 600;
   letter-spacing: 0.24em;
 }
-.gm-divider::before,
-.gm-divider::after { content: ""; height: 1px; flex: 1; background: var(--gm-border); }
+.gm-or::before,
+.gm-or::after { content: ""; height: 1px; flex: 1; background: var(--gm-border); }
 .gm-check {
   display: flex;
   align-items: flex-start;

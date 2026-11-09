@@ -642,6 +642,10 @@ allowed once `MEMBER_GOOGLE_CLIENT_ID`/`_SECRET` (fallback: the existing `GOOGLE
 the server (button hidden otherwise): code + PKCE,
 server-verified ID token (`src/lib/member-google-oauth.ts`), link by `google_sub` then Google-verified email (no duplicates),
 new accounts complete name + WhatsApp + S&K, marketing consent separate & default off (migration 0183, `docs/crystal-v5/02-GOOGLE-LOGIN.md`).
+**Member V6 (owner, 9 Nov 2026).** `/member-login` follows `docs/design-references/member-v6/` (`docs/crystal-v5/03-MEMBER-V6.md`):
+real Three.js cards (`member-auth/cinematic3d/`, lazy, adaptive quality, CSS fallback without WebGL, no chip/NFC), showcase left +
+glass panel right (`member-v6.css`), intro once per session, register needs S&K (`acceptTerms` → `terms_accepted_at`), success
+screen shows the tier returned by the backend. `MemberLoginCard`/`BrandExperiencePanel`/`CinematicBackground` are no longer used by the page.
 
 **Sources of truth.** Before you touch member UI, read all three:
 - `docs/GARAGE_MEMBER_DESIGN_SYSTEM.md`

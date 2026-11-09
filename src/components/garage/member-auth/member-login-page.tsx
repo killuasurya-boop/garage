@@ -14,7 +14,27 @@ import { MemberLoginCard } from "./member-login-card";
 import { MotionReveal } from "./motion-reveal";
 import "./member-auth.css";
 
-// Spesifikasi visual: docs/GARAGE_MEMBER_DESIGN_SYSTEM.md (jangan ubah tanpa izin owner).
+// Spesifikasi visual: Crystal V5 (docs/crystal-v5/01-DESIGN-SYSTEM.md) di atas tata letak docs/GARAGE_MEMBER_DESIGN_SYSTEM.md.
+// Google hanya tampil bila server mengonfigurasi Client ID (/api/member/auth/providers) — tidak ada tombol palsu.
+
+const GOOGLE_ERRORS: Record<string, string> = {
+  google_unavailable: "Login Google belum diaktifkan. Masuk dengan email/nomor HP dan PIN.",
+  google_cancelled: "Login Google dibatalkan atau kedaluwarsa. Silakan coba lagi.",
+  google_failed: "Login Google gagal diverifikasi. Coba lagi atau masuk dengan PIN.",
+};
+
+function GoogleMark() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true">
+      <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z" />
+      <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z" />
+      <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z" />
+      <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z" />
+    </svg>
+  );
+}
+
+type GooglePending = { email: string; name: string; picture: string | null; next: string };
 
 type ApiResponse<T> = { success: true; data: T } | { success: false; message: string };
 
@@ -45,7 +65,7 @@ function identifierKind(value: string): "email" | "phone" {
   return !trimmed.includes("@") && /^[0-9+\s-]{3,}$/.test(trimmed) ? "phone" : "email";
 }
 
-type Mode = "login" | "register";
+type Mode = "login" | "register" | "google-complete";
 type LoginStep = "identify" | "pin";
 
 export function MemberLoginPage({
@@ -70,6 +90,10 @@ export function MemberLoginPage({
   const [identifierError, setIdentifierError] = useState("");
   const [status, setStatus] = useState<AuthStatus | null>(null);
   const [busy, setBusy] = useState(false);
+  const [googleEnabled, setGoogleEnabled] = useState(false);
+  const [googlePending, setGooglePending] = useState<GooglePending | null>(null);
+  const [acceptTerms, setAcceptTerms] = useState(false);
+  const [marketingConsent, setMarketingConsent] = useState(false);
   const pinRef = useRef<HTMLInputElement>(null);
   const returnTarget = sanitizeMemberRedirectTarget(initialReturnTarget);
   const fromDigitalMenu = isDigitalMenuTarget(returnTarget);
@@ -91,6 +115,32 @@ export function MemberLoginPage({
     if (nameParam) setName(nameParam.slice(0, 80));
     if (phoneParam) setPhone(phoneParam.replace(/[^0-9+]/g, "").slice(0, 20));
     if (wantsRegister) setMode("register");
+    const errorKey = params.get("error");
+    if (errorKey) {
+      const custom = params.get("message");
+      setStatus({ tone: "error", message: (errorKey === "google_rejected" && custom ? custom.slice(0, 200) : GOOGLE_ERRORS[errorKey]) ?? "Login gagal. Coba lagi." });
+    }
+    if (params.get("mode") === "google-complete") {
+      setMode("google-complete");
+      fetch("/api/member/auth/google/pending", { credentials: "include" })
+        .then(async (response) => {
+          const json = (await response.json().catch(() => null)) as ApiResponse<GooglePending> | null;
+          if (response.ok && json?.success) {
+            setGooglePending(json.data);
+            setName(json.data.name);
+          } else {
+            setMode("login");
+            setStatus({ tone: "error", message: json && !json.success ? json.message : "Sesi Google sudah habis. Ulangi." });
+          }
+        })
+        .catch(() => undefined);
+    }
+    fetch("/api/member/auth/providers", { cache: "no-store" })
+      .then(async (response) => {
+        const json = (await response.json().catch(() => null)) as ApiResponse<{ google: boolean }> | null;
+        if (json?.success) setGoogleEnabled(json.data.google);
+      })
+      .catch(() => undefined);
   }, []);
 
   // Sudah login → langsung ke tujuan.
@@ -159,6 +209,35 @@ export function MemberLoginPage({
     }
   }
 
+  async function handleGoogleComplete(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!acceptTerms) {
+      setStatus({ tone: "error", message: "Setujui Syarat & Ketentuan membership untuk melanjutkan." });
+      return;
+    }
+    setBusy(true);
+    setStatus(null);
+    try {
+      const data = await postJson<{ next?: string }>("/api/member/auth/google/complete", { name, phone, acceptTerms, marketingConsent });
+      setStatus({ tone: "success", message: "Membership aktif. Mengalihkan…" });
+      router.replace(sanitizeMemberRedirectTarget(data.next ?? returnTarget));
+    } catch (error) {
+      setStatus({ tone: "error", message: error instanceof Error ? error.message : "Aktivasi member gagal." });
+      setBusy(false);
+    }
+  }
+
+  const googleHref = `/api/member/auth/google/start?next=${encodeURIComponent(returnTarget)}`;
+  const googleBlock = googleEnabled ? (
+    <>
+      <a href={googleHref} className="gm-btn gm-btn-google" data-testid="member-google-button">
+        <GoogleMark />
+        <span>Lanjutkan dengan Google</span>
+      </a>
+      <div className="gm-divider" role="separator">ATAU</div>
+    </>
+  ) : null;
+
   function switchMode(next: Mode) {
     setMode(next);
     setStep("identify");
@@ -200,7 +279,11 @@ export function MemberLoginPage({
           <MotionReveal delay={160} className="mx-auto w-full max-w-[580px] lg:max-w-none">
             <MemberLoginCard
               title={
-                isLogin ? (
+                mode === "google-complete" ? (
+                  <>
+                    Lengkapi Profil<span className="text-[var(--gm-accent)] md:text-inherit">.</span>
+                  </>
+                ) : isLogin ? (
                   <>
                     Selamat Datang
                     <br />
@@ -213,12 +296,76 @@ export function MemberLoginPage({
                 )
               }
               description={
-                isLogin
+                mode === "google-complete"
+                  ? "Hampir selesai! Lengkapi data berikut untuk mengaktifkan membership Garage Coffee."
+                  : isLogin
                   ? "Masuk untuk mengakses akun member Garage Coffee."
                   : "Gratis. Langsung jadi member Silver: poin tiap order, voucher, dan tersambung ke kasir."
               }
             >
               <div key={`${mode}-${step}`} className="gm-step grid gap-5">
+                {mode === "google-complete" ? (
+                  <form className="grid gap-5" onSubmit={handleGoogleComplete} data-testid="member-google-complete">
+                    {googlePending ? (
+                      <div className="flex min-w-0 items-center gap-3 rounded-[var(--gm-radius-control)] border border-[var(--gm-border)] bg-white/[0.03] px-4 py-3">
+                        {googlePending.picture ? (
+                          // eslint-disable-next-line @next/next/no-img-element -- foto profil Google (host eksternal)
+                          <img src={googlePending.picture} alt="" width={44} height={44} referrerPolicy="no-referrer" className="size-11 shrink-0 rounded-full object-cover" />
+                        ) : (
+                          <span className="grid size-11 shrink-0 place-items-center rounded-full bg-white/10"><User size={20} /></span>
+                        )}
+                        <span className="min-w-0">
+                          <span className="block truncate text-[15px] font-semibold text-[var(--gm-text)]">{googlePending.email}</span>
+                          <span className="flex items-center gap-1 text-[13px] text-[#7ee2a8]">
+                            <BadgeCheck size={14} aria-hidden="true" /> Terverifikasi oleh Google
+                          </span>
+                        </span>
+                      </div>
+                    ) : null}
+                    <MemberField
+                      label="Nama Lengkap"
+                      icon={<User size={19} />}
+                      value={name}
+                      onChange={(event) => setName(event.target.value)}
+                      placeholder="Nama kamu"
+                      autoComplete="name"
+                      required
+                    />
+                    <MemberField
+                      label="Nomor WhatsApp"
+                      icon={<Phone size={19} />}
+                      value={phone}
+                      onChange={(event) => setPhone(event.target.value)}
+                      placeholder="0813..."
+                      autoComplete="tel"
+                      inputMode="tel"
+                      hint="Dipakai kasir untuk menemukan kartu member & poinmu."
+                      required
+                    />
+                    <label className="gm-check">
+                      <input type="checkbox" checked={acceptTerms} onChange={(event) => setAcceptTerms(event.target.checked)} required />
+                      <span>
+                        Saya setuju dengan{" "}
+                        <Link href="/legal/terms" className="gm-link" target="_blank">
+                          Syarat & Ketentuan
+                        </Link>{" "}
+                        membership Garage Coffee. <span className="text-[var(--gm-text-2)]">(wajib)</span>
+                      </span>
+                    </label>
+                    <label className="gm-check">
+                      <input type="checkbox" checked={marketingConsent} onChange={(event) => setMarketingConsent(event.target.checked)} />
+                      <span>
+                        Kirimi saya info promo lewat WhatsApp. <span className="text-[var(--gm-text-2)]">(opsional, bisa dimatikan kapan saja)</span>
+                      </span>
+                    </label>
+                    <MemberButton type="submit" loading={busy}>
+                      Aktifkan Membership
+                    </MemberButton>
+                  </form>
+                ) : null}
+
+                {isLogin && step === "identify" ? googleBlock : null}
+
                 {isLogin && step === "identify" ? (
                   <form className="grid gap-5" onSubmit={handleIdentify} noValidate>
                     <MemberField
@@ -284,7 +431,9 @@ export function MemberLoginPage({
                   </form>
                 ) : null}
 
-                {!isLogin ? (
+                {mode === "register" ? googleBlock : null}
+
+                {mode === "register" ? (
                   <form className="grid gap-5" onSubmit={handleRegister}>
                     <MemberField
                       label="Nama Lengkap"
@@ -362,6 +511,7 @@ export function MemberLoginPage({
 
                 <AuthenticationStatus status={status} />
 
+                {mode !== "google-complete" ? (
                 <p className="text-center text-[15px] text-[#dedad5]">
                   {isLogin ? "Belum menjadi member?" : "Sudah menjadi member?"}{" "}
                   <button
@@ -373,6 +523,7 @@ export function MemberLoginPage({
                     <ArrowRight size={16} aria-hidden="true" className="no-underline" />
                   </button>
                 </p>
+                ) : null}
 
                 {fromDigitalMenu ? (
                   <Link href={returnTarget} className="gm-btn gm-btn-secondary !min-h-12 text-[14px]">

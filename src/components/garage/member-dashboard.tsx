@@ -22,6 +22,7 @@ import {
 
 import { MemberLevelCard } from "@/components/garage/member-card";
 import { MemberAnalytics } from "@/components/garage/member-analytics";
+import "@/components/crystal/crystal.css";
 import { PremiumMembershipCard } from "@/components/garage/premium-membership-card";
 import { useGarageToast } from "@/components/garage/garage-toast";
 import { GOLD_ANNUAL_SPEND, PLATINUM_ANNUAL_SPEND, type MemberLevel } from "@/lib/member-types";
@@ -472,7 +473,7 @@ export function MemberDashboard() {
   }
 
   return (
-    <main className="garage-shell min-h-screen overflow-x-hidden px-4 py-4 text-white sm:px-7 sm:py-6 lg:px-10">
+    <main className="garage-shell gc-member min-h-screen overflow-x-hidden px-4 py-4 text-white sm:px-7 sm:py-6 lg:px-10">
       <section className="mx-auto w-full max-w-7xl">
         <header className="flex flex-wrap items-center justify-between gap-3 sm:gap-4">
           <Link href="/" className="block w-[min(200px,52vw)] sm:w-[230px]" aria-label="Kembali ke website Garage">
@@ -554,7 +555,7 @@ export function MemberDashboard() {
               </div>
             </div>
 
-            <div className="mt-6 flex flex-col items-center">
+            <div className="gc-float mt-6 flex flex-col items-center">
               <PremiumMembershipCard
                 className="w-full max-w-[460px]"
                 side={cardSide}

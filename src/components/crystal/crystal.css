@@ -249,6 +249,35 @@
   .gc-laser-glow { stroke: var(--gc-laser); stroke-width: 5px; stroke-linecap: round; stroke-dasharray: 22 78; opacity: 0.6; filter: blur(4px); }
   .gc-laser-core { stroke: #ff8a93; stroke-width: 2; stroke-linecap: round; stroke-dasharray: 18 82; filter: drop-shadow(0 0 4px var(--gc-laser)); }
 
+  /* ── Dashboard member (/member): material crystal di atas komponen lama, tanpa ubah logika ── */
+  .gc-member.garage-shell {
+    background:
+      radial-gradient(70% 40% at 88% -6%, rgb(255 38 56 / 0.16), transparent 70%),
+      radial-gradient(60% 36% at -8% 110%, rgb(225 37 43 / 0.1), transparent 65%),
+      var(--gc-bg);
+    font-family: var(--gc-font-body);
+  }
+  .gc-member .garage-panel {
+    border: 1px solid var(--gc-edge) !important;
+    border-radius: var(--gc-radius-lg) !important;
+    background:
+      linear-gradient(160deg, rgb(255 255 255 / 0.07), rgb(255 255 255 / 0.015) 38%, rgb(0 0 0 / 0.18)),
+      var(--gc-surface) !important;
+    box-shadow: var(--gc-shadow) !important;
+  }
+  .gc-member .garage-surface {
+    border: 1px solid var(--gc-edge) !important;
+    border-radius: var(--gc-radius) !important;
+    background: var(--gc-surface-2) !important;
+  }
+  .gc-member .garage-display {
+    font-family: var(--gc-font-display) !important;
+    font-style: italic;
+    font-weight: 800;
+    text-transform: none;
+  }
+  .gc-member .garage-mono { color: var(--gc-cream); letter-spacing: 0.22em; }
+
   /* ── Scrollbar halus ──────────────────────────────────────────────── */
   .gc-scroll { scrollbar-width: thin; scrollbar-color: rgb(255 255 255 / 0.18) transparent; }
   .gc-scroll::-webkit-scrollbar { width: 6px; height: 6px; }

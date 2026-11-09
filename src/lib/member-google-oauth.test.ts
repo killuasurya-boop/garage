@@ -45,6 +45,10 @@ describe("Google OAuth member — konfigurasi & PKCE", () => {
     expect(
       googleConfig({ MEMBER_GOOGLE_CLIENT_ID: "a", MEMBER_GOOGLE_CLIENT_SECRET: "b", BETTER_AUTH_URL: "https://garagecoffee.id/" } as unknown as NodeJS.ProcessEnv),
     ).toEqual({ clientId: "a", clientSecret: "b", redirectUri: "https://garagecoffee.id/api/member/auth/google/callback" });
+    // Fallback ke OAuth client integrasi Drive yang sudah ada.
+    expect(
+      googleConfig({ GOOGLE_OAUTH_CLIENT_ID: "drive-id", GOOGLE_OAUTH_CLIENT_SECRET: "drive-secret", BETTER_AUTH_URL: "https://garagecoffee.id" } as unknown as NodeJS.ProcessEnv)?.clientId,
+    ).toBe("drive-id");
   });
 
   it("URL otorisasi: code + S256 + scope minimal + state cocok dengan cookie", () => {

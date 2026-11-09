@@ -23,8 +23,11 @@ export type GoogleConfig = { clientId: string; clientSecret: string; redirectUri
 
 /** Konfigurasi Google, atau null bila belum diisi Owner (tombol disembunyikan). */
 export function googleConfig(env: NodeJS.ProcessEnv = process.env): GoogleConfig | null {
-  const clientId = env.MEMBER_GOOGLE_CLIENT_ID?.trim();
-  const clientSecret = env.MEMBER_GOOGLE_CLIENT_SECRET?.trim();
+  // Client khusus member bila ada; selain itu pakai OAuth client Google yang sudah dipasang untuk integrasi Drive
+  // (GOOGLE_OAUTH_CLIENT_ID/SECRET) — Owner cukup menambah redirect URI member di Google Cloud.
+  const ownClient = Boolean(env.MEMBER_GOOGLE_CLIENT_ID?.trim() && env.MEMBER_GOOGLE_CLIENT_SECRET?.trim());
+  const clientId = (ownClient ? env.MEMBER_GOOGLE_CLIENT_ID : env.GOOGLE_OAUTH_CLIENT_ID)?.trim();
+  const clientSecret = (ownClient ? env.MEMBER_GOOGLE_CLIENT_SECRET : env.GOOGLE_OAUTH_CLIENT_SECRET)?.trim();
   const base = (env.MEMBER_PUBLIC_BASE_URL || env.NEXT_PUBLIC_GARAGE_PUBLIC_BASE_URL || env.BETTER_AUTH_URL || "").trim().replace(/\/+$/, "");
   if (!clientId || !clientSecret || !/^https?:\/\//.test(base)) return null;
   return { clientId, clientSecret, redirectUri: `${base}/api/member/auth/google/callback` };

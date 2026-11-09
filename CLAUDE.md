@@ -638,7 +638,8 @@ For documentation-only changes such as Claude command files, app lint/build is o
 **Crystal V5 override (owner, 8 Nov 2026).** The palette/typography in the documents below is superseded by Garage Crystal V5
 (`docs/crystal-v5/01-DESIGN-SYSTEM.md`, `--gc-*` tokens, Montserrat display + Inter body). All other rules here (official logo,
 no automotive imagery, real member data, reduced motion, no fake OAuth/OTP, responsive QA) still apply. Google sign-in is
-allowed once `MEMBER_GOOGLE_CLIENT_ID`/`_SECRET` are configured on the server (button hidden otherwise): code + PKCE,
+allowed once `MEMBER_GOOGLE_CLIENT_ID`/`_SECRET` (fallback: the existing `GOOGLE_OAUTH_CLIENT_ID`/`_SECRET`) are configured on
+the server (button hidden otherwise): code + PKCE,
 server-verified ID token (`src/lib/member-google-oauth.ts`), link by `google_sub` then Google-verified email (no duplicates),
 new accounts complete name + WhatsApp + S&K, marketing consent separate & default off (migration 0183, `docs/crystal-v5/02-GOOGLE-LOGIN.md`).
 

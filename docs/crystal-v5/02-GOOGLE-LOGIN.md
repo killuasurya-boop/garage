@@ -28,6 +28,13 @@ Kolom baru (migrasi **0183**) di `member_accounts`: `google_sub` (unik), `email_
 `terms_accepted_at`, `marketing_consent_at`.
 
 ## Langkah Owner (sekali)
+**Sudah punya OAuth client Google** (integrasi YouTube/Google Business, env `GOOGLE_OAUTH_CLIENT_ID/SECRET` di VPS)?
+Login member otomatis memakai client itu. Cukup lakukan dua hal:
+1. Di Google Cloud → Credentials → buka OAuth client tersebut → **Authorized redirect URIs** → tambah
+   `https://garagecoffee.id/api/member/auth/google/callback` (dan versi `staging.` bila dipakai) → Save.
+2. OAuth consent screen berstatus **In production** (bukan Testing), agar semua pelanggan bisa login.
+Tidak perlu env baru. Langkah di bawah hanya bila ingin client terpisah khusus member (`MEMBER_GOOGLE_*` diprioritaskan).
+
 1. Buka Google Cloud Console → APIs & Services → **OAuth consent screen**.
    - User type: External.
    - Nama aplikasi: Garage Coffee.

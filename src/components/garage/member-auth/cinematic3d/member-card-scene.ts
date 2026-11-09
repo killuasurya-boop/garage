@@ -19,6 +19,7 @@ import {
   BufferGeometry,
   CanvasTexture,
   Color,
+  CylinderGeometry,
   DirectionalLight,
   Fog,
   Group,
@@ -34,17 +35,24 @@ import {
   PointsMaterial,
   SRGBColorSpace,
   Scene,
+  TorusGeometry,
+  Vector2,
   WebGLRenderer,
   type Material,
   type Texture,
 } from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 
 export type CardTier = "silver" | "gold" | "platinum" | "ultra";
 
 export type MemberCardSceneOptions = {
-  mode: "showcase" | "success";
+  /** showcase = 3 kartu bertingkat (login); tiers = Silver | Gold (tengah) | Platinum + fokus (daftar); success = 1 kartu. */
+  mode: "showcase" | "success" | "tiers";
   /** Tier kartu utama (mode success = tier hasil backend). */
   tier?: CardTier;
   reducedMotion: boolean;
@@ -58,6 +66,8 @@ export type MemberCardSceneController = {
   /** Pointer ternormalisasi -1..1; null = pointer keluar (kembali netral). */
   setPointer: (x: number | null, y?: number) => void;
   setActive: (active: boolean) => void;
+  /** Mode tiers: kartu yang difokus (0 Silver, 1 Gold, 2 Platinum) — kamera berpindah halus. */
+  setFocus: (index: number) => void;
   dispose: () => void;
 };
 
@@ -281,12 +291,12 @@ export async function createMemberCardScene(canvas: HTMLCanvasElement, options: 
     );
     group.add(body);
     const faceCanvas = document.createElement("canvas");
-    faceCanvas.width = high ? 1024 : 640;
+    faceCanvas.width = high ? 2048 : 1024;
     faceCanvas.height = Math.round(faceCanvas.width * (CARD_H / CARD_W));
     drawCardFace(faceCanvas, tier, logo, emblem);
     const faceTexture = new CanvasTexture(faceCanvas);
     faceTexture.colorSpace = SRGBColorSpace;
-    faceTexture.anisotropy = high ? 8 : 2;
+    faceTexture.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), high ? 16 : 4);
     textures.push(faceTexture);
     const face = new Mesh(
       faceGeometry,
@@ -335,6 +345,19 @@ export async function createMemberCardScene(canvas: HTMLCanvasElement, options: 
       root.add(group);
       rigs.push({ group, tier: item.tier, base: item, phase: index * 1.7 });
     });
+  } else if (options.mode === "tiers") {
+    // Referensi 01: Silver kiri | Gold tengah lebih besar di pedestal bulat bercahaya | Platinum kanan.
+    const layout: Array<{ tier: CardTier; x: number; y: number; z: number; ry: number; rz: number }> = [
+      { tier: "silver", x: -3.6, y: 0.35, z: -0.6, ry: 0.42, rz: 0 },
+      { tier: "gold", x: 0, y: 0.55, z: 0.4, ry: 0, rz: 0 },
+      { tier: "platinum", x: 3.6, y: 0.35, z: -0.6, ry: -0.42, rz: 0 },
+    ];
+    layout.forEach((item, index) => {
+      const group = buildCard(item.tier);
+      group.position.set(item.x, item.y, item.z);
+      root.add(group);
+      rigs.push({ group, tier: item.tier, base: item, phase: index * 1.7 });
+    });
   } else {
     const tier = options.tier ?? "silver";
     const group = buildCard(tier);
@@ -344,19 +367,37 @@ export async function createMemberCardScene(canvas: HTMLCanvasElement, options: 
     rigs.push({ group, tier, base: { x: 0, y: 0.35, z: 0, ry: -0.35, rz: 0.03 }, phase: 0 });
   }
 
-  // Pedestal batu gelap + garis laser di tepinya.
+  // Pedestal batu gelap + garis laser di tepinya (mode tiers: pedestal bulat per kartu + cincin merah menyala).
   const slab = new Mesh(
-    track(new BoxGeometry(options.mode === "showcase" ? 7.6 : 4.2, 0.32, 2.6)),
+    track(new BoxGeometry(options.mode === "showcase" ? 7.6 : options.mode === "tiers" ? 11 : 4.2, 0.32, 2.6)),
     track(new MeshStandardMaterial({ color: 0x101012, roughness: 0.82, metalness: 0.15 })),
   );
   slab.position.set(0.1, -1.15, -0.5);
-  scene.add(slab);
+  if (options.mode !== "tiers") scene.add(slab);
+  const rings: Mesh[] = [];
+  if (options.mode === "tiers") {
+    const podiumGeo = track(new CylinderGeometry(1.75, 1.95, 0.32, 48));
+    const podiumMat = track(new MeshStandardMaterial({ color: 0x0f0f11, roughness: 0.6, metalness: 0.4 }));
+    const ringGeo = track(new TorusGeometry(1.85, 0.025, 8, 96));
+    rigs.forEach((rig) => {
+      const podium = new Mesh(podiumGeo, podiumMat);
+      podium.position.set(rig.base.x, -1.15, rig.base.z);
+      podium.scale.setScalar(rig.tier === "gold" ? 1.15 : 0.95);
+      scene.add(podium);
+      const ring = new Mesh(ringGeo, track(new MeshBasicMaterial({ color: rig.tier === "gold" ? 0xffb44a : 0xff2638, transparent: true, opacity: 0.85 })));
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.set(rig.base.x, -0.98, rig.base.z);
+      ring.scale.setScalar(rig.tier === "gold" ? 1.15 : 0.95);
+      scene.add(ring);
+      rings.push(ring);
+    });
+  }
   const laserTex = laserTexture();
   textures.push(laserTex);
   const laserMat = track(new MeshBasicMaterial({ map: laserTex, transparent: true, blending: AdditiveBlending, depthWrite: false }));
   const slabLaser = new Mesh(track(new PlaneGeometry(options.mode === "showcase" ? 7.4 : 4, 0.06)), laserMat);
   slabLaser.position.set(0.1, -1.0, 0.82);
-  scene.add(slabLaser);
+  if (options.mode !== "tiers") scene.add(slabLaser);
   const lasers: Mesh[] = [];
   for (let i = 0; i < 2; i += 1) {
     const beam = new Mesh(track(new PlaneGeometry(16, 0.05)), laserMat);
@@ -397,7 +438,7 @@ export async function createMemberCardScene(canvas: HTMLCanvasElement, options: 
   const redRim = new PointLight(0xff2638, 22, 12, 2);
   redRim.position.set(-4, 2.4, -3);
   scene.add(redRim);
-  const warm = new PointLight(0xffb44a, options.mode === "showcase" || options.tier === "gold" ? 14 : 4, 8, 2);
+  const warm = new PointLight(0xffb44a, options.mode !== "success" || options.tier === "gold" ? 14 : 4, 8, 2);
   warm.position.set(0.5, 2.2, 1.4);
   scene.add(warm);
   const sweep = new PointLight(0xffffff, 18, 6, 2);
@@ -422,11 +463,27 @@ export async function createMemberCardScene(canvas: HTMLCanvasElement, options: 
   );
   scene.add(dust);
 
+  // Bloom selektif (hanya kualitas tinggi & tanpa reduced-motion): threshold tinggi → hanya laser/tepi/kilau yang menyala.
+  let bloomOn = high && !options.reducedMotion;
+  let composer: EffectComposer | null = null;
+  if (bloomOn) {
+    renderer.setClearColor(0x09090b, 1);
+    composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    composer.addPass(new UnrealBloomPass(new Vector2(256, 256), 0.55, 0.5, 0.82));
+    composer.addPass(new OutputPass());
+    disposables.push(composer);
+  }
+
   // Kamera & state gerak.
   const success = options.mode === "success";
-  const camBase = success ? { x: 0, y: 0.6, z: 6.4 } : { x: 0.1, y: 0.9, z: 10.2 };
-  const camStart = success ? { x: 0.6, y: 0.9, z: 9 } : { x: -0.8, y: 1.6, z: 14.5 };
-  const lookAt = success ? { x: 0, y: 0.3, z: 0 } : { x: 0.1, y: 0.25, z: -0.6 };
+  const tiers = options.mode === "tiers";
+  const camBase = success ? { x: 0, y: 0.6, z: 6.4 } : tiers ? { x: 0, y: 1.1, z: 11.5 } : { x: 0.1, y: 0.9, z: 10.2 };
+  const camStart = success ? { x: 0.6, y: 0.9, z: 9 } : tiers ? { x: 0, y: 1.8, z: 16 } : { x: -0.8, y: 1.6, z: 14.5 };
+  const lookAt = success ? { x: 0, y: 0.3, z: 0 } : tiers ? { x: 0, y: 0.25, z: 0 } : { x: 0.1, y: 0.25, z: -0.6 };
+  // Fokus carousel (mode tiers): kamera bergeser ke kartu terpilih, kartu terpilih sedikit maju & membesar.
+  let focus = 1;
+  let focusX = 0;
   let introT = options.reducedMotion ? 1 : 0;
   const introDuration = success ? 1.4 : 1.8;
   const pointer = { x: 0, y: 0, tx: 0, ty: 0 };
@@ -440,19 +497,24 @@ export async function createMemberCardScene(canvas: HTMLCanvasElement, options: 
 
   const easeOutCubic = (t: number) => 1 - (1 - t) ** 3;
 
-  function frame(dt: number) {
+  function frame(dt: number, realDt = dt) {
     elapsed += dt;
-    if (introT < 1) introT = Math.min(1, introT + dt / introDuration);
+    // Intro mengikuti waktu nyata (bukan dt yang dibatasi) agar di perangkat lambat tidak berlarut-larut.
+    if (introT < 1) introT = Math.min(1, introT + Math.min(realDt, 0.25) / introDuration);
     const k = easeOutCubic(introT);
     pointer.x += (pointer.tx - pointer.x) * Math.min(1, dt * 4);
     pointer.y += (pointer.ty - pointer.y) * Math.min(1, dt * 4);
     // Dolly + orbit terbatas (±0,6 unit) mengikuti pointer.
+    if (tiers) {
+      const target = rigs[focus]?.base.x ?? 0;
+      focusX += (target * 0.55 - focusX) * Math.min(1, dt * (options.reducedMotion ? 60 : 3.2));
+    }
     camera.position.set(
-      camStart.x + (camBase.x - camStart.x) * k + pointer.x * 0.6,
+      camStart.x + (camBase.x - camStart.x) * k + pointer.x * 0.6 + focusX,
       camStart.y + (camBase.y - camStart.y) * k + pointer.y * 0.3,
       camStart.z + (camBase.z - camStart.z) * k,
     );
-    camera.lookAt(lookAt.x, lookAt.y, lookAt.z);
+    camera.lookAt(lookAt.x + focusX, lookAt.y, lookAt.z);
     const motion = options.reducedMotion ? 0 : 1;
     rigs.forEach((rig, index) => {
       // Kartu masuk dari kedalaman berurutan + melayang pelan + tilt mengikuti pointer.
@@ -462,7 +524,12 @@ export async function createMemberCardScene(canvas: HTMLCanvasElement, options: 
       rig.group.rotation.y = rig.base.ry + pointer.x * 0.18 + (success ? Math.sin(elapsed * 0.5) * 0.12 * motion : 0);
       rig.group.rotation.x = -0.08 - pointer.y * 0.1;
       rig.group.rotation.z = rig.base.rz;
-      rig.group.scale.setScalar(0.85 + enter * 0.15);
+      const emphasis = tiers ? (index === focus ? 1.12 : 0.9) * (rig.tier === "gold" ? 1.08 : 1) : 1;
+      rig.group.scale.setScalar((0.85 + enter * 0.15) * emphasis);
+      if (tiers) rig.group.position.z += index === focus ? 0.5 : 0;
+    });
+    rings.forEach((ring, index) => {
+      (ring.material as MeshBasicMaterial).opacity = index === focus ? 0.95 : 0.35;
     });
     // Sapuan cahaya melintasi kartu (siklus 6 dtk) + laser bergerak.
     const sweepT = ((elapsed * motion) % 6) / 6;
@@ -473,14 +540,37 @@ export async function createMemberCardScene(canvas: HTMLCanvasElement, options: 
     });
     dust.rotation.y = elapsed * 0.02 * motion;
     dust.position.y = Math.sin(elapsed * 0.2) * 0.1 * motion;
-    renderer.render(scene, camera);
+    if (composer && bloomOn) composer.render(dt);
+    else renderer.render(scene, camera);
+  }
+
+  // Kualitas adaptif: 45 frame pertama diukur; rata-rata > 22 ms → matikan bloom, turunkan DPR, kurangi debu.
+  let sampleFrames = 0;
+  let sampleTime = 0;
+  let degraded = false;
+  function adapt(dtMs: number) {
+    if (degraded || options.reducedMotion) return;
+    sampleFrames += 1;
+    sampleTime += dtMs;
+    if (sampleFrames < 45) return;
+    const avg = sampleTime / sampleFrames;
+    sampleFrames = 0;
+    sampleTime = 0;
+    if (avg <= 22) return;
+    degraded = true;
+    bloomOn = false;
+    renderer.setPixelRatio(Math.min(renderer.getPixelRatio(), 1.25));
+    renderer.setSize(width, height, false);
+    dustGeometry.setDrawRange(0, Math.floor(count / 3));
   }
 
   function loop(now: number) {
     if (disposed) return;
-    const dt = Math.min(0.05, (now - last) / 1000);
+    const rawMs = now - last;
+    const dt = Math.min(0.05, rawMs / 1000);
     last = now;
-    frame(dt);
+    frame(dt, rawMs / 1000);
+    adapt(rawMs);
     if (active && !options.reducedMotion) raf = requestAnimationFrame(loop);
   }
 
@@ -505,9 +595,11 @@ export async function createMemberCardScene(canvas: HTMLCanvasElement, options: 
       width = Math.max(1, w);
       height = Math.max(1, h);
       renderer.setSize(width, height, false);
+      composer?.setPixelRatio(renderer.getPixelRatio());
+      composer?.setSize(width, height);
       camera.aspect = width / height;
       // Layar sempit: mundurkan kamera agar ketiga kartu tetap masuk bingkai.
-      camera.fov = width / height < 1.1 ? 42 : 32;
+      camera.fov = width / height < 1.1 ? (tiers ? 52 : 42) : 32;
       camera.updateProjectionMatrix();
       if (options.reducedMotion || !active) frame(0);
     },
@@ -515,6 +607,10 @@ export async function createMemberCardScene(canvas: HTMLCanvasElement, options: 
       if (options.reducedMotion) return;
       pointer.tx = x === null ? 0 : Math.max(-1, Math.min(1, x));
       pointer.ty = x === null ? 0 : Math.max(-1, Math.min(1, y));
+    },
+    setFocus(index) {
+      focus = Math.max(0, Math.min(rigs.length - 1, Math.round(index)));
+      if (options.reducedMotion || !active) frame(0);
     },
     setActive(next) {
       if (active === next) return;

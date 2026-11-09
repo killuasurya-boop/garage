@@ -4,7 +4,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { ArrowLeft, ArrowRight, BadgeCheck, BarChart3, Check, Coins, Eye, EyeOff, Gift, LockKeyhole, Mail, Phone, TicketPercent, User } from "lucide-react";
+import { ArrowLeft, ArrowRight, BadgeCheck, BarChart3, Check, ChevronLeft, ChevronRight, Coins, Eye, EyeOff, Gift, LockKeyhole, Mail, Phone, TicketPercent, User } from "lucide-react";
+
+import { memberLevelRules } from "@/lib/member-types";
 
 import { AuthenticationStatus, type AuthStatus } from "./authentication-status";
 import { MemberCardStage, tierKey } from "./cinematic3d/member-card-stage";
@@ -170,6 +172,8 @@ export function MemberLoginPage({
   // Nomor HP Google sudah milik akun lama → minta PIN akun itu lalu tautkan (tanpa akun ganda).
   const [linkPinNeeded, setLinkPinNeeded] = useState(false);
   const [linkPin, setLinkPin] = useState("");
+  // Carousel "Membership Tier" (referensi 01) di halaman daftar: 0 Silver, 1 Gold (awal, tengah), 2 Platinum.
+  const [tierFocus, setTierFocus] = useState(1);
 
   // Intro sinematik sekali per sesi tab; tidak tampil saat reduced-motion; tidak pernah memblokir form.
   useEffect(() => {
@@ -330,6 +334,10 @@ export function MemberLoginPage({
           <div className="gm6-intro-logo">
             <GarageBrandLogo sizes="420px" />
           </div>
+          <div className="gm6-intro-progress">
+            <span className="gm6-intro-bar" />
+            <span className="gm6-intro-text">Memuat pengalaman member…</span>
+          </div>
         </div>
       ) : null}
 
@@ -348,12 +356,16 @@ export function MemberLoginPage({
             <p className="gm6-copy mx-auto mt-3 lg:mx-0">{showcaseCopy.copy}</p>
           </div>
           <div className="gm6-scene">
-            <MemberCardStage mode="showcase" />
+            {/* key = kanvas baru per mode: konteks WebGL lama dilepas (forceContextLoss) & tidak bisa dipakai ulang. */}
+            <MemberCardStage key={isRegister ? "tiers" : "showcase"} mode={isRegister ? "tiers" : "showcase"} focus={isRegister ? tierFocus : undefined} />
             <div className="gm6-cup hidden md:block" aria-hidden="true">
               <Image src="/garage-brand/crystal/hero-iced-latte.webp" alt="" width={800} height={538} sizes="210px" />
             </div>
           </div>
-          <ul className="gm6-benefits gm6-in mt-2 hidden lg:grid" style={{ animationDelay: "520ms" }} aria-label="Keuntungan member">
+          {isRegister ? (
+            <TierCarousel focus={tierFocus} onFocus={setTierFocus} />
+          ) : null}
+          <ul className={`gm6-benefits gm6-in mt-2 hidden ${isRegister ? "" : "lg:grid"}`} style={{ animationDelay: "520ms" }} aria-label="Keuntungan member">
             <li className="gm6-benefit">
               <span className="gm6-benefit-icon"><Coins size={20} aria-hidden="true" /></span>
               <span><strong>Poin</strong><span>Setiap Order</span></span>
@@ -407,7 +419,7 @@ export function MemberLoginPage({
               </div>
             </div>
           ) : (
-            <>
+            <div key={mode} className="gm6-swap">
               <p className="gm-eyebrow gm-card-eyebrow">{isRegister ? "Buat Akun Garage Coffee" : "Member Access"}</p>
               <h1 id="member-card-title" className="gm6-panel-title mt-4">
                 {mode === "google-complete" ? (
@@ -641,7 +653,7 @@ export function MemberLoginPage({
                   </Link>
                 ) : null}
               </div>
-            </>
+            </div>
           )}
 
           <div className="gm-divider mt-7" />
@@ -664,5 +676,68 @@ export function MemberLoginPage({
         </ul>
       </div>
     </main>
+  );
+}
+
+const CAROUSEL_TIERS = ["Silver", "Gold", "Platinum"] as const;
+
+/** Kontrol carousel tier (titik + panah + ←/→). Isi keuntungan dari memberLevelRules — data nyata, bukan karangan. */
+function TierCarousel({ focus, onFocus }: { focus: number; onFocus: (index: number) => void }) {
+  const rule = memberLevelRules.find((item) => item.level === CAROUSEL_TIERS[focus]);
+  const go = (delta: number) => onFocus((focus + delta + CAROUSEL_TIERS.length) % CAROUSEL_TIERS.length);
+  return (
+    <div
+      className="gm6-tiers"
+      role="group"
+      aria-label="Membership tier"
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.key === "ArrowLeft") {
+          event.preventDefault();
+          go(-1);
+        } else if (event.key === "ArrowRight") {
+          event.preventDefault();
+          go(1);
+        }
+      }}
+      data-testid="member-tier-carousel"
+    >
+      <div className="flex items-center justify-center gap-4">
+        <button type="button" className="gm6-tier-arrow" onClick={() => go(-1)} aria-label="Tier sebelumnya">
+          <ChevronLeft size={20} aria-hidden="true" />
+        </button>
+        <div className="flex items-center gap-2.5" role="tablist" aria-label="Pilih tier">
+          {CAROUSEL_TIERS.map((label, index) => (
+            <button
+              key={label}
+              type="button"
+              role="tab"
+              aria-selected={index === focus}
+              aria-label={label}
+              className="gm6-tier-dot"
+              onClick={() => onFocus(index)}
+            />
+          ))}
+        </div>
+        <button type="button" className="gm6-tier-arrow" onClick={() => go(1)} aria-label="Tier berikutnya">
+          <ChevronRight size={20} aria-hidden="true" />
+        </button>
+      </div>
+      <p className="mt-3 text-center" aria-live="polite">
+        <span className="gm6-tier-name">{CAROUSEL_TIERS[focus]}</span>
+        <span className="block text-[13px] text-[#c8c9cd]">
+          {focus === 0 ? "Tier awal saat daftar" : `Mulai ${new Intl.NumberFormat("id-ID").format(rule?.minPoints ?? 0)} poin`} · poin {rule?.multiplier ?? 1}x
+        </span>
+      </p>
+      {rule ? (
+        <ul className="mx-auto mt-2 flex max-w-xl flex-wrap justify-center gap-2">
+          {rule.perks.map((perk) => (
+            <li key={perk} className="gm6-perk">
+              {perk}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
   );
 }

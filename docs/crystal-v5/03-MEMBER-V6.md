@@ -49,3 +49,20 @@ Acuan: `docs/design-references/member-v6/` (01 kartu 3D, 02 login desktop, 03 da
 - Daftar sampai sukses (tier Silver dari backend), lalu ke `/member`.
 
 `e2e/member-google.spec.ts` (lengkapi profil Google) tetap lulus.
+
+## V6+ (9 Nov 2026) — penutupan kekurangan
+- **Render 3D:**
+  - Tekstur muka kartu 2048px pada kualitas tinggi (1024px pada kualitas rendah), dengan anisotropi maksimum GPU.
+  - Bloom selektif (`UnrealBloomPass` dari three/examples, tanpa dependensi baru) hanya pada kualitas tinggi, sehingga hanya laser dan tepi kartu yang menyala.
+  - Kualitas adaptif: 45 frame pertama diukur. Bila rata-rata di atas 22 ms, bloom dimatikan, DPR turun ke 1,25, dan debu dikurangi.
+  - Intro mengikuti waktu nyata, sehingga tidak berlarut-larut di perangkat lambat.
+  - Kanvas baru per mode, karena konteks WebGL yang sudah dilepas tidak bisa dipakai ulang.
+- **Membership Tier (referensi 01)** di halaman daftar:
+  - Mode scene `tiers`: Silver, Gold (tengah, lebih besar), Platinum di atas pedestal bulat dengan cincin menyala.
+  - Carousel: panah, titik, dan tombol ←/→, dengan nama tier diumumkan ke pembaca layar (aria-live).
+  - Keuntungan dan poin minimum diambil dari `memberLevelRules`.
+- **Animasi storyboard:**
+  - Bar progres "Memuat pengalaman member…" di intro.
+  - Sapuan kilau merah sekali saat input fokus, dan label ikut menyala.
+  - Crossfade dan geser 300 ms saat berpindah login ↔ daftar.
+  - Semua animasi mati saat reduced-motion.

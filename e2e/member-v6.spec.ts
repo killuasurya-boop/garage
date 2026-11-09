@@ -16,7 +16,10 @@ test("Member V6: login & daftar sinematik, responsif, validasi, sukses", async (
     await expect(page.getByTestId("member-card-stage")).toHaveAttribute("data-state", /ready|fallback/, { timeout: 90_000 });
     await expect(page.getByRole("heading", { name: /Selamat Datang Kembali/ })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), `overflow ${w}`).toBeLessThanOrEqual(1);
-    if (SHOTS) await page.screenshot({ path: `${SHOTS}/member-v6-login-${w}.png` });
+    if (SHOTS) {
+      await page.waitForTimeout(2200);
+      await page.screenshot({ path: `${SHOTS}/member-v6-login-${w}.png` });
+    }
   }
   await page.setViewportSize({ width: 1440, height: 900 });
 
@@ -28,6 +31,16 @@ test("Member V6: login & daftar sinematik, responsif, validasi, sukses", async (
   // Daftar: S&K wajib; sukses menampilkan tier dari backend + kartu 3D.
   await page.getByRole("button", { name: /Daftar Sekarang/ }).click();
   await expect(page.getByRole("heading", { name: /Daftar Member/ })).toBeVisible();
+  // Carousel Membership Tier (referensi 01): Gold di tengah, panah/klik titik berpindah, isi dari memberLevelRules.
+  const carousel = page.getByTestId("member-tier-carousel");
+  await expect(carousel.getByText("Gold", { exact: true })).toBeVisible();
+  await carousel.getByRole("button", { name: "Tier berikutnya" }).click();
+  await expect(carousel.getByText("Platinum", { exact: true })).toBeVisible();
+  await expect(carousel.getByText("Point 1.6x")).toBeVisible();
+  await carousel.getByRole("tab", { name: "Silver" }).click();
+  await expect(carousel.getByText("Tier awal saat daftar")).toBeVisible();
+  await page.waitForTimeout(1200);
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/member-v6-register-tiers.png` });
   await page.getByLabel("Nama Lengkap").fill("Raka V6");
   await page.getByLabel("Nomor HP").fill("081277700099");
   await page.getByLabel("PIN Member").fill("123456");

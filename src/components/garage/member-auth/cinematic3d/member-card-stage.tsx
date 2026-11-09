@@ -37,15 +37,20 @@ const FALLBACK: Array<{ tier: CardTier; label: string; className: string }> = [
 export function MemberCardStage({
   mode = "showcase",
   tier,
+  focus,
   className,
   testId = "member-card-stage",
 }: {
-  mode?: "showcase" | "success";
+  mode?: "showcase" | "success" | "tiers";
   tier?: CardTier;
+  /** Mode tiers: indeks kartu yang difokus (0 Silver, 1 Gold, 2 Platinum). */
+  focus?: number;
   className?: string;
   testId?: string;
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
+  const controllerRef = useRef<MemberCardSceneController | null>(null);
+  const focusRef = useRef(focus);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "fallback">("loading");
 
@@ -88,6 +93,8 @@ export function MemberCardStage({
             return;
           }
           controller = created;
+          controllerRef.current = created;
+          if (typeof focusRef.current === "number") created.setFocus(focusRef.current);
           resize();
           ro.observe(host);
           io.observe(host);
@@ -107,8 +114,14 @@ export function MemberCardStage({
       window.removeEventListener("pointermove", onMove);
       document.documentElement.removeEventListener("pointerleave", onLeave);
       controller?.dispose();
+      controllerRef.current = null;
     };
   }, [mode, tier]);
+
+  useEffect(() => {
+    focusRef.current = focus;
+    if (typeof focus === "number") controllerRef.current?.setFocus(focus);
+  }, [focus]);
 
   return (
     <div ref={hostRef} className={`gm6-stage ${className ?? ""}`} aria-hidden="true" data-testid={testId} data-state={state}>

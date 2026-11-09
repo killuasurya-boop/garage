@@ -106,7 +106,7 @@
 .sdv.sdv-paused *, .sdv.sdv-paused { animation-play-state: paused !important; }
 @media (prefers-reduced-motion: reduce) { .sdv * { animation: none !important; transition: none !important; } .sdv-laser { display:none; } }
 /* Ilustrasi vektor modul */
-.sdv-ill { position:absolute; transform: translate(-50%,-50%); width: clamp(96px, 13.5%, 190px); pointer-events:none; transition: filter .25s, transform .25s; filter: drop-shadow(0 6px 10px rgba(0,0,0,.6)); }
+.sdv-ill { position:absolute; transform: translate(-50%,-50%); width: clamp(100px, 15%, 210px); pointer-events:none; transition: filter .25s, transform .25s; filter: drop-shadow(0 6px 10px rgba(0,0,0,.6)); }
 .sdv-ill.is-focus { transform: translate(-50%,-52%) scale(1.06); filter: drop-shadow(0 0 12px rgba(255,48,69,.6)); }
 .sdi svg { display:block; width:100%; height:auto; overflow:visible; }
 .sdi-blink { animation: sdi-blink 2.8s ease-in-out infinite; }
@@ -119,3 +119,15 @@
 .sdi-bar { transform-box: fill-box; transform-origin: bottom; animation: sdi-bar 3.6s ease-in-out infinite; }
 @keyframes sdi-bar { 50% { transform: scaleY(.78); } }
 .sdv.sdv-paused .sdi *, .sdv.sdv-paused .sdi { animation-play-state: paused !important; }
+/* Render objek (brief 001) */
+.sdi--photo img { display:block; width:100%; height:auto; }
+.sdv-in .sdi--photo { animation: sdi-float 5s ease-in-out infinite; }
+.sdv-in .sdi--kitchen { animation-delay: -1.6s; } .sdv-in .sdi--owner { animation-delay: -3.1s; }
+@keyframes sdi-float { 50% { transform: translateY(-4px); } }
+.sdv-core-img { position:absolute; transform: translate(-50%,-50%); width: 40%; pointer-events:none; z-index:0; }
+.sdv-core-img img { display:block; width:100%; height:auto; mix-blend-mode: screen; }
+.sdv-in .sdv-core-img { animation: sdi-core 6s ease-in-out infinite; }
+@keyframes sdi-core { 50% { transform: translate(-50%,-52%); filter: brightness(1.12); } }
+.sdv-core { background: transparent; border-color: transparent; box-shadow:none; z-index:1; }
+.sdv-in .sdv-core { animation: none; }
+.sdv-core strong { text-shadow: 0 2px 10px rgba(0,0,0,.6); }

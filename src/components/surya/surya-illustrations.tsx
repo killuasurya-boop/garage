@@ -91,7 +91,24 @@ function Owner() {
 
 const MAP: Record<SuryaModuleId, () => React.JSX.Element> = { waiter: Waiter, pos: Pos, bar: Bar, kitchen: Kitchen, owner: Owner };
 
+/** Render ChatGPT (brief 001) yang lolos review: tanpa teks/logo. Waiter & POS masih SVG
+    sampai versi tanpa logo yang digambar ulang tersedia. */
+const PHOTO: Partial<Record<SuryaModuleId, string>> = {
+  bar: "/surya-dev/bar.webp",
+  kitchen: "/surya-dev/kitchen.webp",
+  owner: "/surya-dev/owner.webp",
+};
+
 export function SuryaIllustration({ id }: { id: SuryaModuleId }) {
+  const src = PHOTO[id];
+  if (src) {
+    return (
+      <div className={`sdi sdi--photo sdi--${id}`} aria-hidden="true">
+        {/* eslint-disable-next-line @next/next/no-img-element -- aset dekoratif kecil, sudah WebP */}
+        <img src={src} alt="" width={560} height={560} loading="lazy" decoding="async" />
+      </div>
+    );
+  }
   const Cmp = MAP[id];
   return <div className={`sdi sdi--${id}`} aria-hidden="true"><Cmp /></div>;
 }

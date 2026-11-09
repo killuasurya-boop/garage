@@ -61,32 +61,8 @@ export default function SuryaScene({ control, mobile, onReady }: Props) {
 
     const modules = new Map<string, THREE.Group>();
 
-    function platform(w: number, d: number, h: number, seg = 4) {
-      const g = new THREE.Group();
-      const geo = track(new THREE.CylinderGeometry(w / 2, w / 2 + 0.6, h, seg, 1));
-      const body = new THREE.Mesh(geo, metal);
-      body.rotation.y = seg === 4 ? Math.PI / 4 : Math.PI / seg;
-      body.scale.z = d / w;
-      g.add(body);
-      const edges = track(new THREE.EdgesGeometry(geo));
-      const line = new THREE.LineSegments(edges, edgeMat);
-      line.rotation.copy(body.rotation);
-      line.scale.copy(body.scale);
-      g.add(line);
-      const rimGeo = track(new THREE.TorusGeometry(w / 2 + 0.3, 0.14, 8, 48));
-      const rim = new THREE.Mesh(rimGeo, redGlow);
-      rim.rotation.x = Math.PI / 2;
-      rim.scale.y = d / w;
-      rim.position.y = -h / 2;
-      g.add(rim);
-      return g;
-    }
-
     // Inti GARAGE OS
     const core = new THREE.Group();
-    const corePlate = platform(26, 14, 2.4, 8);
-    corePlate.rotation.x = Math.PI / 2;
-    core.add(corePlate);
     const ring = new THREE.Mesh(track(new THREE.TorusGeometry(17, 0.18, 8, 96)), redGlow);
     ring.scale.y = 0.55;
     core.add(ring);
@@ -95,18 +71,6 @@ export default function SuryaScene({ control, mobile, onReady }: Props) {
     core.add(ring2);
     core.position.copy(toWorld(SURYA_CORE.x, SURYA_CORE.y));
     root.add(core);
-
-    // Modul
-    for (const m of SURYA_MODULES) {
-      const g = new THREE.Group();
-      const base = platform(m.id === "owner" ? 22 : 16, m.id === "owner" ? 11 : 9, 1.6, 4);
-      base.rotation.x = Math.PI / 2;
-      g.add(base);
-      g.position.copy(toWorld(m.x, m.y - 9));
-      g.position.z = 4;
-      root.add(g);
-      modules.set(m.id, g);
-    }
 
     // Debu partikel halus (hanya desktop)
     let dust: THREE.Points | null = null;

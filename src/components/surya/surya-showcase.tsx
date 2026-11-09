@@ -167,6 +167,10 @@ export function SuryaShowcase() {
                   </g>
                 ))}
               </svg>
+              <div className="sdv-core-img" aria-hidden="true" style={{ left: `${SURYA_CORE.x}%`, top: `${((SURYA_CORE.y + 2) / 70) * 100}%` }}>
+                {/* eslint-disable-next-line @next/next/no-img-element -- aset dekoratif, WebP */}
+                <img src="/surya-dev/core.webp" alt="" width={1100} height={733} loading="lazy" decoding="async" />
+              </div>
               <div className="sdv-core" style={{ left: `${SURYA_CORE.x}%`, top: `${(SURYA_CORE.y / 70) * 100}%` }}>
                 <strong>GARAGE OS</strong><span>BUSINESS SYSTEM ECOSYSTEM</span>
               </div>

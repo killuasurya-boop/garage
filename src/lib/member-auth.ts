@@ -22,7 +22,7 @@ type JwtPayload = {
   exp: number;
 };
 
-function authSecret() {
+export function memberAuthSecret() {
   const secret = process.env.MEMBER_AUTH_SECRET?.trim() || process.env.BETTER_AUTH_SECRET?.trim();
   if (secret) return secret;
   if (process.env.NODE_ENV === "production") {
@@ -38,7 +38,7 @@ function base64Url(input: Buffer | string) {
 function signJwtPayload(payload: JwtPayload) {
   const header = base64Url(JSON.stringify({ alg: "HS256", typ: "JWT" }));
   const body = base64Url(JSON.stringify(payload));
-  const signature = createHmac("sha256", authSecret()).update(`${header}.${body}`).digest("base64url");
+  const signature = createHmac("sha256", memberAuthSecret()).update(`${header}.${body}`).digest("base64url");
   return `${header}.${body}.${signature}`;
 }
 
@@ -64,7 +64,7 @@ export function verifyMemberJwt(token: string, expectedType: "access" | "refresh
     return null;
   }
 
-  const expectedSignature = createHmac("sha256", authSecret())
+  const expectedSignature = createHmac("sha256", memberAuthSecret())
     .update(`${encodedHeader}.${encodedBody}`)
     .digest("base64url");
 
@@ -137,7 +137,7 @@ export function readRefreshToken(request: Request) {
   return parseCookies(request)[REFRESH_COOKIE] ?? null;
 }
 
-function secureCookieAttribute(request: Request) {
+export function secureCookieAttribute(request: Request) {
   const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
   const requestProtocol = forwardedProto || new URL(request.url).protocol.replace(":", "");
   return requestProtocol === "https" ? "; Secure" : "";

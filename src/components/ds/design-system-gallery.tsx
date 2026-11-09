@@ -1,5 +1,6 @@
 "use client";
 
+import { CrystalGallery } from "@/components/crystal/crystal-gallery";
 import { MoneyText } from "@/components/ds/money-text";
 import { StateView, STATE_VIEW_KINDS } from "@/components/ds/state-view";
 import { StatusPill } from "@/components/ds/status-pill";
@@ -97,6 +98,8 @@ export function DesignSystemGallery() {
           ))}
         </div>
       </section>
+
+      <CrystalGallery />
     </div>
   );
 }

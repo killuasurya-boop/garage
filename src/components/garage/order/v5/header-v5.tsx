@@ -80,7 +80,7 @@ export function HeaderV5({
 
   const chipInner = (
     <>
-      <span className="text-xs font-semibold text-[#cfc9c4]">{dineIn ? "Meja" : "Order"}</span>
+      <span className="text-xs font-semibold text-[#d4d4da]">{dineIn ? "Meja" : "Order"}</span>
       <span className="font-mono text-base font-bold tabular-nums text-white">{tableCode}</span>
     </>
   );
@@ -88,13 +88,13 @@ export function HeaderV5({
     <button
       type="button"
       onClick={onTable}
-      className="flex h-11 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-[color:var(--gm5-line)] bg-[#141214] px-3 hover:border-[var(--menu-red)]"
+      className="flex h-11 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-[color:var(--gm5-line)] bg-[#111216] px-3 hover:border-[var(--menu-red)]"
       aria-label={`${tableCode === "?" || !/\d/.test(tableCode) ? "Pilih meja" : tableLabel} — ubah meja`}
     >
       {chipInner}
     </button>
   ) : (
-    <span className="flex h-11 shrink-0 items-center gap-1.5 rounded-xl border border-[color:var(--gm5-line)] bg-[#141214] px-3" aria-label={dineIn ? tableLabel : channelLabel}>
+    <span className="flex h-11 shrink-0 items-center gap-1.5 rounded-xl border border-[color:var(--gm5-line)] bg-[#111216] px-3" aria-label={dineIn ? tableLabel : channelLabel}>
       {chipInner}
     </span>
   );
@@ -134,11 +134,11 @@ export function HeaderV5({
         </Link>
         <div className="hidden min-w-0 border-l-2 border-[var(--menu-red)] pl-4 xl:block">
           <p className="gm5-display text-xl text-white">Digital Menu</p>
-          <p className="text-sm text-[#cfc9c4]">{staff ? `Waiter: ${staff.name}` : dineIn ? tableLabel : channelLabel}</p>
+          <p className="text-sm text-[#d4d4da]">{staff ? `Waiter: ${staff.name}` : dineIn ? tableLabel : channelLabel}</p>
         </div>
         <nav className="hidden flex-1 items-center justify-center gap-1 lg:flex" aria-label="Bagian menu">
           {nav.map((link) => {
-            const cls = "relative inline-flex min-h-11 cursor-pointer items-center rounded-lg px-3 text-[15px] font-semibold text-[#ede6dc] hover:text-white aria-[current=true]:text-white";
+            const cls = "relative inline-flex min-h-11 cursor-pointer items-center rounded-lg px-3 text-[15px] font-semibold text-[#f3e8da] hover:text-white aria-[current=true]:text-white";
             const bar = <span className={`absolute inset-x-3 bottom-1 h-[3px] rounded-full ${link.current ? "bg-[var(--menu-red)] shadow-[0_0_10px_var(--menu-red)]" : "bg-transparent"}`} aria-hidden />;
             if (link.menu?.length) {
               return (
@@ -150,7 +150,7 @@ export function HeaderV5({
                       {bar}
                     </button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" sideOffset={8} className="gm5 z-[80] w-60 rounded-xl border border-[color:var(--gm5-line)] bg-[#141214] p-1.5 text-white">
+                  <DropdownMenuContent align="start" sideOffset={8} className="gm5 z-[80] w-60 rounded-xl border border-[color:var(--gm5-line)] bg-[#111216] p-1.5 text-white">
                     <DropdownMenuItem onSelect={link.onSelect} className="min-h-10 cursor-pointer rounded-lg px-3 text-[15px] font-semibold focus:bg-[color:var(--menu-red)]/25 focus:text-white">
                       Semua menu
                     </DropdownMenuItem>
@@ -171,9 +171,9 @@ export function HeaderV5({
             );
           })}
         </nav>
-        <button type="button" onClick={onSearch} aria-keyshortcuts="/ Control+K Meta+K" className="hidden min-h-11 w-[220px] shrink-0 cursor-pointer items-center gap-2 rounded-full border border-[color:var(--gm5-line)] bg-[#141214] px-4 text-left text-sm text-[#a7a09b] hover:border-[var(--menu-red)] xl:flex">
+        <button type="button" onClick={onSearch} aria-keyshortcuts="/ Control+K Meta+K" className="hidden min-h-11 w-[220px] shrink-0 cursor-pointer items-center gap-2 rounded-full border border-[color:var(--gm5-line)] bg-[#111216] px-4 text-left text-sm text-[#b8b8be] hover:border-[var(--menu-red)] xl:flex">
           <Search className="size-4 text-white" aria-hidden /> <span className="flex-1">Cari menu favorit…</span>
-          <kbd className="rounded-md border border-white/15 bg-white/5 px-1.5 py-0.5 font-mono text-[11px] text-[#cfc9c4]">/</kbd>
+          <kbd className="rounded-md border border-white/15 bg-white/5 px-1.5 py-0.5 font-mono text-[11px] text-[#d4d4da]">/</kbd>
         </button>
         <div className="flex shrink-0 items-center gap-1.5">
           <button type="button" className="gm5-icon-btn xl:hidden" aria-label="Cari menu" onClick={onSearch}>
@@ -196,7 +196,7 @@ export function HeaderV5({
         </div>
       </div>
       {info ? (
-        <p className="mt-1 flex items-center justify-center gap-1.5 text-[13px] text-[#cfc9c4] lg:justify-start lg:pl-[4px]">
+        <p className="mt-1 flex items-center justify-center gap-1.5 text-[13px] text-[#d4d4da] lg:justify-start lg:pl-[4px]">
           <Clock className="size-3.5 text-[var(--garage-amber)]" aria-hidden /> {info}
         </p>
       ) : null}

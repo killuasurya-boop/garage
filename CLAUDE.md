@@ -505,7 +505,8 @@ Scroll direction:
   (strict, never truncates "123" → "23"), `tableLabelFor` → canonical "Meja 06".
   Max 50 (`MAX_TABLE_NUMBER`, matches table-call voice assets & QR cards).
 - Tables in use per outlet live in `dining_tables` (Pengaturan → Meja & QR,
-  `/api/tables/config`). No rows for an outlet → all 01–50 active. Inactive tables
+  `/api/tables/config`). No rows for an outlet → all 01–50 active. `floor` (migration 0182, Crystal V5) = lantai per
+  meja; null → `defaultTableFloor` (01–25 = 1, 26–50 = 2). Customer picker groups/filters via `src/lib/table-floor-view.ts`. Inactive tables
   are hidden from waiter/POS maps and rejected for dine-in orders.
 - Live table state = `getTableLiveData({ outletId })` / `getTableLiveRow` (always pass
   the staff outlet). Bill window = orders since `table_sessions.cleanedAt`; only
@@ -581,8 +582,12 @@ Use these automatically when the task calls for them; do not wait to be asked. D
 
 Skills (`.claude/skills/`): `ui-ux-pro-max` (style/palette/layout ideas), `frontend-design` (hierarchy, type, restraint,
 copy; never a rebrand), `web-design-guidelines` (audit UI code, output `file:line`).
-Digital menu (`/order`) V5: skill `garage-menu-v5` is mandatory; the UI must closely match the boards in
-`docs/design-references/menu-digital-v5/` (owner, Nov 2026). Open questions it lists must be answered by the owner first.
+Garage Crystal V5 (owner, 8 Nov 2026) is the visual source of truth for ALL public surfaces (`/order` landing, table
+picker, digital menu, member login/dashboard/card) and the internal sidebar: boards `docs/design-references/crystal-v5/`,
+spec `docs/crystal-v5/01-DESIGN-SYSTEM.md`, tokens `--gc-*` (`src/lib/crystal-tokens.ts`, `src/components/crystal/crystal.css`,
+AA-tested), components `src/components/crystal/` (CrystalCard/Button/Chip/Badge/Sheet/LaserBorder/StatusDot). It replaces the
+older Menu V5 boards and member palette as the visual target; behaviour, data and ordering rules stay (self-order kept).
+Skill `garage-menu-v5` still applies for menu data rules (no fake options/badges, real photos, Daftar Pilihan wording).
 Animation skills (owner, Nov 2026: customer surfaces = cinematic, operational screens = fast and restrained):
 `animate`, `emil-design-eng`, `review-animations`, `improve-animations`, `animation-vocabulary` (Emil Kowalski, craft rules);
 `motion-design` (LottieFiles, choreography/timing tables); `micro-interaction`, `page-transition-animation`,
@@ -637,6 +642,14 @@ For documentation-only changes such as Claude command files, app lint/build is o
 ## GARAGE COFFEE — IMMUTABLE UI DESIGN CONTRACT
 
 **Scope.** Member (customer) UI: `/member-login` and future member screens. Staff/ops UI keeps `design-system/MASTER.md`.
+
+**Crystal V5 override (owner, 8 Nov 2026).** The palette/typography in the documents below is superseded by Garage Crystal V5
+(`docs/crystal-v5/01-DESIGN-SYSTEM.md`, `--gc-*` tokens, Montserrat display + Inter body). All other rules here (official logo,
+no automotive imagery, real member data, reduced motion, no fake OAuth/OTP, responsive QA) still apply. Google sign-in is
+allowed once `MEMBER_GOOGLE_CLIENT_ID`/`_SECRET` (fallback: the existing `GOOGLE_OAUTH_CLIENT_ID`/`_SECRET`) are configured on
+the server (button hidden otherwise): code + PKCE,
+server-verified ID token (`src/lib/member-google-oauth.ts`), link by `google_sub` then Google-verified email (no duplicates),
+new accounts complete name + WhatsApp + S&K, marketing consent separate & default off (migration 0183, `docs/crystal-v5/02-GOOGLE-LOGIN.md`).
 
 **Sources of truth.** Before you touch member UI, read all three:
 - `docs/GARAGE_MEMBER_DESIGN_SYSTEM.md`

@@ -39,10 +39,8 @@ export default function SuryaScene({ control, mobile, onReady }: Props) {
     const disposables: { dispose: () => void }[] = [];
     const track = <T extends { dispose: () => void }>(o: T) => (disposables.push(o), o);
 
-    const metal = track(new THREE.MeshStandardMaterial({ color: 0x1a1a1e, metalness: 0.85, roughness: 0.38 }));
     const chrome = track(new THREE.MeshStandardMaterial({ color: 0xc8c8cc, metalness: 1, roughness: 0.22 }));
     const redGlow = track(new THREE.MeshBasicMaterial({ color: 0xff3045 }));
-    const edgeMat = track(new THREE.LineBasicMaterial({ color: 0xd11a2a, transparent: true, opacity: 0.55 }));
 
     scene.add(new THREE.AmbientLight(0xffffff, 0.55));
     const key = new THREE.DirectionalLight(0xffe2c2, 1.6);

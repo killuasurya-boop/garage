@@ -91,9 +91,11 @@ function Owner() {
 
 const MAP: Record<SuryaModuleId, () => React.JSX.Element> = { waiter: Waiter, pos: Pos, bar: Bar, kitchen: Kitchen, owner: Owner };
 
-/** Render ChatGPT (brief 001) yang lolos review: tanpa teks/logo. Waiter & POS masih SVG
-    sampai versi tanpa logo yang digambar ulang tersedia. */
+/** Render ChatGPT (brief 001), tanpa teks/logo. Logo yang digambar ulang AI di waiter & POS
+    dihapus dengan inpainting sebelum dipasang. SVG di atas tetap jadi cadangan. */
 const PHOTO: Partial<Record<SuryaModuleId, string>> = {
+  waiter: "/surya-dev/waiter.webp",
+  pos: "/surya-dev/pos.webp",
   bar: "/surya-dev/bar.webp",
   kitchen: "/surya-dev/kitchen.webp",
   owner: "/surya-dev/owner.webp",

@@ -122,7 +122,7 @@
 /* Render objek (brief 001) */
 .sdi--photo img { display:block; width:100%; height:auto; }
 .sdv-in .sdi--photo { animation: sdi-float 5s ease-in-out infinite; }
-.sdv-in .sdi--kitchen { animation-delay: -1.6s; } .sdv-in .sdi--owner { animation-delay: -3.1s; }
+.sdv-in .sdi--kitchen { animation-delay: -1.6s; } .sdv-in .sdi--owner { animation-delay: -3.1s; } .sdv-in .sdi--pos { animation-delay: -0.8s; } .sdv-in .sdi--waiter { animation-delay: -2.4s; }
 @keyframes sdi-float { 50% { transform: translateY(-4px); } }
 .sdv-core-img { position:absolute; transform: translate(-50%,-50%); width: 40%; pointer-events:none; z-index:0; }
 .sdv-core-img img { display:block; width:100%; height:auto; mix-blend-mode: screen; }

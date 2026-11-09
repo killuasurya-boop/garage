@@ -1,6 +1,6 @@
 # Brief 001: Objek modul Garage OS untuk section #surya-dev
 
-- Status: OPEN
+- Status: SHIPPED (PR #184)
 - Layar/kebutuhan: section `#surya-dev` di homepage (`src/components/surya/`), panggung Garage OS desktop 1440x900
   dan alur mobile 390x844. Menggantikan ilustrasi SVG di `surya-illustrations.tsx`.
 - Tujuan pengguna: calon klien SURYA.dev melihat Garage OS sebagai ekosistem nyata (waiter, POS, bar, kitchen,
@@ -83,3 +83,7 @@ oleh website, jangan digambar). Ikuti blok GAYA, ukuran 1536x1024.
 - [ ] Tidak ada otomotif/motor
 
 ## Catatan review (diisi Claude Code)
+- 2026-11-09: 6 render diterima dari ChatGPT. bar/kitchen/owner/core lolos (PNG alpha, tanpa teks).
+  waiter & pos memuat logo GARAGE COFFEE yang digambar ulang AI (apron, layar, laci kas, printer) + strip merah di lengan:
+  dihapus dengan inpainting OpenCV sebelum dipasang. Semua dipasang sebagai WebP 560px di `public/surya-dev/`
+  (core 1100px). Original PNG tidak di-commit (6,4 MB).

@@ -606,8 +606,8 @@ export function MemberLoginPage({
                       inputMode="tel"
                       required
                     />
-                    {otpEnabled ? <MemberPhoneOtp phone={phone} alreadyVerified={Boolean(otpToken)} onVerified={setOtpResult} onExpired={() => setOtpResult(null)} /> : null}
-                    <MemberCashierCode phone={phone} alreadyVerified={Boolean(otpToken)} onVerified={setOtpResult} onExpired={() => setOtpResult(null)} />
+                    {otpEnabled ? <MemberPhoneOtp phone={phone} alreadyVerified={Boolean(otpToken)} onVerified={setOtpResult} onExpired={(token) => setOtpResult((prev) => (prev?.token === token ? null : prev))} /> : null}
+                    <MemberCashierCode phone={phone} alreadyVerified={Boolean(otpToken)} onVerified={setOtpResult} onExpired={(token) => setOtpResult((prev) => (prev?.token === token ? null : prev))} />
                     <MemberField
                       label="PIN Member"
                       icon={<LockKeyhole size={19} />}

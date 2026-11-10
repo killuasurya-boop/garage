@@ -3395,6 +3395,9 @@ export function PosView({
     setMemberPhone("");
     setMemberError(null);
     setMemberCreatedPin(null);
+    setMemberClaimCandidate(null);
+    setMemberClaimCode(null);
+    setMemberClaimError(null);
     setPosVoucherCode("");
     setPosVoucherResult(null);
     setManualDiscount(null);
@@ -3434,6 +3437,9 @@ export function PosView({
     setMemberPhone("");
     setMemberError(null);
     setMemberCreatedPin(null);
+    setMemberClaimCandidate(null);
+    setMemberClaimCode(null);
+    setMemberClaimError(null);
     setManualDiscount(null);
     setSelectedPaymentMethod("Cash");
     setPaymentProvider(defaultPaymentProvider("Cash"));
@@ -4077,6 +4083,9 @@ export function PosView({
       setGuestPhone("");
       setPosCustomerMode("guest");
       setMemberCreatedPin(null);
+      setMemberClaimCandidate(null);
+      setMemberClaimCode(null);
+      setMemberClaimError(null);
       setPosVoucherCode("");
       setPosVoucherResult(null);
       setManualDiscount(null);

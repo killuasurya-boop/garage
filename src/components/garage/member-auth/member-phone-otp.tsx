@@ -51,8 +51,8 @@ export function MemberPhoneOtp({
   alreadyVerified?: boolean;
   /** Token verifikasi untuk /api/member/auth/register + nomor (digit) yang diverifikasi. */
   onVerified: (result: { token: string; digits: string }) => void;
-  /** Token verifikasi kedaluwarsa → induk wajib menghapus token supaya kontrol verifikasi muncul lagi. */
-  onExpired?: () => void;
+  /** Token verifikasi ini kedaluwarsa → induk menghapusnya (hanya bila token itu yang masih tersimpan). */
+  onExpired?: (token: string) => void;
 }) {
   const digits = phone.replace(/\D/g, "");
   // Tantangan & verifikasi terikat ke nomor: nomor diganti → otomatis tampil seperti awal.
@@ -65,6 +65,7 @@ export function MemberPhoneOtp({
   // Token verifikasi berumur terbatas (tokenExpiresAt dari server). Setelah lewat, kontrol kirim/verifikasi
   // muncul lagi supaya pendaftar bisa meminta kode baru tanpa memuat ulang halaman.
   const [tokenExpiresAt, setTokenExpiresAt] = useState<number | null>(null);
+  const verifiedTokenRef = useRef<string | null>(null);
   const codeRef = useRef<HTMLInputElement>(null);
   const verified = verifiedFor === digits && digits.length > 0;
   const challengeId = challenge?.digits === digits ? challenge.id : null;
@@ -76,7 +77,8 @@ export function MemberPhoneOtp({
     const remaining = tokenExpiresAt - Date.now();
     const expire = () => {
       setVerifiedFor(null);
-      onExpired?.();
+      if (verifiedTokenRef.current) onExpired?.(verifiedTokenRef.current);
+      verifiedTokenRef.current = null;
       setChallenge(null);
       setCode("");
       setTokenExpiresAt(null);
@@ -139,6 +141,7 @@ export function MemberPhoneOtp({
       const expiresAt = data.tokenExpiresAt ? Date.parse(data.tokenExpiresAt) : NaN;
       setTokenExpiresAt(Number.isFinite(expiresAt) ? expiresAt : null);
       setVerifiedFor(digits);
+      verifiedTokenRef.current = data.verificationToken;
       onVerified({ token: data.verificationToken, digits });
       setStatus({ tone: "success", message: "Nomor WhatsApp terverifikasi." });
     } catch (error) {

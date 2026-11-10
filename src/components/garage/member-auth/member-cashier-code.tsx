@@ -23,15 +23,15 @@ export function MemberCashierCode({
   /** Nomor sudah terverifikasi lewat cara lain (OTP WhatsApp) → komponen disembunyikan. */
   alreadyVerified?: boolean;
   onVerified: (result: { token: string; digits: string }) => void;
-  /** Token verifikasi kedaluwarsa → induk wajib menghapus token supaya kontrol verifikasi muncul lagi. */
-  onExpired?: () => void;
+  /** Token verifikasi ini kedaluwarsa → induk menghapusnya (hanya bila token itu yang masih tersimpan). */
+  onExpired?: (token: string) => void;
 }) {
   const digits = phone.replace(/\D/g, "");
   const [open, setOpen] = useState(false);
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ status: AuthStatus; digits: string } | null>(null);
-  const [verified, setVerified] = useState<{ digits: string; expiresAt: number | null } | null>(null);
+  const [verified, setVerified] = useState<{ digits: string; token: string; expiresAt: number | null } | null>(null);
   const codeRef = useRef<HTMLInputElement>(null);
   const isVerified = verified?.digits === digits && digits.length > 0;
   const status = message?.digits === digits ? message.status : null;
@@ -41,7 +41,7 @@ export function MemberCashierCode({
     const expire = () => {
       setVerified(null);
       setCode("");
-      onExpired?.();
+      onExpired?.(verified.token);
       setMessage({ status: { tone: "info", message: "Kode klaim kedaluwarsa. Minta kode baru di kasir." }, digits: verified.digits });
     };
     const remaining = verified.expiresAt - Date.now();
@@ -84,7 +84,7 @@ export function MemberCashierCode({
       }>;
       if (!res.ok || !json.success) throw new Error(json.success ? "Kode tidak valid." : json.message);
       const expiresAt = json.data.tokenExpiresAt ? Date.parse(json.data.tokenExpiresAt) : NaN;
-      setVerified({ digits, expiresAt: Number.isFinite(expiresAt) ? expiresAt : null });
+      setVerified({ digits, token: json.data.verificationToken, expiresAt: Number.isFinite(expiresAt) ? expiresAt : null });
       onVerified({ token: json.data.verificationToken, digits });
       setMessage({ status: { tone: "success", message: "Nomor terverifikasi dengan kode kasir. Poin & riwayatmu akan tersambung." }, digits });
     } catch (error) {

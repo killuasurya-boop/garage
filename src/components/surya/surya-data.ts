@@ -22,7 +22,7 @@ export const SURYA_MODULES: {
 ];
 
 export const SURYA_CORE = { x: 50, y: 34 };
-export const SURYA_READY = { x: 70, y: 34 };
+export const SURYA_READY = { x: 73, y: 34 };
 
 /** Alur konseptual (ilustrasi modul perangkat lunak, bukan data langsung). */
 export const SURYA_PATHS: { id: string; d: string; from: SuryaModuleId | "core" | "ready"; to: SuryaModuleId | "core" | "ready" }[] = [
@@ -30,8 +30,8 @@ export const SURYA_PATHS: { id: string; d: string; from: SuryaModuleId | "core" 
   { id: "pos-core", from: "pos", to: "core", d: "M50 18 L 50 27" },
   { id: "pos-bar", from: "pos", to: "bar", d: "M58 12 C 70 12, 70 20, 78 20" },
   { id: "pos-kitchen", from: "pos", to: "kitchen", d: "M58 12 C 64 12, 66 17, 66 24 L 66 40 C 66 45, 72 45, 78 45" },
-  { id: "bar-ready", from: "bar", to: "ready", d: "M86 25 C 86 30, 80 34, 75 34" },
-  { id: "kitchen-ready", from: "kitchen", to: "ready", d: "M86 40 C 86 36, 80 34, 75 34" },
+  { id: "bar-ready", from: "bar", to: "ready", d: "M86 25 C 86 30, 82 34, 77.5 34" },
+  { id: "kitchen-ready", from: "kitchen", to: "ready", d: "M86 40 C 86 36, 82 34, 77.5 34" },
   { id: "core-owner", from: "core", to: "owner", d: "M50 42 L 50 54" },
 ];
 

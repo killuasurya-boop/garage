@@ -55,10 +55,10 @@
 .sdv-node.is-focus b { color:#fff; }
 .sdv-core { text-align:center; display:flex; flex-direction:column; gap:3px; padding:10px 18px; border-radius:10px; background: rgba(8,8,10,.6); border:1px solid rgba(255,48,69,.5); box-shadow: 0 0 30px rgba(209,26,42,.35); }
 .sdv-core strong { font-family: var(--font-anton), Anton, sans-serif; font-weight:400; font-size: clamp(18px,2.2vw,32px); letter-spacing:.04em; background: linear-gradient(180deg,#fff,#9a9aa2); -webkit-background-clip:text; background-clip:text; color:transparent; }
-.sdv-core span { font-family: var(--font-jetbrains-mono), monospace; font-size: clamp(8px,.7vw,10.5px); letter-spacing:.18em; color: var(--mut); }
+.sdv-core span { font-family: var(--font-jetbrains-mono), monospace; font-size: clamp(7px,.6vw,9.5px); letter-spacing:.08em; white-space:nowrap; color: var(--mut); }
 .sdv-in .sdv-core { animation: sdv-pulse 3.6s ease-in-out infinite; }
 @keyframes sdv-pulse { 50% { box-shadow: 0 0 46px rgba(255,48,69,.5); } }
-.sdv-ready { font-family: var(--font-jetbrains-mono), monospace; font-size: clamp(8px,.7vw,10.5px); letter-spacing:.14em; padding:4px 8px; border:1px dashed rgba(255,48,69,.6); border-radius:6px; background: rgba(8,8,10,.7); color: var(--ow); }
+.sdv-ready { font-family: var(--font-jetbrains-mono), monospace; font-size: clamp(7.5px,.62vw,9.5px); letter-spacing:.06em; white-space:nowrap; z-index:2; padding:3px 6px; border:1px dashed rgba(255,48,69,.6); border-radius:6px; background: rgba(8,8,10,.7); color: var(--ow); }
 .sdv-hud { list-style:none; margin:10px 0 0; padding:0; display:grid; grid-template-columns: repeat(5,1fr); gap:8px; }
 .sdv-hud li { display:flex; gap:8px; align-items:center; padding:8px 10px; border-radius:8px; background: rgba(26,26,30,.85); border:1px solid rgba(200,200,204,.16); min-width:0; }
 .sdv-hud svg { color: var(--laser); flex:none; }

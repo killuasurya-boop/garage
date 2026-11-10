@@ -94,7 +94,7 @@ export function HeroV5({
             </button>
           ) : null}
           {items.length > 1 ? (
-            <div className="absolute inset-x-0 bottom-1.5 z-20 flex justify-center gap-1" role="group" aria-label="Ganti foto menu">
+            <div className="absolute inset-x-0 bottom-0 z-20 flex justify-center" role="group" aria-label="Ganti foto menu">
               {items.map((item, index) => (
                 <button
                   key={item.id}
@@ -102,7 +102,7 @@ export function HeroV5({
                   onClick={() => setActive(index)}
                   aria-label={`Foto ${index + 1}: ${item.name}`}
                   aria-pressed={index === active}
-                  className="flex h-6 w-6 cursor-pointer items-center justify-center"
+                  className="flex h-11 w-8 cursor-pointer items-end justify-center pb-2"
                 >
                   <span className={`block h-2 rounded-full transition-all ${index === active ? "w-5 bg-[var(--menu-red)]" : "w-2 bg-white/70"}`} />
                 </button>

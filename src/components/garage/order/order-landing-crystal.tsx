@@ -77,11 +77,12 @@ export function OrderLandingCrystal({
             <p className="gc-eyebrow flex items-center gap-3">
               Order di Garage Coffee <span className="h-px w-10 bg-[var(--gc-laser)]" aria-hidden />
             </p>
-            <h1 id="order-landing-title" className="gc-display mt-3 text-[clamp(2.4rem,9vw,4.4rem)]">
+            {/* h2: dialog di atas halaman menu yang sudah punya h1 (satu h1 per halaman). */}
+            <h2 id="order-landing-title" className="gc-display mt-3 text-[clamp(2.4rem,9vw,4.4rem)]">
               Mau pesan
               <br />
               untuk <span className="gc-accent">apa?</span>
-            </h1>
+            </h2>
             <p className="mt-3 max-w-md text-[15px] leading-6 text-[var(--gc-text-2)]">
               Pilih cara menikmati Garage Coffee yang paling sesuai dengan kebutuhanmu.
             </p>

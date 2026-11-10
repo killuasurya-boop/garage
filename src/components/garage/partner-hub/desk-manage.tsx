@@ -214,11 +214,11 @@ function PartnerDetail({ partner, isOwner, busy, run }: { partner: Partner; isOw
         </Field>
         <div>
           <p className="text-sm font-semibold text-[#e4e4e8]">Last order (WIB, kosong = tanpa batas)</p>
-          <div className="mt-1 grid grid-cols-4 gap-2 sm:grid-cols-7">
+          <div className="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-4">
             {DAYS.map((day, i) => (
-              <label key={day} className="grid gap-1 text-xs text-[#b8b8bf]">
+              <label key={day} className="grid min-w-0 gap-1 text-xs text-[#b8b8bf]">
                 {day}
-                <input type="time" value={lastOrder[String(i)]} onChange={(e) => setLastOrder({ ...lastOrder, [String(i)]: e.target.value })} className={`${inputCls} h-10 px-1`} />
+                <input type="time" value={lastOrder[String(i)]} onChange={(e) => setLastOrder({ ...lastOrder, [String(i)]: e.target.value })} className={`${inputCls} h-10 min-w-0 px-2`} />
               </label>
             ))}
           </div>

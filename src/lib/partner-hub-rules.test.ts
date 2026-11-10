@@ -76,7 +76,7 @@ describe("Partner Hub — rumus keuangan (PRD 12.1)", () => {
   });
 
   it("belum siap = belum wajib bayar; dibatalkan = tidak ada penjualan; void setelah siap = kewajiban tetap", () => {
-    expect(partnerLineFinance({ qty: 2, unitPrice: 22_000, unitCost: 19_000, fulfilledQty: 0, cancelledQty: 0, status: "processing" })).toMatchObject({ gross: 44_000, liability: 0 });
+    expect(partnerLineFinance({ qty: 2, unitPrice: 22_000, unitCost: 19_000, fulfilledQty: 0, cancelledQty: 0, status: "processing" })).toMatchObject({ gross: 44_000, cost: 38_000, profit: 6_000, liability: 0 });
     expect(partnerLineFinance({ qty: 2, unitPrice: 22_000, unitCost: 19_000, fulfilledQty: 0, cancelledQty: 2, status: "cancelled" })).toMatchObject({ gross: 0, liability: 0 });
     expect(partnerLineFinance({ qty: 1, unitPrice: 22_000, unitCost: 19_000, fulfilledQty: 1, cancelledQty: 0, status: "delivered", salesVoided: true })).toMatchObject({ gross: 0, liability: 19_000 });
   });

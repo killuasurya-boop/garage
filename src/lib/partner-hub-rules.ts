@@ -173,8 +173,11 @@ export function partnerLineFinance(line: PartnerLineAmounts) {
   const soldQty = Math.max(0, line.qty - line.cancelledQty);
   const payableQty = isPayableLineStatus(line.status) ? Math.min(soldQty, Math.max(line.fulfilledQty, 0)) : 0;
   const gross = line.salesVoided ? 0 : soldQty * line.unitPrice;
-  const cost = payableQty * line.unitCost;
-  const liability = cost;
+  // Kewajiban = HPP qty yang sudah memenuhi syarat bayar (DEC-03).
+  const liability = payableQty * line.unitCost;
+  // HPP terkait untuk laba: seluruh qty terjual (item yang belum siap tetap akan dibayar bila dipenuhi);
+  // order void setelah barang disiapkan = penjualan 0, HPP = kewajiban yang tetap dibayar (DEC-04).
+  const cost = line.salesVoided ? liability : soldQty * line.unitCost;
   return { soldQty, payableQty, gross, cost, profit: gross - cost, liability };
 }
 
@@ -189,17 +192,19 @@ export function partnerSettlementTotals(
   let totalQty = 0;
   let grossSales = 0;
   let totalCost = 0;
+  let lineLiability = 0;
   for (const line of lines) {
     const f = partnerLineFinance(line);
     totalQty += f.payableQty;
     grossSales += f.gross;
     totalCost += f.cost;
+    lineLiability += f.liability;
   }
   const approved = adjustments.filter((a) => a.status === "approved");
   const salesAdjustments = approved.reduce((sum, a) => sum + a.salesDelta, 0);
   const liabilityAdjustments = approved.reduce((sum, a) => sum + a.liabilityDelta, 0);
   const netSales = grossSales + salesAdjustments;
-  const liabilityTotal = totalCost + liabilityAdjustments;
+  const liabilityTotal = lineLiability + liabilityAdjustments;
   return {
     totalQty,
     grossSales,
@@ -207,7 +212,8 @@ export function partnerSettlementTotals(
     netSales,
     totalCost,
     liabilityAdjustments,
-    garageProfit: netSales - liabilityTotal,
+    // Laba kotor = penjualan bersih − HPP terkait − penyesuaian kewajiban (untuk settlement = netSales − setoran).
+    garageProfit: netSales - totalCost - liabilityAdjustments,
     liabilityTotal,
     paidAmount: verifiedPaid,
     outstanding: liabilityTotal - verifiedPaid,

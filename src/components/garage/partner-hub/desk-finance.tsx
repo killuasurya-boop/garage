@@ -137,7 +137,7 @@ export function DeskFinance({ role, userId }: { role: string; userId: string }) 
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
         <Kpi label="Penjualan mitra (bersih)" value={rp(totals.gross)} />
-        <Kpi label="Total HPP mitra" value={rp(totals.cost)} />
+        <Kpi label="Total HPP mitra" value={rp(totals.cost)} hint="semua item terjual" />
         <Kpi label="Profit kotor Garage" value={rp(totals.profit)} tone="green" />
         <Kpi label="Kewajiban setoran" value={rp(totals.liability)} tone="amber" hint="item Siap Antar" />
         <Kpi label="Sudah dibayar" value={rp(paid)} hint="semua settlement" />
@@ -148,7 +148,9 @@ export function DeskFinance({ role, userId }: { role: string; userId: string }) 
         <Card key={partner.partnerId}>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h3 className="text-base font-bold text-white">{partner.partnerName}</h3>
+              <h3 className="text-base font-bold text-white">
+                {partner.partnerName} <span className="text-xs font-semibold text-[#b8b8bf]">#{partner.partnerCode}</span>
+              </h3>
               <p className="text-xs text-[#b8b8bf]">
                 {partner.orderCount} order · jual {rp(partner.netSales)} · HPP {rp(partner.totalCost)} · profit {rp(partner.garageProfit)} · setoran {rp(partner.liabilityTotal)}
               </p>

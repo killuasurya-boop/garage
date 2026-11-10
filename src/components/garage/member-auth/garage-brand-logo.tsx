@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { GARAGE_BRAND_ASSETS } from "@/lib/garage-brand-assets";
 
 /** Logo resmi Garage Coffee — selalu object-contain, tidak pernah dipotong/direkonstruksi. */
 export function GarageBrandLogo({
@@ -12,7 +13,7 @@ export function GarageBrandLogo({
 }) {
   return (
     <Image
-      src="/garage-brand/garage-coffee-logo.png"
+      src={GARAGE_BRAND_ASSETS.wordmark}
       alt="Garage Coffee"
       width={1200}
       height={282}

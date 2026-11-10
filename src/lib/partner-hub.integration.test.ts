@@ -134,8 +134,8 @@ describe("Smart Partner Hub — order & tiket", () => {
     const { eq } = await import("drizzle-orm");
     const [order] = await d.select().from(t.schema.orders).where(eq(t.schema.orders.orderNo, res.orderNo));
     const tickets = await d.select().from(t.schema.kitchenTickets).where(eq(t.schema.kitchenTickets.orderId, order.id));
-    expect(tickets.map((x) => x.station).sort()).toEqual(["Bar", "Mitra"]);
-    const partnerTicket = tickets.find((x) => x.station === "Mitra")!;
+    expect(tickets.map((x: { station: string }) => x.station).sort()).toEqual(["Bar", "Mitra"]);
+    const partnerTicket = tickets.find((x: { station: string }) => x.station === "Mitra")!;
     expect(partnerTicket.partnerId).toBe(partnerA.id);
     const lines = await d.select().from(t.schema.partnerOrderLines).where(eq(t.schema.partnerOrderLines.orderId, order.id));
     expect(lines).toHaveLength(1);
@@ -187,7 +187,7 @@ describe("Smart Partner Hub — order & tiket", () => {
     await svc.setPartnerProductPrice(linkA, { variantId: "reg", unitCost: 20_000, sellPrice: 24_000, reason: "Kesepakatan baru" }, owner());
     const d = t.getDb();
     const rows = await d.select().from(t.schema.partnerOrderLines);
-    expect(rows.every((row) => row.unitCost === 19_000)).toBe(true);
+    expect(rows.every((row: { unitCost: number }) => row.unitCost === 19_000)).toBe(true);
     await svc.setPartnerProductPrice(linkA, { variantId: "reg", unitCost: 19_000, sellPrice: 22_000, reason: "Kembali ke harga awal" }, owner());
   });
 });
@@ -207,7 +207,7 @@ describe("Smart Partner Hub — Portal Mitra & isolasi", () => {
     await svc.actOnPartnerTicket(partnerSession(partnerA), ticket.ticketNo, "ready");
     const d = t.getDb();
     const events = await d.select().from(t.schema.partnerEvents);
-    expect(events.filter((e) => e.kind.startsWith("ticket_")).map((e) => e.toStatus)).toEqual(["accepted", "cooking", "ready"]);
+    expect(events.filter((e: { kind: string }) => e.kind.startsWith("ticket_")).map((e: { toStatus: string | null }) => e.toStatus)).toEqual(["accepted", "cooking", "ready"]);
     // Jejak mitra append-only.
     await expect(d.delete(t.schema.partnerEvents)).rejects.toThrow();
   });
@@ -260,6 +260,19 @@ describe("Smart Partner Hub — settlement & payout", () => {
     expect(paidExpense.status).toBe("paid");
     // Mitra lain tidak bisa membuka settlement ini.
     await expect(svc.getPartnerSettlement(draft.id, { outletId, partnerId: partnerB.id })).rejects.toThrow(/tidak ditemukan/);
+  });
+
+  it("PDF settlement: FINAL berlogo, versi tetap bila isi sama, mitra lain ditolak (UAT-21/22)", async () => {
+    const [settled] = await svc.listPartnerSettlements(outletId, partnerA.id);
+    const first = await svc.generatePartnerReport(settled.settlement.id, { audience: "partner", outletId, generatedBy: ownerId });
+    expect(first.buffer.subarray(0, 4).toString()).toBe("%PDF");
+    expect(first.report).toMatchObject({ kind: "final", version: 1, totalLines: 1 });
+    const again = await svc.generatePartnerReport(settled.settlement.id, { audience: "partner", outletId, generatedBy: ownerId });
+    expect(again.report.id).toBe(first.report.id);
+    const asPartner = await svc.generatePartnerReport(settled.settlement.id, { audience: "partner", outletId, partnerId: partnerA.id, generatedBy: null });
+    expect(asPartner.report.checksum).toBe(first.report.checksum);
+    await expect(svc.generatePartnerReport(settled.settlement.id, { audience: "partner", outletId, partnerId: partnerB.id, generatedBy: null })).rejects.toThrow(/tidak ditemukan/);
+    await expect(svc.generatePartnerReport(settled.settlement.id, { audience: "internal", outletId, partnerId: partnerA.id, generatedBy: null })).rejects.toThrow(/setelah settlement disetujui|resmi/);
   });
 
   it("order dibatalkan sebelum mitra memproses: tanpa penjualan & tanpa kewajiban (UAT-13)", async () => {

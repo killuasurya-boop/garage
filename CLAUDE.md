@@ -374,6 +374,23 @@ Scroll direction:
   analysis → decision (STALE) → link the Owner's own executed `mcp_operations` → verification (`compareOutcome`). UI
   `/control/aya-solver`; Living Intelligence `/control/intelligence` (16 registry domains, real signals, no signal = unverified).
 
+- Smart Partner Hub (Owner 10 Nov 2026, `docs/partner-hub/`, migration 0188): official registered partners only (rokok/cookies/retail
+  stay Quick Retail). Setting `partnerHubEnabled` per outlet (default OFF = old behaviour; partner products hidden). Pure rules
+  `partner-hub-rules.ts`; order hooks `partner-hub-orders.ts` (no garage-service import); server `partner-hub-service.ts`; PDF
+  `partner-report-pdf.ts`. Partner products = `menu_items.product_type 'partner'` + station `none` (no Bar/Dapur ticket) +
+  `partner_product_links` (one partner per item, inactive until Owner approves). Availability = `menu_items.stock` ready/sold_out
+  (unlimited, no qty/WMS); partner BUKA/JEDA/TUTUP + last order per day (WIB) are re-validated server-side on every order
+  (`assertPartnerItemsOrderable`); customer self-order never sells partner items (DEC-14). Orders create one `kitchen_tickets`
+  row per partner (station `Mitra`, `partner_id`) + `partner_order_lines` with price/HPP snapshot (UNIQUE order_item). Production
+  Hub excludes `partner_id` tickets. Partner portal `/partner` uses its own session (`partner-auth.ts`, cookie
+  `garage_partner_session`, never staff_profiles); `partner_id` always from the session. Ready (mitra) sets `handoverAt` so the
+  existing waiter claim/deliver works. Liability (DEC-03) = HPP of lines whose ticket is ready/delivered; void before ready = 0;
+  refund = `partner_adjustments` row. Settlement lines hold `active_line_key` UNIQUE (anti-double); Owner approve → one
+  `expenses` row "HPP Mitra" (`sourceDoc PSET:<no>`); payouts (`partner_payouts`, reference & idempotency UNIQUE) never touch
+  the drawer; Manajer records → Owner verifies (Owner = self_verified). FINAL PDF only after approval, official logo required
+  (fail-closed), versions + checksum in `partner_reports` (regenerated from snapshot). `partner_events` is append-only.
+  Staff UI `/partners` (tabs per role; POS nav "Partner Hub" when enabled).
+
 ## Product Management Rules
 
 - Product categories are dynamic (owner, Okt 2026): table `product_categories` (`src/lib/product-management.ts`),

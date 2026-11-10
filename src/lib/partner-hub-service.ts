@@ -595,7 +595,8 @@ export async function actOnPartnerTicket(session: PartnerSession, ticketNo: stri
     const patch: Partial<typeof kitchenTickets.$inferInsert> = { updatedAt: now };
     if (action === "accept") Object.assign(patch, { acceptedAt: now, acceptedByName: actorName });
     if (action === "start") Object.assign(patch, { status: "cooking", acceptedAt: ticket.acceptedAt ?? now });
-    if (action === "ready") Object.assign(patch, { status: "ready", readyAt: now, readyByName: actorName, acceptedAt: ticket.acceptedAt ?? now });
+    // Siap Antar = mitra menyerahkan di titik serah-terima → waiter bisa klaim (alur klaim/antar waiter yang ada).
+    if (action === "ready") Object.assign(patch, { status: "ready", readyAt: now, readyByName: actorName, handoverAt: now, handoverByName: actorName, acceptedAt: ticket.acceptedAt ?? now });
     if (action === "reject") Object.assign(patch, { status: "rejected", issueReason: reason!.trim(), issueAt: now });
     await tx.update(kitchenTickets).set(patch).where(eq(kitchenTickets.id, ticket.id));
     const lineStatus = lineStatusForTicket(action === "accept" ? "accepted" : (patch.status as string));
@@ -625,7 +626,7 @@ export async function actOnPartnerTicket(session: PartnerSession, ticketNo: stri
         severity: "info",
         title: `Siap diambil dari ${session.partner.name}`,
         body: `${result.ticket.orderNo} · ${result.ticket.tableLabel ?? "Take away"}`,
-        url: "/waiter",
+        url: "/partners?tab=pickup",
         dedupKey: `partner_ready:${ticketNo}`,
       });
     }
@@ -637,7 +638,7 @@ export async function actOnPartnerTicket(session: PartnerSession, ticketNo: stri
         severity: "urgent",
         title: `${session.partner.name} menolak pesanan ${result.ticket.orderNo}`,
         body: reason?.slice(0, 200) ?? null,
-        url: "/control/partners",
+        url: "/partners",
         dedupKey: `partner_rejected:${ticketNo}`,
       });
     }
@@ -1195,3 +1196,79 @@ export async function partnerPortalOverview(session: PartnerSession) {
   };
 }
 
+
+// ─── PDF settlement (PRD 14) ─────────────────────────────────────────────────
+
+/**
+ * Terbitkan PDF settlement. FINAL hanya bila settlement sudah disetujui Owner; selain itu DRAFT.
+ * Mitra hanya boleh mengunduh PDF resmi (audience "partner") miliknya sendiri yang FINAL.
+ * Arsip: partner_reports (versi, checksum, jumlah baris). Isi direkonstruksi deterministik dari snapshot
+ * settlement — dokumen yang isinya sama menghasilkan checksum sama dan tidak menambah versi.
+ */
+export async function generatePartnerReport(
+  settlementId: string,
+  input: { audience: "partner" | "internal"; outletId: string; partnerId?: string; generatedBy: string | null },
+) {
+  const { renderPartnerReportPdf } = await import("@/lib/partner-report-pdf");
+  const db = getDb();
+  const detail = await getPartnerSettlement(settlementId, { outletId: input.outletId, partnerId: input.partnerId });
+  const s = detail.settlement;
+  const final = ["approved", "partially_paid", "paid"].includes(s.status);
+  if (input.partnerId && (!final || input.audience !== "partner")) {
+    throw new PartnerHubError("REPORT_NOT_READY", "Laporan resmi tersedia setelah settlement disetujui Owner.", 409);
+  }
+  // Rekonsiliasi wajib Rp0: Σ baris = total settlement (PRD 16.3 #7).
+  const sumLiability = detail.lines.reduce((sum, line) => sum + line.liability, 0);
+  const sumSales = detail.lines.reduce((sum, line) => sum + line.sales, 0);
+  if (sumLiability !== s.liabilityTotal || sumSales !== s.grossSales + s.salesAdjustments) {
+    throw new PartnerHubError("LEDGER_MISMATCH", "Total baris tidak sama dengan total settlement. Laporan ditahan untuk diperiksa.", 409);
+  }
+  const { outlets, user } = await import("@/db/schema");
+  const [outlet] = await db.select({ name: outlets.name }).from(outlets).where(eq(outlets.id, s.outletId)).limit(1);
+  const [approver] = s.approvedBy ? await db.select({ name: user.name }).from(user).where(eq(user.id, s.approvedBy)).limit(1) : [];
+  const existing = await db
+    .select()
+    .from(partnerReports)
+    .where(and(eq(partnerReports.settlementId, s.id), eq(partnerReports.audience, input.audience)))
+    .orderBy(desc(partnerReports.version));
+  const kind = final ? "final" : "draft";
+  const build = (version: number) =>
+    renderPartnerReportPdf({
+      reportNo: `RPT-${s.settlementNo}-${input.audience === "partner" ? "P" : "I"}`,
+      version,
+      kind,
+      audience: input.audience,
+      generatedAt: s.approvedAt ?? s.createdAt,
+      outletName: outlet?.name ?? "Garage Coffee",
+      partner: { code: detail.partner.code, name: detail.partner.name, productKind: detail.partner.productKind, address: detail.partner.address },
+      settlement: { ...s, approvedByName: approver?.name ?? null },
+      lines: detail.lines,
+      payouts: detail.payouts.filter((p) => p.status !== "void").map((p) => ({ ...p, paidAt: new Date(p.paidAt) })),
+    });
+  const latest = existing[0];
+  let pdf = await build(latest ? latest.version : 1);
+  if (latest && latest.checksum === pdf.sha256 && latest.kind === kind) {
+    return { buffer: pdf.buffer, report: latest, fileName: `${latest.reportNo}-v${latest.version}.pdf` };
+  }
+  const version = latest ? latest.version + 1 : 1;
+  if (latest) pdf = await build(version);
+  const reportNo = `RPT-${s.settlementNo}-${input.audience === "partner" ? "P" : "I"}V${String(version).padStart(2, "0")}`;
+  const [report] = await db
+    .insert(partnerReports)
+    .values({
+      reportNo,
+      settlementId: s.id,
+      partnerId: s.partnerId,
+      audience: input.audience,
+      kind,
+      version,
+      checksum: pdf.sha256,
+      totalLines: detail.lines.length,
+      // Tidak menyimpan file: PDF direkonstruksi dari snapshot settlement; checksum membuktikan keasliannya.
+      filePath: `regen:${s.id}:${input.audience}:v${version}`,
+      generatedBy: input.generatedBy,
+    })
+    .returning();
+  await logEvent(db, { partnerId: s.partnerId, kind: "report_generated", subjectId: reportNo, toStatus: kind, actor: { type: input.partnerId ? "partner" : "staff", id: input.generatedBy, name: input.generatedBy ?? "-" }, metadata: { checksum: pdf.sha256, lines: detail.lines.length } });
+  return { buffer: pdf.buffer, report, fileName: `${reportNo}.pdf` };
+}

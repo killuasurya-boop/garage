@@ -1289,6 +1289,8 @@ export const kitchenTickets = pgTable(
     // Chit cetak stasiun (printer Bar/Dapur): terisi saat sudah dicetak, supaya
     // tiket tidak tercetak dobel di perangkat stasiun mana pun.
     chitPrintedAt: timestamp("chit_printed_at", { withTimezone: true }),
+    // Smart Partner Hub: tiket station "Mitra" milik satu mitra resmi (null = tiket Bar/Dapur biasa).
+    partnerId: uuid("partner_id").references((): AnyPgColumn => partners.id),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -1359,6 +1361,8 @@ export const productionTicketItems = pgTable(
     tableLabel: text("table_label").notNull(),
     orderNo: text("order_no"),
     readyAt: timestamp("ready_at", { withTimezone: true }),
+    // Smart Partner Hub: tiket station "Mitra" milik satu mitra resmi (null = tiket Bar/Dapur biasa).
+    partnerId: uuid("partner_id").references((): AnyPgColumn => partners.id),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
@@ -5318,3 +5322,320 @@ export const wmsClosingMutation = pgTable("wms_closing_mutation", {
   id: uuid("id").primaryKey().defaultRandom(), outletId: uuid("outlet_id").notNull().references(() => outlets.id), key: text("key").notNull(),
   payloadHash: text("payload_hash").notNull(), response: jsonb("response").$type<unknown>().notNull(), actorId: text("actor_id").notNull().references(() => user.id), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, t => ({ replay: uniqueIndex("wms_closing_mutation_replay").on(t.outletId,t.key) }));
+
+
+// =============================================================================
+// SMART PARTNER HUB (Owner, 10 Nov 2026, docs/partner-hub/). Mitra resmi terdaftar:
+// produk unlimited (Tersedia/Habis), tiket station "Mitra", HPP snapshot per baris,
+// settlement & payout. order_items tetap satu-satunya sumber penjualan. Nominal = rupiah bulat.
+// =============================================================================
+
+export const partners = pgTable(
+  "partners",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    outletId: uuid("outlet_id").notNull().references(() => outlets.id),
+    code: text("code").notNull(),
+    name: text("name").notNull(),
+    picName: text("pic_name"),
+    phone: text("phone"),
+    address: text("address"),
+    productKind: text("product_kind"),
+    handoverPoint: text("handover_point"),
+    // draft | verifikasi | disetujui | aktif | dibekukan | nonaktif
+    status: text("status").notNull().default("draft"),
+    // buka | jeda | tutup (keputusan bisnis mitra; ≠ koneksi online)
+    operationalStatus: text("operational_status").notNull().default("tutup"),
+    operationalStatusAt: timestamp("operational_status_at", { withTimezone: true }),
+    operationalStatusBy: text("operational_status_by"),
+    // Last order per hari JS (0 = Minggu … 6 = Sabtu), "HH:MM" WIB; null = tanpa batas.
+    lastOrderByDay: jsonb("last_order_by_day").$type<Record<string, string | null>>().notNull().default({}),
+    payoutSchedule: text("payout_schedule"),
+    terms: text("terms"),
+    approvedBy: text("approved_by").references(() => user.id),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    createdBy: text("created_by").references(() => user.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    codeIdx: uniqueIndex("partners_code_idx").on(table.code),
+    outletIdx: index("partners_outlet_idx").on(table.outletId),
+  }),
+);
+
+export const partnerBankAccounts = pgTable(
+  "partner_bank_accounts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    partnerId: uuid("partner_id").notNull().references(() => partners.id),
+    bankName: text("bank_name").notNull(),
+    accountName: text("account_name").notNull(),
+    // Nomor lengkap hanya dibaca Owner/Finance; API lain menampilkan 4 digit akhir.
+    accountNumber: text("account_number").notNull(),
+    accountLast4: text("account_last4").notNull(),
+    // pending | verified | superseded (perubahan = baris baru, tidak pernah di-update di tempat)
+    status: text("status").notNull().default("pending"),
+    verifiedBy: text("verified_by").references(() => user.id),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    createdBy: text("created_by").references(() => user.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({ partnerIdx: index("partner_bank_accounts_partner_idx").on(table.partnerId) }),
+);
+
+export const partnerAccounts = pgTable(
+  "partner_accounts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    partnerId: uuid("partner_id").notNull().references(() => partners.id),
+    // Login mitra = nomor HP (format 08…) + PIN. Bukan akun staf: tidak masuk staff_profiles/payroll.
+    phone: text("phone").notNull(),
+    displayName: text("display_name").notNull(),
+    pinHash: text("pin_hash").notNull(),
+    status: text("status").notNull().default("active"),
+    // Naik saat PIN diganti / akun dinonaktifkan → semua sesi lama otomatis tidak berlaku.
+    sessionVersion: integer("session_version").notNull().default(1),
+    lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
+    createdBy: text("created_by").references(() => user.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    phoneIdx: uniqueIndex("partner_accounts_phone_idx").on(table.phone),
+    partnerIdx: index("partner_accounts_partner_idx").on(table.partnerId),
+  }),
+);
+
+export const partnerProductLinks = pgTable(
+  "partner_product_links",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    partnerId: uuid("partner_id").notNull().references(() => partners.id),
+    menuItemId: text("menu_item_id").notNull().references(() => menuItems.id),
+    code: text("code").notNull(),
+    active: boolean("active").notNull().default(false),
+    approvedBy: text("approved_by").references(() => user.id),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    availabilityUpdatedAt: timestamp("availability_updated_at", { withTimezone: true }),
+    availabilityUpdatedBy: text("availability_updated_by"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    menuItemIdx: uniqueIndex("partner_product_links_menu_item_idx").on(table.menuItemId),
+    partnerIdx: index("partner_product_links_partner_idx").on(table.partnerId),
+    codeIdx: uniqueIndex("partner_product_links_code_idx").on(table.code),
+  }),
+);
+
+export const partnerPriceHistory = pgTable(
+  "partner_price_history",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    linkId: uuid("link_id").notNull().references(() => partnerProductLinks.id),
+    variantId: text("variant_id").notNull(),
+    unitCost: integer("unit_cost").notNull(),
+    sellPrice: integer("sell_price").notNull(),
+    effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull().defaultNow(),
+    reason: text("reason").notNull(),
+    createdBy: text("created_by").references(() => user.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({ linkIdx: index("partner_price_history_link_idx").on(table.linkId, table.variantId, table.effectiveFrom) }),
+);
+
+export const partnerOrderLines = pgTable(
+  "partner_order_lines",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orderItemId: uuid("order_item_id").notNull().references(() => orderItems.id),
+    orderId: uuid("order_id").notNull().references(() => orders.id),
+    partnerId: uuid("partner_id").notNull().references(() => partners.id),
+    outletId: uuid("outlet_id").notNull().references(() => outlets.id),
+    ticketId: uuid("ticket_id").references(() => kitchenTickets.id),
+    menuItemId: text("menu_item_id").notNull(),
+    variantId: text("variant_id").notNull(),
+    itemName: text("item_name").notNull(),
+    variantLabel: text("variant_label").notNull(),
+    qty: integer("qty").notNull(),
+    // Snapshot saat order disahkan: perubahan harga master tidak menulis ulang histori.
+    unitPrice: integer("unit_price").notNull(),
+    unitCost: integer("unit_cost").notNull(),
+    priceHistoryId: uuid("price_history_id").references(() => partnerPriceHistory.id),
+    // queue | accepted | processing | ready | picked | delivered | rejected | cancelled
+    status: text("status").notNull().default("queue"),
+    // Kuantitas yang memenuhi syarat bayar ke mitra (DEC-03: sejak Siap Antar).
+    fulfilledQty: integer("fulfilled_qty").notNull().default(0),
+    cancelledQty: integer("cancelled_qty").notNull().default(0),
+    tableLabel: text("table_label"),
+    customerName: text("customer_name"),
+    orderNo: text("order_no").notNull(),
+    readyAt: timestamp("ready_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    orderItemIdx: uniqueIndex("partner_order_lines_order_item_idx").on(table.orderItemId),
+    partnerCreatedIdx: index("partner_order_lines_partner_created_idx").on(table.partnerId, table.createdAt),
+    ticketIdx: index("partner_order_lines_ticket_idx").on(table.ticketId),
+  }),
+);
+
+export const partnerEvents = pgTable(
+  "partner_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    partnerId: uuid("partner_id").notNull().references(() => partners.id),
+    kind: text("kind").notNull(),
+    subjectId: text("subject_id"),
+    fromStatus: text("from_status"),
+    toStatus: text("to_status"),
+    reason: text("reason"),
+    actorType: text("actor_type").notNull(),
+    actorId: text("actor_id"),
+    actorName: text("actor_name"),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({ partnerCreatedIdx: index("partner_events_partner_created_idx").on(table.partnerId, table.createdAt) }),
+);
+
+export const partnerAdjustments = pgTable(
+  "partner_adjustments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    partnerId: uuid("partner_id").notNull().references(() => partners.id),
+    outletId: uuid("outlet_id").notNull().references(() => outlets.id),
+    orderLineId: uuid("order_line_id").references(() => partnerOrderLines.id),
+    // refund | void | discount_partner | correction | dispute
+    kind: text("kind").notNull(),
+    qty: integer("qty").notNull().default(0),
+    // ± nilai jual & kewajiban (rupiah). Negatif = mengurangi.
+    salesDelta: integer("sales_delta").notNull().default(0),
+    liabilityDelta: integer("liability_delta").notNull().default(0),
+    reason: text("reason").notNull(),
+    // pending | approved | rejected (otomatis approved untuk void/refund yang sudah disetujui di modul asalnya)
+    status: text("status").notNull().default("approved"),
+    sourceRef: text("source_ref"),
+    createdBy: text("created_by"),
+    approvedBy: text("approved_by"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    partnerIdx: index("partner_adjustments_partner_idx").on(table.partnerId, table.createdAt),
+    sourceIdx: uniqueIndex("partner_adjustments_source_idx").on(table.sourceRef),
+  }),
+);
+
+export const partnerSettlements = pgTable(
+  "partner_settlements",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    settlementNo: text("settlement_no").notNull(),
+    partnerId: uuid("partner_id").notNull().references(() => partners.id),
+    outletId: uuid("outlet_id").notNull().references(() => outlets.id),
+    periodFrom: timestamp("period_from", { withTimezone: true }).notNull(),
+    periodTo: timestamp("period_to", { withTimezone: true }).notNull(),
+    // draft | submitted | approved | partially_paid | paid | disputed | cancelled
+    status: text("status").notNull().default("draft"),
+    totalQty: integer("total_qty").notNull().default(0),
+    grossSales: integer("gross_sales").notNull().default(0),
+    salesAdjustments: integer("sales_adjustments").notNull().default(0),
+    totalCost: integer("total_cost").notNull().default(0),
+    liabilityAdjustments: integer("liability_adjustments").notNull().default(0),
+    garageProfit: integer("garage_profit").notNull().default(0),
+    liabilityTotal: integer("liability_total").notNull().default(0),
+    paidAmount: integer("paid_amount").notNull().default(0),
+    lineCount: integer("line_count").notNull().default(0),
+    summaryHash: text("summary_hash"),
+    version: integer("version").notNull().default(1),
+    note: text("note"),
+    createdBy: text("created_by").references(() => user.id),
+    submittedBy: text("submitted_by").references(() => user.id),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    approvedBy: text("approved_by").references(() => user.id),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    noIdx: uniqueIndex("partner_settlements_no_idx").on(table.settlementNo),
+    partnerIdx: index("partner_settlements_partner_idx").on(table.partnerId, table.periodFrom),
+  }),
+);
+
+export const partnerSettlementLines = pgTable(
+  "partner_settlement_lines",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    settlementId: uuid("settlement_id").notNull().references(() => partnerSettlements.id),
+    orderLineId: uuid("order_line_id").references(() => partnerOrderLines.id),
+    adjustmentId: uuid("adjustment_id").references(() => partnerAdjustments.id),
+    qty: integer("qty").notNull(),
+    sales: integer("sales").notNull(),
+    cost: integer("cost").notNull(),
+    liability: integer("liability").notNull(),
+    // Slot anti-dobel: diisi saat settlement aktif, dikosongkan bila settlement dibatalkan.
+    activeLineKey: text("active_line_key"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    settlementIdx: index("partner_settlement_lines_settlement_idx").on(table.settlementId),
+    activeIdx: uniqueIndex("partner_settlement_lines_active_idx").on(table.activeLineKey),
+  }),
+);
+
+export const partnerPayouts = pgTable(
+  "partner_payouts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    settlementId: uuid("settlement_id").notNull().references(() => partnerSettlements.id),
+    partnerId: uuid("partner_id").notNull().references(() => partners.id),
+    bankAccountId: uuid("bank_account_id").references(() => partnerBankAccounts.id),
+    amount: integer("amount").notNull(),
+    // bank_jago | bank_bni | external (uang pribadi Owner) — tidak menyentuh laci kasir
+    fundSource: text("fund_source").notNull(),
+    reference: text("reference").notNull(),
+    proofUrl: text("proof_url"),
+    // recorded | verified | void
+    status: text("status").notNull().default("recorded"),
+    paidAt: timestamp("paid_at", { withTimezone: true }).notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    createdBy: text("created_by").references(() => user.id),
+    verifiedBy: text("verified_by").references(() => user.id),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    selfVerified: boolean("self_verified").notNull().default(false),
+    voidReason: text("void_reason"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    referenceIdx: uniqueIndex("partner_payouts_reference_idx").on(table.reference),
+    idemIdx: uniqueIndex("partner_payouts_idem_idx").on(table.idempotencyKey),
+    settlementIdx: index("partner_payouts_settlement_idx").on(table.settlementId),
+  }),
+);
+
+export const partnerReports = pgTable(
+  "partner_reports",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    reportNo: text("report_no").notNull(),
+    settlementId: uuid("settlement_id").notNull().references(() => partnerSettlements.id),
+    partnerId: uuid("partner_id").notNull().references(() => partners.id),
+    // partner (resmi untuk mitra) | internal
+    audience: text("audience").notNull(),
+    // draft | final
+    kind: text("kind").notNull(),
+    version: integer("version").notNull(),
+    checksum: text("checksum").notNull(),
+    totalLines: integer("total_lines").notNull(),
+    filePath: text("file_path").notNull(),
+    generatedBy: text("generated_by"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    noIdx: uniqueIndex("partner_reports_no_idx").on(table.reportNo),
+    settlementIdx: index("partner_reports_settlement_idx").on(table.settlementId),
+  }),
+);

@@ -113,6 +113,8 @@ export async function getProductionBoard(garage: GarageSession): Promise<Product
       .where(
         and(
           inArray(kitchenTickets.status, ACTIVE_TICKET_STATUSES),
+          // Tiket station "Mitra" (Smart Partner Hub) dikerjakan mitra di Portal Mitra, bukan Bar/Dapur.
+          isNull(kitchenTickets.partnerId),
           or(ne(kitchenTickets.status, "ready"), gte(kitchenTickets.updatedAt, staleReadyBefore)),
           or(
             isNull(kitchenTickets.orderId),
@@ -199,6 +201,7 @@ export async function getProductionBoard(garage: GarageSession): Promise<Product
     .where(
       and(
         eq(kitchenTickets.status, "cancelled"),
+        isNull(kitchenTickets.partnerId),
         gte(kitchenTickets.issueAt, new Date(now.getTime() - CANCELLED_VISIBLE_MS)),
         or(
           isNull(kitchenTickets.orderId),
@@ -221,7 +224,7 @@ export async function getProductionBoard(garage: GarageSession): Promise<Product
       readyAt: kitchenTickets.readyAt,
     })
     .from(kitchenTickets)
-    .where(gte(kitchenTickets.readyAt, dayStart))
+    .where(and(gte(kitchenTickets.readyAt, dayStart), isNull(kitchenTickets.partnerId)))
     .limit(1000);
 
   const batchById = new Map(batchRows.map((row) => [row.id, row]));

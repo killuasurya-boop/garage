@@ -46,12 +46,23 @@ export function SuryaShowcase() {
   const [focus, setFocus] = useState<SuryaModuleId | null>(null);
   const [sceneReady, setSceneReady] = useState(false);
   const [desktop, setDesktop] = useState(false);
+  const [reduceMotion, setReduceMotion] = useState(false);
+  const svgRef = useRef<SVGSVGElement>(null);
   const webgl = useWebglCapable();
   const onReady = useCallback(() => setSceneReady(true), []);
 
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 900px)");
     const set = () => setDesktop(mq.matches);
+    const id = requestAnimationFrame(set);
+    mq.addEventListener("change", set);
+    return () => { cancelAnimationFrame(id); mq.removeEventListener("change", set); };
+  }, []);
+
+  // Titik data (SMIL) tidak dirender saat prefers-reduced-motion: reduce.
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const set = () => setReduceMotion(mq.matches);
     const id = requestAnimationFrame(set);
     mq.addEventListener("change", set);
     return () => { cancelAnimationFrame(id); mq.removeEventListener("change", set); };
@@ -95,7 +106,12 @@ export function SuryaShowcase() {
   useEffect(() => {
     const root = sectionRef.current;
     if (!root) return;
-    const io = new IntersectionObserver(([e]) => root.classList.toggle("sdv-paused", !e.isIntersecting), { threshold: 0 });
+    // SMIL (animateMotion) tidak ikut CSS animation-play-state: jeda lewat API SVG.
+    const io = new IntersectionObserver(([e]) => {
+      root.classList.toggle("sdv-paused", !e.isIntersecting);
+      const svg = svgRef.current;
+      if (svg) { if (e.isIntersecting) svg.unpauseAnimations(); else svg.pauseAnimations(); }
+    }, { threshold: 0 });
     io.observe(root);
     return () => io.disconnect();
   }, []);
@@ -157,13 +173,15 @@ export function SuryaShowcase() {
                   <SuryaScene control={control} mobile={false} onReady={onReady} />
                 </div>
               )}
-              <svg className="sdv-svg" viewBox="0 0 100 70" preserveAspectRatio="none" aria-hidden="true">
+              <svg ref={svgRef} className="sdv-svg" viewBox="0 0 100 70" preserveAspectRatio="none" aria-hidden="true">
                 <defs><filter id="sdv-blur"><feGaussianBlur stdDeviation="0.5" /></filter></defs>
                 {SURYA_PATHS.map((p) => (
                   <g key={p.id} className={`sdv-path${focusPath(p.from, p.to) ? " is-focus" : ""}`}>
                     <path d={p.d} className="sdv-line-glow" filter="url(#sdv-blur)" />
                     <path d={p.d} className="sdv-line" />
-                    <circle r="0.7" className="sdv-dot"><animateMotion dur="3.6s" repeatCount="indefinite" path={p.d} /></circle>
+                    {!reduceMotion && (
+                      <circle r="0.7" className="sdv-dot"><animateMotion dur="3.6s" repeatCount="indefinite" path={p.d} /></circle>
+                    )}
                   </g>
                 ))}
               </svg>

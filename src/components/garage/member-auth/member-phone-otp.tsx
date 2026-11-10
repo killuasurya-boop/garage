@@ -56,11 +56,32 @@ export function MemberPhoneOtp({
   const [busy, setBusy] = useState<"send" | "verify" | null>(null);
   const [message, setMessage] = useState<{ status: AuthStatus; digits: string } | null>(null);
   const [verifiedFor, setVerifiedFor] = useState<string | null>(null);
+  // Token verifikasi berumur terbatas (tokenExpiresAt dari server). Setelah lewat, kontrol kirim/verifikasi
+  // muncul lagi supaya pendaftar bisa meminta kode baru tanpa memuat ulang halaman.
+  const [tokenExpiresAt, setTokenExpiresAt] = useState<number | null>(null);
   const codeRef = useRef<HTMLInputElement>(null);
   const verified = verifiedFor === digits && digits.length > 0;
   const challengeId = challenge?.digits === digits ? challenge.id : null;
   const status = message?.digits === digits ? message.status : null;
   const setStatus = (next: AuthStatus | null) => setMessage(next ? { status: next, digits } : null);
+
+  useEffect(() => {
+    if (!verifiedFor || !tokenExpiresAt) return;
+    const remaining = tokenExpiresAt - Date.now();
+    const expire = () => {
+      setVerifiedFor(null);
+      setChallenge(null);
+      setCode("");
+      setTokenExpiresAt(null);
+      setMessage({ status: { tone: "info", message: "Verifikasi WhatsApp kedaluwarsa. Kirim kode baru untuk melanjutkan." }, digits: verifiedFor });
+    };
+    if (remaining <= 0) {
+      expire();
+      return;
+    }
+    const id = window.setTimeout(expire, remaining);
+    return () => window.clearTimeout(id);
+  }, [verifiedFor, tokenExpiresAt]);
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -105,7 +126,9 @@ export function MemberPhoneOtp({
     setBusy("verify");
     setStatus(null);
     try {
-      const data = await post<{ verificationToken: string }>("/api/member/auth/otp/verify", { challengeId, code });
+      const data = await post<{ verificationToken: string; tokenExpiresAt?: string }>("/api/member/auth/otp/verify", { challengeId, code });
+      const expiresAt = data.tokenExpiresAt ? Date.parse(data.tokenExpiresAt) : NaN;
+      setTokenExpiresAt(Number.isFinite(expiresAt) ? expiresAt : null);
       setVerifiedFor(digits);
       onVerified({ token: data.verificationToken, digits });
       setStatus({ tone: "success", message: "Nomor WhatsApp terverifikasi." });

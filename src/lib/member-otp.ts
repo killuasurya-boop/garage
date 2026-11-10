@@ -25,7 +25,6 @@ import {
   type OtpConfig,
   type OtpPurpose,
 } from "@/lib/member-otp-rules";
-import { normalizePhone } from "@/lib/member-types";
 import { normalizeWaNumber } from "@/lib/whatsapp-link";
 
 export class MemberOtpError extends Error {
@@ -36,6 +35,15 @@ export class MemberOtpError extends Error {
   ) {
     super(message);
   }
+}
+
+/**
+ * Kunci nomor kanonik untuk OTP: "081277770001", "81277770001", "+6281277770001" dan "0812+77770001"
+ * semuanya menuju nomor WhatsApp yang sama, jadi harus berbagi kuota & tantangan yang sama. Bentuk 08….
+ */
+export function otpPhoneKey(raw: string) {
+  const wa = normalizeWaNumber(raw);
+  return wa ? `0${wa.slice(2)}` : "";
 }
 
 export async function getMemberOtpConfig(): Promise<OtpConfig> {
@@ -79,31 +87,37 @@ export async function requestMemberOtp(input: { phone: string; purpose?: OtpPurp
   const config = await getMemberOtpConfig();
   if (!config.enabled) throw new MemberOtpError("OTP_DISABLED", "Verifikasi WhatsApp belum aktif.", 503);
   const purpose = input.purpose ?? "register";
-  const phone = normalizePhone(input.phone);
-  if (!normalizeWaNumber(phone)) throw new MemberOtpError("INVALID_PHONE", "Nomor WhatsApp tidak valid.");
+  const phone = otpPhoneKey(input.phone);
+  if (!phone) throw new MemberOtpError("INVALID_PHONE", "Nomor WhatsApp tidak valid.");
   const now = input.now ?? new Date();
   const db = getDb();
-  const recent = await db
-    .select({ createdAt: memberOtpChallenges.createdAt })
-    .from(memberOtpChallenges)
-    .where(and(eq(memberOtpChallenges.phone, phone), gte(memberOtpChallenges.createdAt, new Date(now.getTime() - 24 * 3_600_000))))
-    .orderBy(desc(memberOtpChallenges.createdAt));
-  const block = otpSendBlockReason(recent.map((row) => row.createdAt), now);
-  if (block) throw new MemberOtpError("OTP_RATE_LIMITED", block, 429);
-
   const code = generateOtpCode();
   const secret = memberOtpSecret();
-  const [challenge] = await db
-    .insert(memberOtpChallenges)
-    .values({
-      phone,
-      purpose,
-      codeHash: otpHash(secret, "code", phone, purpose, code),
-      expiresAt: new Date(now.getTime() + OTP_TTL_MS),
-      deliveryStatus: "pending",
-      createdAt: now,
-    })
-    .returning({ id: memberOtpChallenges.id, expiresAt: memberOtpChallenges.expiresAt });
+  // Cek kuota + catat tantangan dalam satu transaksi berkunci per nomor: permintaan bersamaan antre,
+  // jadi jeda kirim ulang & batas 3/15 menit tidak bisa dilewati dengan request paralel.
+  // Pengiriman ke WhatsApp dilakukan setelah transaksi selesai (kunci tidak ditahan selama HTTP).
+  const challenge = await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`member_otp:${phone}`}))`);
+    const recent = await tx
+      .select({ createdAt: memberOtpChallenges.createdAt })
+      .from(memberOtpChallenges)
+      .where(and(eq(memberOtpChallenges.phone, phone), gte(memberOtpChallenges.createdAt, new Date(now.getTime() - 24 * 3_600_000))))
+      .orderBy(desc(memberOtpChallenges.createdAt));
+    const block = otpSendBlockReason(recent.map((row) => row.createdAt), now);
+    if (block) throw new MemberOtpError("OTP_RATE_LIMITED", block, 429);
+    const [row] = await tx
+      .insert(memberOtpChallenges)
+      .values({
+        phone,
+        purpose,
+        codeHash: otpHash(secret, "code", phone, purpose, code),
+        expiresAt: new Date(now.getTime() + OTP_TTL_MS),
+        deliveryStatus: "pending",
+        createdAt: now,
+      })
+      .returning({ id: memberOtpChallenges.id, expiresAt: memberOtpChallenges.expiresAt });
+    return row;
+  });
   try {
     const delivery = await deliverOtp(config, phone, code);
     await db
@@ -161,7 +175,8 @@ export async function checkMemberOtpCode(input: { challengeId: string; code: str
 /** Token valid untuk nomor & tujuan ini (belum dipakai, belum kedaluwarsa)? Tidak mengonsumsi. */
 export async function findValidOtpToken(input: { phone: string; token: string; purpose?: OtpPurpose; now?: Date }) {
   const purpose = input.purpose ?? "register";
-  const phone = normalizePhone(input.phone);
+  const phone = otpPhoneKey(input.phone);
+  if (!phone) return null;
   const hash = otpHash(memberOtpSecret(), "token", phone, purpose, input.token);
   const [row] = await getDb()
     .select()

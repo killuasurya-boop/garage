@@ -44,6 +44,22 @@ describe("OTP WhatsApp member", () => {
     await expect(otp.requestMemberOtp({ phone: "081277770009" })).rejects.toThrow(/Tunggu/);
   });
 
+  it("penulisan nomor berbeda untuk nomor WhatsApp yang sama berbagi kuota", async () => {
+    const otp = await import("@/lib/member-otp");
+    expect(otp.otpPhoneKey("81277770010")).toBe("081277770010");
+    expect(otp.otpPhoneKey("+6281277770010")).toBe("081277770010");
+    expect(otp.otpPhoneKey("0812+77770010")).toBe("081277770010");
+    await otp.requestMemberOtp({ phone: "081277770010" });
+    await expect(otp.requestMemberOtp({ phone: "81277770010" })).rejects.toThrow(/Tunggu/);
+    await expect(otp.requestMemberOtp({ phone: "+62 812-7777-0010" })).rejects.toThrow(/Tunggu/);
+  });
+
+  it("permintaan bersamaan untuk satu nomor hanya mengirim satu kode", async () => {
+    const otp = await import("@/lib/member-otp");
+    const results = await Promise.allSettled(Array.from({ length: 5 }, () => otp.requestMemberOtp({ phone: "081277770011" })));
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+  });
+
   it("data customer POS dengan riwayat hanya bisa diklaim setelah OTP", async () => {
     const { registerMember } = await import("@/lib/member-service");
     await t.getDb().insert(t.schema.customers).values({ name: "Pelanggan Lama", phone: "081277770005", tier: "Silver", points: 120, visits: 4 });

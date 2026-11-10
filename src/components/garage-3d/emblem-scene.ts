@@ -55,6 +55,8 @@ export type GarageSceneHandle = {
   setVisible: (visible: boolean) => void;
   setPointer: (x: number, y: number) => void;
   setScroll: (progress: number) => void;
+  /** Hidup/matikan animasi di adegan yang sama (mis. preferensi "kurangi gerak" berubah); tidak membuat konteks baru. */
+  setAnimate: (on: boolean) => void;
   resize: () => void;
   dispose: () => void;
 };
@@ -298,6 +300,7 @@ export async function createGarageScene(canvas: HTMLCanvasElement, opts: SceneOp
   let visible = true;
   let raf = 0;
   let stopped = false;
+  let animating = opts.animate;
   let time = opts.animate ? 0 : 1.4;
   let last = performance.now();
   let px = 0;
@@ -321,7 +324,7 @@ export async function createGarageScene(canvas: HTMLCanvasElement, opts: SceneOp
     const halfH = d * Math.tan((FOV * Math.PI) / 360);
     content.position.set(offset[0] * halfH * camera.aspect, offset[1] * halfH, 0);
     sparkMat.uniforms.uPixel.value = pixelRatio * 42;
-    if (!opts.animate || stopped) render();
+    if (!animating || stopped) render();
   }
 
   function render() {
@@ -379,7 +382,7 @@ export async function createGarageScene(canvas: HTMLCanvasElement, opts: SceneOp
   }
 
   resize();
-  if (opts.animate) {
+  if (animating) {
     raf = requestAnimationFrame((now) => {
       last = now;
       frame(now);
@@ -392,7 +395,7 @@ export async function createGarageScene(canvas: HTMLCanvasElement, opts: SceneOp
   return {
     setVisible(next) {
       visible = next;
-      if ((!opts.animate || stopped) && next) render();
+      if ((!animating || stopped) && next) render();
     },
     setPointer(x, y) {
       px = Math.max(-1, Math.min(1, x));
@@ -402,9 +405,22 @@ export async function createGarageScene(canvas: HTMLCanvasElement, opts: SceneOp
       const next = clamp01(progress);
       if (Math.abs(next - scroll) < 0.002) return;
       scroll = next;
-      if (!opts.animate || stopped) {
+      if (!animating || stopped) {
         step(0);
         resize();
+      }
+    },
+    setAnimate(on) {
+      if (on === animating) return;
+      animating = on;
+      cancelAnimationFrame(raf);
+      if (on && !stopped) {
+        raf = requestAnimationFrame((now) => {
+          last = now;
+          frame(now);
+        });
+      } else {
+        render();
       }
     },
     resize,

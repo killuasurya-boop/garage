@@ -891,6 +891,12 @@ export function PosView({
   const [memberCreatePin, setMemberCreatePin] = useState(generateTemporaryMemberPin);
   const [memberCreatePending, setMemberCreatePending] = useState(false);
   const [memberCreatedPin, setMemberCreatedPin] = useState<string | null>(null);
+  // Kode klaim member online (owner Nov 2026) — terikat ke customerId yang sedang dipilih.
+  const [memberClaimCode, setMemberClaimCode] = useState<
+    { customerId: string; code: string; expiresAt: string; maskedPhone: string } | null
+  >(null);
+  const [memberClaimLoading, setMemberClaimLoading] = useState(false);
+  const [memberClaimError, setMemberClaimError] = useState<string | null>(null);
   const [posVoucherCode, setPosVoucherCode] = useState("");
   const [posVoucherResult, setPosVoucherResult] = useState<VoucherValidation | null>(null);
   // Poin member yang dipakai sebagai potongan (owner, Okt 2026). Reset tiap ganti member.
@@ -1542,7 +1548,26 @@ export function PosView({
     if (!customer.phone) return;
     setMemberPhone(customer.phone);
     setMemberError(null);
+    setMemberClaimError(null);
     void lookupPosMember(customer.phone);
+  }
+
+  async function requestMemberClaimCode() {
+    if (!selectedMember) return;
+    const customerId = selectedMember.customerId;
+    setMemberClaimLoading(true);
+    setMemberClaimError(null);
+    try {
+      const result = await garageApi.post<{ code: string; expiresAt: string; maskedPhone: string }>(
+        "/api/pos/member/claim-code",
+        { customerId },
+      );
+      setMemberClaimCode({ customerId, ...result });
+    } catch (error) {
+      setMemberClaimError(error instanceof Error ? error.message : "Kode klaim gagal dibuat.");
+    } finally {
+      setMemberClaimLoading(false);
+    }
   }
 
   async function createPosMember(event: FormEvent<HTMLFormElement>) {
@@ -8976,7 +9001,17 @@ export function PosView({
                             onClearMember={() => {
                               setSelectedMember(null);
                               setMemberCreatedPin(null);
+                              setMemberClaimCode(null);
+                              setMemberClaimError(null);
                             }}
+                            claimCode={
+                              memberClaimCode && memberClaimCode.customerId === selectedMember?.customerId
+                                ? memberClaimCode
+                                : null
+                            }
+                            claimCodeLoading={memberClaimLoading}
+                            claimCodeError={memberClaimError}
+                            onRequestClaimCode={() => void requestMemberClaimCode()}
                           />
                         ) : null}
                         {paymentStep === "payment" ? (

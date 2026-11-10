@@ -65,7 +65,7 @@ describe("OTP WhatsApp member", () => {
     await t.getDb().insert(t.schema.customers).values({ name: "Pelanggan Lama", phone: "081277770005", tier: "Silver", points: 120, visits: 4 });
     const blocked = await registerMember({ name: "Penyerobot", phone: "081277770005", password: "123456" });
     expect(blocked.data).toBeNull();
-    expect(blocked.error).toMatch(/kode WhatsApp/);
+    expect(blocked.error).toMatch(/kode klaim di kasir/);
 
     const ok = await registerMember({ name: "Pelanggan Lama", phone: "081277770005", password: "123456", phoneVerified: true });
     expect(ok.data?.customer.points).toBe(120);
@@ -74,5 +74,57 @@ describe("OTP WhatsApp member", () => {
     // Nomor baru tanpa riwayat tetap boleh (perilaku lama saat OTP belum aktif).
     const fresh = await registerMember({ name: "Baru", phone: "081277770006", password: "123456" });
     expect(fresh.data?.customer.waVerifiedAt).toBeNull();
+  });
+
+  it("kode klaim kasir: hash, satu kode aktif, terikat nomor, lalu menyambungkan riwayat POS", async () => {
+    const otp = await import("@/lib/member-otp");
+    const { registerMember } = await import("@/lib/member-service");
+    const db = t.getDb();
+    const [customer] = await db
+      .insert(t.schema.customers)
+      .values({ name: "Langganan Kasir", phone: "081277770020", tier: "Silver", points: 80, visits: 3 })
+      .returning();
+
+    const first = await otp.issueCashierClaimCode({ customerId: customer.id });
+    expect(first.code).toMatch(/^\d{6}$/);
+    const rows: Array<{ deliveryStatus: string; codeHash: string; phone: string }> = await db
+      .select()
+      .from(t.schema.memberOtpChallenges);
+    const stored = rows.find((row) => row.deliveryStatus === "cashier");
+    expect(stored?.codeHash).not.toContain(first.code);
+    expect(stored?.phone).toBe("081277770020");
+
+    // Kode baru mematikan kode lama.
+    const second = await otp.issueCashierClaimCode({ customerId: customer.id });
+    if (first.code !== second.code) {
+      await expect(otp.claimWithCashierCode({ phone: "081277770020", code: first.code })).rejects.toThrow(/salah/);
+    }
+    // Kode tidak berlaku untuk nomor lain.
+    await expect(otp.claimWithCashierCode({ phone: "081277770021", code: second.code })).rejects.toThrow(/tidak ditemukan/);
+
+    const claimed = await otp.claimWithCashierCode({ phone: "+62 812-7777-0020", code: second.code });
+    const token = await otp.findValidOtpToken({ phone: "081277770020", token: claimed.verificationToken });
+    expect(token).not.toBeNull();
+    const reg = await registerMember({ name: "Langganan Kasir", phone: "081277770020", password: "123456", phoneVerified: Boolean(token) });
+    expect(reg.data?.customer.points).toBe(80);
+    expect(await otp.consumeOtpToken(token!.id)).toBe(true);
+
+    // Sudah punya akun → kasir tidak bisa membuat kode lagi.
+    await expect(otp.issueCashierClaimCode({ customerId: customer.id })).rejects.toThrow(/sudah punya akun/);
+  });
+
+  it("kode klaim kasir terkunci setelah 5 kali salah", async () => {
+    const otp = await import("@/lib/member-otp");
+    const [customer] = await t
+      .getDb()
+      .insert(t.schema.customers)
+      .values({ name: "Coba Tebak", phone: "081277770030", tier: "Silver", points: 10, visits: 1 })
+      .returning();
+    const issued = await otp.issueCashierClaimCode({ customerId: customer.id });
+    const wrong = issued.code === "000000" ? "111111" : "000000";
+    for (let i = 0; i < 5; i += 1) {
+      await expect(otp.claimWithCashierCode({ phone: "081277770030", code: wrong })).rejects.toThrow();
+    }
+    await expect(otp.claimWithCashierCode({ phone: "081277770030", code: issued.code })).rejects.toThrow(/percobaan/);
   });
 });

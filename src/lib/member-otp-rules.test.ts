@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  cashierClaimBlockReason,
+  CASHIER_CLAIM_MAX_PER_DAY,
   buildOtpTemplateMessage,
   checkOtpChallenge,
   customerHasHistory,
@@ -61,5 +63,16 @@ describe("OTP rules", () => {
     expect(customerHasHistory({ points: 0, visits: 0 })).toBe(false);
     expect(customerHasHistory({ points: 5, visits: 0 })).toBe(true);
     expect(customerHasHistory({ points: 0, visits: 1 })).toBe(true);
+  });
+});
+
+describe("kode klaim kasir", () => {
+  it("maks. 5 kode per nomor per 24 jam", () => {
+    const now = new Date("2026-11-10T10:00:00Z");
+    const recent = Array.from({ length: CASHIER_CLAIM_MAX_PER_DAY - 1 }, (_, i) => new Date(now.getTime() - (i + 1) * 3_600_000));
+    expect(cashierClaimBlockReason(recent, now)).toBeNull();
+    expect(cashierClaimBlockReason([new Date(now.getTime() - 60_000), ...recent], now)).toMatch(/Batas kode klaim/);
+    const old = Array.from({ length: 6 }, (_, i) => new Date(now.getTime() - (25 + i) * 3_600_000));
+    expect(cashierClaimBlockReason(old, now)).toBeNull();
   });
 });

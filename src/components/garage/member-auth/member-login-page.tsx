@@ -13,6 +13,7 @@ import { MemberCardStage, tierKey } from "./cinematic3d/member-card-stage";
 import { GarageBrandLogo } from "./garage-brand-logo";
 import { MemberButton } from "./member-button";
 import { MemberField } from "./member-field";
+import { MemberCashierCode } from "./member-cashier-code";
 import { MemberPhoneOtp, useMemberOtpStatus } from "./member-phone-otp";
 import "./member-auth.css";
 import "./member-v6.css";
@@ -605,7 +606,8 @@ export function MemberLoginPage({
                       inputMode="tel"
                       required
                     />
-                    {otpEnabled ? <MemberPhoneOtp phone={phone} onVerified={setOtpResult} /> : null}
+                    {otpEnabled ? <MemberPhoneOtp phone={phone} alreadyVerified={Boolean(otpToken)} onVerified={setOtpResult} /> : null}
+                    <MemberCashierCode phone={phone} alreadyVerified={Boolean(otpToken)} onVerified={setOtpResult} />
                     <MemberField
                       label="PIN Member"
                       icon={<LockKeyhole size={19} />}

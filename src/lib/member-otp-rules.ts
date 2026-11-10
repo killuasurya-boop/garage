@@ -18,6 +18,24 @@ export const OTP_TOKEN_TTL_MS = 15 * 60_000;
 
 export type OtpPurpose = "register";
 
+/**
+ * Kode klaim dari kasir (owner Nov 2026): pelanggan hadir di kasir, kasir membuat kode 6 angka di POS,
+ * pelanggan memasukkannya saat daftar member. Bukti kehadiran = pengganti OTP WhatsApp (tanpa Meta).
+ * Disimpan di tabel yang sama (`deliveryStatus = "cashier"`), token hasilnya identik dengan OTP.
+ */
+export const CASHIER_CLAIM_TTL_MS = 15 * 60_000;
+export const CASHIER_CLAIM_MAX_PER_DAY = 5;
+export const CASHIER_CLAIM_DELIVERY = "cashier";
+
+/** Alasan menolak pembuatan kode kasir (null = boleh). `recent` = waktu kode kasir untuk nomor ini. */
+export function cashierClaimBlockReason(recent: Date[], now = new Date()): string | null {
+  const t = now.getTime();
+  if (recent.filter((at) => t - at.getTime() < 24 * 3_600_000).length >= CASHIER_CLAIM_MAX_PER_DAY) {
+    return "Batas kode klaim untuk nomor ini hari ini tercapai. Coba lagi besok.";
+  }
+  return null;
+}
+
 export function generateOtpCode() {
   return String(randomInt(0, 10 ** OTP_LENGTH)).padStart(OTP_LENGTH, "0");
 }

@@ -4,13 +4,16 @@
 // whatsapp_messaging_queue) agar kode tidak pernah tersimpan polos di DB.
 // =============================================================================
 
-import { and, desc, eq, gte, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gt, gte, isNull, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { memberOtpChallenges } from "@/db/schema";
+import { customers, memberAccounts, memberOtpChallenges } from "@/db/schema";
 import { memberOtpSecret } from "@/lib/member-auth";
 import {
   buildOtpTemplateMessage,
+  CASHIER_CLAIM_DELIVERY,
+  CASHIER_CLAIM_TTL_MS,
+  cashierClaimBlockReason,
   checkOtpChallenge,
   generateOtpCode,
   generateOtpToken,
@@ -198,4 +201,97 @@ export async function consumeOtpToken(challengeId: string, now = new Date()) {
     .where(and(eq(memberOtpChallenges.id, challengeId), isNull(memberOtpChallenges.consumedAt)))
     .returning({ id: memberOtpChallenges.id });
   return Boolean(row);
+}
+
+/**
+ * Kasir membuat kode klaim untuk pelanggan POS yang ada di depannya (bukti kehadiran, pengganti OTP WhatsApp).
+ * Kode lama yang belum dipakai dimatikan. Kode hanya dikembalikan sekali ke layar kasir; DB menyimpan HMAC.
+ */
+export async function issueCashierClaimCode(input: { customerId: string; now?: Date }) {
+  const now = input.now ?? new Date();
+  const db = getDb();
+  const [customer] = await db
+    .select({ id: customers.id, name: customers.name, phone: customers.phone })
+    .from(customers)
+    .where(eq(customers.id, input.customerId))
+    .limit(1);
+  if (!customer) throw new MemberOtpError("CUSTOMER_NOT_FOUND", "Pelanggan tidak ditemukan.", 404);
+  const [account] = await db
+    .select({ id: memberAccounts.id })
+    .from(memberAccounts)
+    .where(eq(memberAccounts.customerId, customer.id))
+    .limit(1);
+  if (account) throw new MemberOtpError("ALREADY_MEMBER", "Pelanggan ini sudah punya akun member online.", 409);
+  const phone = otpPhoneKey(customer.phone ?? "");
+  if (!phone) throw new MemberOtpError("INVALID_PHONE", "Nomor HP pelanggan bukan nomor WhatsApp yang valid. Perbaiki nomornya dulu.");
+  const code = generateOtpCode();
+  const secret = memberOtpSecret();
+  const challenge = await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`member_otp:${phone}`}))`);
+    const recent = await tx
+      .select({ createdAt: memberOtpChallenges.createdAt })
+      .from(memberOtpChallenges)
+      .where(
+        and(
+          eq(memberOtpChallenges.phone, phone),
+          eq(memberOtpChallenges.deliveryStatus, CASHIER_CLAIM_DELIVERY),
+          gte(memberOtpChallenges.createdAt, new Date(now.getTime() - 24 * 3_600_000)),
+        ),
+      )
+      .orderBy(desc(memberOtpChallenges.createdAt));
+    const block = cashierClaimBlockReason(recent.map((row) => row.createdAt), now);
+    if (block) throw new MemberOtpError("CLAIM_RATE_LIMITED", block, 429);
+    // Satu kode aktif per nomor: kode kasir lama yang belum dipakai langsung kedaluwarsa.
+    await tx
+      .update(memberOtpChallenges)
+      .set({ expiresAt: now })
+      .where(
+        and(
+          eq(memberOtpChallenges.phone, phone),
+          eq(memberOtpChallenges.deliveryStatus, CASHIER_CLAIM_DELIVERY),
+          isNull(memberOtpChallenges.verifiedAt),
+          gt(memberOtpChallenges.expiresAt, now),
+        ),
+      );
+    const [row] = await tx
+      .insert(memberOtpChallenges)
+      .values({
+        phone,
+        purpose: "register",
+        codeHash: otpHash(secret, "code", phone, "register", code),
+        expiresAt: new Date(now.getTime() + CASHIER_CLAIM_TTL_MS),
+        deliveryStatus: CASHIER_CLAIM_DELIVERY,
+        createdAt: now,
+      })
+      .returning({ id: memberOtpChallenges.id, expiresAt: memberOtpChallenges.expiresAt });
+    return row;
+  });
+  return {
+    code,
+    expiresAt: challenge.expiresAt.toISOString(),
+    maskedPhone: `${phone.slice(0, 4)}•••${phone.slice(-3)}`,
+    customerName: customer.name,
+  };
+}
+
+/** Pelanggan memasukkan nomor + kode dari kasir → token verifikasi (sama dengan OTP) untuk register. */
+export async function claimWithCashierCode(input: { phone: string; code: string; now?: Date }) {
+  const phone = otpPhoneKey(input.phone);
+  if (!phone) throw new MemberOtpError("INVALID_PHONE", "Nomor WhatsApp tidak valid.");
+  const [challenge] = await getDb()
+    .select({ id: memberOtpChallenges.id })
+    .from(memberOtpChallenges)
+    .where(
+      and(
+        eq(memberOtpChallenges.phone, phone),
+        eq(memberOtpChallenges.deliveryStatus, CASHIER_CLAIM_DELIVERY),
+        isNull(memberOtpChallenges.verifiedAt),
+      ),
+    )
+    .orderBy(desc(memberOtpChallenges.createdAt))
+    .limit(1);
+  if (!challenge) {
+    throw new MemberOtpError("NOT_FOUND", "Kode klaim tidak ditemukan untuk nomor ini. Minta kode baru di kasir.");
+  }
+  return checkMemberOtpCode({ challengeId: challenge.id, code: input.code, now: input.now });
 }

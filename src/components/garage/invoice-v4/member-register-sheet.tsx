@@ -8,6 +8,7 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/
 import { AuthenticationStatus, type AuthStatus } from "@/components/garage/member-auth/authentication-status";
 import { MemberButton } from "@/components/garage/member-auth/member-button";
 import { MemberField } from "@/components/garage/member-auth/member-field";
+import { MemberCashierCode } from "@/components/garage/member-auth/member-cashier-code";
 import { MemberPhoneOtp, useMemberOtpStatus } from "@/components/garage/member-auth/member-phone-otp";
 import "@/components/garage/member-auth/member-auth.css";
 
@@ -133,7 +134,8 @@ export function MemberRegisterSheet({
               error={errors.phone}
               hint="Dipakai untuk masuk member & pesan transaksi."
             />
-            {otpEnabled ? <MemberPhoneOtp phone={phone} onVerified={setOtpResult} /> : null}
+            {otpEnabled ? <MemberPhoneOtp phone={phone} alreadyVerified={Boolean(otpToken)} onVerified={setOtpResult} /> : null}
+            <MemberCashierCode phone={phone} alreadyVerified={Boolean(otpToken)} onVerified={setOtpResult} />
             {errors.otp ? <p className="-mt-2 text-[13px] text-[#ffb3b5]">{errors.otp}</p> : null}
             <MemberField
               label="Buat PIN *"

@@ -25,6 +25,16 @@ Batas: kode berlaku 5 menit · maks. 5 percobaan per kode · jeda kirim ulang 60
 UI menampilkan langkah OTP **hanya** bila provider benar-benar terkonfigurasi (`GET /api/member/auth/otp/status`),
 sesuai kontrak member #13 (tidak ada tombol OTP palsu). Dipakai di `/member-login` dan sheet daftar di invoice.
 
+## Kode klaim dari kasir (tanpa Meta, Owner 10 Nov 2026)
+Pengganti OTP yang **selalu aktif** dan tidak butuh WhatsApp Cloud API. Pembuktian nomor dilakukan dengan kehadiran pelanggan di kasir.
+1. Kasir memilih pelanggan di POS (Bayar → Member). Untuk pelanggan tanpa akun online (`accountStatus = crm-only`), kasir
+   menekan **"Buat kode klaim member online"** (`POST /api/pos/member/claim-code`, izin `pos:use`, audit log tanpa kode).
+2. Kode 6 angka tampil sekali di layar kasir: berlaku 15 menit, satu kode aktif per nomor (kode baru mematikan kode lama),
+   maks. 5 kode/nomor/hari. DB hanya menyimpan HMAC (`member_otp_challenges`, `delivery_status = 'cashier'`).
+3. Pelanggan membuka `/member-login` → Daftar (atau sheet daftar di invoice) → **"Punya kode dari kasir?"** → masukkan kode
+   (`POST /api/member/auth/claim/verify`, publik: 10/menit per IP, 5 percobaan per kode).
+4. Hasilnya token verifikasi yang sama dengan OTP: register menandai `phoneVerified`, sehingga poin dan riwayat POS tersambung.
+
 ## Aktivasi (Owner)
 1. **WhatsApp Business Platform (Cloud API)** di Meta Business Manager, nomor bisnis Garage terverifikasi.
 2. Buat template kategori **Authentication**, bahasa **Indonesian (id)**, dengan tombol **Copy code**. Isi body

@@ -42,9 +42,12 @@ export function useMemberOtpStatus() {
 
 export function MemberPhoneOtp({
   phone,
+  alreadyVerified = false,
   onVerified,
 }: {
   phone: string;
+  /** Nomor sudah terverifikasi lewat kode kasir → tombol kirim OTP disembunyikan. */
+  alreadyVerified?: boolean;
   /** Token verifikasi untuk /api/member/auth/register + nomor (digit) yang diverifikasi. */
   onVerified: (result: { token: string; digits: string }) => void;
 }) {
@@ -140,6 +143,7 @@ export function MemberPhoneOtp({
   }
 
   if (verified) return <AuthenticationStatus status={status ?? { tone: "success", message: "Nomor WhatsApp terverifikasi." }} />;
+  if (alreadyVerified) return null;
 
   return (
     <div className="grid gap-3">

@@ -141,7 +141,7 @@ export function PrinterPanel({
                 <span className="phv4-mono text-[13px] font-bold">#{job.orderNo ?? "-"}</span>
                 <span className="truncate text-[12px] text-[#d1d5db]">{tableText(job.tableLabel ?? "")}</span>
                 {job.reprint ? (
-                  <span className="rounded border border-[var(--phv4-border)] px-1 text-[10px] font-bold">
+                  <span className="rounded border border-[var(--phv4-border)] px-1 text-[12px] font-bold">
                     ULANG {job.payload.reprint?.sequence ?? ""}
                   </span>
                 ) : null}
@@ -158,14 +158,14 @@ export function PrinterPanel({
                     : COMPLETION_STATUS_LABEL[job.status]}
                 </span>
               </div>
-              <p className="mt-0.5 truncate text-[11px] text-[var(--phv4-muted)]">
+              <p className="mt-0.5 truncate text-[12px] text-[var(--phv4-muted)]">
                 {job.attempts}x percobaan
                 {job.claimedBy ? ` · ${job.claimedBy}` : ""}
                 {job.printedAt
                   ? ` · ${new Intl.DateTimeFormat("id-ID", { timeStyle: "short", timeZone: "Asia/Jakarta" }).format(new Date(job.printedAt))}`
                   : ""}
               </p>
-              {job.error ? <p className="mt-0.5 text-[11px] font-semibold text-[#fca5a5]">{job.error}</p> : null}
+              {job.error ? <p className="mt-0.5 text-[12px] font-semibold text-[#fca5a5]">{job.error}</p> : null}
               {canWrite ? (
                 <div className="mt-1.5 flex flex-wrap gap-1.5">
                   {job.status === "failed" ? (

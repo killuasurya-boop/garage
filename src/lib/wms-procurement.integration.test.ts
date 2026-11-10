@@ -129,9 +129,20 @@ describe("Persetujuan & revisi PO", () => {
     await expect(proc.approvePurchaseOrder(order.id, OWNER)).rejects.toMatchObject({ code: "PO_STATE" });
     await proc.submitPurchaseOrder(order.id, MANAJER);
     await expect(proc.approvePurchaseOrder(order.id, MANAJER)).rejects.toMatchObject({ code: "PO_SELF_APPROVAL" });
+    const { like } = await import("drizzle-orm");
+    const notes = () =>
+      t.getDb().select().from(t.schema.staffNotifications).where(like(t.schema.staffNotifications.dedupKey, `po_approval:${order.id}:%`));
+    // Smart Notification V2: satu notifikasi ke manajemen, selesai saat diputus.
+    const [pending] = await notes();
+    expect(pending).toMatchObject({ audience: "management", kind: "po_approval", resolvedAt: null });
+    expect(pending.title).toContain(order.doc);
     const approved = await proc.approvePurchaseOrder(order.id, MANAJER2);
     expect(approved.status).toBe("approved");
     expect(approved.approvedBy).toBe(MANAJER2.userId);
+    const after = await notes();
+    expect(after).toHaveLength(1);
+    expect(after[0].resolvedAt).toBeTruthy();
+    expect(after[0].resolvedReason).toBe("PO disetujui");
   });
 
   it("WhatsApp Mode 1: hanya membuka chat (status 'WhatsApp Dibuka'), terkirim butuh konfirmasi manual revisi yang benar", async () => {

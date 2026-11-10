@@ -37,6 +37,29 @@ export async function getVapidPublicKey() {
   return json.data?.publicKey ?? null;
 }
 
+/**
+ * Lepas langganan push perangkat ini saat logout (Smart Notification V2, F-07):
+ * tablet bersama tidak boleh terus menerima push akun sebelumnya di layar kunci.
+ * Harus dipanggil SEBELUM sesi dihapus (DELETE butuh sesi). Tidak pernah melempar
+ * dan dibatasi waktunya supaya logout tidak tertahan.
+ */
+export async function releasePushSubscriptionOnSignOut(timeoutMs = 2500) {
+  if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
+  const work = (async () => {
+    const registration = await navigator.serviceWorker.getRegistration("/");
+    const subscription = await registration?.pushManager?.getSubscription();
+    if (!subscription) return;
+    await fetch("/api/push/subscribe", {
+      method: "DELETE",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ endpoint: subscription.endpoint }),
+    }).catch(() => undefined);
+    await subscription.unsubscribe().catch(() => false);
+  })().catch(() => undefined);
+  await Promise.race([work, new Promise((resolve) => setTimeout(resolve, timeoutMs))]);
+}
+
 /** Minta izin + buat langganan push. Null bila ditolak / tidak didukung. */
 export async function createPushSubscription() {
   if (pushSupport() !== "supported") return null;

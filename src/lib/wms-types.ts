@@ -36,6 +36,8 @@ export type WmsProductRow = {
   supplierName?: string | null;
   unit: string;
   minStock: number;
+  /** Stok target ruang (Minta Bahan); 0 = 2× minStock. */
+  parStock?: number;
   hpp: number; // HPP per satuan stok (Rp/ml, Rp/gr, Rp/pcs)
   // Harga beli per kemasan & isi kemasan (dari katalog bahan). 0 = belum diisi.
   packPrice: number;

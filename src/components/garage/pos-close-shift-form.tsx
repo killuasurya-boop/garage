@@ -23,6 +23,7 @@ import { CashDenominationGrid, denominationTotals } from "@/components/garage/ca
 import { denominationLabel, denominationMismatches, denominationValue } from "@/lib/cash-denominations";
 import { DEPOSIT_ACCOUNT_LABEL, DEPOSIT_ACCOUNTS, type DepositAccount } from "@/lib/cash-drawer";
 import { freshClosingChecklist } from "@/lib/cash-closing";
+import { ShiftCloseCheckPanel } from "@/components/garage/shift-close-check-panel";
 
 export type CloseShiftPayload = {
   actualCash: number;
@@ -428,15 +429,8 @@ export function CloseShiftForm({
         </p>
       </div>
 
-      {activeTableCount > 0 || pendingQrCount > 0 ? (
-        <Alert className="border-[#f5a742]/45 bg-[#f5a742]/12 text-[#ffe0ad]">
-          <AlertTriangle className="size-4" />
-          <AlertTitle>Cek serah terima</AlertTitle>
-          <AlertDescription>
-            {activeTableCount} meja masih aktif, {pendingQrCount} pesanan QR menunggu kasir.
-          </AlertDescription>
-        </Alert>
-      ) : null}
+      {/* V2 Tahap 1.7: semua pengecualian di satu panel (tanpa kas tunai untuk Kasir). */}
+      <ShiftCloseCheckPanel cashSessionId={cashSessionId} activeTableCount={activeTableCount} pendingQrCount={pendingQrCount} />
 
       {/* 1. Hitung laci */}
       <section className="space-y-3">

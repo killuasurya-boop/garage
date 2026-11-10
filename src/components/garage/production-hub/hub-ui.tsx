@@ -101,7 +101,7 @@ export const STATUS_TONE: Record<HubStatus, { text: string; bg: string; bar: str
 export function StatusChip({ status, label }: { status: HubStatus; label: string }) {
   const tone = STATUS_TONE[status];
   return (
-    <span className={`inline-flex h-5 shrink-0 items-center rounded-[5px] px-1.5 text-[11px] font-bold ${tone.bg} ${tone.text}`}>
+    <span className={`inline-flex h-5 shrink-0 items-center rounded-[5px] px-1.5 text-[12px] font-bold ${tone.bg} ${tone.text}`}>
       {label}
     </span>
   );
@@ -119,7 +119,7 @@ export function StationBadge({
 }) {
   const Icon = station === "Bar" ? Coffee : ChefHat;
   return (
-    <span className="inline-flex h-5 shrink-0 items-center gap-1 rounded-[5px] border border-[var(--phv4-border)] px-1.5 text-[11px] font-semibold text-[#d1d5db]">
+    <span className="inline-flex h-5 shrink-0 items-center gap-1 rounded-[5px] border border-[var(--phv4-border)] px-1.5 text-[12px] font-semibold text-[#d1d5db]">
       <Icon className="size-3" aria-hidden />
       {/* Kartu sempit (container < 270px): ikon saja, supaya meja & timer tidak terpotong. */}
       {compact ? null : <span className={responsive ? "hidden @[270px]:inline" : undefined}>{station === "Bar" ? "BAR" : "DAPUR"}</span>}
@@ -158,7 +158,7 @@ export function Segmented<T extends string>({
           }`}
         >
           {option.label}
-          {option.count != null ? <span className="phv4-mono ml-1 text-[11px] opacity-80">{option.count}</span> : null}
+          {option.count != null ? <span className="phv4-mono ml-1 text-[12px] opacity-80">{option.count}</span> : null}
         </button>
       ))}
     </div>

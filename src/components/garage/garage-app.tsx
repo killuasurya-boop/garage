@@ -37,6 +37,7 @@ type CSSProperties
 
 import { GarageAiAlertsBell } from "@/components/garage/garage-ai-alerts-bell";
 import { StaffNotificationCenter } from "@/components/garage/staff-notification-center";
+import { releasePushSubscriptionOnSignOut } from "@/lib/push-client";
 import {
 canViewKitchenPerformance,
 fetchAuthSessionCheck,
@@ -422,8 +423,10 @@ function GarageWorkspace({
         // Voice notification: bunyi hanya saat count naik (ada request baru),
         // bukan saat halaman pertama kali load atau saat count turun.
         if (prev >= 0 && nextCount > prev) {
+          // V2: satu bunyi per perangkat walau beberapa tab membuka Garage OS.
           if (deviceSoundEnabled()) void voice.announce("approval_pending", {
             dedupKey: `approval-bump-${nextCount}`,
+            soundTtlMs: 2 * 60_000,
           });
         }
         lastPendingApprovalRef.current = nextCount;
@@ -649,16 +652,13 @@ function GarageWorkspace({
       return;
     }
     const newlyLow = [...currentLow].filter((sku) => !prev.has(sku));
-    if (newlyLow.length > 0) {
-      // Announce satu per satu; queue di voice utility handle sequencing.
-      for (const sku of newlyLow) {
-        const item = data.inventoryItems.find((entry) => entry.sku === sku);
-        if (!item) continue;
-        if (deviceSoundEnabled()) void voice.announce("warning_lowstock", {
-          itemName: item.name,
-          dedupKey: `lowstock:${sku}`,
-        });
-      }
+    if (newlyLow.length > 0 && deviceSoundEnabled()) {
+      // V2: satu pengumuman per gelombang (bukan per SKU) dan sekali per perangkat.
+      const first = data.inventoryItems.find((entry) => entry.sku === newlyLow[0]);
+      void voice.announce("warning_lowstock", {
+        itemName: newlyLow.length === 1 ? (first?.name ?? null) : `${newlyLow.length} bahan`,
+        dedupKey: `lowstock:${[...newlyLow].sort().join(",")}`,
+      });
     }
     previousLowStockRef.current = currentLow;
   }, [data?.inventoryItems]);
@@ -735,6 +735,8 @@ function GarageWorkspace({
     let redirected = false;
 
     try {
+      // V2: lepas push perangkat ini selagi sesi masih sah (perangkat bersama).
+      await releasePushSubscriptionOnSignOut();
       try {
         await authClient.signOut();
       } catch {

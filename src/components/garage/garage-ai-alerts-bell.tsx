@@ -138,7 +138,12 @@ export function GarageAiAlertsBell({ role, onOpenAiModule }: GarageAiAlertsBellP
       if (hasNewHigh && typeof window !== "undefined") {
         // File MP3 statis di public/voice/scenarios/ai-alert-high.mp3 — voice
         // konsisten dengan announcement Smart Notification lainnya.
-        void voice.announce("ai_alert_high");
+        // V2: sekali per perangkat untuk kumpulan alert baru yang sama (multi-tab).
+        const newHighIds = nextAlerts
+          .filter((alert) => alert.priority === "high" && !previousIds.has(alert.id))
+          .map((alert) => alert.id)
+          .sort();
+        void voice.announce("ai_alert_high", { dedupKey: `ai-high:${newHighIds.join(",")}` });
       }
 
       return payload;

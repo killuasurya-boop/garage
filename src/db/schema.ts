@@ -3817,11 +3817,15 @@ export const staffNotifications = pgTable(
     // Kunci anti-dobel (mis. "qr_new:<orderId>").
     dedupKey: text("dedup_key"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    // V2: kejadian sudah tidak perlu aksi (order diterima, panggilan selesai, …).
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    resolvedReason: text("resolved_reason"),
   },
   (table) => ({
     outletCreatedIdx: index("staff_notifications_outlet_created_idx").on(table.outletId, table.createdAt),
     userIdx: index("staff_notifications_user_idx").on(table.userId),
     dedupIdx: uniqueIndex("staff_notifications_dedup_idx").on(table.dedupKey),
+    orderIdx: index("staff_notifications_order_idx").on(table.orderId),
   }),
 );
 
@@ -3951,6 +3955,8 @@ export const wmsProduct = pgTable(
     defaultSupplierId: uuid("default_supplier_id").references(() => wmsSupplier.id, { onDelete: "set null" }),
     unit: text("unit").notNull(),
     minStock: wmsNum("min_stock").notNull().default(0),
+    // Stok target ruang Bar/Dapur untuk saran Minta Bahan (0 = pakai 2× minStock).
+    parStock: wmsNum("par_stock").notNull().default(0),
     hpp: wmsNum("hpp").notNull().default(0), // harga modal rata-rata (boleh pecahan)
     imageUrl: text("image_url"), // foto bahan baku (opsional)
     barcode: text("barcode"), // barcode asli kemasan supplier (EAN/UPC), opsional
@@ -4648,6 +4654,8 @@ export const wmsMaterialRequestItem = pgTable(
     stockAtRequest: wmsNum("stock_at_request").notNull().default(0), // stok ruang saat diminta
     sentQty: wmsNum("sent_qty").notNull().default(0),
     shortQty: wmsNum("short_qty").notNull().default(0), // tidak ada di gudang → perlu beli
+    // Jumlah yang benar-benar diterima divisi (null = sesuai kiriman). Selisih → kekurangan/PO.
+    receivedQty: wmsNum("received_qty"),
     purchaseOrderId: uuid("purchase_order_id").references(() => wmsPurchaseOrder.id, { onDelete: "set null" }),
     note: text("note").notNull().default(""),
   },

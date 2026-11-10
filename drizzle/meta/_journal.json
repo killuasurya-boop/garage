@@ -1303,6 +1303,13 @@
       "when": 1794290773907,
       "tag": "0185_member_pin_set_at",
       "breakpoints": true
+    },
+    {
+      "idx": 186,
+      "version": "7",
+      "when": 1794293211785,
+      "tag": "0186_notification_resolve_par_stock",
+      "breakpoints": true
     }
   ]
 }

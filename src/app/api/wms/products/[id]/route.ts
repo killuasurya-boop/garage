@@ -20,6 +20,7 @@ const patchSchema = z.object({
   defaultSupplierId: z.string().uuid().nullable().optional(),
   unit: z.string().trim().min(1).max(24).optional(),
   minStock: z.number().nonnegative().max(10_000_000).optional(),
+  parStock: z.number().nonnegative().max(10_000_000).optional(),
   hpp: z.number().nonnegative().max(100_000_000).optional(),
   // Harga beli per kemasan + isi kemasan (satuan stok) → HPP per satuan otomatis.
   packPrice: z.number().nonnegative().max(1_000_000_000).optional(),

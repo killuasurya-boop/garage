@@ -14,7 +14,17 @@ import type { Role } from "@/lib/garage-data";
 import { publishProductionChange } from "@/lib/production-events";
 import { canHandleMoney, MANAGEMENT_ROLES } from "@/lib/role-access";
 
-export type NotificationAudience = "cashier" | "courier" | "production" | "management" | "waiter" | "all" | "user";
+// "bar" / "dapur" = satu stasiun saja (V2); "production" = kedua stasiun (pengumuman umum).
+export type NotificationAudience =
+  | "cashier"
+  | "courier"
+  | "production"
+  | "bar"
+  | "dapur"
+  | "management"
+  | "waiter"
+  | "all"
+  | "user";
 export type NotificationSeverity = "info" | "warning" | "urgent";
 
 export type NotifyInput = {
@@ -31,6 +41,8 @@ export type NotifyInput = {
 };
 
 const PRODUCTION_STATIONS = new Set(["bar", "dapur", "all", "helper_bar", "helper_dapur", "helper_all"]);
+const BAR_STATIONS = new Set(["bar", "helper_bar", "all", "helper_all"]);
+const DAPUR_STATIONS = new Set(["dapur", "helper_dapur", "all", "helper_all"]);
 const FEED_WINDOW_MS = 48 * 60 * 60 * 1000;
 
 type ProfileLike = { role: Role | string; workstation?: string | null; position?: string | null };
@@ -44,8 +56,18 @@ export function audiencesFor(profile: ProfileLike): NotificationAudience[] {
   if (MANAGEMENT_ROLES.includes(role)) out.push("management");
   if (role === "Waiter" && station === "kurir") out.push("courier");
   else if (role === "Waiter") out.push("waiter");
-  if (role === "Kasir" && PRODUCTION_STATIONS.has(station)) out.push("production");
+  if (role === "Kasir" && PRODUCTION_STATIONS.has(station)) {
+    out.push("production");
+    // Bar hanya menerima pekerjaan Bar, Dapur hanya Dapur (stasiun "all" = keduanya).
+    if (BAR_STATIONS.has(station)) out.push("bar");
+    if (DAPUR_STATIONS.has(station)) out.push("dapur");
+  }
   return out;
+}
+
+/** Audience satu divisi produksi (Minta Bahan, tiket) — tidak pernah ke stasiun lain. */
+export function stationAudience(division: "bar" | "dapur"): NotificationAudience {
+  return division === "bar" ? "bar" : "dapur";
 }
 
 /** Simpan notifikasi (anti-dobel lewat dedupKey), bangunkan layar, kirim push. */
@@ -111,6 +133,11 @@ export type StaffNotificationView = {
   orderId: string | null;
   createdAt: string;
   read: boolean;
+  /** Kunci event — klien memakainya untuk "bunyi sekali per perangkat". */
+  dedupKey: string | null;
+  /** Kejadian sudah tidak perlu aksi (order diterima, panggilan selesai, …). */
+  resolvedAt: string | null;
+  resolvedReason: string | null;
 };
 
 /** Feed untuk user ini (48 jam terakhir) + jumlah belum dibaca. */
@@ -153,8 +180,50 @@ export async function listStaffNotifications(
     orderId: n.orderId,
     createdAt: n.createdAt.toISOString(),
     read: Boolean(readAt),
+    dedupKey: n.dedupKey,
+    resolvedAt: n.resolvedAt?.toISOString() ?? null,
+    resolvedReason: n.resolvedReason,
   }));
-  return { items, unreadCount: items.filter((item) => !item.read).length };
+  // Badge = yang masih perlu perhatian (belum dibaca DAN belum selesai).
+  return { items, unreadCount: items.filter((item) => !item.read && !item.resolvedAt).length };
+}
+
+/**
+ * Tandai notifikasi "selesai" (tidak perlu aksi lagi). Idempoten; dipanggil
+ * setelah mutasi domain sukses dan tidak pernah boleh menggagalkannya.
+ * `dedupPrefixes` mencocokkan awal dedup_key (mis. "ready_to_deliver:<tiket>:").
+ */
+export async function resolveStaffNotifications(
+  target: { orderId?: string | null; kinds?: string[]; dedupKeys?: string[]; dedupPrefixes?: string[] },
+  reason: string,
+) {
+  const conditions = [];
+  if (target.orderId) {
+    conditions.push(
+      and(
+        eq(staffNotifications.orderId, target.orderId),
+        target.kinds?.length ? inArray(staffNotifications.kind, target.kinds) : undefined,
+      ),
+    );
+  }
+  const keys = (target.dedupKeys ?? []).filter(Boolean);
+  if (keys.length) conditions.push(inArray(staffNotifications.dedupKey, keys));
+  for (const prefix of target.dedupPrefixes ?? []) {
+    if (prefix) conditions.push(sql`${staffNotifications.dedupKey} LIKE ${`${prefix.replace(/[\\%_]/g, "\\$&")}%`}`);
+  }
+  if (!conditions.length) return { resolved: 0 };
+  try {
+    const rows = await getDb()
+      .update(staffNotifications)
+      .set({ resolvedAt: new Date(), resolvedReason: reason.slice(0, 120) })
+      .where(and(isNull(staffNotifications.resolvedAt), or(...conditions)))
+      .returning({ id: staffNotifications.id });
+    if (rows.length) publishProductionChange();
+    return { resolved: rows.length };
+  } catch (error) {
+    console.error("[notifications] resolve gagal", error);
+    return { resolved: 0 };
+  }
 }
 
 export async function markStaffNotificationsRead(userId: string, ids: string[]) {

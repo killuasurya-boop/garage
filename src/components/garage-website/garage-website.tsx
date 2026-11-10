@@ -7,6 +7,7 @@ import { CUSTOMER_TABLE_STATUS_COPY, TABLE_STATUS_COLORS } from "@/lib/garage-ta
 import Image from "next/image";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SiteAsset } from "@/lib/site-assets";
+import { GARAGE_BRAND_ASSETS, GARAGE_BRAND_LOGO_ASPECT } from "@/lib/garage-brand-assets";
 import type { PublicEvent } from "@/lib/event-format";
 import { GrandOpeningBanner } from "@/components/garage-website/grand-opening-banner";
 import { SuryaShowcase } from "@/components/surya/surya-showcase";
@@ -92,8 +93,8 @@ const tableCheckMenuUrl = (tableNumber) => ({
 });
 const LOGIN_URL = "/login";
 const MEMBER_LOGIN_URL = "/member-login";
-const BRAND_LOGO_URL = "/garage-brand/garage-coffee-logo.png";
-const BRAND_LOGO_ASPECT = 1200 / 282;
+const BRAND_LOGO_URL = GARAGE_BRAND_ASSETS.wordmark;
+const BRAND_LOGO_ASPECT = GARAGE_BRAND_LOGO_ASPECT;
 const SOCIAL_LINKS = [
   {
     id: "youtube",

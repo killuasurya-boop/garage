@@ -287,6 +287,10 @@
     box-shadow: 0 4px 12px color-mix(in srgb, var(--menu-red) 45%, transparent);
   }
   .gm5-step:disabled { cursor: not-allowed; opacity: 0.4; box-shadow: none; }
+  /* Area ketuk minimal 44px (WCAG 2.5.5) tanpa mengubah ukuran visual papan V5 (34/36px). */
+  .gm5-step { position: relative; } /* .gm5-heart sudah absolute (utilitas Tailwind) */
+  .gm5-step::after, .gm5-heart::after { content: ""; position: absolute; inset: -5px; border-radius: inherit; }
+  .gm5-heart::after { inset: -4px; }
   .gm5-step-count {
     min-width: 30px;
     text-align: center;

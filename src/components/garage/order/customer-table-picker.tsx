@@ -307,6 +307,18 @@ export function CustomerTablePicker({
           </div>
         ) : null}
 
+        {/* Selama data meja dimuat: kerangka setinggi tab lantai + ringkasan agar daftar meja
+            tidak terdorong ke bawah saat data tiba (CLS). Kasus umum = 2 lantai (fallbackFloor). */}
+        {!tables && !loadError ? (
+          <div aria-hidden className="mt-3 grid gap-3">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="gc-skeleton h-12 rounded-xl" />
+              <div className="gc-skeleton h-12 rounded-xl" />
+            </div>
+            <div className="gc-skeleton h-[58px] rounded-xl" />
+          </div>
+        ) : null}
+
         {tables ? (
           <dl className="gc-glass mt-3 grid grid-cols-5 divide-x divide-white/10 py-2 text-center" aria-label="Ringkasan meja lantai ini">
             {summaryItems.map((item) => (
@@ -321,7 +333,7 @@ export function CustomerTablePicker({
         ) : null}
 
         <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-          <label className="gc-glass flex min-h-11 flex-1 items-center gap-2 px-3" data-variant="elevated">
+          <label className="gc-glass flex min-h-11 flex-1 items-center gap-2 px-3 focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[var(--gc-amber)]" data-variant="elevated">
             <Search className="size-4 shrink-0 text-[var(--gc-text-2)]" aria-hidden />
             <input
               value={query}

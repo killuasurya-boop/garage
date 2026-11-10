@@ -1,3 +1,4 @@
+import { SuryaDeveloperCredit } from "@/components/surya/surya-developer-credit";
 import type { Metadata } from "next";
 import Image from "next/image";
 import { notFound } from "next/navigation";
@@ -51,5 +52,6 @@ export default async function EventMenuPage({ params, searchParams }: {
       initialOrderingOpen={ordering?.open}
       eventContext={{ eventId: event.id, slug: event.slug, title: event.title, startsAt: event.startsAt, endsAt: event.endsAt, entries: data.entries, products: data.products, preview }}
     />
+    <div className="bg-garage-bg px-4 py-6 sm:px-6"><SuryaDeveloperCredit variant="compact" /></div>
   </>;
 }

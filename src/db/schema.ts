@@ -879,6 +879,34 @@ export const memberAccounts = pgTable(
   }),
 );
 
+// OTP WhatsApp member (owner Nov 2026, migration 0183): bukti nomor WA milik pendaftar sebelum
+// akun dibuat / digabung ke data customer POS. Kode & token hanya disimpan sebagai HMAC.
+export const memberOtpChallenges = pgTable(
+  "member_otp_challenges",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // Nomor format lokal 08… (normalizePhone), sama dengan customers.phone.
+    phone: text("phone").notNull(),
+    purpose: text("purpose").notNull().default("register"),
+    codeHash: text("code_hash").notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    // Token sekali pakai setelah kode benar (dipakai register), disimpan sebagai HMAC.
+    tokenHash: text("token_hash"),
+    tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    // sent | failed | dev_echo
+    deliveryStatus: text("delivery_status").notNull().default("sent"),
+    providerMessageId: text("provider_message_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    phoneCreatedIdx: index("member_otp_challenges_phone_created_idx").on(table.phone, table.createdAt),
+    tokenIdx: uniqueIndex("member_otp_challenges_token_idx").on(table.tokenHash),
+  }),
+);
+
 export const memberSessions = pgTable(
   "member_sessions",
   {

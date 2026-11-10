@@ -60,6 +60,7 @@ UPDATE staff_personal SET nik = NULL, ktp_url = NULL, address = NULL, whatsapp =
 DELETE FROM session;
 DELETE FROM verification;
 DELETE FROM member_sessions;
+DELETE FROM member_otp_challenges;
 DELETE FROM login_attempts;
 DELETE FROM rate_limit_counters;
 DELETE FROM step_up_challenges;

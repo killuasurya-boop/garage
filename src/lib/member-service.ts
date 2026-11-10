@@ -14,6 +14,7 @@ import {
   vouchers,
 } from "@/db/schema";
 import { hashPassword, verifyPassword } from "@/lib/member-auth";
+import { customerHasHistory } from "@/lib/member-otp-rules";
 import {
   calculateEarnedPoints,
   calculateRedeemDiscount,
@@ -37,6 +38,8 @@ type RegisterMemberInput = {
   referralCode?: string | null;
   memberCode?: string | null;
   tier?: string | null;
+  /** Nomor WA terbukti milik pendaftar (OTP WhatsApp terverifikasi). */
+  phoneVerified?: boolean;
   /** Member V6: centang S&K saat daftar → dicatat di member_accounts.terms_accepted_at. */
   acceptTerms?: boolean;
   /** true = password acak buatan server (akun Google) → pin_set_at null sampai member membuat PIN. */
@@ -226,6 +229,24 @@ export async function registerMember(input: RegisterMemberInput) {
     .where(eq(customers.phone, phone))
     .limit(1);
 
+  // Owner Nov 2026: data customer POS yang sudah punya riwayat (poin/kunjungan/transaksi
+  // lunas) hanya boleh digabung ke akun baru setelah nomor WA terbukti milik pendaftar.
+  if (existingCustomer && !input.phoneVerified) {
+    const [paidOrder] = await db
+      .select({ id: orders.id })
+      .from(orders)
+      .where(and(eq(orders.customerId, existingCustomer.id), eq(orders.status, "paid")))
+      .limit(1);
+    if (customerHasHistory(existingCustomer) || paidOrder) {
+      return {
+        data: null,
+        error:
+          "Nomor ini sudah punya riwayat poin/transaksi di Garage. Verifikasi nomor lewat kode WhatsApp untuk menghubungkannya, atau minta bantuan kasir.",
+        code: "PHONE_VERIFICATION_REQUIRED" as const,
+      };
+    }
+  }
+
   const startingPoints = existingCustomer?.points ?? 0;
   const startingLevel = input.tier ? requestedTier : memberLevelForPoints(startingPoints);
   const memberCode =
@@ -247,6 +268,8 @@ export async function registerMember(input: RegisterMemberInput) {
     birthday: birthday ?? existingCustomer?.birthday ?? null,
     referralCode,
     referredByCode: referredByCode ?? existingCustomer?.referredByCode ?? null,
+    // OTP WhatsApp = nomor terverifikasi oleh pemiliknya sendiri (waVerifiedBy tetap null = bukan staf).
+    ...(input.phoneVerified ? { waVerifiedAt: new Date(), waVerifiedBy: null } : {}),
     updatedAt: new Date(),
   };
 

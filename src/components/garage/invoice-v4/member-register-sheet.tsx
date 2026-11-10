@@ -8,6 +8,7 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/
 import { AuthenticationStatus, type AuthStatus } from "@/components/garage/member-auth/authentication-status";
 import { MemberButton } from "@/components/garage/member-auth/member-button";
 import { MemberField } from "@/components/garage/member-auth/member-field";
+import { MemberPhoneOtp, useMemberOtpStatus } from "@/components/garage/member-auth/member-phone-otp";
 import "@/components/garage/member-auth/member-auth.css";
 
 type RegisterResponse =
@@ -47,6 +48,10 @@ export function MemberRegisterSheet({
   const [status, setStatus] = useState<AuthStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const otpEnabled = useMemberOtpStatus();
+  const [otpResult, setOtpResult] = useState<{ token: string; digits: string } | null>(null);
+  // Token hanya berlaku untuk nomor yang diverifikasi; nomor diganti → harus verifikasi ulang.
+  const otpToken = otpResult && otpResult.digits === phone.replace(/\D/g, "") ? otpResult.token : null;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -55,6 +60,7 @@ export function MemberRegisterSheet({
     if (phone.replace(/\D/g, "").length < 9) next.phone = "Nomor WhatsApp belum lengkap.";
     if (pin.length < 6) next.pin = "PIN minimal 6 digit.";
     if (!terms) next.terms = "Setujui syarat & kebijakan privasi untuk mendaftar.";
+    if (otpEnabled && !otpToken) next.otp = "Verifikasi nomor WhatsApp dulu dengan kode yang dikirim ke WhatsApp kamu.";
     setErrors(next);
     if (Object.keys(next).length) return;
     setBusy(true);
@@ -74,6 +80,7 @@ export function MemberRegisterSheet({
           marketingConsent: marketing,
           source: "invoice",
           invoiceToken: token,
+          otpToken: otpToken ?? undefined,
         }),
       });
       const json = (await response.json().catch(() => ({ success: false, message: "Respons tidak valid." }))) as RegisterResponse;
@@ -126,6 +133,8 @@ export function MemberRegisterSheet({
               error={errors.phone}
               hint="Dipakai untuk masuk member & pesan transaksi."
             />
+            {otpEnabled ? <MemberPhoneOtp phone={phone} onVerified={setOtpResult} /> : null}
+            {errors.otp ? <p className="-mt-2 text-[13px] text-[#ffb3b5]">{errors.otp}</p> : null}
             <MemberField
               label="Buat PIN *"
               icon={<LockKeyhole size={18} />}

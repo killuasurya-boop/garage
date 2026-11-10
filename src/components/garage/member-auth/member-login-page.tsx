@@ -13,6 +13,7 @@ import { MemberCardStage, tierKey } from "./cinematic3d/member-card-stage";
 import { GarageBrandLogo } from "./garage-brand-logo";
 import { MemberButton } from "./member-button";
 import { MemberField } from "./member-field";
+import { MemberPhoneOtp, useMemberOtpStatus } from "./member-phone-otp";
 import "./member-auth.css";
 import "./member-v6.css";
 
@@ -90,6 +91,10 @@ export function MemberLoginPage({
   const [referralCode, setReferralCode] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
   const [showOptional, setShowOptional] = useState(false);
+  const otpEnabled = useMemberOtpStatus();
+  const [otpResult, setOtpResult] = useState<{ token: string; digits: string } | null>(null);
+  // Token hanya berlaku untuk nomor yang diverifikasi; nomor diganti → harus verifikasi ulang.
+  const otpToken = otpResult && otpResult.digits === phone.replace(/\D/g, "") ? otpResult.token : null;
   const [identifierError, setIdentifierError] = useState("");
   const [status, setStatus] = useState<AuthStatus | null>(null);
   const [busy, setBusy] = useState(false);
@@ -240,6 +245,10 @@ export function MemberLoginPage({
       fail("Setujui Kebijakan Privasi dan Syarat & Ketentuan untuk mendaftar.");
       return;
     }
+    if (otpEnabled && !otpToken) {
+      fail("Verifikasi nomor WhatsApp dulu dengan kode yang dikirim ke WhatsApp kamu.");
+      return;
+    }
     setBusy(true);
     setStatus(null);
     try {
@@ -251,6 +260,7 @@ export function MemberLoginPage({
         referralCode,
         password: registerPassword,
         acceptTerms: true,
+        otpToken: otpToken ?? undefined,
       });
       // Tier diambil dari jawaban backend — tidak diasumsikan Silver.
       setRegistered({ name: data.member?.name ?? name, tier: data.member?.level ?? data.member?.tier ?? "Silver" });
@@ -595,6 +605,7 @@ export function MemberLoginPage({
                       inputMode="tel"
                       required
                     />
+                    {otpEnabled ? <MemberPhoneOtp phone={phone} onVerified={setOtpResult} /> : null}
                     <MemberField
                       label="PIN Member"
                       icon={<LockKeyhole size={19} />}

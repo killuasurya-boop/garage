@@ -47,7 +47,7 @@ export async function enqueueWhatsappMessage(input: {
   return existing;
 }
 
-async function whatsappAccessToken() {
+export async function whatsappAccessToken() {
   const envToken = process.env.WHATSAPP_CLOUD_API_TOKEN?.trim();
   if (envToken) return envToken;
   return (await getConnectedAccessToken("whatsapp", "phone_number")).token;

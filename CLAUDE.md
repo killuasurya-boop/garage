@@ -274,6 +274,11 @@ Scroll direction:
   member session, invoices are never linked to a member from the public page. "Saya Sudah Bayar" only opens WA proof help.
   wa.me clicks = "opened", never "sent". Promo WA needs latest `customer_marketing_consents` = granted + max 1/7 days.
   Events (`customer_experience_events`) carry no phone/PIN/token/IP.
+- Member OTP WhatsApp (owner Nov 2026, migration 0183, `docs/MEMBER-OTP-WHATSAPP.md`): rules pure in `member-otp-rules.ts`,
+  server `member-otp.ts`, UI `member-auth/member-phone-otp.tsx` (shown only when the provider is configured — no fake OTP).
+  Codes/tokens stored only as HMAC in `member_otp_challenges`; sent straight to Cloud API (never via `whatsapp_messaging_queue`).
+  `registerMember` refuses to merge a POS customer with history (points/visits/paid order) unless `phoneVerified`; OTP active
+  = every registration needs `otpToken`. Never name a public-route function `verifyMember*` (matches a guard pattern).
 - Browser-dialog printing uses `browserColumns` (huruf Besar → 24 col on 58 mm) with tall
   TOTAL/Kembali lines; cashier can print Bar/Dapur chits manually (`printKitchenChits`).
 - Production Hub V4 (owner, Nov 2026, no migration): UI `src/components/garage/production-hub/` (portal over the shell,

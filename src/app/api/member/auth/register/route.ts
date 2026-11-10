@@ -4,6 +4,7 @@ import { memberWhatsappSchema } from "@/lib/member-phone";
 
 import { createMemberTokenPair, memberCookieHeaders } from "@/lib/member-auth";
 import { recordCxEvent, recordMarketingConsent, resolveInvoiceOrder } from "@/lib/customer-experience-service";
+import { consumeOtpToken, findValidOtpToken, getMemberOtpConfig } from "@/lib/member-otp";
 import { registerMember } from "@/lib/member-service";
 import { errorJson, readMemberJson, successJson } from "@/lib/member-types";
 import { rateLimit } from "@/lib/rate-limit";
@@ -23,6 +24,8 @@ const registerSchema = z.object({
   marketingConsent: z.boolean().optional(),
   source: z.enum(["invoice", "member_login"]).optional(),
   invoiceToken: z.string().trim().min(12).max(128).optional(),
+  // Token dari /api/member/auth/otp/verify (OTP WhatsApp). Wajib bila OTP aktif.
+  otpToken: z.string().trim().min(20).max(200).optional(),
 });
 
 export async function POST(request: Request) {
@@ -32,9 +35,18 @@ export async function POST(request: Request) {
   const body = await readMemberJson(request, registerSchema);
   if (body.response) return body.response;
 
-  const { marketingConsent, source, invoiceToken, ...memberInput } = body.data;
+  const { marketingConsent, source, invoiceToken, otpToken, ...memberInput } = body.data;
+  const otpConfig = await getMemberOtpConfig();
+  const otp = otpToken ? await findValidOtpToken({ phone: memberInput.phone, token: otpToken }) : null;
+  if (otpToken && !otp) {
+    return errorJson(400, "Verifikasi WhatsApp tidak valid atau kedaluwarsa. Minta kode baru.");
+  }
+  if (otpConfig.enabled && !otp) {
+    return errorJson(400, "Verifikasi nomor WhatsApp dulu dengan kode yang dikirim ke WhatsApp kamu.");
+  }
   const result = await registerMember({
     ...memberInput,
+    phoneVerified: Boolean(otp),
     email: body.data.email || null,
     birthday: body.data.birthday || null,
     referralCode: body.data.referralCode || null,
@@ -43,6 +55,7 @@ export async function POST(request: Request) {
   if (!result.data) {
     return errorJson(409, result.error ?? "Registrasi member gagal.");
   }
+  if (otp) await consumeOtpToken(otp.id);
 
   const customerId = result.data.customer.id;
   if (marketingConsent !== undefined) {

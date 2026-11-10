@@ -16,6 +16,7 @@ import {
   VolumeX,
 } from "lucide-react";
 
+import { SoundThemePicker } from "@/components/garage/sound-theme-picker";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -554,6 +555,8 @@ export function VoiceSettingsDialog({
                 </Button>
               </div>
             </div>
+
+            <SoundThemePicker />
 
             <div className="mt-4 max-w-md space-y-1">
               <div className="text-xs font-semibold text-[#f4f4f5]">

@@ -29,6 +29,7 @@ type Db = ReturnType<typeof getDb>;
 
 export type { PoStatus as PurchaseOrderStatus } from "@/lib/wms-procurement-meta";
 import type { PoStatus } from "@/lib/wms-procurement-meta";
+import { resolvePoApproval } from "@/lib/wms-notify";
 
 const round4 = (n: number) => Math.round(n * 10_000) / 10_000;
 
@@ -161,7 +162,7 @@ export async function getPurchaseOrder(id: string) {
   };
 }
 
-export async function setPurchaseOrderStatus(id: string, action: "send" | "cancel", userId?: string | null) {
+async function setPurchaseOrderStatusTx(id: string, action: "send" | "cancel", userId?: string | null) {
   return runInTx(async (tx) => {
     const [po] = await tx.select().from(wmsPurchaseOrder).where(eq(wmsPurchaseOrder.id, id)).for("update").limit(1);
     if (!po) return null;
@@ -541,4 +542,12 @@ export async function getStockDocumentLines(refDoc: string) {
         location: r.location ?? "",
       })),
   };
+}
+
+// --- Smart Notification V2: notifikasi persetujuan (setelah transaksi sukses) ---
+
+export async function setPurchaseOrderStatus(id: string, action: "send" | "cancel", userId?: string | null) {
+  const result = await setPurchaseOrderStatusTx(id, action, userId);
+  if (action === "cancel") await resolvePoApproval(id, "PO dibatalkan");
+  return result;
 }

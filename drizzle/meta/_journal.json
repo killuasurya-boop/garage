@@ -1307,8 +1307,15 @@
     {
       "idx": 186,
       "version": "7",
-      "when": 1794293414412,
-      "tag": "0186_old_talon",
+      "when": 1794293211785,
+      "tag": "0186_notification_resolve_par_stock",
+      "breakpoints": true
+    },
+    {
+      "idx": 187,
+      "version": "7",
+      "when": 1794295155704,
+      "tag": "0187_member_whatsapp_otp",
       "breakpoints": true
     }
   ]

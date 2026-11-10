@@ -127,6 +127,7 @@ testsprite_tests\tmp\config.json
 
 # E2E Playwright (DB PGlite sementara, laporan, jejak)
 /.e2e-data/
+/.rehearsal-data/
 
 # Konfigurasi Playwright sementara (cloud QA)
 /playwright.cloudtmp.config.ts

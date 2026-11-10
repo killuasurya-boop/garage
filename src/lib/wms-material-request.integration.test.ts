@@ -112,3 +112,53 @@ describe("Minta Bahan Bar → gudang", () => {
     await expect(mr.sendMaterialRequest(req.id, [{ itemId: listed.items[0].id, qty: 500 }], actor)).rejects.toThrow(/Sirup Minta/);
   });
 });
+
+describe("Minta Bahan pintar (M1, M2, M4, M6)", () => {
+  it("M1/M2: katalog memberi jumlah usulan sampai stok target & perkiraan habis dari pemakaian", async () => {
+    const milk = await wms.createWmsProduct({ sku: "T-MR-MILK", name: "Susu Minta", category: "Bar · Minta Test", unit: "ml", minStock: 1000, parStock: 4000, packPrice: 0, packQty: 1 });
+    await wms.runInTx((tx: any) =>
+      wms.recordStockMovement(tx, { type: "in", productId: milk.id, warehouseId: outletBar, deltaQty: 900, hpp: 1, refDoc: "TEST-IN-MILK" }),
+    );
+    // Pemakaian hari ini (penjualan) di ruang Bar: 600 ml.
+    await wms.runInTx((tx: any) =>
+      wms.recordStockMovement(tx, { type: "out", productId: milk.id, warehouseId: outletBar, deltaQty: -600, hpp: 1, refDoc: "SALE-TEST", allowNegative: true }),
+    );
+    const catalog = await mr.getMaterialCatalog("bar");
+    const row = catalog.products.find((p: any) => p.id === milk.id);
+    expect(row).toMatchObject({ onHand: 300, minStock: 1000, parStock: 4000, targetStock: 4000, status: "low", suggestedQty: 3700 });
+    expect(row.usagePerHour).toBeGreaterThan(0);
+    expect(typeof row.runoutAt).toBe("string");
+  });
+
+  it("M6: terima kurang dari kiriman → selisih kembali ke gudang & tercatat", async () => {
+    const cup = await wms.createWmsProduct({ sku: "T-MR-CUP", name: "Cup Minta", category: "Bar · Minta Test", unit: "pcs", packPrice: 0, packQty: 1 });
+    await wms.runInTx((tx: any) =>
+      wms.recordStockMovement(tx, { type: "in", productId: cup.id, warehouseId: mainBar, deltaQty: 100, hpp: 500, refDoc: "TEST-IN-CUP" }),
+    );
+    const req = await mr.createMaterialRequest({ division: "bar", items: [{ productId: cup.id, qty: 50 }] }, actor);
+    const [listed] = (await mr.listMaterialRequests({ division: "bar" })).filter((r: any) => r.id === req.id);
+    const line = listed.items[0];
+    await mr.sendMaterialRequest(req.id, [{ itemId: line.id, qty: 50 }], actor);
+    expect(await stock(cup.id, outletBar)).toBe(50);
+    await mr.receiveMaterialRequest(req.id, { lines: [{ itemId: line.id, receivedQty: 40 }] }, actor);
+    expect(await stock(cup.id, outletBar)).toBe(40);
+    expect(await stock(cup.id, mainBar)).toBe(60);
+    const [after] = (await mr.listMaterialRequests({ division: "bar" })).filter((r: any) => r.id === req.id);
+    expect(after).toMatchObject({ status: "received" });
+    expect(after.items[0].receivedQty).toBe(40);
+  });
+
+  it("M4: paket rutin disimpan per outlet, ditimpa bila nama sama, bisa dihapus", async () => {
+    const [outlet] = await t.getDb().insert(t.schema.outlets).values({ code: "MRT", name: "Outlet Paket" }).returning();
+    const who = { userId: null, outletId: outlet.id };
+    await mr.saveMaterialTemplate("bar", { name: "Buka toko Bar", items: [{ productId: syrupId, qty: 200 }] }, who);
+    await mr.saveMaterialTemplate("bar", { name: "buka toko bar", items: [{ productId: syrupId, qty: 300 }, { productId: beanId, qty: 0 }] }, who);
+    let list = await mr.listMaterialTemplates("bar", outlet.id);
+    expect(list).toHaveLength(1);
+    expect(list[0].items).toEqual([{ productId: syrupId, qty: 300 }]);
+    expect(await mr.listMaterialTemplates("dapur", outlet.id)).toEqual([]);
+    await expect(mr.saveMaterialTemplate("bar", { name: "Kosong", items: [] }, who)).rejects.toThrow(/minimal satu/);
+    list = await mr.deleteMaterialTemplate("bar", "Buka toko Bar", who);
+    expect(list).toEqual([]);
+  });
+});

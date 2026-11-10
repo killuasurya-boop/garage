@@ -78,6 +78,17 @@ describe("Opname dengan approval", () => {
     expect(done.blind).toBe(false); // setelah selesai angka boleh dilihat
     await wms.finalizeWmsOpname(op.id); // idempoten
     expect(await onHand()).toBe(920);
+
+    // Smart Notification V2: tiap pengiriman = satu notifikasi manajemen; ditolak/disetujui → selesai.
+    const { like } = await import("drizzle-orm");
+    const notes = await t
+      .getDb()
+      .select()
+      .from(t.schema.staffNotifications)
+      .where(like(t.schema.staffNotifications.dedupKey, `opname_review:${op.id}:%`));
+    expect(notes).toHaveLength(2);
+    expect(notes.every((n: any) => n.audience === "management" && n.kind === "opname_review")).toBe(true);
+    expect(notes.map((n: any) => n.resolvedReason).sort()).toEqual(["Opname disetujui", "Opname ditolak"]);
   });
 
   it("manajer tidak bisa menyetujui opname yang ia kirim sendiri (Owner boleh)", async () => {

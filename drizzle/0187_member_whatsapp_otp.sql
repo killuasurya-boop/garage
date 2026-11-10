@@ -1,3 +1,5 @@
+-- OTP WhatsApp pendaftaran member (#181): tantangan kode/token disimpan sebagai HMAC.
+-- Dulu 0183 lalu 0186 di branch ini (bentrok nomor dengan main/#162).
 CREATE TABLE "member_otp_challenges" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"phone" text NOT NULL,

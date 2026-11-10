@@ -42,6 +42,7 @@ import type { WmsNotification, WmsWarehouse, WmsWarehouseSummary } from "@/lib/w
 import type { Role } from "@/lib/garage-data";
 import { canAccessModule } from "@/lib/role-access";
 import { authClient } from "@/lib/auth-client";
+import { releasePushSubscriptionOnSignOut } from "@/lib/push-client";
 import { garageApi } from "@/lib/api-client";
 import { WmsCommandPalette, useWmsCommandPalette } from "@/components/wms/wms-command-palette";
 import { WmsNotificationsDrawer } from "@/components/wms/wms-notifications-drawer";
@@ -144,6 +145,8 @@ export function WmsShell({
     if (signingOut) return;
     setSigningOut(true);
     try {
+      // V2: lepas push perangkat ini selagi sesi masih sah (perangkat bersama).
+      await releasePushSubscriptionOnSignOut();
       await authClient.signOut();
       window.location.assign("/login");
     } catch {

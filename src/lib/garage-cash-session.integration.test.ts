@@ -165,6 +165,17 @@ describe("Tutup shift — hak akses & sign-off", () => {
       .from(t.schema.approvals)
       .where(eq(t.schema.approvals.id, `APP-CASH-${own.id}`));
     expect(approval?.status).toBe("pending");
+
+    // Smart Notification V2 (F-09): manajemen diberi tahu langsung; kasir/stasiun tidak.
+    const notif = await import("@/lib/staff-notifications");
+    const forRole = (userId: string, role: Role, workstation: string | null = null) =>
+      notif.listStaffNotifications({ userId, outletId, profile: { role, workstation } });
+    const managerFeed = await forRole(MANAJER, "Manajer");
+    const variance = managerFeed.items.find((n) => n.dedupKey === `cash_variance:${own.id}`);
+    expect(variance).toMatchObject({ kind: "cash_variance", severity: "urgent", url: "/os?module=approvals" });
+    expect(variance?.body).toMatch(/kurang Rp\s?100\.000/);
+    expect((await forRole(KASIR, "Kasir")).items.some((n) => n.kind === "cash_variance")).toBe(false);
+    expect((await forRole(KASIR_LAIN, "Kasir", "bar")).items.some((n) => n.kind === "cash_variance")).toBe(false);
   });
 
   it("menutup shift yang sudah closed ditolak (anti tutup ganda)", async () => {

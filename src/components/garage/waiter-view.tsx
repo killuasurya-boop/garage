@@ -36,8 +36,10 @@ import {
   reducedMotionPreferred,
   requestBrowserNotifyPermission,
   saveNotifyPrefs,
+  vibrate,
   type WaiterNotifyPrefs,
 } from "@/lib/waiter-notify";
+import { claimSound } from "@/lib/sound-claim";
 import { useGarageToast } from "@/components/garage/garage-toast";
 import { TablePlate } from "@/components/garage/table-plate";
 import {
@@ -171,7 +173,12 @@ export function WaiterView({ me }: Props) {
         for (const req of sr) {
           if (!prevServiceReqIdsRef.current.has(req.id)) {
             const title = `Panggilan ${serviceRequestLabel(req.type)} - ${req.tableLabel}`;
-            notifyOrderReady(prefsRef.current, title, req.note ?? "Pelanggan butuh bantuan");
+            // V2: kunci sama dengan lonceng (dedup_key "service:<id>") → satu bunyi per perangkat.
+            const prefsNow = prefsRef.current;
+            void claimSound(`notif:service:${req.id}`).then((ok) => {
+              if (ok) notifyOrderReady(prefsNow, title, req.note ?? "Pelanggan butuh bantuan");
+              else if (prefsNow.vibrate) vibrate([120]);
+            });
             toast.push({ tone: "info", title, body: req.note ?? "Pelanggan butuh bantuan", ttl: 6000 });
           }
         }

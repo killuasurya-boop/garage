@@ -17,6 +17,7 @@ import {
   Clock3,
   Loader2,
   MessageCircle,
+  Package,
   ShoppingBag,
   Smartphone,
   TriangleAlert,
@@ -34,6 +35,8 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { garageApi } from "@/lib/api-client";
 import { voice, type VoiceScenario } from "@/lib/garage-voice";
 import { createPushSubscription, ensureServiceWorker, pushSupport } from "@/lib/push-client";
+import { claimSound } from "@/lib/sound-claim";
+import { getSoundTheme, type StationCue } from "@/lib/station-sound-theme";
 import { useProductionStream } from "@/lib/use-production-stream";
 
 type NotificationItem = {
@@ -46,6 +49,9 @@ type NotificationItem = {
   orderId: string | null;
   createdAt: string;
   read: boolean;
+  dedupKey?: string | null;
+  resolvedAt?: string | null;
+  resolvedReason?: string | null;
 };
 
 type Feed = { items: NotificationItem[]; unreadCount: number };
@@ -62,7 +68,34 @@ const KIND_META: Record<string, { icon: LucideIcon; voice?: VoiceScenario }> = {
   service_bill: { icon: BellRing, voice: "waiter_bill_request" },
   service_water: { icon: UtensilsCrossed, voice: "waiter_refill" },
   service_other: { icon: BellRing, voice: "waiter_call" },
+  ready_to_deliver: { icon: UtensilsCrossed, voice: "order_ready_deliver" },
+  cash_variance: { icon: TriangleAlert, voice: "cash_anomaly" },
+  material_request: { icon: Package },
+  po_approval: { icon: Package, voice: "approval_pending" },
+  opname_review: { icon: Package, voice: "approval_pending" },
+  production_cancel_request: { icon: XCircle, voice: "approval_pending" },
+  production_cancel_decided: { icon: CheckCheck },
 };
+
+/** Cue tema stasiun untuk notifikasi tanpa voice khusus (null = perilaku biasa). */
+export function stationCueForNotification(item: Pick<NotificationItem, "kind" | "dedupKey">): StationCue | null {
+  if (item.kind === "material_request" && item.dedupKey?.startsWith("mrq-sent:")) return "stock_sent";
+  if (item.kind === "production_cancel_decided") return "approved";
+  return null;
+}
+
+/** Kunci bunyi bersama: event yang sama dari lonceng & layar lain (mis. waiter-view) cukup sekali. */
+export function notificationSoundKey(item: Pick<NotificationItem, "id" | "dedupKey">) {
+  return `notif:${item.dedupKey ?? item.id}`;
+}
+
+type FeedFilter = "action" | "read" | "resolved";
+const FILTER_LABEL: Record<FeedFilter, string> = { action: "Perlu aksi", read: "Dibaca", resolved: "Selesai" };
+
+function filterOf(item: NotificationItem): FeedFilter {
+  if (item.resolvedAt) return "resolved";
+  return item.read ? "read" : "action";
+}
 
 const REPEAT_MS = 45_000;
 const MAX_REPEATS = 5;
@@ -95,6 +128,7 @@ export function StaffNotificationCenter({
 }) {
   const [feed, setFeed] = useState<Feed>({ items: [], unreadCount: 0 });
   const [open, setOpen] = useState(false);
+  const [filter, setFilter] = useState<FeedFilter>("action");
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [now, setNow] = useState(() => Date.now());
@@ -117,8 +151,15 @@ export function StaffNotificationCenter({
         if (document.body.dataset.posQrSound === "1" || newOrderSound === "silent") return;
       }
       const meta = KIND_META[item.kind];
-      voice.playDing(item.severity === "info" ? "soft" : "alert");
-      if (meta?.voice) void voice.announce(meta.voice, { dedupKey: `notif:${item.id}` });
+      // V2: satu event = satu bunyi per perangkat (tab lain / layar lain / refresh tidak mengulang).
+      void claimSound(notificationSoundKey(item)).then((ok) => {
+        if (!ok) return;
+        // Tema "Stasiun Kereta": bahan dikirim = klakson berangkat, batal diputus = derak roda.
+        const cue = getSoundTheme() === "station" ? stationCueForNotification(item) : null;
+        if (cue && voice.playThemeCue(cue)) return;
+        if (meta?.voice) void voice.announce(meta.voice, { force: false });
+        else voice.playDing(item.severity === "info" ? "soft" : "alert");
+      });
     },
     [newOrderSound],
   );
@@ -131,7 +172,7 @@ export function StaffNotificationCenter({
       setLoaded(true);
       setFeed(next);
       const known = knownRef.current;
-      const fresh = known ? next.items.filter((item) => !item.read && !known.has(item.id)) : [];
+      const fresh = known ? next.items.filter((item) => !item.read && !item.resolvedAt && !known.has(item.id)) : [];
       knownRef.current = new Set(next.items.map((item) => item.id));
       // Muat pertama: hanya menyimpan (tidak berbunyi untuk notifikasi lama).
       for (const item of fresh.slice(0, 3)) {
@@ -181,13 +222,19 @@ export function StaffNotificationCenter({
     const id = window.setInterval(() => {
       setNow(Date.now());
       if (document.visibilityState === "hidden") return;
+      // Kejadian yang sudah selesai (order diterima, panggilan diselesaikan) tidak diulang.
       const pending = feed.items.filter(
-        (item) => !item.read && item.severity === "urgent" && Date.now() - new Date(item.createdAt).getTime() > REPEAT_MS / 2,
+        (item) =>
+          !item.read && !item.resolvedAt && item.severity === "urgent" && Date.now() - new Date(item.createdAt).getTime() > REPEAT_MS / 2,
       );
       const due = pending.find((item) => (repeatsRef.current.get(item.id) ?? 0) < MAX_REPEATS);
       if (!due) return;
-      repeatsRef.current.set(due.id, (repeatsRef.current.get(due.id) ?? 0) + 1);
-      if (deviceSoundOn()) voice.playDing("alert");
+      const round = (repeatsRef.current.get(due.id) ?? 0) + 1;
+      repeatsRef.current.set(due.id, round);
+      if (!deviceSoundOn()) return;
+      void claimSound(`${notificationSoundKey(due)}:repeat:${round}`).then((ok) => {
+        if (ok) voice.playDing("alert");
+      });
     }, REPEAT_MS);
     return () => window.clearInterval(id);
   }, [feed.items]);
@@ -216,7 +263,18 @@ export function StaffNotificationCenter({
     }
     void ensureServiceWorker()
       .then((registration) => registration?.pushManager.getSubscription())
-      .then((subscription) => setPushState(subscription ? "on" : "off"))
+      .then(async (subscription) => {
+        if (!subscription) return setPushState("off");
+        // V2: langganan browser ini diikat ulang ke akun yang SEDANG login, supaya
+        // push akun sebelumnya (tablet bersama) tidak terus masuk ke perangkat ini.
+        const json = subscription.toJSON();
+        if (json.endpoint && json.keys) {
+          await garageApi
+            .post("/api/push/subscribe", { endpoint: json.endpoint, keys: json.keys, userAgent: navigator.userAgent })
+            .catch(() => undefined);
+        }
+        setPushState("on");
+      })
       .catch(() => setPushState("off"));
   }, []);
 
@@ -255,7 +313,13 @@ export function StaffNotificationCenter({
   }
 
   const unreadIds = useMemo(() => feed.items.filter((item) => !item.read).map((item) => item.id), [feed.items]);
-  const urgentUnread = feed.items.some((item) => !item.read && item.severity === "urgent");
+  const urgentUnread = feed.items.some((item) => !item.read && !item.resolvedAt && item.severity === "urgent");
+  const counts = useMemo(() => {
+    const out: Record<FeedFilter, number> = { action: 0, read: 0, resolved: 0 };
+    for (const item of feed.items) out[filterOf(item)] += 1;
+    return out;
+  }, [feed.items]);
+  const visibleItems = useMemo(() => feed.items.filter((item) => filterOf(item) === filter), [feed.items, filter]);
 
   return (
     <>
@@ -332,6 +396,22 @@ export function StaffNotificationCenter({
             ) : pushState === "denied" ? (
               <p className="text-xs leading-5 text-[#fca5a5]">Izin notifikasi diblokir di browser — aktifkan lewat pengaturan situs.</p>
             ) : null}
+            <div role="tablist" aria-label="Saring notifikasi" className="grid grid-cols-3 gap-1 pt-1">
+              {(Object.keys(FILTER_LABEL) as FeedFilter[]).map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  role="tab"
+                  aria-selected={filter === key}
+                  onClick={() => setFilter(key)}
+                  className={`h-9 rounded-md border px-2 text-xs font-bold ${
+                    filter === key ? "border-garage-amber bg-garage-amber/15 text-white" : "border-garage-line-2 text-[#d0d0d6] hover:bg-garage-bg-3"
+                  }`}
+                >
+                  {FILTER_LABEL[key]} ({counts[key]})
+                </button>
+              ))}
+            </div>
           </SheetHeader>
           <div className="min-h-0 flex-1 overflow-y-auto" role="log" aria-live="polite" aria-label="Daftar notifikasi">
             {error && !loaded ? (
@@ -340,11 +420,13 @@ export function StaffNotificationCenter({
               </p>
             ) : !loaded ? (
               <p className="p-6 text-center text-sm text-[#d0d0d6]">Memuat…</p>
-            ) : feed.items.length === 0 ? (
-              <p className="p-8 text-center text-sm text-[#d0d0d6]">Belum ada notifikasi.</p>
+            ) : visibleItems.length === 0 ? (
+              <p className="p-8 text-center text-sm text-[#d0d0d6]">
+                {filter === "action" ? "Tidak ada yang perlu ditindak." : "Belum ada notifikasi."}
+              </p>
             ) : (
               <ul className="divide-y divide-garage-line">
-                {feed.items.map((item) => {
+                {visibleItems.map((item) => {
                   const Icon = KIND_META[item.kind]?.icon ?? Bell;
                   const tone =
                     item.severity === "urgent" ? "text-[#ffb3b3]" : item.severity === "warning" ? "text-[#ffd79a]" : "text-[#e7e9ee]";
@@ -354,7 +436,8 @@ export function StaffNotificationCenter({
                         type="button"
                         onClick={() => {
                           void markRead([item.id]);
-                          if (item.url) {
+                          // V2: notifikasi yang sudah selesai tidak membuka aksi (cegah aksi basi).
+                          if (item.url && !item.resolvedAt) {
                             setOpen(false);
                             if (onNavigate) onNavigate(item.url);
                             else window.dispatchEvent(new CustomEvent("garage:navigate", { detail: item.url }));
@@ -373,7 +456,14 @@ export function StaffNotificationCenter({
                             {!item.read ? <span className="mt-1.5 size-2 shrink-0 rounded-full bg-garage-red" aria-label="Belum dibaca" /> : null}
                           </span>
                           {item.body ? <span className="mt-0.5 block break-words text-sm text-[#d0d0d6]">{item.body}</span> : null}
-                          <span className="mt-1 block text-xs text-[#b8b8bf]">{timeAgo(item.createdAt, now)}</span>
+                          <span className="mt-1 block text-xs text-[#b8b8bf]">
+                            {timeAgo(item.createdAt, now)}
+                            {item.resolvedAt ? (
+                              <span className="ml-2 inline-flex items-center gap-1 font-semibold text-[#e7e9ee]">
+                                <CheckCheck className="size-3" aria-hidden /> Selesai{item.resolvedReason ? ` · ${item.resolvedReason}` : ""}
+                              </span>
+                            ) : null}
+                          </span>
                         </span>
                       </button>
                     </li>

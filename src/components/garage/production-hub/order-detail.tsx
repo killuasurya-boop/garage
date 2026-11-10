@@ -73,9 +73,9 @@ function Timeline({ ticket }: { ticket: ProductionHistoryTicket }) {
           key={label}
           className={`min-w-0 rounded-[6px] border px-1.5 py-1 ${at ? "border-[var(--phv4-border)] bg-[var(--phv4-bg)]" : "border-dashed border-[#2a2d33] opacity-55"}`}
         >
-          <p className="text-[11px] text-[var(--phv4-muted)]">{label}</p>
+          <p className="text-[12px] text-[var(--phv4-muted)]">{label}</p>
           <p className="phv4-mono text-[13px] font-bold">{hhmm(at)}</p>
-          {by ? <p className="truncate text-[11px] text-[#d1d5db]" title={by}>{by}</p> : null}
+          {by ? <p className="truncate text-[12px] text-[#d1d5db]" title={by}>{by}</p> : null}
         </li>
       ))}
     </ol>
@@ -165,7 +165,7 @@ export function OrderDetail({
             ] as const
           ).map(([label, value]) => (
             <div key={label} className="min-w-0">
-              <dt className="text-[11px] text-[var(--phv4-muted)]">{label}</dt>
+              <dt className="text-[12px] text-[var(--phv4-muted)]">{label}</dt>
               <dd className="truncate font-semibold" title={String(value)}>
                 {value}
               </dd>
@@ -188,7 +188,7 @@ export function OrderDetail({
             <div className="mb-2 flex items-center gap-2">
               <StationBadge station={st.station} />
               <span className="text-[14px] font-bold">{board ? readyLabel(board) : TICKET_STATUS[st.status] ?? st.status}</span>
-              <span className="phv4-mono ml-auto text-[11px] text-[var(--phv4-muted)]">
+              <span className="phv4-mono ml-auto text-[12px] text-[var(--phv4-muted)]">
                 {st.ticketNo} · target {st.targetMinutes} mnt
               </span>
             </div>
@@ -202,7 +202,7 @@ export function OrderDetail({
                   >
                     <p className={`text-[15px] font-semibold ${cancelled ? "line-through" : ""}`}>
                       <span className="phv4-mono font-bold text-[var(--phv4-wait)]">{item.qty}×</span> {item.label}
-                      {cancelled ? <span className="ml-2 text-[11px] font-bold text-[#fca5a5] no-underline">DIBATALKAN</span> : null}
+                      {cancelled ? <span className="ml-2 text-[12px] font-bold text-[#fca5a5] no-underline">DIBATALKAN</span> : null}
                     </p>
                     {item.note ? <p className="text-[13px] font-semibold text-[#fde68a]">• {item.note}</p> : null}
                   </li>

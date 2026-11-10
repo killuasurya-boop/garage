@@ -2,15 +2,26 @@ import { and, desc, eq, gt, inArray, isNull, or, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
+  appSettings,
+  menuRecipes,
   wmsCategory,
   wmsMaterialRequest,
   wmsMaterialRequestItem,
   wmsProduct,
+  wmsStockMovement,
   wmsSupplier,
   wmsWarehouse,
   wmsWarehouseStock,
 } from "@/db/schema";
 import { createPurchaseOrderInTx, getSupplierPriceHistory } from "@/lib/wms-purchase";
+import {
+  estimateRunoutAt,
+  portionsLeft,
+  receiveShortfall,
+  suggestRequestQty,
+  targetStock,
+  usagePerHour,
+} from "@/lib/material-request-rules";
 import { loadProductUoms } from "@/lib/wms-uom";
 import { makeWmsDoc, moveStockBetweenWarehouses, runInTx, writeWmsAudit } from "@/lib/wms-service";
 
@@ -53,18 +64,82 @@ async function stockMap(db: Db, warehouseId: string | null | undefined, productI
   return map;
 }
 
+/** Pemakaian ruang (mutasi keluar = penjualan/resep): hari ini & 7 hari, per bahan. */
+async function usageMap(db: Db, warehouseId: string, productIds: string[], now: Date) {
+  const map = new Map<string, { usedToday: number; hoursOpenToday: number; used7d: number }>();
+  if (!productIds.length) return map;
+  // Awal hari Asia/Jakarta (UTC+7, tanpa DST).
+  const jkt = new Date(now.getTime() + 7 * 3_600_000);
+  const dayStart = new Date(Date.UTC(jkt.getUTCFullYear(), jkt.getUTCMonth(), jkt.getUTCDate()) - 7 * 3_600_000);
+  const weekStart = new Date(now.getTime() - 7 * 24 * 3_600_000);
+  const rows = await db
+    .select({
+      productId: wmsStockMovement.productId,
+      used7d: sql<number>`coalesce(sum(case when ${wmsStockMovement.qty} < 0 then -${wmsStockMovement.qty} else 0 end), 0)`,
+      usedToday: sql<number>`coalesce(sum(case when ${wmsStockMovement.qty} < 0 and ${wmsStockMovement.createdAt} >= ${dayStart} then -${wmsStockMovement.qty} else 0 end), 0)`,
+      firstToday: sql<string | null>`min(case when ${wmsStockMovement.qty} < 0 and ${wmsStockMovement.createdAt} >= ${dayStart} then ${wmsStockMovement.createdAt} end)`,
+    })
+    .from(wmsStockMovement)
+    .where(
+      and(
+        eq(wmsStockMovement.warehouseId, warehouseId),
+        inArray(wmsStockMovement.productId, productIds),
+        eq(wmsStockMovement.type, "out"),
+        sql`${wmsStockMovement.createdAt} >= ${weekStart}`,
+      ),
+    )
+    .groupBy(wmsStockMovement.productId);
+  for (const r of rows) {
+    if (!r.productId) continue;
+    const first = r.firstToday ? new Date(r.firstToday).getTime() : null;
+    map.set(r.productId, {
+      usedToday: Number(r.usedToday),
+      hoursOpenToday: first ? Math.max(1, (now.getTime() - first) / 3_600_000) : 0,
+      used7d: Number(r.used7d),
+    });
+  }
+  return map;
+}
+
+/** Takaran resep per porsi (satuan sama dengan bahan) — rata-rata resep aktif, untuk "cukup ±N porsi". */
+async function portionMap(db: Db, products: Array<{ id: string; sku: string; unit: string }>) {
+  const map = new Map<string, number>();
+  if (!products.length) return map;
+  const bySku = new Map(products.map((p) => [p.sku, p]));
+  const rows = await db
+    .select({ sku: menuRecipes.inventorySku, qty: menuRecipes.qty, unit: menuRecipes.unit })
+    .from(menuRecipes)
+    .where(and(eq(menuRecipes.status, "active"), inArray(menuRecipes.inventorySku, [...bySku.keys()])));
+  const acc = new Map<string, { sum: number; n: number }>();
+  for (const r of rows) {
+    const p = r.sku ? bySku.get(r.sku) : undefined;
+    if (!p || !(Number(r.qty) > 0) || r.unit.trim().toLowerCase() !== p.unit.trim().toLowerCase()) continue;
+    const cur = acc.get(p.id) ?? { sum: 0, n: 0 };
+    acc.set(p.id, { sum: cur.sum + Number(r.qty), n: cur.n + 1 });
+  }
+  for (const [id, v] of acc) map.set(id, v.sum / v.n);
+  return map;
+}
+
 /** Bahan yang bisa diminta divisi: kategori area divisi + umum, belum diarsip. Stok ruang & gudang utama. */
 export async function getMaterialCatalog(division: MaterialDivision) {
   const db = getDb();
   const { room, source } = await roomsFor(db, division);
   const products = await db
-    .select({ id: wmsProduct.id, sku: wmsProduct.sku, name: wmsProduct.name, category: wmsProduct.category, unit: wmsProduct.unit, minStock: wmsProduct.minStock })
+    .select({ id: wmsProduct.id, sku: wmsProduct.sku, name: wmsProduct.name, category: wmsProduct.category, unit: wmsProduct.unit, minStock: wmsProduct.minStock, parStock: wmsProduct.parStock })
     .from(wmsProduct)
     .leftJoin(wmsCategory, eq(wmsCategory.name, wmsProduct.category))
     .where(and(isNull(wmsProduct.archivedAt), or(eq(wmsCategory.area, division), eq(wmsCategory.area, "umum"), isNull(wmsCategory.area))))
     .orderBy(wmsProduct.name);
   const ids = products.map((p) => p.id);
-  const [roomStock, sourceStock, uoms] = await Promise.all([stockMap(db, room.id, ids), stockMap(db, source?.id, ids), loadProductUoms(ids, db)]);
+  const now = new Date();
+  const [roomStock, sourceStock, uoms, usage, perPortion] = await Promise.all([
+    stockMap(db, room.id, ids),
+    stockMap(db, source?.id, ids),
+    loadProductUoms(ids, db),
+    usageMap(db, room.id, ids, now),
+    portionMap(db, products),
+  ]);
   return {
     division,
     room: { id: room.id, name: room.name },
@@ -72,10 +147,23 @@ export async function getMaterialCatalog(division: MaterialDivision) {
     products: products.map((p) => {
       const onHand = roomStock.get(p.id) ?? 0;
       const minStock = Number(p.minStock);
+      const parStock = Number(p.parStock);
+      const productUoms = uoms.get(p.id) ?? [];
+      const use = usage.get(p.id);
+      const perHour = use ? usagePerHour(use) : 0;
+      const runoutAt = estimateRunoutAt(onHand, perHour, now);
       return {
         ...p,
-        uoms: uoms.get(p.id) ?? [],
+        uoms: productUoms,
         minStock,
+        parStock,
+        targetStock: targetStock(minStock, parStock),
+        // M1: jumlah usulan (stok target − stok ruang, dibulatkan ke kemasan).
+        suggestedQty: suggestRequestQty({ onHand, minStock, parStock, packFactors: productUoms.map((u) => u.factor) }),
+        // M2: laju pakai & perkiraan habis.
+        usagePerHour: Math.round(perHour * 100) / 100,
+        runoutAt: runoutAt?.toISOString() ?? null,
+        portionsLeft: portionsLeft(onHand, perPortion.get(p.id)),
         onHand,
         sourceOnHand: sourceStock.get(p.id) ?? 0,
         status: onHand <= 0 ? ("out" as const) : minStock > 0 && onHand <= minStock ? ("low" as const) : ("ok" as const),
@@ -142,7 +230,7 @@ export async function createMaterialRequest(input: MaterialRequestInput, actor: 
 
 async function notify(
   outletId: string | null,
-  input: { audience: "management" | "production"; severity: "info" | "warning" | "urgent"; title: string; body: string; url: string; dedupKey: string },
+  input: { audience: "management" | "production" | "bar" | "dapur"; severity: "info" | "warning" | "urgent"; title: string; body: string; url: string; dedupKey: string },
 ) {
   try {
     const { notifyStaff } = await import("@/lib/staff-notifications");
@@ -210,6 +298,7 @@ export async function listMaterialRequests(filter: { division?: MaterialDivision
         stockAtRequest: Number(i.item.stockAtRequest),
         sentQty: Number(i.item.sentQty),
         shortQty: Number(i.item.shortQty),
+        receivedQty: i.item.receivedQty == null ? null : Number(i.item.receivedQty),
         purchaseOrderId: i.item.purchaseOrderId,
         note: i.item.note,
         sourceOnHand: request.sourceWarehouseId ? (sourceStock.get(`${request.sourceWarehouseId}|${i.item.productId}`) ?? 0) : 0,
@@ -275,8 +364,9 @@ export async function sendMaterialRequest(
     return { request: updated, shortCount };
   });
   if (result) {
+    // V2: hanya divisi peminta (Bar tidak menerima kiriman Dapur, dan sebaliknya).
     await notify(actor.outletId, {
-      audience: "production",
+      audience: result.request.division === "bar" ? "bar" : "dapur",
       severity: "info",
       title: `Bahan ${MATERIAL_DIVISION_LABEL[result.request.division as MaterialDivision]} dikirim gudang`,
       body: `${result.request.doc} — cek & tekan Terima di Minta Bahan.`,
@@ -297,13 +387,52 @@ export async function sendMaterialRequest(
   return result?.request ?? null;
 }
 
-/** Divisi konfirmasi barang sudah diterima (stok sudah pindah saat dikirim). */
-export async function receiveMaterialRequest(id: string, input: { note?: string }, actor: { userId: string | null }) {
-  return runInTx(async (tx) => {
+/**
+ * Divisi konfirmasi diterima (stok sudah pindah saat dikirim). M6: baris yang datang
+ * KURANG dari kiriman → selisih dikembalikan ke catatan stok gudang (barang tidak sampai
+ * ruang) dan Manajer diberi peringatan untuk cek gudang. Tidak membuat PO otomatis —
+ * barangnya mungkin masih di gudang (hindari beli dobel).
+ */
+export async function receiveMaterialRequest(
+  id: string,
+  input: { note?: string; lines?: Array<{ itemId: string; receivedQty: number }> },
+  actor: { userId: string | null; outletId?: string | null },
+) {
+  const result = await runInTx(async (tx) => {
     const [request] = await tx.select().from(wmsMaterialRequest).where(eq(wmsMaterialRequest.id, id)).for("update").limit(1);
     if (!request) return null;
     if (request.status !== "sent") throw new Error(request.status === "received" ? "Sudah dikonfirmasi diterima." : "Bahan belum dikirim gudang.");
     const note = input.note?.trim() ?? "";
+    const items = await tx.select().from(wmsMaterialRequestItem).where(eq(wmsMaterialRequestItem.requestId, id));
+    const receivedBy = new Map((input.lines ?? []).map((l) => [l.itemId, l.receivedQty]));
+    const discrepancies: Array<{ name: string; sent: number; received: number }> = [];
+    for (const item of items) {
+      if (!receivedBy.has(item.id)) continue;
+      const sent = Number(item.sentQty);
+      const received = round4(Math.max(0, Math.min(sent, Number(receivedBy.get(item.id)))));
+      const diff = receiveShortfall(sent, received);
+      await tx.update(wmsMaterialRequestItem).set({ receivedQty: received }).where(eq(wmsMaterialRequestItem.id, item.id));
+      if (!(diff > 0)) continue;
+      const [prod] = await tx.select({ hpp: wmsProduct.hpp, name: wmsProduct.name }).from(wmsProduct).where(eq(wmsProduct.id, item.productId)).limit(1);
+      if (!request.warehouseId || !request.sourceWarehouseId) throw new Error("Ruang tujuan / gudang sumber belum lengkap.");
+      try {
+        await moveStockBetweenWarehouses(tx, {
+          outType: "internal_out",
+          productId: item.productId,
+          fromWarehouseId: request.warehouseId,
+          toWarehouseId: request.sourceWarehouseId,
+          qty: diff,
+          fallbackHpp: Number(prod?.hpp ?? 0),
+          refDoc: `${request.doc} SELISIH TERIMA`,
+          userId: actor.userId,
+        });
+      } catch (error) {
+        throw new Error(
+          `${prod?.name ?? "Bahan"}: stok ruang sudah terpakai sehingga selisih tidak bisa dikembalikan otomatis — koreksi lewat stock opname. (${error instanceof Error ? error.message : String(error)})`,
+        );
+      }
+      discrepancies.push({ name: prod?.name ?? "Bahan", sent, received });
+    }
     const [updated] = await tx
       .update(wmsMaterialRequest)
       .set({ status: "received", receivedBy: actor.userId, receivedAt: new Date(), receiveNote: note })
@@ -311,13 +440,24 @@ export async function receiveMaterialRequest(id: string, input: { note?: string 
       .returning();
     await writeWmsAudit(tx, {
       userId: actor.userId,
-      action: "Permintaan bahan diterima divisi",
+      action: discrepancies.length ? "Permintaan bahan diterima dengan selisih" : "Permintaan bahan diterima divisi",
       object: request.doc,
-      status: note ? "warning" : "recorded",
-      metadata: { note },
+      status: note || discrepancies.length ? "warning" : "recorded",
+      metadata: { note, discrepancies },
     });
-    return updated;
+    return { request: updated, discrepancies };
   });
+  if (result?.discrepancies.length) {
+    await notify(actor.outletId ?? null, {
+      audience: "management",
+      severity: "warning",
+      title: `Selisih terima ${result.request.doc}`,
+      body: result.discrepancies.map((d) => `${d.name}: kirim ${d.sent}, terima ${d.received}`).join("; ") + " — cek gudang.",
+      url: "/warehouse/material-requests",
+      dedupKey: `mrq-diff:${result.request.id}`,
+    });
+  }
+  return result?.request ?? null;
 }
 
 /** Batal sebelum dikirim (peminta sendiri atau Owner/Manajer). */
@@ -417,4 +557,61 @@ export async function createPurchaseOrdersFromShortages(userId?: string | null) 
     }
     return { created, skipped };
   });
+}
+
+// ---------------------------------------------------------------------------
+// M4: paket permintaan rutin ("Buka toko Bar", "Persiapan malam") per outlet.
+// Disimpan di app_settings (tanpa tabel baru): { bar: Template[], dapur: Template[] }.
+// ---------------------------------------------------------------------------
+
+export type MaterialTemplate = { name: string; items: Array<{ productId: string; qty: number }> };
+const TEMPLATE_KEY = "wms:material-templates";
+type TemplateStore = Partial<Record<MaterialDivision, MaterialTemplate[]>>;
+
+async function readTemplates(outletId: string | null): Promise<TemplateStore> {
+  if (!outletId) return {};
+  const [row] = await getDb()
+    .select({ valueJson: appSettings.valueJson })
+    .from(appSettings)
+    .where(and(eq(appSettings.outletId, outletId), eq(appSettings.key, TEMPLATE_KEY)))
+    .limit(1);
+  return (row?.valueJson as TemplateStore | undefined) ?? {};
+}
+
+export async function listMaterialTemplates(division: MaterialDivision, outletId: string | null) {
+  return (await readTemplates(outletId))[division] ?? [];
+}
+
+/** Simpan / timpa paket bernama sama. Item qty ≤ 0 dibuang; maks. 12 paket per divisi. */
+export async function saveMaterialTemplate(
+  division: MaterialDivision,
+  template: MaterialTemplate,
+  actor: { userId: string | null; outletId: string | null },
+) {
+  if (!actor.outletId) throw new Error("Outlet akun tidak dikenal.");
+  const name = template.name.trim().slice(0, 40);
+  if (!name) throw new Error("Nama paket wajib diisi.");
+  const items = template.items.filter((i) => i.qty > 0).map((i) => ({ productId: i.productId, qty: round4(i.qty) }));
+  if (!items.length) throw new Error("Paket harus berisi minimal satu bahan.");
+  const store = await readTemplates(actor.outletId);
+  const list = (store[division] ?? []).filter((t) => t.name.toLowerCase() !== name.toLowerCase());
+  if (list.length >= 12) throw new Error("Maksimal 12 paket per divisi.");
+  const next: TemplateStore = { ...store, [division]: [...list, { name, items }] };
+  return writeTemplates(next, actor, division);
+}
+
+export async function deleteMaterialTemplate(division: MaterialDivision, name: string, actor: { userId: string | null; outletId: string | null }) {
+  if (!actor.outletId) throw new Error("Outlet akun tidak dikenal.");
+  const store = await readTemplates(actor.outletId);
+  const next: TemplateStore = { ...store, [division]: (store[division] ?? []).filter((t) => t.name.toLowerCase() !== name.trim().toLowerCase()) };
+  return writeTemplates(next, actor, division);
+}
+
+async function writeTemplates(next: TemplateStore, actor: { userId: string | null; outletId: string | null }, division: MaterialDivision) {
+  const updatedAt = new Date();
+  await getDb()
+    .insert(appSettings)
+    .values({ outletId: actor.outletId, key: TEMPLATE_KEY, valueJson: next, updatedBy: actor.userId, updatedAt })
+    .onConflictDoUpdate({ target: [appSettings.outletId, appSettings.key], set: { valueJson: next, updatedBy: actor.userId, updatedAt } });
+  return next[division] ?? [];
 }

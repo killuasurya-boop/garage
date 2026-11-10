@@ -165,6 +165,8 @@ export type ApprovalPayload = {
   discountAmount?: number;
   /** ID user pemohon (Better Auth `user.id`). Baris PCX lama (sebelum Nov 2026) berisi nama "Nama / Peran". */
   requestedBy?: string;
+  /** Akun pengaju (batal Bar/Dapur/kasir) — penerima notifikasi saat diputus. */
+  requestedByUserId?: string;
   /** Nama tampilan pemohon ("Nama / Peran"), hanya untuk tampilan/audit. */
   requestedByName?: string;
   /** APP-DOC: versi dokumen yang diajukan untuk berlaku. */

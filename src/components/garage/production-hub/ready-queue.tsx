@@ -105,11 +105,11 @@ export function ReadyQueue({
                   <div className="flex items-center gap-1.5">
                     <span className="phv4-mono text-[13px] font-bold">#{order.orderNo ?? "-"}</span>
                     <span className="text-[12px] text-[#d1d5db]">{tableText(order.table)}</span>
-                    <span className="ml-auto inline-flex items-center gap-1 text-[11px] font-semibold text-[#86efac]">
+                    <span className="ml-auto inline-flex items-center gap-1 text-[12px] font-semibold text-[#86efac]">
                       <Check className="size-3" /> {pickup ? "Sudah Diambil" : "Selesai Antar"}
                     </span>
                   </div>
-                  <p className="mt-0.5 truncate text-[11px] text-[var(--phv4-muted)]">
+                  <p className="mt-0.5 truncate text-[12px] text-[var(--phv4-muted)]">
                     {last
                       ? new Intl.DateTimeFormat("id-ID", { timeStyle: "short", timeZone: "Asia/Jakarta" }).format(new Date(last))
                       : "-"}
@@ -151,7 +151,7 @@ export function ReadyQueue({
                   <p className="mt-0.5 truncate text-[14px] font-bold text-white">
                     {customerOf(ticket).customer ?? <span className="font-semibold text-[var(--phv4-muted)]">{customerOf(ticket).fallback}</span>}
                   </p>
-                  <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] text-[var(--phv4-muted)]">
+                  <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[12px] text-[var(--phv4-muted)]">
                     <StationBadge station={ticket.station} compact />
                     <span className="truncate">
                       {slaState.message ? (
@@ -175,7 +175,7 @@ export function ReadyQueue({
                     </button>
                   ) : choosing === ticket.ticketNo ? (
                     <div className="space-y-1">
-                      <p className="text-[11px] font-semibold text-[var(--phv4-muted)]">Diantar oleh:</p>
+                      <p className="text-[12px] font-semibold text-[var(--phv4-muted)]">Diantar oleh:</p>
                       <div className="flex flex-wrap gap-1">
                         {waiters.map((w) => (
                           <button

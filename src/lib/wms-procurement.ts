@@ -28,6 +28,7 @@ import {
   type PoStatus,
 } from "@/lib/wms-procurement-meta";
 import { makeWmsDoc, runInTx, writeWmsAudit } from "@/lib/wms-service";
+import { notifyPoPendingApproval, resolvePoApproval } from "@/lib/wms-notify";
 
 // =============================================================================
 // GARAGE WMS — Pengadaan (Phase 2): persetujuan PO, revisi dokumen, alur kirim
@@ -79,7 +80,7 @@ async function logDispatch(
 // Persetujuan
 // ---------------------------------------------------------------------------
 
-export async function submitPurchaseOrder(id: string, actor: ProcActor) {
+async function submitPurchaseOrderTx(id: string, actor: ProcActor) {
   return runInTx(async (tx) => {
     const po = await lockPo(tx, id);
     if (po.status !== "draft") throw new WmsMasterError("PO_STATE", "Hanya PO draft yang bisa diajukan.");
@@ -92,7 +93,7 @@ export async function submitPurchaseOrder(id: string, actor: ProcActor) {
 }
 
 /** Penyetuju ≠ pembuat, kecuali Owner (dicatat "disetujui sendiri oleh Owner"). */
-export async function approvePurchaseOrder(id: string, actor: ProcActor) {
+async function approvePurchaseOrderTx(id: string, actor: ProcActor) {
   return runInTx(async (tx) => {
     const po = await lockPo(tx, id);
     if (po.status !== "pending_approval") throw new WmsMasterError("PO_STATE", "PO tidak sedang menunggu persetujuan.");
@@ -114,7 +115,7 @@ export async function approvePurchaseOrder(id: string, actor: ProcActor) {
 }
 
 /** Tolak persetujuan → kembali draft (bisa diperbaiki lalu diajukan ulang). */
-export async function rejectPurchaseOrder(id: string, reason: string, actor: ProcActor) {
+async function rejectPurchaseOrderTx(id: string, reason: string, actor: ProcActor) {
   const why = reason.trim();
   if (why.length < 3) throw new WmsMasterError("REASON_REQUIRED", "Alasan penolakan wajib diisi.", 400);
   return runInTx(async (tx) => {
@@ -141,7 +142,7 @@ export type PoRevisionInput = {
   items?: Array<{ productId: string; orderedQty: number; unitPrice: number; uom?: string | null; uomFactor?: number | null }>;
 };
 
-export async function revisePurchaseOrder(id: string, input: PoRevisionInput, actor: ProcActor) {
+async function revisePurchaseOrderTx(id: string, input: PoRevisionInput, actor: ProcActor) {
   return runInTx(async (tx) => {
     const po = await lockPo(tx, id);
     if (!(PO_EDITABLE as readonly string[]).includes(po.status)) {
@@ -898,4 +899,30 @@ export async function getProcurementDashboard() {
 export async function categoryAreaMap(db: Db = getDb()) {
   const rows = await db.select({ name: wmsCategory.name, area: wmsCategory.area }).from(wmsCategory);
   return new Map(rows.map((r) => [r.name, r.area]));
+}
+
+// --- Smart Notification V2: notifikasi persetujuan (setelah transaksi sukses) ---
+
+export async function submitPurchaseOrder(id: string, actor: ProcActor) {
+  const result = await submitPurchaseOrderTx(id, actor);
+  await notifyPoPendingApproval(result, actor.name);
+  return result;
+}
+
+export async function approvePurchaseOrder(id: string, actor: ProcActor) {
+  const result = await approvePurchaseOrderTx(id, actor);
+  await resolvePoApproval(id, "PO disetujui");
+  return result;
+}
+
+export async function rejectPurchaseOrder(id: string, reason: string, actor: ProcActor) {
+  const result = await rejectPurchaseOrderTx(id, reason, actor);
+  await resolvePoApproval(id, "PO ditolak");
+  return result;
+}
+
+export async function revisePurchaseOrder(id: string, input: PoRevisionInput, actor: ProcActor) {
+  const result = await revisePurchaseOrderTx(id, input, actor);
+  if (result.status === "pending_approval") await notifyPoPendingApproval(result, actor.name);
+  return result;
 }

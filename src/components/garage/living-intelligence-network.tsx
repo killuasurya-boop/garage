@@ -168,8 +168,11 @@ export function LivingIntelligenceNetwork({
           </div>
           <div className="lin-mobile-domains">
             {GARAGE_DOMAINS.map(d => <button type="button" key={d.id} onClick={() => setSelected(d.id)}
-              className={selected===d.id?"selected":""}>
-              <i style={{backgroundColor: COLORS[stateFor(d.id)]}}/>{LABELS[d.id] || d.label}
+              className={selected===d.id?"selected":""} aria-pressed={selected===d.id}>
+              <i aria-hidden="true" style={{backgroundColor: COLORS[stateFor(d.id)]}}/>
+              <span className="lin-mobile-name">{LABELS[d.id] || d.label}</span>
+              {/* Status dalam teks, bukan hanya warna titik (aksesibilitas). */}
+              <small className="lin-mobile-status">{NAMES[stateFor(d.id)]}</small>
             </button>)}
           </div>
           <div className="lin-legend">● Belum diperiksa <span className="blue">● Analisis</span>

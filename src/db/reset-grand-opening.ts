@@ -51,6 +51,8 @@ export const KEEP_TABLES = [
   "product_categories", "menu_items", "menu_variants", "menu_recipes", "menu_research",
   // pelanggan & member (poin dipertahankan kecuali --reset-member-points)
   "customers", "customer_tags", "member_accounts", "custom_segments", "custom_segment_customers",
+  // izin promosi WA (CX V4): catatan persetujuan pelanggan — ikut customer, bukan transaksi
+  "customer_marketing_consents",
   // marketing (definisi), voucher (definisi; used_count di-reset)
   "marketing_campaigns",
   // supplier (master)
@@ -103,7 +105,7 @@ export const CLEAR_TABLES = [
   "notification_logs", "shift_handover_reports", "staff_shift_handovers", "sop_logs", "staff_tasks",
   "kpi_evaluations", "chat_messages",
   // marketing & publikasi transaksional
-  "wifi_access_logs", "crm_campaign_logs", "marketing_broadcasts", "marketing_broadcast_deliveries", "whatsapp_messaging_queue",
+  "wifi_access_logs", "crm_campaign_logs", "customer_experience_events", "marketing_broadcasts", "marketing_broadcast_deliveries", "whatsapp_messaging_queue",
   "content_publishing_queue", "content_publishing_results",
   // member (sesi)
   "member_sessions",

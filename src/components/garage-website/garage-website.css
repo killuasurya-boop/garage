@@ -650,7 +650,7 @@ html { scroll-behavior: smooth; }
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: none;
-    opacity: 0.85;
+    opacity: 1; /* 0.85 di atas merah = kontras 4.2:1 (< AA 4.5) */
   }
   /* Tombol WA melayang digantikan bar ini di HP; footer tidak tertutup bar. */
   .garage-website .floating-wa { display: none !important; }
@@ -1248,7 +1248,7 @@ html { scroll-behavior: smooth; }
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: none;
-    opacity: 0.85;
+    opacity: 1; /* 0.85 di atas merah = kontras 4.2:1 (< AA 4.5) */
   }
   /* Tombol WA melayang digantikan bar ini di HP; footer tidak tertutup bar. */
   .garage-website .floating-wa { display: none !important; }

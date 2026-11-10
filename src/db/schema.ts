@@ -2237,6 +2237,47 @@ export const crmCampaignLogs = pgTable(
   }),
 );
 
+// CX Engine V4 (Nov 2026, migration 0182): izin promosi WhatsApp member — append-only.
+// Izin aktif = baris terbaru per (customer, channel). Opt-out = baris baru granted=false.
+export const customerMarketingConsents = pgTable(
+  "customer_marketing_consents",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    customerId: uuid("customer_id")
+      .notNull()
+      .references(() => customers.id, { onDelete: "cascade" }),
+    channel: text("channel").notNull().default("whatsapp"),
+    granted: boolean("granted").notNull(),
+    // invoice_register | member_register | member_profile | invoice_member
+    source: text("source").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    customerChannelIdx: index("customer_marketing_consents_customer_idx").on(
+      table.customerId,
+      table.channel,
+      table.createdAt,
+    ),
+  }),
+);
+
+// CX Engine V4: event funnel invoice → member. Data minimal: tanpa nomor WA, PIN,
+// token invoice, IP, atau isi pesan. Klik WhatsApp = "dibuka", bukan "terkirim".
+export const customerExperienceEvents = pgTable(
+  "customer_experience_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    event: text("event").notNull(),
+    orderId: uuid("order_id").references(() => orders.id, { onDelete: "set null" }),
+    customerId: uuid("customer_id").references(() => customers.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    eventCreatedIdx: index("customer_experience_events_event_created_idx").on(table.event, table.createdAt),
+    orderEventIdx: index("customer_experience_events_order_event_idx").on(table.orderId, table.event),
+  }),
+);
+
 export const voucherRedemptions = pgTable(
   "voucher_redemptions",
   {

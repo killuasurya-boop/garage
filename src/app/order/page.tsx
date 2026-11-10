@@ -21,6 +21,7 @@ import {
 export const metadata: Metadata = {
   title: "Digital Menu - Garage Coffee",
   description: "QR digital menu Garage Coffee untuk guest, member, dan invoice WhatsApp.",
+  alternates: { canonical: "/order" },
 };
 
 type SearchParams = Record<string, string | string[] | undefined>;

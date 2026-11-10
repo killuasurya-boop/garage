@@ -24,7 +24,7 @@ Login HP/email + PIN tetap ada.
    - Mencatat `terms_accepted_at` dan `marketing_consent_at` (null bila tidak setuju).
    - Setelah itu sesi member dibuat dan pengguna diarahkan ke `next`.
 
-Kolom baru (migrasi **0183**) di `member_accounts`: `google_sub` (unik), `email_verified_at`, `avatar_url`,
+Kolom baru (migrasi **0184**) di `member_accounts`: `google_sub` (unik), `email_verified_at`, `avatar_url`,
 `terms_accepted_at`, `marketing_consent_at`.
 
 ## Langkah Owner (sekali)
@@ -63,7 +63,7 @@ Tanpa langkah ini tombol Google tidak tampil, sehingga tidak ada tombol palsu.
   - PIN salah: memakai kunci per nomor yang sama dengan login PIN.
   - Nomor yang sudah tertaut ke Google lain ditolak.
 - **Buat PIN untuk akun Google:**
-  - Kolom baru `member_accounts.pin_set_at` (migrasi **0184**; akun lama diisi otomatis, akun Google = null).
+  - Kolom baru `member_accounts.pin_set_at` (migrasi **0185**; akun lama diisi otomatis, akun Google = null).
   - Selama masih null, dashboard menampilkan "Buat PIN untuk login tanpa Google", tanpa perlu PIN lama dan hanya sekali.
   - PIN/password baru minimal 6 karakter, sama dengan saat daftar.
 - **Perbaikan:**

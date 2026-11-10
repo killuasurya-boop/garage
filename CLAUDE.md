@@ -266,6 +266,14 @@ Scroll direction:
   metadata `staffOrder: true` → shown as "Belum dipilih". Final Bayar cash amount is REQUIRED (empty ≠ uang pas). Only bill
   totals are shown, never drawer cash. Nav "Belum Bayar" (F6), sidebar collapse `[`, always-on red edge line (off with reduced
   motion), POS links/`window.open` to internal pages open in `PosV6ModuleSheet` (no new tab; PDFs via `?inline=1`).
+- Invoice Digital V4 / CX Engine (owner, Nov 2026, migration 0182, `docs/CX-ENGINE-V4.md`): `/invoice/[token]` =
+  components in `src/components/garage/invoice-v4/` (`iv-*` CSS in `@layer components`). Pure rules: `invoice-v4.ts`
+  (payment state via `paymentStatusOf`, 5-step flow, station cards, `maskPhone`), `customer-offers.ts` (eligibility,
+  `voucherEffectiveStatus`, `verifiedTierBenefits` from Settings point rules — never unimplemented perks), `cx-whatsapp.ts`,
+  `cx-events.ts`; server `customer-experience-service.ts`. Invoice token ≠ account ownership: member data only from the
+  member session, invoices are never linked to a member from the public page. "Saya Sudah Bayar" only opens WA proof help.
+  wa.me clicks = "opened", never "sent". Promo WA needs latest `customer_marketing_consents` = granted + max 1/7 days.
+  Events (`customer_experience_events`) carry no phone/PIN/token/IP.
 - Browser-dialog printing uses `browserColumns` (huruf Besar → 24 col on 58 mm) with tall
   TOTAL/Kembali lines; cashier can print Bar/Dapur chits manually (`printKitchenChits`).
 - Production Hub V4 (owner, Nov 2026, no migration): UI `src/components/garage/production-hub/` (portal over the shell,
@@ -497,7 +505,7 @@ Scroll direction:
   (strict, never truncates "123" → "23"), `tableLabelFor` → canonical "Meja 06".
   Max 50 (`MAX_TABLE_NUMBER`, matches table-call voice assets & QR cards).
 - Tables in use per outlet live in `dining_tables` (Pengaturan → Meja & QR,
-  `/api/tables/config`). No rows for an outlet → all 01–50 active. `floor` (migration 0182, Crystal V5) = lantai per
+  `/api/tables/config`). No rows for an outlet → all 01–50 active. `floor` (migration 0183, Crystal V5) = lantai per
   meja; null → `defaultTableFloor` (01–25 = 1, 26–50 = 2). Customer picker groups/filters via `src/lib/table-floor-view.ts`. Inactive tables
   are hidden from waiter/POS maps and rejected for dine-in orders.
 - Live table state = `getTableLiveData({ outletId })` / `getTableLiveRow` (always pass
@@ -641,7 +649,9 @@ no automotive imagery, real member data, reduced motion, no fake OAuth/OTP, resp
 allowed once `MEMBER_GOOGLE_CLIENT_ID`/`_SECRET` (fallback: the existing `GOOGLE_OAUTH_CLIENT_ID`/`_SECRET`) are configured on
 the server (button hidden otherwise): code + PKCE,
 server-verified ID token (`src/lib/member-google-oauth.ts`), link by `google_sub` then Google-verified email (no duplicates),
-new accounts complete name + WhatsApp + S&K, marketing consent separate & default off (migration 0183, `docs/crystal-v5/02-GOOGLE-LOGIN.md`).
+new accounts complete name + WhatsApp + S&K, marketing consent separate & default off (migration 0184, `docs/crystal-v5/02-GOOGLE-LOGIN.md`).
+An existing phone account is linked only after its PIN (`completeGoogleMember`, pin-guard); Google-only accounts may set a first PIN
+without the old one while `member_accounts.pin_set_at` is null (migration 0185).
 **Member V6 (owner, 9 Nov 2026).** `/member-login` follows `docs/design-references/member-v6/` (`docs/crystal-v5/03-MEMBER-V6.md`):
 real Three.js cards (`member-auth/cinematic3d/`, lazy, adaptive quality, CSS fallback without WebGL, no chip/NFC), showcase left +
 glass panel right (`member-v6.css`), intro once per session, register needs S&K (`acceptTerms` → `terms_accepted_at`), success

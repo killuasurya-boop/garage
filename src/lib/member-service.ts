@@ -300,7 +300,9 @@ export async function registerMember(input: RegisterMemberInput) {
       member: memberResponseData(customer),
       welcomeVoucher: {
         code: welcomeVoucher.code,
+        title: welcomeVoucher.title,
         discount: `${welcomeVoucher.value}%`,
+        maxDiscount: welcomeVoucher.maxDiscount,
         validUntil: welcomeVoucher.endsAt?.toISOString() ?? null,
       },
     },

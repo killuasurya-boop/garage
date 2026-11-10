@@ -42,7 +42,10 @@ export function HeaderV5({
   notice,
   info,
   onTable,
+  titleLevel = 1,
 }: {
+  /** 2 = halaman sudah punya H1 sendiri (mis. judul event), judul header turun ke H2. */
+  titleLevel?: 1 | 2;
   /** Mode Daftar Pilihan: ketuk chip meja = buka pemilih meja (info saja). */
   onTable?: () => void;
   /** Buka AYA Assistant. */
@@ -109,7 +112,11 @@ export function HeaderV5({
 
   return (
     <header className="relative pt-2">
-      <h1 className="sr-only">Menu digital Garage Coffee — {dineIn ? tableLabel : channelLabel}</h1>
+      {titleLevel === 1 ? (
+        <h1 className="sr-only">Menu digital Garage Coffee — {dineIn ? tableLabel : channelLabel}</h1>
+      ) : (
+        <h2 className="sr-only">Menu digital Garage Coffee — {dineIn ? tableLabel : channelLabel}</h2>
+      )}
       <div className="flex items-center gap-2 lg:gap-5">
         <button type="button" className="gm5-icon-btn shrink-0 lg:hidden" aria-label="Buka navigasi menu" onClick={onOpenDrawer}>
           <MenuIcon className="size-6" aria-hidden />

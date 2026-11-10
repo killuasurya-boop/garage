@@ -186,10 +186,12 @@ html { scroll-behavior: smooth; }
   background: linear-gradient(110deg, transparent 40%, rgba(255,255,255,0.06) 50%, transparent 60%);
   animation: sweep 8s var(--ease-io) infinite;
 }
+/* Gerak sama seperti sebelumnya (left -50% -> 120% dari induk), lewat transform agar tidak
+   dihitung sebagai layout shift (CLS). Lebar elemen = 50% induk, jadi 170% induk = 340% elemen. */
 @keyframes sweep {
-  0%   { left: -50%; }
-  60%  { left: 120%; }
-  100% { left: 120%; }
+  0%   { transform: translateX(0); }
+  60%  { transform: translateX(340%); }
+  100% { transform: translateX(340%); }
 }
 
 /* ---------- Logo (typographic lockup) ---------- */
@@ -650,7 +652,7 @@ html { scroll-behavior: smooth; }
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: none;
-    opacity: 0.85;
+    opacity: 1; /* 0.85 di atas merah = kontras 4.2:1 (< AA 4.5) */
   }
   /* Tombol WA melayang digantikan bar ini di HP; footer tidak tertutup bar. */
   .garage-website .floating-wa { display: none !important; }
@@ -784,10 +786,12 @@ html { scroll-behavior: smooth; }
   background: linear-gradient(110deg, transparent 40%, rgba(255,255,255,0.06) 50%, transparent 60%);
   animation: sweep 8s var(--ease-io) infinite;
 }
+/* Gerak sama seperti sebelumnya (left -50% -> 120% dari induk), lewat transform agar tidak
+   dihitung sebagai layout shift (CLS). Lebar elemen = 50% induk, jadi 170% induk = 340% elemen. */
 @keyframes sweep {
-  0%   { left: -50%; }
-  60%  { left: 120%; }
-  100% { left: 120%; }
+  0%   { transform: translateX(0); }
+  60%  { transform: translateX(340%); }
+  100% { transform: translateX(340%); }
 }
 
 /* ---------- Logo (typographic lockup) ---------- */
@@ -1248,7 +1252,7 @@ html { scroll-behavior: smooth; }
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: none;
-    opacity: 0.85;
+    opacity: 1; /* 0.85 di atas merah = kontras 4.2:1 (< AA 4.5) */
   }
   /* Tombol WA melayang digantikan bar ini di HP; footer tidak tertutup bar. */
   .garage-website .floating-wa { display: none !important; }

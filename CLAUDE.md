@@ -226,7 +226,7 @@ Scroll direction:
     `cashCount(amount)` (`test-helpers/cash-count.ts`) for both `denominations` and `recountDenominations`.
   - B4 (owner, Okt 2026, migration 0167, PRD §10.8/§13):
     - Double blind count: `closeCashSession` needs `recountDenominations` (#2, empty form, never copied from #1)
-      while setting `shiftRequireDoubleCount` is on (default OFF since migration 0182, owner Nov 2026: count once). #1 ≠ #2 per denomination (`denominationMismatches`)
+      while setting `shiftRequireDoubleCount` is on (default OFF since migration 0181, owner Nov 2026: count once). #1 ≠ #2 per denomination (`denominationMismatches`)
       → `CashSessionCountMismatchError` (409 `COUNT_MISMATCH`) until `thirdCountDenominations` (#3) is sent; #3
       becomes `actual_cash`/`denominations`. Every count (+ manager recount) is an append-only row in
       `cash_session_counts` (trigger; purge only with the grand-opening GUC).
@@ -512,7 +512,8 @@ Scroll direction:
   (strict, never truncates "123" → "23"), `tableLabelFor` → canonical "Meja 06".
   Max 50 (`MAX_TABLE_NUMBER`, matches table-call voice assets & QR cards).
 - Tables in use per outlet live in `dining_tables` (Pengaturan → Meja & QR,
-  `/api/tables/config`). No rows for an outlet → all 01–50 active. Inactive tables
+  `/api/tables/config`). No rows for an outlet → all 01–50 active. `floor` (migration 0183, Crystal V5) = lantai per
+  meja; null → `defaultTableFloor` (01–25 = 1, 26–50 = 2). Customer picker groups/filters via `src/lib/table-floor-view.ts`. Inactive tables
   are hidden from waiter/POS maps and rejected for dine-in orders.
 - Live table state = `getTableLiveData({ outletId })` / `getTableLiveRow` (always pass
   the staff outlet). Bill window = orders since `table_sessions.cleanedAt`; only
@@ -588,8 +589,12 @@ Use these automatically when the task calls for them; do not wait to be asked. D
 
 Skills (`.claude/skills/`): `ui-ux-pro-max` (style/palette/layout ideas), `frontend-design` (hierarchy, type, restraint,
 copy; never a rebrand), `web-design-guidelines` (audit UI code, output `file:line`).
-Digital menu (`/order`) V5: skill `garage-menu-v5` is mandatory; the UI must closely match the boards in
-`docs/design-references/menu-digital-v5/` (owner, Nov 2026). Open questions it lists must be answered by the owner first.
+Garage Crystal V5 (owner, 8 Nov 2026) is the visual source of truth for ALL public surfaces (`/order` landing, table
+picker, digital menu, member login/dashboard/card) and the internal sidebar: boards `docs/design-references/crystal-v5/`,
+spec `docs/crystal-v5/01-DESIGN-SYSTEM.md`, tokens `--gc-*` (`src/lib/crystal-tokens.ts`, `src/components/crystal/crystal.css`,
+AA-tested), components `src/components/crystal/` (CrystalCard/Button/Chip/Badge/Sheet/LaserBorder/StatusDot). It replaces the
+older Menu V5 boards and member palette as the visual target; behaviour, data and ordering rules stay (self-order kept).
+Skill `garage-menu-v5` still applies for menu data rules (no fake options/badges, real photos, Daftar Pilihan wording).
 Animation skills (owner, Nov 2026: customer surfaces = cinematic, operational screens = fast and restrained):
 `animate`, `emil-design-eng`, `review-animations`, `improve-animations`, `animation-vocabulary` (Emil Kowalski, craft rules);
 `motion-design` (LottieFiles, choreography/timing tables); `micro-interaction`, `page-transition-animation`,
@@ -644,6 +649,20 @@ For documentation-only changes such as Claude command files, app lint/build is o
 ## GARAGE COFFEE — IMMUTABLE UI DESIGN CONTRACT
 
 **Scope.** Member (customer) UI: `/member-login` and future member screens. Staff/ops UI keeps `design-system/MASTER.md`.
+
+**Crystal V5 override (owner, 8 Nov 2026).** The palette/typography in the documents below is superseded by Garage Crystal V5
+(`docs/crystal-v5/01-DESIGN-SYSTEM.md`, `--gc-*` tokens, Montserrat display + Inter body). All other rules here (official logo,
+no automotive imagery, real member data, reduced motion, no fake OAuth/OTP, responsive QA) still apply. Google sign-in is
+allowed once `MEMBER_GOOGLE_CLIENT_ID`/`_SECRET` (fallback: the existing `GOOGLE_OAUTH_CLIENT_ID`/`_SECRET`) are configured on
+the server (button hidden otherwise): code + PKCE,
+server-verified ID token (`src/lib/member-google-oauth.ts`), link by `google_sub` then Google-verified email (no duplicates),
+new accounts complete name + WhatsApp + S&K, marketing consent separate & default off (migration 0184, `docs/crystal-v5/02-GOOGLE-LOGIN.md`).
+An existing phone account is linked only after its PIN (`completeGoogleMember`, pin-guard); Google-only accounts may set a first PIN
+without the old one while `member_accounts.pin_set_at` is null (migration 0185).
+**Member V6 (owner, 9 Nov 2026).** `/member-login` follows `docs/design-references/member-v6/` (`docs/crystal-v5/03-MEMBER-V6.md`):
+real Three.js cards (`member-auth/cinematic3d/`, lazy, adaptive quality, CSS fallback without WebGL, no chip/NFC), showcase left +
+glass panel right (`member-v6.css`), intro once per session, register needs S&K (`acceptTerms` → `terms_accepted_at`), success
+screen shows the tier returned by the backend. `MemberLoginCard`/`BrandExperiencePanel`/`CinematicBackground` are no longer used by the page.
 
 **Sources of truth.** Before you touch member UI, read all three:
 - `docs/GARAGE_MEMBER_DESIGN_SYSTEM.md`

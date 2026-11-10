@@ -5,28 +5,29 @@
  */
 
 .gm-root {
-  --gm-bg: #080809;
-  --gm-bg-2: #141416;
-  --gm-card: #1d1d20;
-  --gm-text: #f4f1ec;
-  --gm-text-2: #a7a4a1;
-  --gm-accent: #b92f35;
-  --gm-accent-hover: #d44549;
-  --gm-metal: #a5a5a8;
-  --gm-border: rgb(165 165 168 / 0.22);
-  --gm-border-strong: rgb(165 165 168 / 0.38);
-  --gm-danger-bg: rgb(185 47 53 / 0.14);
-  --gm-placeholder: #8c8986;
+  /* Crystal V5 (Owner, 8 Nov 2026): palet Black Crystal × Red Laser — lihat docs/crystal-v5/01-DESIGN-SYSTEM.md. */
+  --gm-bg: #08090b;
+  --gm-bg-2: #111216;
+  --gm-card: #1b1d21;
+  --gm-text: #ffffff;
+  --gm-text-2: #b8b8be;
+  --gm-accent: #e1252b;
+  --gm-accent-hover: #ff5362;
+  --gm-metal: #b8b8be;
+  --gm-border: rgb(255 255 255 / 0.12);
+  --gm-border-strong: rgb(255 255 255 / 0.22);
+  --gm-danger-bg: rgb(225 37 43 / 0.14);
+  --gm-placeholder: #8f9098;
 
-  --gm-radius-card: 18px;
-  --gm-radius-control: 8px;
+  --gm-radius-card: 22px;
+  --gm-radius-control: 14px;
   --gm-h-input: 56px;
   --gm-h-button: 56px;
-  --gm-shadow-card: 0 30px 80px rgb(0 0 0 / 0.55), 0 0 0 1px rgb(185 47 53 / 0.28),
-    0 0 42px rgb(185 47 53 / 0.16);
-  --gm-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --gm-shadow-card: 0 30px 80px rgb(0 0 0 / 0.55), 0 0 0 1px rgb(255 38 56 / 0.32),
+    0 0 42px rgb(255 38 56 / 0.18);
+  --gm-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
 
-  --gm-font-heading: var(--font-space-grotesk), "Space Grotesk", system-ui, sans-serif;
+  --gm-font-heading: var(--font-montserrat), "Montserrat", var(--font-space-grotesk), system-ui, sans-serif;
   --gm-font-body: var(--font-inter), "Inter", system-ui, sans-serif;
 
   position: relative;
@@ -100,7 +101,7 @@
   left: 0;
   bottom: 0;
   width: min(56vw, 1000px);
-  aspect-ratio: 830 / 370;
+  aspect-ratio: 800 / 420;
   -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 28%),
     linear-gradient(90deg, #000 70%, transparent 100%);
   -webkit-mask-composite: source-in;
@@ -111,7 +112,8 @@
 
 .gm-scene img {
   object-fit: cover;
-  object-position: center bottom;
+  object-position: center 45%;
+  opacity: 0.85;
 }
 
 .gm-laser {
@@ -278,14 +280,14 @@
 
 .gm-btn-primary {
   color: var(--gm-text);
-  border: 1px solid rgb(212 69 73 / 0.7);
-  background: linear-gradient(180deg, #c8363c 0%, #9e262b 100%);
-  box-shadow: 0 10px 30px rgb(185 47 53 / 0.3), inset 0 1px 0 rgb(255 255 255 / 0.14);
+  border: 1px solid rgb(255 83 98 / 0.75);
+  background: linear-gradient(180deg, #f0333a 0%, #e1252b 55%, #b9161d 100%);
+  box-shadow: 0 10px 30px rgb(225 37 43 / 0.42), inset 0 1px 0 rgb(255 255 255 / 0.28);
 }
 
 .gm-btn-primary:hover:not(:disabled) {
-  background: linear-gradient(180deg, var(--gm-accent-hover) 0%, #ad2c32 100%);
-  box-shadow: 0 12px 36px rgb(212 69 73 / 0.38), inset 0 1px 0 rgb(255 255 255 / 0.18);
+  background: linear-gradient(180deg, #ff3b47 0%, #e1252b 55%, #b9161d 100%);
+  box-shadow: 0 14px 36px rgb(225 37 43 / 0.55), inset 0 1px 0 rgb(255 255 255 / 0.32);
 }
 
 .gm-btn-secondary {
@@ -412,7 +414,7 @@
   }
 
   .gm-scene img {
-    object-position: 60% bottom;
+    object-position: center 45%;
   }
 
   .gm-laser-a {
@@ -528,6 +530,35 @@
     transform: translateY(-8px);
   }
 }
+
+/* Crystal V5: tombol Google resmi (latar putih, logo "G" asli) + pemisah "ATAU". */
+.gm-btn-google {
+  color: #1f1f1f;
+  border: 1px solid #dadce0;
+  background: #ffffff;
+}
+.gm-btn-google:hover:not(:disabled) { background: #f6f7f8; }
+.gm-or {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: var(--gm-text-2);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+}
+.gm-or::before,
+.gm-or::after { content: ""; height: 1px; flex: 1; background: var(--gm-border); }
+.gm-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--gm-text);
+  cursor: pointer;
+}
+.gm-check input { margin-top: 2px; width: 20px; height: 20px; flex: none; accent-color: var(--gm-accent); }
 
 /* Komponen member yang ditanam di halaman lain (mis. sheet daftar member di invoice V4):
    token & primitive gm-* tetap sama, tanpa tinggi layar penuh/latar halaman. */

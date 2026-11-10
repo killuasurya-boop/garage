@@ -1,5 +1,5 @@
 {
-  "id": "f6ae2916-2b24-4fcb-aa67-18dd5cea0e41",
+  "id": "22716472-cc0d-4660-beee-b87e52a68882",
   "prevId": "a342da6a-7568-4c60-bbdd-2baf4c0561d3",
   "version": "7",
   "dialect": "postgresql",
@@ -6897,215 +6897,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.customer_experience_events": {
-      "name": "customer_experience_events",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "event": {
-          "name": "event",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "order_id": {
-          "name": "order_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "customer_id": {
-          "name": "customer_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "customer_experience_events_event_created_idx": {
-          "name": "customer_experience_events_event_created_idx",
-          "columns": [
-            {
-              "expression": "event",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "customer_experience_events_order_event_idx": {
-          "name": "customer_experience_events_order_event_idx",
-          "columns": [
-            {
-              "expression": "order_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "event",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "customer_experience_events_order_id_orders_id_fk": {
-          "name": "customer_experience_events_order_id_orders_id_fk",
-          "tableFrom": "customer_experience_events",
-          "tableTo": "orders",
-          "columnsFrom": [
-            "order_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "customer_experience_events_customer_id_customers_id_fk": {
-          "name": "customer_experience_events_customer_id_customers_id_fk",
-          "tableFrom": "customer_experience_events",
-          "tableTo": "customers",
-          "columnsFrom": [
-            "customer_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.customer_marketing_consents": {
-      "name": "customer_marketing_consents",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "customer_id": {
-          "name": "customer_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "channel": {
-          "name": "channel",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'whatsapp'"
-        },
-        "granted": {
-          "name": "granted",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "source": {
-          "name": "source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "customer_marketing_consents_customer_idx": {
-          "name": "customer_marketing_consents_customer_idx",
-          "columns": [
-            {
-              "expression": "customer_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "channel",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "customer_marketing_consents_customer_id_customers_id_fk": {
-          "name": "customer_marketing_consents_customer_id_customers_id_fk",
-          "tableFrom": "customer_marketing_consents",
-          "tableTo": "customers",
-          "columnsFrom": [
-            "customer_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.customer_tags": {
       "name": "customer_tags",
       "schema": "",
@@ -7529,6 +7320,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": 4
+        },
+        "floor": {
+          "name": "floor",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
         },
         "active": {
           "name": "active",
@@ -21308,18 +21105,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-        },
-        "resolved_at": {
-          "name": "resolved_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "resolved_reason": {
-          "name": "resolved_reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {
@@ -21370,21 +21155,6 @@
             }
           ],
           "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "staff_notifications_order_idx": {
-          "name": "staff_notifications_order_idx",
-          "columns": [
-            {
-              "expression": "order_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -28357,12 +28127,6 @@
           "notNull": true,
           "default": 0
         },
-        "received_qty": {
-          "name": "received_qty",
-          "type": "numeric(14, 4)",
-          "primaryKey": false,
-          "notNull": false
-        },
         "purchase_order_id": {
           "name": "purchase_order_id",
           "type": "uuid",
@@ -29207,13 +28971,6 @@
         },
         "min_stock": {
           "name": "min_stock",
-          "type": "numeric(14, 4)",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "par_stock": {
-          "name": "par_stock",
           "type": "numeric(14, 4)",
           "primaryKey": false,
           "notNull": true,

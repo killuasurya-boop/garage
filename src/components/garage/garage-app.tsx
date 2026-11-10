@@ -1,5 +1,6 @@
 "use client";
 
+import "@/components/crystal/crystal.css";
 import {
 Activity,
 AlertTriangle,
@@ -886,11 +887,11 @@ function GarageWorkspace({
         {!isCashierPosMode ? (
           <aside
             data-nav-mode={!showDesktopSidebar ? "hidden" : sidebarOpen ? "expanded" : "compact"}
-            className={`garage-scroll garage-side-panel garage-os-sidebar hidden h-full shrink-0 overflow-x-hidden overflow-y-auto border-r border-[#34343c] bg-[#0b0b0e] px-2 py-3 shadow-[18px_0_50px_rgba(0,0,0,0.18)] transition-[width,padding,opacity] duration-200 md:block ${
+            className={`garage-scroll garage-side-panel garage-os-sidebar hidden h-full shrink-0 overflow-x-hidden overflow-y-auto gc-scroll border-r border-[#ff2638]/20 bg-[linear-gradient(180deg,#121317,#08090b_70%)] px-2 py-3 shadow-[18px_0_50px_rgba(0,0,0,0.28),inset_-1px_0_0_rgba(255,38,56,0.12)] transition-[width,padding,opacity] duration-200 md:block ${
               !showDesktopSidebar
                 ? "w-0 border-0 p-0 opacity-0"
                 : sidebarOpen
-                  ? "md:w-[72px] xl:w-[276px] xl:px-3"
+                  ? "md:w-[72px] xl:w-[264px] xl:px-3"
                   : "md:w-[72px]"
             }`}
             aria-hidden={!showDesktopSidebar}

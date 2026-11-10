@@ -30,7 +30,7 @@ export function MenuToastStackV5({ toasts, onDismiss }: { toasts: readonly MenuT
             <Icon className="gm5-toast-icon size-4 shrink-0" aria-hidden />
             <p className="min-w-0 flex-1 break-words text-sm leading-5">
               <strong className="font-semibold text-white">{toast.title}</strong>
-              {toast.detail ? <span className="text-[#ede6dc]"> {toast.detail}</span> : null}
+              {toast.detail ? <span className="text-[#f3e8da]"> {toast.detail}</span> : null}
             </p>
             <button type="button" className="gm5-toast-close" aria-label="Tutup notifikasi" onClick={() => onDismiss(toast.id)}>
               <X className="size-4" aria-hidden />

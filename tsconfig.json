@@ -43,6 +43,7 @@
     ".tmp/next-order/dev/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "video"
   ]
 }

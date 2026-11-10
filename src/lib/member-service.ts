@@ -37,6 +37,10 @@ type RegisterMemberInput = {
   referralCode?: string | null;
   memberCode?: string | null;
   tier?: string | null;
+  /** Member V6: centang S&K saat daftar → dicatat di member_accounts.terms_accepted_at. */
+  acceptTerms?: boolean;
+  /** true = password acak buatan server (akun Google) → pin_set_at null sampai member membuat PIN. */
+  passwordIsRandom?: boolean;
 };
 
 type LoginMemberInput = {
@@ -284,6 +288,8 @@ export async function registerMember(input: RegisterMemberInput) {
       email,
       passwordHash: await hashPassword(input.password),
       status: "active",
+      termsAcceptedAt: input.acceptTerms ? new Date() : null,
+      pinSetAt: input.passwordIsRandom ? null : new Date(),
     })
     .returning();
 
@@ -828,4 +834,116 @@ export async function syncPosTransaction(input: {
     },
     error: null,
   };
+}
+
+// ── Login Google (Crystal V5, Owner Nov 2026) ───────────────────────────────
+// Urutan pencocokan: google_sub → email terverifikasi Google (akun lama ditautkan, tanpa duplikat) → akun baru
+// (wajib lengkapi profil: nama, WhatsApp, S&K; pemasaran terpisah & default tidak setuju).
+
+export type GoogleIdentityInput = { sub: string; email: string; emailVerified: boolean; name: string; picture: string | null };
+
+export async function signInMemberWithGoogle(identity: GoogleIdentityInput) {
+  const db = getDb();
+  if (!identity.emailVerified) {
+    return { kind: "error" as const, error: "Email Google belum terverifikasi. Pakai akun Google lain atau masuk dengan HP/PIN." };
+  }
+  const [bySub] = await db.select().from(memberAccounts).where(eq(memberAccounts.googleSub, identity.sub)).limit(1);
+  const email = normalizeEmail(identity.email);
+  const [byEmail] = bySub || !email ? [] : await db.select().from(memberAccounts).where(eq(memberAccounts.email, email)).limit(1);
+  const account = bySub ?? byEmail ?? null;
+  if (!account) return { kind: "needs_profile" as const };
+  if (account.status !== "active") return { kind: "error" as const, error: "Akun member tidak aktif. Hubungi kasir Garage." };
+  if (byEmail && byEmail.googleSub && byEmail.googleSub !== identity.sub) {
+    return { kind: "error" as const, error: "Email ini sudah tertaut ke akun Google lain." };
+  }
+  const now = new Date();
+  await db
+    .update(memberAccounts)
+    .set({
+      googleSub: identity.sub,
+      emailVerifiedAt: account.emailVerifiedAt ?? now,
+      avatarUrl: identity.picture ?? account.avatarUrl,
+      updatedAt: now,
+    })
+    .where(eq(memberAccounts.id, account.id));
+  const [customer] = await db.select().from(customers).where(eq(customers.id, account.customerId)).limit(1);
+  return { kind: "login" as const, account, linked: Boolean(byEmail), member: customer ? memberResponseData(customer) : null };
+}
+
+export type CompleteGoogleResult =
+  | { data: { account: typeof memberAccounts.$inferSelect; member: ReturnType<typeof memberResponseData> | null; linked: boolean }; error: null; code?: undefined }
+  | { data: null; error: string; code?: "PHONE_NEEDS_PIN" | "PIN_WRONG" | "PHONE_LINKED_ELSEWHERE" };
+
+export async function completeGoogleMember(input: {
+  identity: GoogleIdentityInput;
+  name: string;
+  phone: string;
+  acceptTerms: boolean;
+  marketingConsent: boolean;
+  randomPassword: string;
+  /** PIN akun lama bila nomor HP sudah terdaftar (tautkan, bukan buat akun baru). */
+  existingPin?: string | null;
+}): Promise<CompleteGoogleResult> {
+  if (!input.acceptTerms) return { data: null, error: "Setujui Syarat & Ketentuan membership untuk melanjutkan." };
+  // Akun bisa sudah dibuat di tab lain sejak kartu Google diterbitkan → login biasa, bukan duplikat.
+  const again = await signInMemberWithGoogle(input.identity);
+  if (again.kind === "login") return { data: { account: again.account, member: again.member, linked: false }, error: null };
+  if (again.kind === "error") return { data: null, error: again.error };
+
+  // Nomor HP sudah milik akun lama (mis. daftar di kasir tanpa email) → tautkan setelah PIN akun itu benar.
+  const db = getDb();
+  const phone = normalizePhone(input.phone);
+  const [byPhone] = await db.select().from(memberAccounts).where(eq(memberAccounts.phone, phone)).limit(1);
+  if (byPhone) {
+    if (byPhone.googleSub && byPhone.googleSub !== input.identity.sub) {
+      return { data: null, code: "PHONE_LINKED_ELSEWHERE", error: "Nomor ini sudah tertaut ke akun Google lain. Masuk dengan PIN atau hubungi kasir." };
+    }
+    if (byPhone.status !== "active") return { data: null, error: "Akun member dengan nomor ini tidak aktif. Hubungi kasir Garage." };
+    if (!input.existingPin) {
+      return { data: null, code: "PHONE_NEEDS_PIN", error: "Nomor ini sudah terdaftar sebagai member. Masukkan PIN akun lama untuk menautkan Google." };
+    }
+    if (!(await verifyPassword(input.existingPin, byPhone.passwordHash))) {
+      return { data: null, code: "PIN_WRONG", error: "PIN akun lama salah." };
+    }
+    const now = new Date();
+    const email = normalizeEmail(input.identity.email);
+    const [emailOwner] = email ? await db.select({ id: memberAccounts.id }).from(memberAccounts).where(eq(memberAccounts.email, email)).limit(1) : [];
+    await db
+      .update(memberAccounts)
+      .set({
+        googleSub: input.identity.sub,
+        emailVerifiedAt: now,
+        avatarUrl: input.identity.picture ?? byPhone.avatarUrl,
+        // Email Google dipasang hanya bila akun lama belum punya email dan email itu tidak dipakai akun lain.
+        email: byPhone.email ?? (emailOwner ? null : email),
+        termsAcceptedAt: byPhone.termsAcceptedAt ?? now,
+        marketingConsentAt: input.marketingConsent ? (byPhone.marketingConsentAt ?? now) : byPhone.marketingConsentAt,
+        updatedAt: now,
+      })
+      .where(eq(memberAccounts.id, byPhone.id));
+    const [customer] = await db.select().from(customers).where(eq(customers.id, byPhone.customerId)).limit(1);
+    return { data: { account: byPhone, member: customer ? memberResponseData(customer) : null, linked: true }, error: null };
+  }
+
+  const created = await registerMember({
+    name: input.name,
+    phone: input.phone,
+    email: input.identity.email,
+    password: input.randomPassword,
+    passwordIsRandom: true,
+  });
+  if (!created.data) return { data: null, error: created.error ?? "Aktivasi member gagal." };
+  const now = new Date();
+  await getDb()
+    .update(memberAccounts)
+    .set({
+      googleSub: input.identity.sub,
+      emailVerifiedAt: now,
+      avatarUrl: input.identity.picture,
+      termsAcceptedAt: now,
+      marketingConsentAt: input.marketingConsent ? now : null,
+      updatedAt: now,
+    })
+    .where(eq(memberAccounts.id, created.data.account.id));
+  return { data: { account: created.data.account, member: created.data.member, linked: false }, error: null };
 }

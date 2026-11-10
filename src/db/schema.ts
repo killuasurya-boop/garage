@@ -856,11 +856,23 @@ export const memberAccounts = pgTable(
     email: text("email"),
     passwordHash: text("password_hash").notNull(),
     status: text("status").notNull().default("active"),
+    // Crystal V5 (Owner, Nov 2026): login Google (OIDC `sub`, unik) + email terverifikasi Google + foto profil.
+    googleSub: text("google_sub"),
+    emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
+    avatarUrl: text("avatar_url"),
+    // Persetujuan S&K membership (wajib) dan pemasaran (terpisah, default tidak setuju).
+    termsAcceptedAt: timestamp("terms_accepted_at", { withTimezone: true }),
+    marketingConsentAt: timestamp("marketing_consent_at", { withTimezone: true }),
+    // Kapan member memilih PIN sendiri. Null = akun dibuat lewat Google (PIN acak, belum diketahui member) →
+    // boleh "Buat PIN" sekali tanpa PIN lama (V6+, Owner Nov 2026).
+    // Default now(): semua jalur buat akun = PIN dipilih sendiri; hanya akun Google berpassword acak diisi null.
+    pinSetAt: timestamp("pin_set_at", { withTimezone: true }).defaultNow(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
     customerIdx: uniqueIndex("member_accounts_customer_id_idx").on(table.customerId),
+    googleSubIdx: uniqueIndex("member_accounts_google_sub_idx").on(table.googleSub),
     phoneIdx: uniqueIndex("member_accounts_phone_idx").on(table.phone),
     emailIdx: uniqueIndex("member_accounts_email_idx").on(table.email),
     statusIdx: index("member_accounts_status_idx").on(table.status),
@@ -2166,6 +2178,8 @@ export const diningTables = pgTable(
     tableNumber: text("table_number").notNull(),
     area: text("area").notNull().default(""),
     capacity: integer("capacity").notNull().default(4),
+    // Lantai (Crystal V5, Owner Nov 2026). Null = default dari nomor (01–25 → 1, 26–50 → 2).
+    floor: integer("floor"),
     active: boolean("active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

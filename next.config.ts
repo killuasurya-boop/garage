@@ -34,6 +34,8 @@ const cspReportOnly = [
   "connect-src 'self' https: wss:",
   "media-src 'self' data: blob:",
   "worker-src 'self' blob:",
+  // Peta lokasi di beranda (GARAGE_LOCATION.embedUrl) memakai iframe Google Maps.
+  "frame-src 'self' https://maps.google.com https://www.google.com",
   "frame-ancestors 'self'",
   "base-uri 'self'",
   "form-action 'self'",

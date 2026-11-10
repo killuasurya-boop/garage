@@ -111,15 +111,15 @@ export function TableInfoPickerV5({
         side="bottom"
         showCloseButton={false}
         onOpenAutoFocus={(event) => event.preventDefault()}
-        className="gm5 inset-x-0 bottom-0 z-[97] mx-auto flex max-h-[90dvh] w-full max-w-2xl flex-col gap-0 overflow-hidden rounded-t-[20px] border border-[color:var(--gm5-line)] bg-[#0e0e0e] p-0 text-white sm:bottom-4 sm:w-[min(640px,calc(100vw-32px))] sm:rounded-[20px]"
+        className="gm5 inset-x-0 bottom-0 z-[97] mx-auto flex max-h-[90dvh] w-full max-w-2xl flex-col gap-0 overflow-hidden rounded-t-[20px] border border-[color:var(--gm5-line)] bg-[#08090b] p-0 text-white sm:bottom-4 sm:w-[min(640px,calc(100vw-32px))] sm:rounded-[20px]"
       >
         <div className="flex items-start gap-3 border-b border-white/10 px-4 py-3">
-          <span className="grid size-11 shrink-0 place-items-center rounded-xl border border-[color:var(--gm5-line)] bg-[#141214]" aria-hidden>
+          <span className="grid size-11 shrink-0 place-items-center rounded-xl border border-[color:var(--gm5-line)] bg-[#111216]" aria-hidden>
             <Armchair className="size-5 text-[var(--menu-red-bright)]" />
           </span>
           <div className="min-w-0 flex-1">
             <SheetTitle className="gm5-title text-lg text-white">Pilih Meja</SheetTitle>
-            <SheetDescription className="text-sm leading-snug text-[#cfc9c4]">Penanda untuk waiter. Memilih meja tidak membuat pesanan.</SheetDescription>
+            <SheetDescription className="text-sm leading-snug text-[#d4d4da]">Penanda untuk waiter. Memilih meja tidak membuat pesanan.</SheetDescription>
           </div>
           <button type="button" className="gm5-icon-btn gm5-close-btn !h-11 !w-11 shrink-0" aria-label="Tutup pilih meja" onClick={() => onOpenChange(false)}>
             <X className="size-5" aria-hidden />
@@ -127,14 +127,14 @@ export function TableInfoPickerV5({
         </div>
 
         <div className="space-y-2.5 border-b border-white/10 px-4 py-3">
-          <div className="flex items-center gap-3 rounded-2xl border border-[color:var(--gm5-line)] bg-[#141214] px-3 py-2.5" aria-live="polite">
-            <span className="text-sm text-[#cfc9c4]">Meja yang dilihat:</span>
+          <div className="flex items-center gap-3 rounded-2xl border border-[color:var(--gm5-line)] bg-[#111216] px-3 py-2.5" aria-live="polite">
+            <span className="text-sm text-[#d4d4da]">Meja yang dilihat:</span>
             <span className="font-mono text-2xl font-bold tabular-nums text-white">{chosen ? chosen.tableNumber : "—"}</span>
-            {current && current.tableNumber !== selected ? <span className="ml-auto text-xs text-[#cfc9c4]">sebelumnya {current.tableLabel}</span> : null}
+            {current && current.tableNumber !== selected ? <span className="ml-auto text-xs text-[#d4d4da]">sebelumnya {current.tableLabel}</span> : null}
           </div>
           <label className="relative block">
             <span className="sr-only">Cari nomor meja</span>
-            <Search className="pointer-events-none absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-[#a7a09b]" aria-hidden />
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-[#b8b8be]" aria-hidden />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value.slice(0, 12))}
@@ -142,7 +142,7 @@ export function TableInfoPickerV5({
               enterKeyHint="search"
               autoComplete="off"
               placeholder="Cari nomor meja, mis. 7"
-              className="h-12 w-full rounded-full border border-white/15 bg-[#141214] pl-11 pr-11 text-base text-white outline-none placeholder:text-[#8f8984] focus:border-[var(--menu-red)]"
+              className="h-12 w-full rounded-full border border-white/15 bg-[#111216] pl-11 pr-11 text-base text-white outline-none placeholder:text-[#9a9aa4] focus:border-[var(--menu-red)]"
             />
             {query ? (
               <button type="button" className="gm5-icon-btn absolute right-1 top-1/2 !h-10 !w-10 -translate-y-1/2" aria-label="Hapus pencarian meja" onClick={() => setQuery("")}>
@@ -170,7 +170,7 @@ export function TableInfoPickerV5({
             </div>
           ) : state === "error" && !tables ? (
             <div className="flex flex-col items-center gap-3 py-8 text-center" role="alert">
-              <p className="text-sm text-[#e4ded9]">Daftar meja gagal dimuat.</p>
+              <p className="text-sm text-[#e4e4e8]">Daftar meja gagal dimuat.</p>
               <div className="flex gap-2">
                 <button type="button" className="gm5-btn-red min-h-11 gap-1.5 px-4 text-sm" onClick={() => void load()}>
                   <RefreshCw className="size-4" aria-hidden /> Coba lagi
@@ -189,7 +189,7 @@ export function TableInfoPickerV5({
             </div>
           ) : visible.length === 0 ? (
             <div className="flex flex-col items-center gap-3 py-8 text-center">
-              <p className="text-sm text-[#e4ded9]">{query ? `Meja “${query}” tidak ditemukan.` : "Belum ada meja aktif."}</p>
+              <p className="text-sm text-[#e4e4e8]">{query ? `Meja “${query}” tidak ditemukan.` : "Belum ada meja aktif."}</p>
               {query ? (
                 <button type="button" className="gm5-btn-ghost min-h-11 px-4 text-sm" onClick={() => setQuery("")}>
                   Tampilkan semua meja
@@ -215,14 +215,14 @@ export function TableInfoPickerV5({
             </ul>
           )}
           {state === "loading" && tables ? (
-            <p className="mt-2 flex items-center gap-1.5 text-xs text-[#cfc9c4]">
+            <p className="mt-2 flex items-center gap-1.5 text-xs text-[#d4d4da]">
               <Loader2 className="size-3.5 animate-spin" aria-hidden /> Memperbarui…
             </p>
           ) : null}
         </div>
 
         <div className="space-y-2 border-t border-white/10 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
-          <p className="flex items-start gap-2 text-xs leading-snug text-[#cfc9c4]">
+          <p className="flex items-start gap-2 text-xs leading-snug text-[#d4d4da]">
             <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden /> Pesanan resmi tetap dicatat oleh waiter di mejamu.
           </p>
           <div className="flex gap-2">

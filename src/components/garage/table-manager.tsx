@@ -18,7 +18,8 @@ function sameRows(a: Row[], b: Row[]) {
         row.tableNumber === b[index].tableNumber &&
         row.active === b[index].active &&
         row.area === b[index].area &&
-        row.capacity === b[index].capacity,
+        row.capacity === b[index].capacity &&
+        row.floor === b[index].floor,
     )
   );
 }
@@ -97,6 +98,7 @@ export function TableManager({ canWrite }: { canWrite: boolean }) {
           tableNumber: row.tableNumber,
           area: row.area,
           capacity: row.capacity,
+          floor: row.floor,
           active: row.active,
         })),
       });
@@ -212,11 +214,12 @@ export function TableManager({ canWrite }: { canWrite: boolean }) {
       </datalist>
 
       <div className="garage-scroll max-h-[60svh] overflow-y-auto rounded-lg border border-[#34343c]">
-        <table className="w-full min-w-[520px] text-left text-[13px]">
+        <table className="w-full min-w-[620px] text-left text-[13px]">
           <thead className="sticky top-0 z-10 bg-[#16161b] text-[11px] uppercase tracking-wider text-[#b8b8bf]">
             <tr>
               <th className="px-3 py-2 font-semibold">Meja</th>
               <th className="px-3 py-2 font-semibold">Dipakai</th>
+              <th className="px-3 py-2 font-semibold">Lantai</th>
               <th className="px-3 py-2 font-semibold">Area</th>
               <th className="px-3 py-2 font-semibold">Kursi</th>
             </tr>
@@ -236,6 +239,21 @@ export function TableManager({ canWrite }: { canWrite: boolean }) {
                     />
                     <span className={row.active ? "text-white" : "text-[#8f8f98]"}>{row.active ? "Aktif" : "Tidak"}</span>
                   </label>
+                </td>
+                <td className="px-3 py-1.5">
+                  <select
+                    value={row.floor}
+                    disabled={!canWrite}
+                    onChange={(event) => update(row.tableNumber, { floor: Number(event.target.value) })}
+                    className="h-11 rounded-md border border-[#34343c] bg-[#0a0a0c] px-2 text-[13px] text-white focus:border-white focus:outline-none disabled:opacity-60"
+                    aria-label={`Lantai meja ${row.tableNumber}`}
+                  >
+                    {[1, 2, 3, 4].map((floor) => (
+                      <option key={floor} value={floor}>
+                        Lantai {floor}
+                      </option>
+                    ))}
+                  </select>
                 </td>
                 <td className="px-3 py-1.5">
                   <input

@@ -1,0 +1,249 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2048 1240"><defs>
+ <radialGradient id="body" cx="36%" cy="23%" r="76%"><stop offset="0" stop-color="#fffdf8"/><stop offset="0.56" stop-color="#fff9ef"/><stop offset="0.85" stop-color="#eadfd3"/><stop offset="1" stop-color="#c9bdb4"/></radialGradient>
+ <radialGradient id="shine" cx="33%" cy="21%" r="82%"><stop offset="0" stop-color="#FFFFFF" stop-opacity=".9"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></radialGradient>
+ <linearGradient id="arm" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fffefa"/><stop offset="1" stop-color="#e3d5c8"/></linearGradient>
+ <linearGradient id="badge" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#FB5D52"/><stop offset="1" stop-color="#B62B29"/></linearGradient>
+ <radialGradient id="glow"><stop stop-color="#F25B50" stop-opacity=".33"/><stop offset="1" stop-color="#F25B50" stop-opacity="0"/></radialGradient>
+ <filter id="drop" x="-50%" y="-50%" width="200%" height="220%"><feGaussianBlur stdDeviation="10"/></filter>
+ <filter id="glowFilter" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="3"/></filter>
+ </defs><rect width="2048" height="1240" fill="#151514"/><path d="M0 0 H2048 V6 H0Z" fill="#C33C35"/><text x="58" y="88" font-family="Inter, Arial, sans-serif" font-size="64" font-weight="800" fill="#fff8ef" text-anchor="start">AYA / V2</text><text x="58" y="127" font-family="Inter, Arial, sans-serif" font-size="21" font-weight="600" fill="#bdb4aa" text-anchor="start">LIVING AI MASCOT  •  GARAGE COFFEE  •  DESIGN SYSTEM</text><rect x="54" y="162" width="570" height="1017" rx="36" fill="#262321" stroke="#413833" stroke-width="2"/><ellipse cx="345" cy="450" rx="226" ry="235" fill="url(#glow)"/><g class="aya aya-idle" transform="translate(36 180) scale(1.14)">
+<circle cx="260" cy="218" r="190" fill="url(#glow)"/>
+<ellipse cx="260" cy="428" rx="116" ry="18" fill="#030303" opacity=".24" filter="url(#drop)"/>
+<!-- ears: none; a small digital crown dot -->
+<path d="M259 120 Q250 96 260 82 Q271 96 263 121" fill="#F7E7DB" stroke="#DBBBB2" stroke-width="4"/>
+<circle cx="260" cy="82" r="9" fill="#D4413B"/><circle cx="257" cy="79" r="3" fill="#fff" opacity=".8"/>
+<!-- tiny feet -->
+<ellipse cx="212" cy="408" rx="39" ry="21" transform="rotate(-10 212 408)" fill="url(#arm)" stroke="#D4C6BC" stroke-width="3"/>
+<ellipse cx="313" cy="408" rx="39" ry="21" transform="rotate(10 313 408)" fill="url(#arm)" stroke="#D4C6BC" stroke-width="3"/>
+<!-- tiny hands -->
+<path d="M162 290 Q112 276 106 309 Q104 335 146 339 Q173 329 181 314Z" fill="url(#arm)" stroke="#D5C6B9" stroke-width="4"/>
+<path d="M358 290 Q408 275 415 309 Q418 336 371 337 Q349 326 340 315Z" fill="url(#arm)" stroke="#D5C6B9" stroke-width="4"/>
+<!-- mochi body -->
+<path d="M259 110 C327 100 382 135 389 204 C397 264 398 325 363 366 C342 395 298 403 260 404 C221 405 177 397 155 368 C122 324 124 266 132 204 C139 143 190 109 259 110Z" fill="url(#body)" stroke="#D0C3B9" stroke-width="4"/>
+<ellipse cx="214" cy="173" rx="65" ry="44" fill="url(#shine)" opacity=".7" transform="rotate(-18 214 173)"/>
+<!-- cheek tint -->
+<ellipse cx="176" cy="270" rx="24" ry="14" fill="#F4A8A2" opacity=".39"/>
+<ellipse cx="345" cy="270" rx="24" ry="14" fill="#F4A8A2" opacity=".39"/>
+<path d="M194 236 Q214 220 234 237" stroke="#383331" stroke-width="8" fill="none" stroke-linecap="round"/><path d="M286 237 Q306 220 326 236" stroke="#383331" stroke-width="8" fill="none" stroke-linecap="round"/>
+<path d="M247 266 Q260 279 273 266" stroke="#794E46" stroke-width="5" fill="none" stroke-linecap="round"/>
+<!-- red scarf/badge -->
+<path d="M225 333 Q260 350 296 333 Q288 361 260 368 Q232 361 225 333Z" fill="#AD302C" opacity=".9"/>
+<circle cx="260" cy="348" r="14" fill="url(#badge)" stroke="#F6D8CD" stroke-width="3"/>
+<path d="M254 348 l4 5 9 -11" fill="none" stroke="#fff9ed" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</g><text x="92" y="756" font-family="Inter, Arial, sans-serif" font-size="25" font-weight="700" fill="#F4C6A3" text-anchor="start">AYA — ORIGINAL IDENTITY</text><text x="92" y="800" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="500" fill="#fff8ef" text-anchor="start">Maskot putih mungil • mata sipit</text><text x="92" y="836" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="500" fill="#fff8ef" text-anchor="start">Ekspresif • lembut • menggemaskan</text><text x="92" y="896" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="600" fill="#DA9A92" text-anchor="start">TANPA karakter manusia / telinga kucing</text><rect x="94" y="934" width="196" height="52" rx="26" fill="#C33C35"/><text x="192" y="968" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="700" fill="#FFFFFF" text-anchor="middle">VOICE + SFX</text><rect x="305" y="934" width="244" height="52" rx="26" fill="#37312D" stroke="#67554A"/><text x="427" y="968" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="700" fill="#FFF1E0" text-anchor="middle">3D-READY SHAPES</text><text x="92" y="1048" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="700" fill="#a69b92" text-anchor="start">ACCENT</text><circle cx="115" cy="1103" r="21" fill="#151514" stroke="#6f6660" stroke-width="1"/><circle cx="203" cy="1103" r="21" fill="#FFF9EF" stroke="#6f6660" stroke-width="1"/><circle cx="291" cy="1103" r="21" fill="#C33C35" stroke="#6f6660" stroke-width="1"/><circle cx="379" cy="1103" r="21" fill="#EBC29C" stroke="#6f6660" stroke-width="1"/><circle cx="467" cy="1103" r="21" fill="#F2A8A2" stroke="#6f6660" stroke-width="1"/><text x="92" y="1147" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="500" fill="#bdb4aa" text-anchor="start">Editable SVG  •  8 expressive states</text><text x="676" y="194" font-family="Inter, Arial, sans-serif" font-size="28" font-weight="800" fill="#fff8ef" text-anchor="start">EXPRESSIONS &amp; ANIMATION STATES</text><rect x="680" y="224" width="427" height="282" rx="22" fill="#242221" stroke="#443c38" stroke-width="2"/><g class="aya aya-idle" transform="translate(761 192) scale(0.52)">
+
+<ellipse cx="260" cy="428" rx="116" ry="18" fill="#030303" opacity=".24" filter="url(#drop)"/>
+<!-- ears: none; a small digital crown dot -->
+<path d="M259 120 Q250 96 260 82 Q271 96 263 121" fill="#F7E7DB" stroke="#DBBBB2" stroke-width="4"/>
+<circle cx="260" cy="82" r="9" fill="#D4413B"/><circle cx="257" cy="79" r="3" fill="#fff" opacity=".8"/>
+<!-- tiny feet -->
+<ellipse cx="212" cy="408" rx="39" ry="21" transform="rotate(-10 212 408)" fill="url(#arm)" stroke="#D4C6BC" stroke-width="3"/>
+<ellipse cx="313" cy="408" rx="39" ry="21" transform="rotate(10 313 408)" fill="url(#arm)" stroke="#D4C6BC" stroke-width="3"/>
+<!-- tiny hands -->
+<path d="M162 290 Q112 276 106 309 Q104 335 146 339 Q173 329 181 314Z" fill="url(#arm)" stroke="#D5C6B9" stroke-width="4"/>
+<path d="M358 290 Q408 275 415 309 Q418 336 371 337 Q349 326 340 315Z" fill="url(#arm)" stroke="#D5C6B9" stroke-width="4"/>
+<!-- mochi body -->
+<path d="M259 110 C327 100 382 135 389 204 C397 264 398 325 363 366 C342 395 298 403 260 404 C221 405 177 397 155 368 C122 324 124 266 132 204 C139 143 190 109 259 110Z" fill="url(#body)" stroke="#D0C3B9" stroke-width="4"/>
+<ellipse cx="214" cy="173" rx="65" ry="44" fill="url(#shine)" opacity=".7" transform="rotate(-18 214 173)"/>
+<!-- cheek tint -->
+<ellipse cx="176" cy="270" rx="24" ry="14" fill="#F4A8A2" opacity=".39"/>
+<ellipse cx="345" cy="270" rx="24" ry="14" fill="#F4A8A2" opacity=".39"/>
+<path d="M194 236 Q214 220 234 237" stroke="#383331" stroke-width="8" fill="none" stroke-linecap="round"/><path d="M286 237 Q306 220 326 236" stroke="#383331" stroke-width="8" fill="none" stroke-linecap="round"/>
+<path d="M247 266 Q260 279 273 266" stroke="#794E46" stroke-width="5" fill="none" stroke-linecap="round"/>
+<!-- red scarf/badge -->
+<path d="M225 333 Q260 350 296 333 Q288 361 260 368 Q232 361 225 333Z" fill="#AD302C" opacity=".9"/>
+<circle cx="260" cy="348" r="14" fill="url(#badge)" stroke="#F6D8CD" stroke-width="3"/>
+<path d="M254 348 l4 5 9 -11" fill="none" stroke="#fff9ed" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</g><text x="893" y="478" font-family="Inter, Arial, sans-serif" font-size="21" font-weight="750" fill="#F5EDE4" text-anchor="middle">IDLE</text><rect x="1131" y="224" width="427" height="282" rx="22" fill="#242221" stroke="#443c38" stroke-width="2"/><g class="aya aya-listening" transform="translate(1212 192) scale(0.52)">
+
+<ellipse cx="260" cy="428" rx="116" ry="18" fill="#030303" opacity=".24" filter="url(#drop)"/>
+<!-- ears: none; a small digital crown dot -->
+<path d="M259 120 Q250 96 260 82 Q271 96 263 121" fill="#F7E7DB" stroke="#DBBBB2" stroke-width="4"/>
+<circle cx="260" cy="82" r="9" fill="#D4413B"/><circle cx="257" cy="79" r="3" fill="#fff" opacity=".8"/>
+<!-- tiny feet -->
+<ellipse cx="212" cy="408" rx="39" ry="21" transform="rotate(-10 212 408)" fill="url(#arm)" stroke="#D4C6BC" stroke-width="3"/>
+<ellipse cx="313" cy="408" rx="39" ry="21" transform="rotate(10 313 408)" fill="url(#arm)" stroke="#D4C6BC" stroke-width="3"/>
+<!-- tiny hands -->
+<path d="M162 290 Q112 276 106 309 Q104 335 146 339 Q173 329 181 314Z" fill="url(#arm)" stroke="#D5C6B9" stroke-width="4"/>
+<path d="M358 290 Q408 275 415 309 Q418 336 371 337 Q349 326 340 315Z" fill="url(#arm)" stroke="#D5C6B9" stroke-width="4"/>
+<!-- mochi body -->
+<path d="M259 110 C327 100 382 135 389 204 C397 264 398 325 363 366 C342 395 298 403 260 404 C221 405 177 397 155 368 C122 324 124 266 132 204 C139 143 190 109 259 110Z" fill="url(#body)" stroke="#D0C3B9" stroke-width="4"/>
+<ellipse cx="214" cy="173" rx="65" ry="44" fill="url(#shine)" opacity=".7" transform="rotate(-18 214 173)"/>
+<!-- cheek tint -->
+<ellipse cx="176" cy="270" rx="24" ry="14" fill="#F4A8A2" opacity=".39"/>
+<ellipse cx="345" cy="270" rx="24" ry="14" fill="#F4A8A2" opacity=".39"/>
+<ellipse cx="214" cy="235" rx="10" ry="15" fill="#383331"/><ellipse cx="307" cy="235" rx="10" ry="15" fill="#383331"/><circle cx="217" cy="230" r="3.2" fill="#fff"/><circle cx="310" cy="230" r="3.2" fill="#fff"/>
+<path d="M252 267 Q260 260 268 267" stroke="#794E46" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+<!-- red scarf/badge -->
+<path d="M225 333 Q260 350 296 333 Q288 361 260 368 Q232 361 225 333Z" fill="#AD302C" opacity=".9"/>
+<circle cx="260" cy="348" r="14" fill="url(#badge)" stroke="#F6D8CD" stroke-width="3"/>
+<path d="M254 348 l4 5 9 -11" fill="none" stroke="#fff9ed" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M367 208 Q393 227 367 246 M380 197 Q421 227 380 258" fill="none" stroke="#D65751" stroke-width="5" opacity=".7" stroke-linecap="round"/></g><text x="1344" y="478" font-family="Inter, Arial, sans-serif" font-size="21" font-weight="750" fill="#F5EDE4" text-anchor="middle">LISTENING</text><rect x="1582" y="224" width="427" height="282" rx="22" fill="#242221" stroke="#443c38" stroke-width="2"/><g class="aya aya-speaking" transform="translate(1663 192) scale(0.52)">
+
+<ellipse cx="260" cy="428" rx="116" ry="18" fill="#030303" opacity=".24" filter="url(#drop)"/>
+<!-- ears: none; a small digital crown dot -->
+<path d="M259 120 Q250 96 260 82 Q271 96 263 121" fill="#F7E7DB" stroke="#DBBBB2" stroke-width="4"/>
+<circle cx="260" cy="82" r="9" fill="#D4413B"/><circle cx="257" cy="79" r="3" fill="#fff" opacity=".8"/>
+<!-- tiny feet -->
+<ellipse cx="212" cy="408" rx="39" ry="21" transform="rotate(-10 212 408)" fill="url(#arm)" stroke="#D4C6BC" stroke-width="3"/>
+<ellipse cx="313" cy="408" rx="39" ry="21" transform="rotate(10 313 408)" fill="url(#arm)" stroke="#D4C6BC" stroke-width="3"/>
+<!-- tiny hands -->
+<path d="M162 290 Q112 276 106 309 Q104 335 146 339 Q173 329 181 314Z" fill="url(#arm)" stroke="#D5C6B9" stroke-width="4"/>
+<path d="M358 290 Q408 275 415 309 Q418 336 371 337 Q349 326 340 315Z" fill="url(#arm)" stroke="#D5C6B9" stroke-width="4"/>
+<!-- mochi body -->
+<path d="M259 110 C327 100 382 135 389 204 C397 264 398 325 363 366 C342 395 298 403 260 404 C221 405 177 397 155 368 C122 324 124 266 132 204 C139 143 190 109 259 110Z" fill="url(#body)" stroke="#D0C3B9" stroke-width="4"/>
+<ellipse cx="214" cy="173" rx="65" ry="44" fill="url(#shine)" opacity=".7" transform="rotate(-18 214 173)"/>
+<!-- cheek tint -->
+<ellipse cx="176" cy="270" rx="24" ry="14" fill="#F4A8A2" opacity=".39"/>
+<ellipse cx="345" cy="270" rx="24" ry="14" fill="#F4A8A2" opacity=".39"/>
+<path d="M194 237 Q213 219 232 237" stroke="#383331" stroke-width="8" fill="none" stroke-linecap="round"/><path d="M288 237 Q307 219 326 237" stroke="#383331" stroke-width="8" fill="none" stroke-linecap="round"/>
+<ellipse class="aya-mouth" cx="260" cy="273" rx="13" ry="17" fill="#773D3D"/><ellipse cx="260" cy="283" rx="7" ry="4" fill="#F5A49B"/>
+<!-- red scarf/badge -->
+<path d="M225 333 Q260 350 296 333 Q288 361 260 368 Q232 361 225 333Z" fill="#AD302C" opacity=".9"/>
+<circle cx="260" cy="348" r="14" fill="url(#badge)" stroke="#F6D8CD" stroke-width="3"/>
+<path d="M254 348 l4 5 9 -11" fill="none" stroke="#fff9ed" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</g><text x="1795" y="478" font-family="Inter, Arial, sans-serif" font-size="21" font-weight="750" fill="#F5EDE4" text-anchor="middle">SPEAKING</text><rect x="680" y="524" width="427" height="282" rx="22" fill="#242221" stroke="#443c38" stroke-width="2"/><g class="aya aya-thinking" transform="translate(761 492) scale(0.52)">
+
+<ellipse cx="260" cy="428" rx="116" ry="18" fill="#030303" opacity=".24" filter="url(#drop)"/>
+<!-- ears: none; a small digital crown dot -->
+<path d="M259 120 Q250 96 260 82 Q271 96 263 121" fill="#F7E7DB" stroke="#DBBBB2" stroke-width="4"/>
+<circle cx="260" cy="82" r="9" fill="#D4413B"/><circle cx="257" cy="79" r="3" fill="#fff" opacity=".8"/>
+<!-- tiny feet -->
+<ellipse cx="212" cy="408" rx="39" ry="21" transform="rotate(-10 212 408)" fill="url(#arm)" stroke="#D4C6BC" stroke-width="3"/>
+<ellipse cx="313" cy="408" rx="39" ry="21" transform="rotate(10 313 408)" fill="url(#arm)" stroke="#D4C6BC" stroke-width="3"/>
+<!-- tiny hands -->
+<path d="M162 290 Q112 276 106 309 Q104 335 146 339 Q173 329 181 314Z" fill="url(#arm)" stroke="#D5C6B9" stroke-width="4"/>
+<path d="M358 290 Q408 275 415 309 Q418 336 371 337 Q349 326 340 315Z" fill="url(#arm)" stroke="#D5C6B9" stroke-width="4"/>
+<!-- mochi body -->
+<path d="M259 110 C327 100 382 135 389 204 C397 264 398 325 363 366 C342 395 298 403 260 404 C221 405 177 397 155 368 C122 324 124 266 132 204 C139 143 190 109 259 110Z" fill="url(#body)" stroke="#D0C3B9" stroke-width="4"/>
+<ellipse cx="214" cy="173" rx="65" ry="44" fill="url(#shine)" opacity=".7" transform="rotate(-18 214 173)"/>
+<!-- cheek tint -->
+<ellipse cx="176" cy="270" rx="24" ry="14" fill="#F4A8A2" opacity=".39"/>
+<ellipse cx="345" cy="270" rx="24" ry="14" fill="#F4A8A2" opacity=".39"/>
+<ellipse cx="216" cy="233" rx="11" ry="15" fill="#383331"/><path d="M289 238 Q307 230 325 235" stroke="#383331" stroke-width="7" stroke-linecap="round" fill="none"/><circle cx="219" cy="227" r="3.3" fill="#fff"/>
+<circle cx="268" cy="268" r="5" fill="#794E46"/>
+<!-- red scarf/badge -->
+<path d="M225 333 Q260 350 296 333 Q288 361 260 368 Q232 361 225 333Z" fill="#AD302C" opacity=".9"/>
+<circle cx="260" cy="348" r="14" fill="url(#badge)" stroke="#F6D8CD" stroke-width="3"/>
+<path d="M254 348 l4 5 9 -11" fill="none" stroke="#fff9ed" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<g fill="#F2C57C"><circle cx="364" cy="121" r="7"/><circle cx="379" cy="100" r="4.5"/><circle cx="388" cy="84" r="3"/></g></g><text x="893" y="778" font-family="Inter, Arial, sans-serif" font-size="21" font-weight="750" fill="#F5EDE4" text-anchor="middle">THINKING</text><rect x="1131" y="524" width="427" height="282" rx="22" fill="#242221" stroke="#443c38" stroke-width="2"/><g class="aya aya-warning" transform="translate(1212 492) scale(0.52)">
+
+<ellipse cx="260" cy="428" rx="116" ry="18" fill="#030303" opacity=".24" filter="url(#drop)"/>
+<!-- ears: none; a small digital crown dot -->
+<path d="M259 120 Q250 96 260 82 Q271 96 263 121" fill="#F7E7DB" stroke="#DBBBB2" stroke-width="4"/>
+<circle cx="260" cy="82" r="9" fill="#D4413B"/><circle cx="257" cy="79" r="3" fill="#fff" opacity=".8"/>
+<!-- tiny feet -->
+<ellipse cx="212" cy="408" rx="39" ry="21" transform="rotate(-10 212 408)" fill="url(#arm)" stroke="#D4C6BC" stroke-width="3"/>
+<ellipse cx="313" cy="408" rx="39" ry="21" transform="rotate(10 313 408)" fill="url(#arm)" stroke="#D4C6BC" stroke-width="3"/>
+<!-- tiny hands -->
+<path d="M162 290 Q112 276 106 309 Q104 335 146 339 Q173 329 181 314Z" fill="url(#arm)" stroke="#D5C6B9" stroke-width="4"/>
+<path d="M358 290 Q408 275 415 309 Q418 336 371 337 Q349 326 340 315Z" fill="url(#arm)" stroke="#D5C6B9" stroke-width="4"/>
+<!-- mochi body -->
+<path d="M259 110 C327 100 382 135 389 204 C397 264 398 325 363 366 C342 395 298 403 260 404 C221 405 177 397 155 368 C122 324 124 266 132 204 C139 143 190 109 259 110Z" fill="url(#body)" stroke="#D0C3B9" stroke-width="4"/>
+<ellipse cx="214" cy="173" rx="65" ry="44" fill="url(#shine)" opacity=".7" transform="rotate(-18 214 173)"/>
+<!-- cheek tint -->
+<ellipse cx="176" cy="270" rx="24" ry="14" fill="#F4A8A2" opacity=".39"/>
+<ellipse cx="345" cy="270" rx="24" ry="14" fill="#F4A8A2" opacity=".39"/>
+<ellipse cx="216" cy="235" rx="13" ry="16" fill="#383331"/><ellipse cx="306" cy="235" rx="13" ry="16" fill="#383331"/><circle cx="219" cy="229" r="4" fill="#fff"/><circle cx="310" cy="229" r="4" fill="#fff"/>
+<ellipse cx="260" cy="273" rx="13" ry="15" fill="#773D3D"/>
+<!-- red scarf/badge -->
+<path d="M225 333 Q260 350 296 333 Q288 361 260 368 Q232 361 225 333Z" fill="#AD302C" opacity=".9"/>
+<circle cx="260" cy="348" r="14" fill="url(#badge)" stroke="#F6D8CD" stroke-width="3"/>
+<path d="M254 348 l4 5 9 -11" fill="none" stroke="#fff9ed" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<g transform="translate(350 90)"><path d="M0 -34 L32 25 H-32Z" fill="#E8493D" stroke="#FFBC91" stroke-width="4"/><path d="M0 -12 V7" stroke="white" stroke-width="6" stroke-linecap="round"/><circle cy="17" r="3.5" fill="white"/></g></g><text x="1344" y="778" font-family="Inter, Arial, sans-serif" font-size="21" font-weight="750" fill="#F5EDE4" text-anchor="middle">WARNING</text><rect x="1582" y="524" width="427" height="282" rx="22" fill="#242221" stroke="#443c38" stroke-width="2"/><g class="aya aya-success" transform="translate(1663 492) scale(0.52)">
+
+<ellipse cx="260" cy="428" rx="116" ry="18" fill="#030303" opacity=".24" filter="url(#drop)"/>
+<!-- ears: none; a small digital crown dot -->
+<path d="M259 120 Q250 96 260 82 Q271 96 263 121" fill="#F7E7DB" stroke="#DBBBB2" stroke-width="4"/>
+<circle cx="260" cy="82" r="9" fill="#D4413B"/><circle cx="257" cy="79" r="3" fill="#fff" opacity=".8"/>
+<!-- tiny feet -->
+<ellipse cx="212" cy="408" rx="39" ry="21" transform="rotate(-10 212 408)" fill="url(#arm)" stroke="#D4C6BC" stroke-width="3"/>
+<ellipse cx="313" cy="408" rx="39" ry="21" transform="rotate(10 313 408)" fill="url(#arm)" stroke="#D4C6BC" stroke-width="3"/>
+<!-- tiny hands -->
+<path d="M162 290 Q112 276 106 309 Q104 335 146 339 Q173 329 181 314Z" fill="url(#arm)" stroke="#D5C6B9" stroke-width="4"/>
+<path d="M358 290 Q408 275 415 309 Q418 336 371 337 Q349 326 340 315Z" fill="url(#arm)" stroke="#D5C6B9" stroke-width="4"/>
+<!-- mochi body -->
+<path d="M259 110 C327 100 382 135 389 204 C397 264 398 325 363 366 C342 395 298 403 260 404 C221 405 177 397 155 368 C122 324 124 266 132 204 C139 143 190 109 259 110Z" fill="url(#body)" stroke="#D0C3B9" stroke-width="4"/>
+<ellipse cx="214" cy="173" rx="65" ry="44" fill="url(#shine)" opacity=".7" transform="rotate(-18 214 173)"/>
+<!-- cheek tint -->
+<ellipse cx="176" cy="270" rx="24" ry="14" fill="#F4A8A2" opacity=".39"/>
+<ellipse cx="345" cy="270" rx="24" ry="14" fill="#F4A8A2" opacity=".39"/>
+<path d="M194 234 Q213 209 235 231" stroke="#383331" stroke-width="8" fill="none" stroke-linecap="round"/><path d="M286 231 Q307 209 327 234" stroke="#383331" stroke-width="8" fill="none" stroke-linecap="round"/>
+<path d="M236 267 Q260 298 285 267" fill="#773D3D" stroke="#794E46" stroke-width="3"/><path d="M245 280 Q260 288 275 280" fill="none" stroke="#F6A8A0" stroke-width="4"/>
+<!-- red scarf/badge -->
+<path d="M225 333 Q260 350 296 333 Q288 361 260 368 Q232 361 225 333Z" fill="#AD302C" opacity=".9"/>
+<circle cx="260" cy="348" r="14" fill="url(#badge)" stroke="#F6D8CD" stroke-width="3"/>
+<path d="M254 348 l4 5 9 -11" fill="none" stroke="#fff9ed" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M371 124 l8 14 15 3 -12 11 2 16 -13 -8 -13 8 2 -16 -12 -11 15 -3Z" fill="#E9BD65"/></g><text x="1795" y="778" font-family="Inter, Arial, sans-serif" font-size="21" font-weight="750" fill="#F5EDE4" text-anchor="middle">SUCCESS</text><text x="680" y="857" font-family="Inter, Arial, sans-serif" font-size="26" font-weight="800" fill="#fff8ef" text-anchor="start">UI MODES  •  CUSTOMER / STAFF / OWNER</text><rect x="680" y="878" width="427" height="301" rx="22" fill="#242221" stroke="#443c38" stroke-width="2"/><rect x="704" y="900" width="379" height="43" rx="14" fill="#332e2a"/><text x="723" y="929" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="800" fill="#E8B49E" text-anchor="start">PUBLIC</text><circle cx="755" cy="1032" r="51" fill="#3a332e"/><g class="aya aya-guiding" transform="translate(683 966) scale(0.29)">
+
+<ellipse cx="260" cy="428" rx="116" ry="18" fill="#030303" opacity=".24" filter="url(#drop)"/>
+<!-- ears: none; a small digital crown dot -->
+<path d="M259 120 Q250 96 260 82 Q271 96 263 121" fill="#F7E7DB" stroke="#DBBBB2" stroke-width="4"/>
+<circle cx="260" cy="82" r="9" fill="#D4413B"/><circle cx="257" cy="79" r="3" fill="#fff" opacity=".8"/>
+<!-- tiny feet -->
+<ellipse cx="212" cy="408" rx="39" ry="21" transform="rotate(-10 212 408)" fill="url(#arm)" stroke="#D4C6BC" stroke-width="3"/>
+<ellipse cx="313" cy="408" rx="39" ry="21" transform="rotate(10 313 408)" fill="url(#arm)" stroke="#D4C6BC" stroke-width="3"/>
+<!-- tiny hands -->
+<path d="M162 290 Q112 276 106 309 Q104 335 146 339 Q173 329 181 314Z" fill="url(#arm)" stroke="#D5C6B9" stroke-width="4"/>
+<path d="M358 290 Q408 275 415 309 Q418 336 371 337 Q349 326 340 315Z" fill="url(#arm)" stroke="#D5C6B9" stroke-width="4"/>
+<!-- mochi body -->
+<path d="M259 110 C327 100 382 135 389 204 C397 264 398 325 363 366 C342 395 298 403 260 404 C221 405 177 397 155 368 C122 324 124 266 132 204 C139 143 190 109 259 110Z" fill="url(#body)" stroke="#D0C3B9" stroke-width="4"/>
+<ellipse cx="214" cy="173" rx="65" ry="44" fill="url(#shine)" opacity=".7" transform="rotate(-18 214 173)"/>
+<!-- cheek tint -->
+<ellipse cx="176" cy="270" rx="24" ry="14" fill="#F4A8A2" opacity=".39"/>
+<ellipse cx="345" cy="270" rx="24" ry="14" fill="#F4A8A2" opacity=".39"/>
+<path d="M194 236 Q214 220 234 237" stroke="#383331" stroke-width="8" fill="none" stroke-linecap="round"/><ellipse cx="307" cy="235" rx="10" ry="14" fill="#383331"/><circle cx="310" cy="230" r="3" fill="#fff"/>
+<path d="M248 266 Q260 278 273 266" stroke="#794E46" stroke-width="5" fill="none" stroke-linecap="round"/>
+<!-- red scarf/badge -->
+<path d="M225 333 Q260 350 296 333 Q288 361 260 368 Q232 361 225 333Z" fill="#AD302C" opacity=".9"/>
+<circle cx="260" cy="348" r="14" fill="url(#badge)" stroke="#F6D8CD" stroke-width="3"/>
+<path d="M254 348 l4 5 9 -11" fill="none" stroke="#fff9ed" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M392 218 L421 205" stroke="#B43535" stroke-width="4" stroke-linecap="round"/><circle cx="426" cy="202" r="8" fill="#D94A43"/></g><text x="822" y="1016" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="650" fill="#fff8ef" text-anchor="start">Halo! Mau lihat menu kopi?</text><text x="822" y="1047" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="400" fill="#bbb1a6" text-anchor="start">Menu • lokasi • Instagram</text><rect x="709" y="1109" width="369" height="46" rx="15" fill="#B73530"/><text x="893" y="1138" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="650" fill="#FFFFFF" text-anchor="middle">Buka Menu Digital</text><rect x="1131" y="878" width="427" height="301" rx="22" fill="#242221" stroke="#443c38" stroke-width="2"/><rect x="1155" y="900" width="379" height="43" rx="14" fill="#332e2a"/><text x="1174" y="929" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="800" fill="#E8B49E" text-anchor="start">STAFF</text><circle cx="1206" cy="1032" r="51" fill="#3a332e"/><g class="aya aya-warning" transform="translate(1134 966) scale(0.29)">
+
+<ellipse cx="260" cy="428" rx="116" ry="18" fill="#030303" opacity=".24" filter="url(#drop)"/>
+<!-- ears: none; a small digital crown dot -->
+<path d="M259 120 Q250 96 260 82 Q271 96 263 121" fill="#F7E7DB" stroke="#DBBBB2" stroke-width="4"/>
+<circle cx="260" cy="82" r="9" fill="#D4413B"/><circle cx="257" cy="79" r="3" fill="#fff" opacity=".8"/>
+<!-- tiny feet -->
+<ellipse cx="212" cy="408" rx="39" ry="21" transform="rotate(-10 212 408)" fill="url(#arm)" stroke="#D4C6BC" stroke-width="3"/>
+<ellipse cx="313" cy="408" rx="39" ry="21" transform="rotate(10 313 408)" fill="url(#arm)" stroke="#D4C6BC" stroke-width="3"/>
+<!-- tiny hands -->
+<path d="M162 290 Q112 276 106 309 Q104 335 146 339 Q173 329 181 314Z" fill="url(#arm)" stroke="#D5C6B9" stroke-width="4"/>
+<path d="M358 290 Q408 275 415 309 Q418 336 371 337 Q349 326 340 315Z" fill="url(#arm)" stroke="#D5C6B9" stroke-width="4"/>
+<!-- mochi body -->
+<path d="M259 110 C327 100 382 135 389 204 C397 264 398 325 363 366 C342 395 298 403 260 404 C221 405 177 397 155 368 C122 324 124 266 132 204 C139 143 190 109 259 110Z" fill="url(#body)" stroke="#D0C3B9" stroke-width="4"/>
+<ellipse cx="214" cy="173" rx="65" ry="44" fill="url(#shine)" opacity=".7" transform="rotate(-18 214 173)"/>
+<!-- cheek tint -->
+<ellipse cx="176" cy="270" rx="24" ry="14" fill="#F4A8A2" opacity=".39"/>
+<ellipse cx="345" cy="270" rx="24" ry="14" fill="#F4A8A2" opacity=".39"/>
+<ellipse cx="216" cy="235" rx="13" ry="16" fill="#383331"/><ellipse cx="306" cy="235" rx="13" ry="16" fill="#383331"/><circle cx="219" cy="229" r="4" fill="#fff"/><circle cx="310" cy="229" r="4" fill="#fff"/>
+<ellipse cx="260" cy="273" rx="13" ry="15" fill="#773D3D"/>
+<!-- red scarf/badge -->
+<path d="M225 333 Q260 350 296 333 Q288 361 260 368 Q232 361 225 333Z" fill="#AD302C" opacity=".9"/>
+<circle cx="260" cy="348" r="14" fill="url(#badge)" stroke="#F6D8CD" stroke-width="3"/>
+<path d="M254 348 l4 5 9 -11" fill="none" stroke="#fff9ed" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<g transform="translate(350 90)"><path d="M0 -34 L32 25 H-32Z" fill="#E8493D" stroke="#FFBC91" stroke-width="4"/><path d="M0 -12 V7" stroke="white" stroke-width="6" stroke-linecap="round"/><circle cy="17" r="3.5" fill="white"/></g></g><text x="1273" y="1016" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="650" fill="#fff8ef" text-anchor="start">Pesanan Bar perlu dicek.</text><text x="1273" y="1047" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="400" fill="#bbb1a6" text-anchor="start">Alert • SOP • antrean</text><rect x="1160" y="1109" width="369" height="46" rx="15" fill="#B73530"/><text x="1344" y="1138" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="650" fill="#FFFFFF" text-anchor="middle">Lihat Pesanan</text><rect x="1582" y="878" width="427" height="301" rx="22" fill="#242221" stroke="#443c38" stroke-width="2"/><rect x="1606" y="900" width="379" height="43" rx="14" fill="#332e2a"/><text x="1625" y="929" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="800" fill="#E8B49E" text-anchor="start">OWNER</text><circle cx="1657" cy="1032" r="51" fill="#3a332e"/><g class="aya aya-success" transform="translate(1585 966) scale(0.29)">
+
+<ellipse cx="260" cy="428" rx="116" ry="18" fill="#030303" opacity=".24" filter="url(#drop)"/>
+<!-- ears: none; a small digital crown dot -->
+<path d="M259 120 Q250 96 260 82 Q271 96 263 121" fill="#F7E7DB" stroke="#DBBBB2" stroke-width="4"/>
+<circle cx="260" cy="82" r="9" fill="#D4413B"/><circle cx="257" cy="79" r="3" fill="#fff" opacity=".8"/>
+<!-- tiny feet -->
+<ellipse cx="212" cy="408" rx="39" ry="21" transform="rotate(-10 212 408)" fill="url(#arm)" stroke="#D4C6BC" stroke-width="3"/>
+<ellipse cx="313" cy="408" rx="39" ry="21" transform="rotate(10 313 408)" fill="url(#arm)" stroke="#D4C6BC" stroke-width="3"/>
+<!-- tiny hands -->
+<path d="M162 290 Q112 276 106 309 Q104 335 146 339 Q173 329 181 314Z" fill="url(#arm)" stroke="#D5C6B9" stroke-width="4"/>
+<path d="M358 290 Q408 275 415 309 Q418 336 371 337 Q349 326 340 315Z" fill="url(#arm)" stroke="#D5C6B9" stroke-width="4"/>
+<!-- mochi body -->
+<path d="M259 110 C327 100 382 135 389 204 C397 264 398 325 363 366 C342 395 298 403 260 404 C221 405 177 397 155 368 C122 324 124 266 132 204 C139 143 190 109 259 110Z" fill="url(#body)" stroke="#D0C3B9" stroke-width="4"/>
+<ellipse cx="214" cy="173" rx="65" ry="44" fill="url(#shine)" opacity=".7" transform="rotate(-18 214 173)"/>
+<!-- cheek tint -->
+<ellipse cx="176" cy="270" rx="24" ry="14" fill="#F4A8A2" opacity=".39"/>
+<ellipse cx="345" cy="270" rx="24" ry="14" fill="#F4A8A2" opacity=".39"/>
+<path d="M194 234 Q213 209 235 231" stroke="#383331" stroke-width="8" fill="none" stroke-linecap="round"/><path d="M286 231 Q307 209 327 234" stroke="#383331" stroke-width="8" fill="none" stroke-linecap="round"/>
+<path d="M236 267 Q260 298 285 267" fill="#773D3D" stroke="#794E46" stroke-width="3"/><path d="M245 280 Q260 288 275 280" fill="none" stroke="#F6A8A0" stroke-width="4"/>
+<!-- red scarf/badge -->
+<path d="M225 333 Q260 350 296 333 Q288 361 260 368 Q232 361 225 333Z" fill="#AD302C" opacity=".9"/>
+<circle cx="260" cy="348" r="14" fill="url(#badge)" stroke="#F6D8CD" stroke-width="3"/>
+<path d="M254 348 l4 5 9 -11" fill="none" stroke="#fff9ed" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M371 124 l8 14 15 3 -12 11 2 16 -13 -8 -13 8 2 -16 -12 -11 15 -3Z" fill="#E9BD65"/></g><text x="1724" y="1016" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="650" fill="#fff8ef" text-anchor="start">Ada update deployment.</text><text x="1724" y="1047" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="400" fill="#bbb1a6" text-anchor="start">Analisis • MCP • release</text><rect x="1611" y="1109" width="369" height="46" rx="15" fill="#B73530"/><text x="1795" y="1138" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="650" fill="#FFFFFF" text-anchor="middle">Lihat Changelog</text></svg>

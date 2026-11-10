@@ -47,6 +47,7 @@ export function GarageEmblemCanvas({
     readyRef.current = onReady;
   }, [onReady]);
 
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -81,6 +82,13 @@ export function GarageEmblemCanvas({
             return;
           }
           handle = scene;
+
+          // Preferensi "kurangi gerak" diikuti saat berubah di tengah jalan: animasi di adegan yang sama dihentikan
+          // (bingkai diam) atau dilanjutkan — tanpa membuat renderer baru di kanvas yang konteksnya sudah dilepas.
+          const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+          const onMotionChange = () => scene.setAnimate(!motionQuery.matches);
+          motionQuery.addEventListener("change", onMotionChange);
+          cleanups.push(() => motionQuery.removeEventListener("change", onMotionChange));
           canvas.dataset.ready = "true";
           readyRef.current?.();
 

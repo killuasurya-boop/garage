@@ -1,0 +1,65 @@
+.lin{color:#f5f0e8;min-width:0}
+.lin-header{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:16px;padding:18px 0 24px}
+.lin h1{font-size:clamp(23px,2.2vw,34px);font-weight:850;letter-spacing:-.7px}
+.lin h2{font-size:16px;font-weight:750}
+.lin p{line-height:1.6}
+.lin-header p:not(.lin-overline){font-size:12px;color:#a5b0c0;max-width:580px;margin-top:8px}
+.lin-overline{font-size:10px;color:#e9a777!important;text-transform:uppercase;letter-spacing:2px;font-weight:800;margin-bottom:8px}
+.lin-controls{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.lin-controls label{font-size:11px;color:#adb8c7}
+.lin-controls select,.lin-controls button{border:1px solid #485061;border-radius:8px;background:#212530;color:#f5f0e8;padding:9px 11px;font-size:11px}
+.lin-controls button:focus-visible,.lin-controls select:focus-visible,.lin-node:focus-visible{outline:3px solid #ffd09c;outline-offset:3px}
+.lin-demo-tag{border:1px solid #645038;color:#ffd5a2;background:#2d241c;border-radius:8px;font-size:10px;font-weight:800;padding:9px 11px;letter-spacing:1px}
+.lin-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:0 0 16px}
+.lin-stats>div{background:linear-gradient(145deg,#1a1e27,#12151b);border:1px solid #303745;border-radius:12px;padding:16px;min-width:0}
+.lin-stats small{font-size:10px;color:#a7b2c1;letter-spacing:.7px}
+.lin-stats strong{display:block;font-size:clamp(20px,2.4vw,28px);margin:8px 0;color:#f9f0e9}
+.lin-stats span{font-size:10px;color:#8593a7}
+.lin-grid{display:grid;grid-template-columns:minmax(0,1fr) 290px;gap:16px;align-items:start}
+.lin-network,.lin-box{background:linear-gradient(170deg,#191d26,#11151b);border:1px solid #353d4d;border-radius:16px;overflow:hidden}
+.lin-panel-title{display:flex;justify-content:space-between;align-items:start;gap:12px;padding:20px 20px 4px}
+.lin-panel-title p{color:#9fabbb;font-size:11px;margin-top:6px}
+.lin-panel-title span{font-size:10px;color:#d0b0c4;border:1px solid #524354;background:#33263b;border-radius:8px;padding:7px;white-space:nowrap}
+.lin-canvas{position:relative;background:radial-gradient(ellipse at center,rgba(95,55,103,.18),transparent 51%)}
+.lin-canvas svg{width:100%;height:auto;display:block}
+.lin-wire{fill:none;stroke:#424154;stroke-width:1.5;opacity:.78}
+.lin-flow{fill:none;stroke:#9a7699;stroke-width:1.7;stroke-dasharray:2 17;opacity:.58;animation:linFlow 5s linear infinite}
+.lin-active-wire{fill:none;stroke:#f5bf7c;stroke-width:2.5;filter:drop-shadow(0 0 7px rgba(246,185,101,.65))}
+.lin-orbit{stroke:#8a748b;stroke-width:1;stroke-dasharray:5 14;fill:none;opacity:.24;transform-origin:500px 330px;animation:linSpin 80s linear infinite}
+.lin-orbit.reverse{animation-direction:reverse;animation-duration:110s;opacity:.15}
+.lin-ring{stroke:#f391aa;stroke-width:1.5;stroke-dasharray:3 17;fill:none;opacity:.63;transform-origin:500px 330px;animation:linSpin 32s linear infinite}
+.lin-ring.reverse{animation-duration:22s;animation-direction:reverse}
+.lin-node{cursor:pointer}
+.lin-node rect{fill:#202632;stroke-width:1.5;filter:drop-shadow(0 8px 13px rgba(0,0,0,.3));transition:fill .25s}
+.lin-node:hover rect,.lin-node.chosen rect{fill:#352938}
+.lin-node-name{font-size:12px;font-weight:700;fill:#f7efe9;pointer-events:none}
+.lin-node-meta{font-size:9px;fill:#9ba9ba;pointer-events:none}
+.lin-central-label{text-anchor:middle;font-size:17px;font-weight:850;fill:#fffaf5}
+.lin-central-sub{text-anchor:middle;font-size:9px;letter-spacing:1.5px;fill:#c0b1c7}
+.lin-aya{position:absolute;left:50%;top:50%;transform:translate(-50%,-105px);pointer-events:none}
+.lin-legend{border-top:1px solid #303843;display:flex;gap:14px;flex-wrap:wrap;padding:12px 18px;color:#94a1b3;font-size:10px}
+.lin-legend .blue{color:#8ad4f0}.lin-legend .amber{color:#efba71}.lin-legend .green{color:#74e0ad}
+.lin-mobile-domains{display:none}
+.lin-side{display:flex;flex-direction:column;gap:14px}
+.lin-box{padding:18px}
+.lin-box>p:not(.lin-overline){font-size:12px;color:#a8b4c3;margin-top:7px}
+.lin-box h2{margin-top:8px}
+.lin-box .lin-info{font-weight:750}
+.lin-steps{margin:18px 0 0;padding:0;list-style:none}
+.lin-steps li{display:flex;align-items:center;gap:10px;font-size:12px;color:#aeb8c8;margin:12px 0}
+.lin-steps li span{height:26px;width:26px;border-radius:50%;display:grid;place-items:center;background:#252c38;border:1px solid #465164;color:#b5c0cf;flex-shrink:0;font-size:11px}
+.lin-steps li.current{color:#fff}
+.lin-steps li.current span{background:#502c38;border-color:#f08b92;color:#ffefee}
+.lin-scenarios{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px}
+.lin-scenarios button{border:1px solid #455063;border-radius:8px;padding:10px 5px;color:#e5eaf0;font-size:10px;background:#232834;cursor:pointer}
+.lin-scenarios button.active{border-color:#fa7a87;background:#4b2934}
+.lin-footnote{font-size:11px;color:#8494a9;padding:16px 0}
+.lin-paused *{animation-play-state:paused!important}
+.lin-minimal .lin-flow{opacity:.35;animation-duration:12s}
+.lin-cinematic .lin-flow{opacity:.82;stroke-width:2.2;animation-duration:2.8s}
+@keyframes linFlow{to{stroke-dashoffset:-74}}
+@keyframes linSpin{to{transform:rotate(360deg)}}
+@media(max-width:1100px){.lin-grid{grid-template-columns:1fr}.lin-side{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.lin-side .lin-box:last-child{grid-column:span 2}}
+@media(max-width:680px){.lin-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.lin-header{padding-top:8px}.lin-panel-title{padding:16px}.lin-panel-title span{display:none}.lin-canvas{display:none}.lin-mobile-domains{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:12px}.lin-mobile-domains button{border:1px solid #3d4656;border-radius:9px;background:#242936;text-align:left;color:#ecedf2;padding:11px 8px;font-size:11px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.lin-mobile-domains button.selected{border-color:#ef7687;background:#482935}.lin-mobile-domains button i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:7px}.lin-side{display:flex}.lin-side .lin-box:last-child{grid-column:auto}}
+.lin-mobile-domains button .lin-mobile-status{display:block;margin:3px 0 0 14px;color:#c3ccd8;font-size:10px;font-weight:600}
+@media(prefers-reduced-motion:reduce){.lin *, .lin *::before,.lin *::after{animation:none!important;transition:none!important}}

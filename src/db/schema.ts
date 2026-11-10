@@ -5449,7 +5449,7 @@ export const partnerOrderLines = pgTable(
   "partner_order_lines",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    orderItemId: uuid("order_item_id").notNull().references(() => orderItems.id),
+    orderItemId: uuid("order_item_id").references(() => orderItems.id, { onDelete: "set null" }),
     orderId: uuid("order_id").notNull().references(() => orders.id),
     partnerId: uuid("partner_id").notNull().references(() => partners.id),
     outletId: uuid("outlet_id").notNull().references(() => outlets.id),

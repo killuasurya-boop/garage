@@ -62,7 +62,7 @@ CREATE TABLE "partner_events" (
 --> statement-breakpoint
 CREATE TABLE "partner_order_lines" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"order_item_id" uuid NOT NULL,
+	"order_item_id" uuid,
 	"order_id" uuid NOT NULL,
 	"partner_id" uuid NOT NULL,
 	"outlet_id" uuid NOT NULL,
@@ -224,7 +224,7 @@ ALTER TABLE "partner_bank_accounts" ADD CONSTRAINT "partner_bank_accounts_partne
 ALTER TABLE "partner_bank_accounts" ADD CONSTRAINT "partner_bank_accounts_verified_by_user_id_fk" FOREIGN KEY ("verified_by") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "partner_bank_accounts" ADD CONSTRAINT "partner_bank_accounts_created_by_user_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "partner_events" ADD CONSTRAINT "partner_events_partner_id_partners_id_fk" FOREIGN KEY ("partner_id") REFERENCES "public"."partners"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "partner_order_lines" ADD CONSTRAINT "partner_order_lines_order_item_id_order_items_id_fk" FOREIGN KEY ("order_item_id") REFERENCES "public"."order_items"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "partner_order_lines" ADD CONSTRAINT "partner_order_lines_order_item_id_order_items_id_fk" FOREIGN KEY ("order_item_id") REFERENCES "public"."order_items"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "partner_order_lines" ADD CONSTRAINT "partner_order_lines_order_id_orders_id_fk" FOREIGN KEY ("order_id") REFERENCES "public"."orders"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "partner_order_lines" ADD CONSTRAINT "partner_order_lines_partner_id_partners_id_fk" FOREIGN KEY ("partner_id") REFERENCES "public"."partners"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "partner_order_lines" ADD CONSTRAINT "partner_order_lines_outlet_id_outlets_id_fk" FOREIGN KEY ("outlet_id") REFERENCES "public"."outlets"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint

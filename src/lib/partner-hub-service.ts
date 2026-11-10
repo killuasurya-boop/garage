@@ -699,24 +699,32 @@ type FinanceLine = {
   salesVoided: boolean;
 };
 
-/** Status efektif baris untuk keuangan: tiket diantar/siap → payable; tiket dibatalkan/ditolak → batal penuh. */
+/**
+ * Status efektif baris untuk keuangan. Bukti siap yang tersimpan di baris mitra (`readyAt` / `fulfilledQty`) menang atas
+ * status tiket: void/batal SETELAH mitra menyiapkan tidak menghapus kewajiban (DEC-03), hanya penjualannya yang void.
+ */
 function effectiveLine(row: { line: typeof partnerOrderLines.$inferSelect; ticketStatus: string | null; orderStatus: string | null }) {
   const ts = row.ticketStatus;
   let status = row.line.status;
   let cancelledQty = row.line.cancelledQty;
   let fulfilledQty = row.line.fulfilledQty;
   const orderVoided = paymentStatusOf({ status: row.orderStatus }) === "cancelled";
-  if (orderVoided && ts !== "ready" && ts !== "delivered") {
-    // Dibatalkan sebelum mitra menyiapkan: tidak ada penjualan maupun kewajiban.
-    return { ...row.line, status: "cancelled", cancelledQty: row.line.qty, fulfilledQty: 0, salesVoided: true };
+  const ticketReady = ts === "ready" || ts === "delivered";
+  const everReady = ticketReady || row.line.readyAt !== null || row.line.fulfilledQty > 0;
+  if (!everReady) {
+    if (orderVoided) {
+      // Dibatalkan sebelum mitra menyiapkan: tidak ada penjualan maupun kewajiban.
+      return { ...row.line, status: "cancelled", cancelledQty: row.line.qty, fulfilledQty: 0, salesVoided: true };
+    }
+    if (ts === "cancelled" || ts === "rejected") {
+      status = ts === "rejected" ? "rejected" : "cancelled";
+      cancelledQty = row.line.qty;
+    }
+    return { ...row.line, status, cancelledQty, fulfilledQty, salesVoided: false };
   }
-  if (ts === "cancelled" || ts === "rejected") {
-    status = ts === "rejected" ? "rejected" : "cancelled";
-    cancelledQty = row.line.qty;
-  } else if (ts === "ready" || ts === "delivered") {
-    status = ts === "delivered" ? "delivered" : "ready";
-    fulfilledQty = Math.max(fulfilledQty, row.line.qty - cancelledQty);
-  }
+  if (ts === "delivered" || status === "delivered") status = "delivered";
+  else status = "ready";
+  fulfilledQty = Math.max(fulfilledQty, row.line.qty - cancelledQty);
   return { ...row.line, status, cancelledQty, fulfilledQty, salesVoided: orderVoided };
 }
 
@@ -951,7 +959,13 @@ export async function submitPartnerSettlement(id: string, garage: GarageSession)
   const row = await loadSettlement(db, id, garage.profile.outlet.id);
   if (row.status !== "draft") throw new PartnerHubError("INVALID_STATUS", "Hanya draft yang bisa diajukan.", 409);
   return db.transaction(async (tx) => {
-    await tx.update(partnerSettlements).set({ status: "submitted", submittedBy: garage.user.id, submittedAt: new Date(), updatedAt: new Date() }).where(eq(partnerSettlements.id, id));
+    // Update bersyarat: ajuan tidak boleh menimpa approve/batal yang masuk bersamaan.
+    const updated = await tx
+      .update(partnerSettlements)
+      .set({ status: "submitted", submittedBy: garage.user.id, submittedAt: new Date(), updatedAt: new Date() })
+      .where(and(eq(partnerSettlements.id, id), eq(partnerSettlements.status, "draft")))
+      .returning({ id: partnerSettlements.id });
+    if (!updated.length) throw new PartnerHubError("INVALID_STATUS", "Settlement ini sudah diproses.", 409);
     await logEvent(tx, { partnerId: row.partnerId, kind: "settlement_submitted", subjectId: row.settlementNo, fromStatus: "draft", toStatus: "submitted", actor: staffActor(garage) });
     return { id, status: "submitted" };
   });
@@ -1001,9 +1015,12 @@ export async function cancelPartnerSettlement(id: string, reason: string, garage
   const row = await loadSettlement(db, id, garage.profile.outlet.id);
   if (!["draft", "submitted"].includes(row.status)) throw new PartnerHubError("INVALID_STATUS", "Settlement yang sudah disetujui tidak bisa dibatalkan; buat penyesuaian.", 409);
   return db.transaction(async (tx) => {
+    // Kunci + cek ulang di dalam tx: slot anti-dobel hanya dilepas bila pembatalan benar-benar terjadi.
+    const [locked] = await tx.select().from(partnerSettlements).where(eq(partnerSettlements.id, id)).for("update").limit(1);
+    if (!locked || !["draft", "submitted"].includes(locked.status)) throw new PartnerHubError("INVALID_STATUS", "Settlement yang sudah disetujui tidak bisa dibatalkan; buat penyesuaian.", 409);
     await tx.update(partnerSettlements).set({ status: "cancelled", note: reason.trim(), updatedAt: new Date() }).where(eq(partnerSettlements.id, id));
     await tx.update(partnerSettlementLines).set({ activeLineKey: null }).where(eq(partnerSettlementLines.settlementId, id));
-    await logEvent(tx, { partnerId: row.partnerId, kind: "settlement_cancelled", subjectId: row.settlementNo, fromStatus: row.status, toStatus: "cancelled", reason, actor: staffActor(garage) });
+    await logEvent(tx, { partnerId: row.partnerId, kind: "settlement_cancelled", subjectId: row.settlementNo, fromStatus: locked.status, toStatus: "cancelled", reason, actor: staffActor(garage) });
     return { id, status: "cancelled" };
   });
 }

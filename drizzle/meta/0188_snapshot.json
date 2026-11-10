@@ -16620,7 +16620,7 @@
           "name": "order_item_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "order_id": {
           "name": "order_id",
@@ -16818,7 +16818,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
+          "onDelete": "set null",
           "onUpdate": "no action"
         },
         "partner_order_lines_order_id_orders_id_fk": {

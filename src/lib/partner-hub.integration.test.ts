@@ -288,6 +288,48 @@ describe("Smart Partner Hub — settlement & payout", () => {
     expect(partnerLineFinance(voided)).toMatchObject({ gross: 0, liability: 0 });
   });
 
+  it("void setelah mitra menyiapkan: penjualan void, kewajiban HPP tetap (DEC-03)", async () => {
+    const res = await sale([{ itemId: menuA, qty: 1 }]);
+    const d = t.getDb();
+    const { eq } = await import("drizzle-orm");
+    const [order] = await d.select().from(t.schema.orders).where(eq(t.schema.orders.orderNo, res.orderNo));
+    const [ticket] = await d.select().from(t.schema.kitchenTickets).where(eq(t.schema.kitchenTickets.orderId, order.id));
+    for (const action of ["accept", "start", "ready"] as const) await svc.actOnPartnerTicket(partnerSession(partnerA), ticket.ticketNo, action);
+    // Void resmi membatalkan tiket produksi (termasuk yang sudah siap).
+    await d.update(t.schema.kitchenTickets).set({ status: "cancelled" }).where(eq(t.schema.kitchenTickets.id, ticket.id));
+    await d.update(t.schema.orders).set({ status: "voided" }).where(eq(t.schema.orders.id, order.id));
+    const lines = await svc.partnerFinanceLines(partnerA.id, outletId, new Date(Date.now() - 86_400_000), new Date(Date.now() + 86_400_000));
+    const line = lines.find((row) => row.orderNo === res.orderNo)!;
+    expect(line).toMatchObject({ status: "ready", fulfilledQty: 1, salesVoided: true });
+    const { partnerLineFinance } = await import("@/lib/partner-hub-rules");
+    expect(partnerLineFinance(line)).toMatchObject({ gross: 0, liability: 19_000 });
+  });
+
+  it("refund seluruh qty item mitra tidak menggagalkan refund; snapshot tetap ada (orderItemId dilepas)", async () => {
+    const res = await sale([
+      { itemId: "itm-coffee", qty: 1 },
+      { itemId: menuA, qty: 1 },
+    ]);
+    const d = t.getDb();
+    const { eq } = await import("drizzle-orm");
+    const [order] = await d.select().from(t.schema.orders).where(eq(t.schema.orders.orderNo, res.orderNo));
+    const items = await d.select().from(t.schema.orderItems).where(eq(t.schema.orderItems.orderId, order.id));
+    const partnerItem = items.find((item: { menuItemId: string }) => item.menuItemId === menuA)!;
+    const req = await garageSvc.requestOrderRefundApproval(
+      res.orderNo,
+      { reasonCode: "komplain_kualitas", note: "meleleh", items: [{ orderItemId: partnerItem.id, qty: 1 }] },
+      manager(),
+    );
+    if (req.status === "pending") await garageSvc.decideApproval(req.approvalId, { status: "approved" }, owner());
+    const left = await d.select().from(t.schema.orderItems).where(eq(t.schema.orderItems.id, partnerItem.id));
+    expect(left).toHaveLength(0);
+    const lines = await d.select().from(t.schema.partnerOrderLines).where(eq(t.schema.partnerOrderLines.orderId, order.id));
+    expect(lines).toHaveLength(1);
+    expect(lines[0].orderItemId).toBeNull();
+    const adjustments = await d.select().from(t.schema.partnerAdjustments).where(eq(t.schema.partnerAdjustments.orderLineId, lines[0].id));
+    expect(adjustments).toHaveLength(1);
+  });
+
   it("helper aktivasi lengkap untuk mitra kedua", async () => {
     await activatePartner(partnerB.id);
     const list = await svc.listPartners(owner());

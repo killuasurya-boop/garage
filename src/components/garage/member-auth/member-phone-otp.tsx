@@ -6,6 +6,7 @@ import { KeyRound, MessageCircle } from "lucide-react";
 import { AuthenticationStatus, type AuthStatus } from "./authentication-status";
 import { MemberButton } from "./member-button";
 import { MemberField } from "./member-field";
+import { parseTokenExpiry, type MemberVerification } from "./use-member-verification";
 
 // Verifikasi nomor WhatsApp member dengan kode OTP (owner Nov 2026). Hanya dirender
 // bila provider nyata aktif (useMemberOtpStatus) — kontrak member #13: tanpa tombol OTP palsu.
@@ -44,15 +45,12 @@ export function MemberPhoneOtp({
   phone,
   alreadyVerified = false,
   onVerified,
-  onExpired,
 }: {
   phone: string;
-  /** Nomor sudah terverifikasi lewat kode kasir → tombol kirim OTP disembunyikan. */
+  /** Induk sudah memegang token verifikasi yang masih berlaku untuk nomor ini → kontrol disembunyikan. */
   alreadyVerified?: boolean;
-  /** Token verifikasi untuk /api/member/auth/register + nomor (digit) yang diverifikasi. */
-  onVerified: (result: { token: string; digits: string }) => void;
-  /** Token verifikasi ini kedaluwarsa → induk menghapusnya (hanya bila token itu yang masih tersimpan). */
-  onExpired?: (token: string) => void;
+  /** Token verifikasi untuk /api/member/auth/register. Masa berlakunya dikelola induk (useMemberVerification). */
+  onVerified: (result: MemberVerification) => void;
 }) {
   const digits = phone.replace(/\D/g, "");
   // Tantangan & verifikasi terikat ke nomor: nomor diganti → otomatis tampil seperti awal.
@@ -61,38 +59,10 @@ export function MemberPhoneOtp({
   const [cooldown, setCooldown] = useState(0);
   const [busy, setBusy] = useState<"send" | "verify" | null>(null);
   const [message, setMessage] = useState<{ status: AuthStatus; digits: string } | null>(null);
-  const [verifiedFor, setVerifiedFor] = useState<string | null>(null);
-  // Token verifikasi berumur terbatas (tokenExpiresAt dari server). Setelah lewat, kontrol kirim/verifikasi
-  // muncul lagi supaya pendaftar bisa meminta kode baru tanpa memuat ulang halaman.
-  const [tokenExpiresAt, setTokenExpiresAt] = useState<number | null>(null);
-  const verifiedTokenRef = useRef<string | null>(null);
   const codeRef = useRef<HTMLInputElement>(null);
-  const verified = verifiedFor === digits && digits.length > 0;
   const challengeId = challenge?.digits === digits ? challenge.id : null;
   const status = message?.digits === digits ? message.status : null;
   const setStatus = (next: AuthStatus | null) => setMessage(next ? { status: next, digits } : null);
-
-  useEffect(() => {
-    if (!verifiedFor || !tokenExpiresAt) return;
-    const remaining = tokenExpiresAt - Date.now();
-    const expire = () => {
-      setVerifiedFor(null);
-      if (verifiedTokenRef.current) onExpired?.(verifiedTokenRef.current);
-      verifiedTokenRef.current = null;
-      setChallenge(null);
-      setCode("");
-      setTokenExpiresAt(null);
-      setMessage({ status: { tone: "info", message: "Verifikasi WhatsApp kedaluwarsa. Kirim kode baru untuk melanjutkan." }, digits: verifiedFor });
-    };
-    if (remaining <= 0) {
-      expire();
-      return;
-    }
-    const id = window.setTimeout(expire, remaining);
-    return () => window.clearTimeout(id);
-    // onExpired sengaja tidak jadi dependensi: induk biasanya memberi fungsi baru tiap render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [verifiedFor, tokenExpiresAt]);
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -138,12 +108,10 @@ export function MemberPhoneOtp({
     setStatus(null);
     try {
       const data = await post<{ verificationToken: string; tokenExpiresAt?: string }>("/api/member/auth/otp/verify", { challengeId, code });
-      const expiresAt = data.tokenExpiresAt ? Date.parse(data.tokenExpiresAt) : NaN;
-      setTokenExpiresAt(Number.isFinite(expiresAt) ? expiresAt : null);
-      setVerifiedFor(digits);
-      verifiedTokenRef.current = data.verificationToken;
-      onVerified({ token: data.verificationToken, digits });
-      setStatus({ tone: "success", message: "Nomor WhatsApp terverifikasi." });
+      setChallenge(null);
+      setCode("");
+      setStatus(null);
+      onVerified({ token: data.verificationToken, digits, expiresAt: parseTokenExpiry(data.tokenExpiresAt) });
     } catch (error) {
       setStatus({ tone: "error", message: error instanceof Error ? error.message : "Kode salah." });
     } finally {
@@ -151,7 +119,6 @@ export function MemberPhoneOtp({
     }
   }
 
-  if (verified) return <AuthenticationStatus status={status ?? { tone: "success", message: "Nomor WhatsApp terverifikasi." }} />;
   if (alreadyVerified) return null;
 
   return (

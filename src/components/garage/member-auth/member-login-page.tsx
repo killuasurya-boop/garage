@@ -14,6 +14,7 @@ import { GarageBrandLogo } from "./garage-brand-logo";
 import { MemberButton } from "./member-button";
 import { MemberField } from "./member-field";
 import { MemberCashierCode } from "./member-cashier-code";
+import { useMemberVerification } from "./use-member-verification";
 import { MemberPhoneOtp, useMemberOtpStatus } from "./member-phone-otp";
 import "./member-auth.css";
 import "./member-v6.css";
@@ -93,9 +94,9 @@ export function MemberLoginPage({
   const [registerPassword, setRegisterPassword] = useState("");
   const [showOptional, setShowOptional] = useState(false);
   const otpEnabled = useMemberOtpStatus();
-  const [otpResult, setOtpResult] = useState<{ token: string; digits: string } | null>(null);
   // Token hanya berlaku untuk nomor yang diverifikasi; nomor diganti → harus verifikasi ulang.
-  const otpToken = otpResult && otpResult.digits === phone.replace(/\D/g, "") ? otpResult.token : null;
+  // Token verifikasi nomor (OTP WhatsApp / kode kasir); masa berlaku dikelola di hook ini.
+  const { token: otpToken, onVerified: setOtpResult, expired: verificationExpired } = useMemberVerification(phone);
   const [identifierError, setIdentifierError] = useState("");
   const [status, setStatus] = useState<AuthStatus | null>(null);
   const [busy, setBusy] = useState(false);
@@ -606,8 +607,13 @@ export function MemberLoginPage({
                       inputMode="tel"
                       required
                     />
-                    {otpEnabled ? <MemberPhoneOtp phone={phone} alreadyVerified={Boolean(otpToken)} onVerified={setOtpResult} onExpired={(token) => setOtpResult((prev) => (prev?.token === token ? null : prev))} /> : null}
-                    <MemberCashierCode phone={phone} alreadyVerified={Boolean(otpToken)} onVerified={setOtpResult} onExpired={(token) => setOtpResult((prev) => (prev?.token === token ? null : prev))} />
+                    {otpEnabled ? <MemberPhoneOtp phone={phone} alreadyVerified={Boolean(otpToken)} onVerified={setOtpResult} /> : null}
+                    <MemberCashierCode phone={phone} alreadyVerified={Boolean(otpToken)} onVerified={setOtpResult} />
+                    {otpToken ? (
+                      <AuthenticationStatus status={{ tone: "success", message: "Nomor terverifikasi. Poin & riwayatmu akan tersambung." }} />
+                    ) : verificationExpired ? (
+                      <AuthenticationStatus status={{ tone: "info", message: "Verifikasi nomor kedaluwarsa. Minta kode baru untuk melanjutkan." }} />
+                    ) : null}
                     <MemberField
                       label="PIN Member"
                       icon={<LockKeyhole size={19} />}

@@ -11,6 +11,8 @@ import { ArrowRight, Clock, Coffee, ThumbsUp, Users } from "lucide-react";
 
 import type { MenuItem } from "@/lib/garage-api-types";
 
+import { GarageEmblemCanvas } from "@/components/garage-3d/garage-emblem-canvas";
+
 import { MenuPhoto } from "../menu-card";
 
 const EMBLEM = { src: "/garage-brand/garage-coffee-emblem.png", width: 386, height: 305 };
@@ -52,6 +54,8 @@ export function HeroV5({
   eta?: string;
 }) {
   const [active, setActive] = useState(0);
+  // Emblem 3D (Three.js) menggantikan gambar statis begitu siap; gambar statis = cadangan (hemat data / tanpa WebGL).
+  const [emblem3d, setEmblem3d] = useState(false);
   const current = items[Math.min(active, Math.max(0, items.length - 1))];
 
   return (
@@ -86,8 +90,12 @@ export function HeroV5({
             height={EMBLEM.height}
             sizes="(max-width: 640px) 50vw, 420px"
             className="gm5-hero-emblem"
+            data-hidden={emblem3d ? "true" : undefined}
             priority
           />
+          <div className="gm5-hero-3d" aria-hidden="true">
+            <GarageEmblemCanvas variant="stage" onReady={() => setEmblem3d(true)} />
+          </div>
           {current ? (
             <button type="button" onClick={() => onOpenItem(current)} className="gm5-hero-photo" aria-label={`Lihat ${current.name}`}>
               <MenuPhoto key={current.id} item={current} eager />

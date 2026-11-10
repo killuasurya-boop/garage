@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { SuryaDeveloperCredit } from "@/components/surya/surya-developer-credit";
 import { MemberDashboard } from "@/components/garage/member-dashboard";
 
 export const metadata: Metadata = {
@@ -8,5 +9,12 @@ export const metadata: Metadata = {
 };
 
 export default function MemberPage() {
-  return <MemberDashboard />;
+  return (
+    <>
+      <MemberDashboard />
+      <div className="bg-[#08080a] px-4 py-6 sm:px-8">
+        <SuryaDeveloperCredit variant="compact" />
+      </div>
+    </>
+  );
 }

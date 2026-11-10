@@ -532,7 +532,7 @@ export function ProductionMaterialRequestDialog({
                                   inputMode="decimal"
                                   value={received[i.id] ?? ""}
                                   placeholder={String(i.sentQty).replace(".", ",")}
-                                  onChange={(e) => setReceived((cur) => ({ ...cur, [i.id]: e.target.value.replace(/[^d.,]/g, "") }))}
+                                  onChange={(e) => setReceived((cur) => ({ ...cur, [i.id]: e.target.value.replace(/[^\d.,]/g, "") }))}
                                   className="h-8 w-16 rounded border border-[#34343c] bg-[#1b1b21] text-center text-sm text-white"
                                 />
                                 {i.unit}

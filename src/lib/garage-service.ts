@@ -23533,7 +23533,9 @@ export const updateCustomerOrderStatus = notifyingProduction(
     const result = await updateCustomerOrderStatusImpl(...args);
     // V2: "Order baru" / "batal otomatis" tidak lagi perlu aksi setelah kasir memutuskan.
     const action = args[1].action;
-    if ((action === "accept" || action === "reject" || action === "paid") && isUuidLike(args[0])) {
+    // Hanya bila update benar-benar terjadi: null = order di luar outlet staf / tidak ditemukan,
+    // jangan sampai notifikasi outlet lain ikut terhapus.
+    if (result && (action === "accept" || action === "reject" || action === "paid") && isUuidLike(args[0])) {
       await resolveStaffNotifications(
         { orderId: args[0], kinds: ["qr_new", "unpaid_expiring"] },
         action === "reject" ? "Order ditolak" : action === "paid" ? "Order lunas" : "Order diterima",

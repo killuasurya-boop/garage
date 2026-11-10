@@ -51,3 +51,12 @@ export function formatTableDuration(minutes: number | null | undefined): string 
   const restHours = hours % 24;
   return restHours ? `${days}h ${restHours}j` : `${days}h`;
 }
+
+/** Lantai maksimum yang bisa diatur di Pengaturan → Meja & QR. */
+export const MAX_TABLE_FLOOR = 9;
+
+/** Lantai default bila belum diatur (Owner, Nov 2026): Meja 01–25 = Lantai 1, 26–50 = Lantai 2. */
+export function defaultTableFloor(tableNumber: string): number {
+  const n = Number.parseInt(tableNumber, 10);
+  return Number.isFinite(n) && n > 25 ? 2 : 1;
+}

@@ -51,9 +51,9 @@ function Price({ item, size }: { item: MenuItem; size: "md" | "lg" }) {
   const { from, price, strike } = cardPrice(item);
   return (
     <span className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0">
-      {from ? <span className="text-xs font-semibold text-[#cfc9c4]">mulai</span> : null}
+      {from ? <span className="text-xs font-semibold text-[#d4d4da]">mulai</span> : null}
       <span className={`font-mono font-bold tabular-nums text-white ${size === "lg" ? "text-lg" : "text-base"}`}>{rupiah.format(price)}</span>
-      {strike ? <span className="font-mono text-xs tabular-nums text-[#a7a09b] line-through">{rupiah.format(strike)}</span> : null}
+      {strike ? <span className="font-mono text-xs tabular-nums text-[#b8b8be] line-through">{rupiah.format(strike)}</span> : null}
     </span>
   );
 }
@@ -147,8 +147,8 @@ export function MenuCardV5({
         <div className="flex min-w-0 flex-1 flex-col gap-1 pr-9">
           {badges.length ? <BadgeRow kinds={badges} /> : null}
           <h3 className="gm5-title break-words text-base leading-snug text-white">{item.name}</h3>
-          {summary ? <p className="text-sm text-[#cfc9c4]">{summary}</p> : null}
-          {item.description ? <p className="line-clamp-2 text-sm leading-5 text-[#a7a09b]">{item.description}</p> : null}
+          {summary ? <p className="text-sm text-[#d4d4da]">{summary}</p> : null}
+          {item.description ? <p className="line-clamp-2 text-sm leading-5 text-[#b8b8be]">{item.description}</p> : null}
           <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-1">
             <Price item={item} size="md" />
             <Stepper label={item.name} qty={cartQty} soldOut={soldOut} onMinus={minus} onPlus={plus} minusOpens={multi} />
@@ -170,7 +170,7 @@ export function MenuCardV5({
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-1 p-3">
         <h3 className="gm5-title break-words text-[15px] leading-snug text-white sm:text-base">{item.name}</h3>
-        {summary ? <p className="text-sm leading-5 text-[#cfc9c4]">{summary}</p> : null}
+        {summary ? <p className="text-sm leading-5 text-[#d4d4da]">{summary}</p> : null}
         <span className="mt-auto flex flex-col gap-2 pt-1.5">
           <Price item={item} size="md" />
           <span className="flex justify-center">

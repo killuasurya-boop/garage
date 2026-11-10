@@ -53,7 +53,7 @@ export function QuickViewV5({
           event.preventDefault();
           (event.currentTarget as HTMLElement | null)?.focus({ preventScroll: true });
         }}
-        className="gm5 inset-x-0 bottom-0 z-[95] mx-auto flex max-h-[92svh] w-full flex-col overflow-hidden rounded-t-[20px] border border-[color:var(--gm5-line)] bg-[#0e0e0e] p-0 text-white sm:bottom-auto sm:top-1/2 sm:max-h-[88svh] sm:w-[min(820px,calc(100vw-48px))] sm:-translate-y-1/2 sm:rounded-[20px]"
+        className="gm5 inset-x-0 bottom-0 z-[95] mx-auto flex max-h-[92svh] w-full flex-col overflow-hidden rounded-t-[20px] border border-[color:var(--gm5-line)] bg-[#08090b] p-0 text-white sm:bottom-auto sm:top-1/2 sm:max-h-[88svh] sm:w-[min(820px,calc(100vw-48px))] sm:-translate-y-1/2 sm:rounded-[20px]"
       >
         {item ? <QuickViewBody key={item.id} item={item} initialVariantId={initialVariantId} cart={cart} notes={notes} onAdjust={onAdjust} onNote={onNote} onClose={onClose} /> : null}
       </SheetContent>
@@ -142,7 +142,7 @@ function QuickViewBody({
         aria-hidden
       >
         <span className="h-1.5 w-12 rounded-full bg-white/35" />
-        <span className="text-xs text-[#cfc9c4]">Geser ke bawah untuk menutup</span>
+        <span className="text-xs text-[#d4d4da]">Geser ke bawah untuk menutup</span>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4 pt-1 sm:p-7">
@@ -157,9 +157,9 @@ function QuickViewBody({
               {item.description ? <p className="text-base leading-6 text-[#d4d4d4]">{item.description}</p> : null}
               <SheetDescription className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 <span className="font-mono text-[26px] font-bold tabular-nums text-white">{rupiah.format(price)}</span>
-                {strike ? <span className="font-mono text-sm tabular-nums text-[#a7a09b] line-through">{rupiah.format(strike)}</span> : null}
+                {strike ? <span className="font-mono text-sm tabular-nums text-[#b8b8be] line-through">{rupiah.format(strike)}</span> : null}
                 {item.prep ? (
-                  <span className="inline-flex items-center gap-1 text-sm text-[#cfc9c4]">
+                  <span className="inline-flex items-center gap-1 text-sm text-[#d4d4da]">
                     <Clock className="size-3.5" aria-hidden /> Siap ± {item.prep.replace(/m$/, " menit")}
                   </span>
                 ) : null}
@@ -168,11 +168,11 @@ function QuickViewBody({
 
             {multi ? (
               <div>
-                <p className="mb-2 text-sm font-semibold text-[#ede6dc]">Pilih varian</p>
+                <p className="mb-2 text-sm font-semibold text-[#f3e8da]">Pilih varian</p>
                 <div
                   role="radiogroup"
                   aria-label={`Varian ${item.name}`}
-                  className={variants.length <= 3 ? "grid gap-1 rounded-full border border-[color:var(--gm5-line)] bg-[#141214] p-1" : "flex flex-wrap gap-2"}
+                  className={variants.length <= 3 ? "grid gap-1 rounded-full border border-[color:var(--gm5-line)] bg-[#111216] p-1" : "flex flex-wrap gap-2"}
                   style={variants.length <= 3 ? { gridTemplateColumns: `repeat(${variants.length}, minmax(0, 1fr))` } : undefined}
                 >
                   {variants.map((entry) => {
@@ -190,7 +190,7 @@ function QuickViewBody({
                       >
                         {variantIcon(entry.label)}
                         <span className="truncate">{entry.label}</span>
-                        {count ? <span className="gm5-count !min-w-5 !bg-white !text-[#0e0e0e]">{count}</span> : null}
+                        {count ? <span className="gm5-count !min-w-5 !bg-white !text-[#08090b]">{count}</span> : null}
                         {variants.length > 3 ? <span className="font-mono text-xs tabular-nums opacity-80">{rupiah.format(variantPrice(item, entry))}</span> : null}
                       </button>
                     );
@@ -201,8 +201,8 @@ function QuickViewBody({
             ) : null}
 
             <label className="block">
-              <span className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-[#ede6dc]">
-                <StickyNote className="size-4" aria-hidden /> Catatan <span className="font-normal text-[#a7a09b]">(opsional)</span>
+              <span className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-[#f3e8da]">
+                <StickyNote className="size-4" aria-hidden /> Catatan <span className="font-normal text-[#b8b8be]">(opsional)</span>
               </span>
               <input
                 value={note}
@@ -211,14 +211,14 @@ function QuickViewBody({
                 autoComplete="off"
                 name="catatan-menu"
                 placeholder={notePlaceholder(item)}
-                className="h-12 w-full rounded-full border border-white/15 bg-[#141214] px-4 text-base text-white outline-none placeholder:text-[#8f8984] hover:border-white/25 focus:border-[var(--menu-red)]"
+                className="h-12 w-full rounded-full border border-white/15 bg-[#111216] px-4 text-base text-white outline-none placeholder:text-[#9a9aa4] hover:border-white/25 focus:border-[var(--menu-red)]"
               />
             </label>
           </div>
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-3 border-t border-white/10 bg-[#0e0e0e] p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-7 sm:py-4">
+      <div className="flex shrink-0 items-center gap-3 border-t border-white/10 bg-[#08090b] p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-7 sm:py-4">
         <span className="gm5-stepper shrink-0">
           <button type="button" className="gm5-step gm5-step-minus" onClick={() => setQty((value) => Math.max(0, value - 1))} disabled={qty <= 0} aria-label="Kurangi jumlah">
             <Minus className="size-4" strokeWidth={2.6} aria-hidden />

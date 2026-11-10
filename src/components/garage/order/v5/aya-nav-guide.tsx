@@ -43,7 +43,7 @@ export function AyaNavGuideV5({
   return (
     <div
       key={guide.id}
-      className="gm5 gm5-aya-guidebar fixed z-[94] rounded-2xl border border-[color:var(--gm5-line)] bg-[#141214]/95 p-3 text-white shadow-[0_14px_36px_rgba(0,0,0,0.6)] backdrop-blur-sm"
+      className="gm5 gm5-aya-guidebar fixed z-[94] rounded-2xl border border-[color:var(--gm5-line)] bg-[#111216]/95 p-3 text-white shadow-[0_14px_36px_rgba(0,0,0,0.6)] backdrop-blur-sm"
       role="status"
       aria-live="polite"
     >
@@ -53,7 +53,7 @@ export function AyaNavGuideV5({
         </span>
         <p className="min-w-0 flex-1 pt-0.5 text-sm leading-snug">
           <span className="block font-bold">AYA membuka {guide.label}</span>
-          <span className="block text-[13px] text-[#cfc9c4]">{guide.note ?? "Bagian yang disorot merah adalah yang kamu cari."}</span>
+          <span className="block text-[13px] text-[#d4d4da]">{guide.note ?? "Bagian yang disorot merah adalah yang kamu cari."}</span>
         </p>
         <button type="button" className="gm5-icon-btn !h-10 !w-10 shrink-0" aria-label="Tutup petunjuk AYA" onClick={onDismiss}>
           <X className="size-5" aria-hidden />

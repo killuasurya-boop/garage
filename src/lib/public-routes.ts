@@ -45,6 +45,11 @@ export const PUBLIC_API_ROUTES: Record<string, PublicRoute> = {
   "member/auth/otp/status": { reason: "Apakah OTP WhatsApp aktif (tanpa data)", abuseGuard: "rateLimit" },
   "member/auth/otp/request": { reason: "Kirim kode OTP WhatsApp pendaftar (batas per IP + per nomor)", abuseGuard: "rateLimit" },
   "member/auth/otp/verify": { reason: "Cek kode OTP (maks. 5 percobaan per kode)", abuseGuard: "rateLimit" },
+  "member/auth/providers": { reason: "Metode login member yang aktif (tanpa data)", abuseGuard: "readonly" },
+  "member/auth/google/start": { reason: "Mulai login Google member (redirect + state PKCE)", abuseGuard: "rateLimit" },
+  "member/auth/google/callback": { reason: "Kembali dari Google (state + PKCE + ID token diverifikasi)", abuseGuard: "rateLimit" },
+  "member/auth/google/pending": { reason: "Profil Google menunggu dilengkapi (cookie bertanda tangan)", abuseGuard: "rateLimit" },
+  "member/auth/google/complete": { reason: "Aktivasi member dari Google (cookie bertanda tangan + S&K)", abuseGuard: "rateLimit" },
   // Rekrutmen publik
   "recruitment/positions": { reason: "Lowongan terbuka", abuseGuard: "readonly" },
   "recruitment/apply": { reason: "Lamaran kerja", abuseGuard: "rateLimit" },

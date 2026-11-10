@@ -3,12 +3,15 @@
 import {
 ArrowRight,
 Check,
+ChevronDown,
 Database,
-RefreshCw
+RefreshCw,
+Search
 } from "lucide-react";
 import Image from "next/image";
 import {
 useEffect,
+useRef,
 useState
 } from "react";
 import { Alert,AlertDescription,AlertTitle } from "@/components/ui/alert";
@@ -366,6 +369,15 @@ export function PosHeaderBrand() {
   );
 }
 
+const NAV_COLLAPSE_KEY = "garage:nav-collapsed-groups";
+
+const PAYROLL_V2_ROUTES: Partial<Record<ModuleId, string>> = {
+  "absensi-v2": "/absen",
+  "wallet-gaji": "/staff/wallet-gaji",
+  "wallet-fee": "/staff/wallet-fee",
+  "payroll-owner": "/owner/payroll/today",
+};
+
 export function ModuleNav({
   activeModule,
   profile,
@@ -386,6 +398,46 @@ export function ModuleNav({
   const accessibleModules = modules.filter((module) =>
     canAccessModuleAs(profile, module.id),
   );
+  // Crystal V5 (Owner, Nov 2026): cari modul (Ctrl+K) + grup accordion yang diingat per perangkat.
+  // Hanya visual/navigasi — daftar modul tetap dari canAccessModuleAs (izin tidak berubah).
+  const showLabels = !compact;
+  const [query, setQuery] = useState("");
+  const [collapsedGroups, setCollapsedGroups] = useState<string[]>([]);
+  const searchRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(NAV_COLLAPSE_KEY) ?? "[]");
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- preferensi per perangkat dibaca sekali
+      if (Array.isArray(saved)) setCollapsedGroups(saved.filter((value) => typeof value === "string"));
+    } catch {
+      /* localStorage tidak tersedia */
+    }
+  }, []);
+  useEffect(() => {
+    if (!desktopRail) return;
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        const input = searchRef.current;
+        if (!input || input.offsetParent === null) return;
+        event.preventDefault();
+        input.focus();
+        input.select();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [desktopRail]);
+  function toggleGroup(title: string) {
+    setCollapsedGroups((current) => {
+      const next = current.includes(title) ? current.filter((value) => value !== title) : [...current, title];
+      try {
+        window.localStorage.setItem(NAV_COLLAPSE_KEY, JSON.stringify(next));
+      } catch {
+        /* abaikan */
+      }
+      return next;
+    });
+  }
 
   // Pengelompokan sidebar (D1/D2) — murni visual, tidak mengubah route/logika.
   // Modul yang tidak masuk grup mana pun jatuh ke "Lainnya" supaya tak hilang.
@@ -417,6 +469,13 @@ export function ModuleNav({
     grouped.push({ title: "Lainnya", items: leftover });
   }
 
+  // Payroll V2 modules navigasi ke halaman terpisah (bukan internal state).
+  const activateModule = (id: ModuleId) => {
+    const externalRoute = PAYROLL_V2_ROUTES[id];
+    if (externalRoute) window.location.assign(externalRoute);
+    else onChange(id);
+  };
+
   const renderModuleButton = (module: NavModule) => {
     const isActive = activeModule === module.id;
     const showApprovalBadge = module.id === "approvals" && approvalBadgeCount > 0;
@@ -429,29 +488,16 @@ export function ModuleNav({
     const badgeColor = showRecruitmentBadge
       ? "bg-[#3b82f6] shadow-[0_0_8px_rgba(59,130,246,0.65)]"
       : "bg-[#d11a2a] shadow-[0_0_8px_rgba(209,26,42,0.65)]";
-    // Payroll V2 modules navigasi ke halaman terpisah (bukan internal state).
-    const PAYROLL_V2_ROUTES: Partial<Record<ModuleId, string>> = {
-      "absensi-v2": "/absen",
-      "wallet-gaji": "/staff/wallet-gaji",
-      "wallet-fee": "/staff/wallet-fee",
-      "payroll-owner": "/owner/payroll/today",
-    };
-    const externalRoute = PAYROLL_V2_ROUTES[module.id];
     return (
       <Tooltip key={module.id}>
         <TooltipTrigger asChild>
           <button
             type="button"
             data-module-nav-item={module.id}
-            onClick={() => {
-              if (externalRoute) {
-                window.location.assign(externalRoute);
-              } else {
-                onChange(module.id);
-              }
-            }}
+            onClick={() => activateModule(module.id)}
             aria-current={isActive ? "page" : undefined}
-            className={`garage-press relative min-h-11 w-full min-w-0 items-center gap-2 rounded-xl border text-left text-sm transition-colors duration-150 ${
+            data-active={isActive ? "true" : undefined}
+            className={`gc-nav-item garage-press relative min-h-11 w-full min-w-0 items-center gap-2 rounded-xl border text-left text-sm transition-colors duration-150 ${
               compact
                 ? "flex justify-center px-1 py-1.5"
                 : desktopRail
@@ -459,14 +505,16 @@ export function ModuleNav({
                   : "grid grid-cols-[2rem_minmax(0,1fr)_auto] px-2.5 py-1.5"
             } ${
               isActive
-                ? "border-[#ff2a3a]/45 bg-[#d11a2a]/18 text-white shadow-[inset_3px_0_0_rgba(255,42,58,0.95)]"
-                : "border-transparent text-[#d0d0d6] hover:border-white/10 hover:bg-white/[0.075] hover:text-white"
+                ? "border-[#ff2638]/55 bg-[linear-gradient(90deg,rgba(255,38,56,0.28),rgba(225,37,43,0.08))] text-white shadow-[0_0_22px_rgba(255,38,56,0.22)]"
+                : "border-transparent text-[#d4d4da] hover:border-white/12 hover:bg-white/[0.07] hover:text-white"
             }`}
           >
             <span
               data-module-nav-icon={module.id}
-              className={`flex h-8 w-8 min-w-8 items-center justify-center rounded-md ${
-                isActive ? "bg-[#d11a2a]/18 text-[#ff2a3a]" : "text-[#b8b8bf]"
+              className={`flex h-8 w-8 min-w-8 items-center justify-center rounded-lg border ${
+                isActive
+                  ? "border-[#ff5362]/60 bg-[linear-gradient(160deg,#f0333a,#9b1218)] text-white shadow-[0_0_14px_rgba(255,38,56,0.5)]"
+                  : "border-white/10 bg-[linear-gradient(160deg,rgba(255,255,255,0.08),rgba(255,255,255,0.01))] text-[#d4d4da]"
               }`}
               aria-hidden="true"
             >
@@ -493,18 +541,79 @@ export function ModuleNav({
     );
   };
 
+  const normalizedQuery = query.trim().toLowerCase();
+  const searchResults = normalizedQuery
+    ? accessibleModules.filter((module) =>
+        `${module.label} ${module.description ?? ""}`.toLowerCase().includes(normalizedQuery),
+      )
+    : null;
+
   return (
     <nav aria-label="Navigasi Garage OS" className={`grid min-w-0 gap-3 ${compact ? "gap-1.5" : desktopRail ? "gap-1.5 xl:gap-3" : ""}`}>
-      {grouped.map((group) => (
-        <div key={group.title} className={`grid min-w-0 gap-1 ${compact ? "border-b border-[#34343c] pb-2 last:border-0" : desktopRail ? "border-b border-[#34343c] pb-2 xl:border-0 xl:pb-0" : ""}`}>
-          <p className={`garage-mono px-2.5 pb-0.5 text-[10px] uppercase tracking-[0.18em] text-[#7d7d87] ${compact ? "sr-only" : desktopRail ? "sr-only xl:not-sr-only" : ""}`}>
-            {group.title}
-          </p>
-          <div className="grid min-w-0 gap-1.5">
-            {group.items.map(renderModuleButton)}
-          </div>
+      {showLabels ? (
+        <label className={`gc-nav-search relative items-center ${desktopRail ? "hidden xl:flex" : "flex"}`}>
+          <Search className="pointer-events-none absolute left-3 size-4 text-[#b8b8be]" aria-hidden />
+          <input
+            ref={searchRef}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") setQuery("");
+              if (event.key === "Enter" && searchResults?.[0]) {
+                event.preventDefault();
+                const first = searchResults[0];
+                setQuery("");
+                activateModule(first.id);
+              }
+            }}
+            placeholder="Cari menu atau fitur…"
+            aria-label="Cari menu Garage OS"
+            aria-keyshortcuts="Control+K Meta+K"
+            data-testid="module-nav-search"
+            className="h-10 w-full rounded-xl border border-white/12 bg-white/[0.04] pl-9 pr-12 text-[13px] text-white placeholder:text-[#9a9aa4] focus:border-[#ff2638]/60 focus:outline-none"
+          />
+          <kbd className="pointer-events-none absolute right-2.5 rounded-md border border-white/15 px-1.5 py-0.5 font-mono text-[10px] text-[#b8b8be]">⌘K</kbd>
+        </label>
+      ) : null}
+      {searchResults ? (
+        <div className="grid min-w-0 gap-1.5" data-testid="module-nav-search-results">
+          {searchResults.length ? (
+            searchResults.map(renderModuleButton)
+          ) : (
+            <p className="px-2.5 py-2 text-[13px] text-[#b8b8be]">Tidak ada menu &ldquo;{query.trim()}&rdquo;.</p>
+          )}
         </div>
-      ))}
+      ) : (
+        grouped.map((group) => {
+          const hasActive = group.items.some((module) => module.id === activeModule);
+          const collapsed = showLabels && collapsedGroups.includes(group.title) && !hasActive;
+          const groupId = `nav-group-${group.title.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`;
+          return (
+            <div key={group.title} className={`grid min-w-0 gap-1 ${compact ? "border-b border-[#34343c] pb-2 last:border-0" : desktopRail ? "border-b border-[#34343c] pb-2 xl:border-0 xl:pb-0" : ""}`}>
+              {showLabels ? (
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(group.title)}
+                  aria-expanded={!collapsed}
+                  aria-controls={groupId}
+                  className={`group/nav-head items-center justify-between gap-2 rounded-md px-2.5 pb-0.5 text-left ${desktopRail ? "hidden xl:flex" : "flex"}`}
+                >
+                  <span className="flex items-center gap-2">
+                    <span className="size-1.5 rounded-full bg-[#ff2638] shadow-[0_0_8px_rgba(255,38,56,0.8)]" aria-hidden />
+                    <span className="garage-mono text-[10px] uppercase tracking-[0.18em] text-[#a1a1aa] group-hover/nav-head:text-white">{group.title}</span>
+                  </span>
+                  <ChevronDown className={`size-3.5 text-[#a1a1aa] transition-transform duration-200 motion-reduce:transition-none ${collapsed ? "-rotate-90" : ""}`} aria-hidden />
+                </button>
+              ) : (
+                <p className="sr-only">{group.title}</p>
+              )}
+              <div id={groupId} className={`grid min-w-0 gap-1.5 ${collapsed ? (desktopRail ? "xl:hidden" : "hidden") : ""}`}>
+                {group.items.map(renderModuleButton)}
+              </div>
+            </div>
+          );
+        })
+      )}
     </nav>
   );
 }

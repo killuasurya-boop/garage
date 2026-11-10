@@ -57,7 +57,8 @@ import {
   type CategoryLink,
 } from "@/components/garage/order/v5/layout-v5";
 import { MENU_GRID_V5, MENU_LIST_V5, MenuCardV5 } from "@/components/garage/order/v5/menu-card-v5";
-import { CHIP_LABEL, availableChips, categoryPhoto, filterByChip, heroCtaLabel, type MenuChip } from "@/components/garage/order/v5/menu-v5-model";
+import { CHIP_LABEL, availableChips, cardPrice, categoryPhoto, filterByChip, heroCtaLabel, type MenuChip } from "@/components/garage/order/v5/menu-v5-model";
+import { OrderLandingCrystal } from "@/components/garage/order/order-landing-crystal";
 import { decodeDaftar, encodeDaftar, readSavedCart, savedCartKey, writeSavedCart } from "@/components/garage/order/v5/saved-cart";
 import { QuickViewV5 } from "@/components/garage/order/v5/quick-view-v5";
 import { DaftarListV5, DaftarSheetV5, DaftarSummaryV5, ShowToWaiterSheetV5 } from "@/components/garage/order/v5/daftar-pilihan-v5";
@@ -72,7 +73,6 @@ import { MENU_TOAST_MS, MenuToastStackV5, SuccessCheckV5, pushMenuToast, type Me
 import { OrderHelpSheet } from "@/components/garage/order/order-help-sheet";
 import {
   CustomerTablePicker,
-  OrderTypeChooser,
   TableJoinCodeCard,
   releaseTableHold,
   requestTableHold,
@@ -2622,6 +2622,7 @@ export function MemberOrderPage({
                 }
           }
           info={etaLabel}
+          titleLevel={eventContext && !mainEventMenu ? 2 : 1}
           nav={[
             { key: "home", label: "Beranda", onSelect: goHome, current: menuChip === "all" && navTab !== "menu" && !activeSection },
             {
@@ -3310,10 +3311,15 @@ export function MemberOrderPage({
         </SheetContent>
       </Sheet>
       {!staffOrder && !typeChosen ? (
-        <OrderTypeChooser
+        <OrderLandingCrystal
           deliveryEnabled={billingSettings.deliveryEnabled}
           deliveryNote={billingSettings.deliveryUnavailableReason ?? null}
           onChoose={chooseOrderType}
+          featured={hero.items.map((item) => ({ id: item.id, name: item.name, imageUrl: item.imageUrl ?? null, price: cardPrice(item).price }))}
+          featuredLabel={heroLabel}
+          memberHref={member ? "/member" : `${loginHref}&mode=register`}
+          memberName={member?.name ?? null}
+          onAskAya={() => setAyaChatOpen(true)}
         />
       ) : null}
       {showTablePicker ? (

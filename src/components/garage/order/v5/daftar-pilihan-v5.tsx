@@ -37,9 +37,9 @@ export function DaftarListV5({
   if (!lines.length) {
     return (
       <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-white/15 p-6 text-center">
-        <ClipboardList className="size-7 text-[#a7a09b]" aria-hidden />
+        <ClipboardList className="size-7 text-[#b8b8be]" aria-hidden />
         <p className="text-base font-bold text-white">Daftar Pilihan masih kosong</p>
-        <p className="text-sm text-[#cfc9c4]">Ketuk + pada menu untuk menambahkannya ke sini.</p>
+        <p className="text-sm text-[#d4d4da]">Ketuk + pada menu untuk menambahkannya ke sini.</p>
       </div>
     );
   }
@@ -55,7 +55,7 @@ export function DaftarListV5({
             <div className="min-w-0 flex-1">
               <button type="button" onClick={() => onEdit(line)} className="block w-full cursor-pointer text-left">
                 <span className="gm5-title block break-words text-[15px] leading-snug text-white">{line.item.name}</span>
-                {variant ? <span className="block text-sm text-[#cfc9c4]">Varian: {variant}</span> : null}
+                {variant ? <span className="block text-sm text-[#d4d4da]">Varian: {variant}</span> : null}
                 {line.note ? <span className="block break-words text-sm text-[var(--garage-amber)]">Catatan: {line.note}</span> : null}
               </button>
               <span className="mt-1 block font-mono text-[15px] font-bold tabular-nums text-white">{rupiah.format(variantPrice(line.item, line.variant) * line.qty)}</span>
@@ -110,10 +110,10 @@ export function DaftarSummaryV5({
   return (
     <div className="flex flex-col gap-3">
       {hasItems ? (
-        <div className="rounded-2xl border border-white/10 bg-[#141214] px-4 py-3">
+        <div className="rounded-2xl border border-white/10 bg-[#111216] px-4 py-3">
           {waiterList || !billLines ? (
             <div className="flex items-center justify-between gap-3 text-base">
-              <span className="flex items-center gap-2 font-semibold text-[#ede6dc]"><ReceiptText className="size-5" aria-hidden /> Subtotal</span>
+              <span className="flex items-center gap-2 font-semibold text-[#f3e8da]"><ReceiptText className="size-5" aria-hidden /> Subtotal</span>
               <span className="font-mono font-bold tabular-nums text-white">{rupiah.format(subtotal)}</span>
             </div>
           ) : (
@@ -121,7 +121,7 @@ export function DaftarSummaryV5({
           )}
           {!waiterList ? (
             <div className="mt-2 flex items-center justify-between gap-3 border-t border-white/10 pt-2">
-              <span className="text-base font-semibold text-[#ede6dc]">Estimasi Total</span>
+              <span className="text-base font-semibold text-[#f3e8da]">Estimasi Total</span>
               <strong className="font-mono text-xl font-bold tabular-nums text-white">{rupiah.format(total)}</strong>
             </div>
           ) : null}
@@ -129,7 +129,7 @@ export function DaftarSummaryV5({
       ) : null}
 
       {waiterList ? (
-        <div className="flex items-start gap-3 rounded-2xl border border-[#b97a2c]/60 bg-[#f5a742]/10 px-4 py-3 text-sm leading-5 text-[#ede6dc]">
+        <div className="flex items-start gap-3 rounded-2xl border border-[#b97a2c]/60 bg-[#f5a742]/10 px-4 py-3 text-sm leading-5 text-[#f3e8da]">
           <Info className="mt-0.5 size-5 shrink-0 text-[var(--garage-amber)]" aria-hidden />
           <span>
             <strong className="block text-white">Ini bukan proses checkout.</strong>
@@ -173,7 +173,7 @@ export function DaftarSheetV5({
 }) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="gm5 inset-x-0 bottom-0 z-[90] mx-auto flex max-h-[90svh] w-full max-w-2xl flex-col overflow-hidden rounded-t-[20px] border border-[color:var(--gm5-line)] bg-[#0e0e0e] p-0 text-white">
+      <SheetContent side="bottom" className="gm5 inset-x-0 bottom-0 z-[90] mx-auto flex max-h-[90svh] w-full max-w-2xl flex-col overflow-hidden rounded-t-[20px] border border-[color:var(--gm5-line)] bg-[#08090b] p-0 text-white">
         <SheetHeader className="border-b border-white/10 p-4 pr-12 text-left">
           <SheetTitle className="gm5-title gm5-section-title font-menu-display text-xl font-bold text-white">
             Daftar Pilihan {count ? <span className="gm5-count gm5-pulse" key={count}>{count}</span> : null}
@@ -215,7 +215,7 @@ export function ShowToWaiterSheetV5({
   useEffect(() => {
     let alive = true;
     if (!open || !qrUrl) return;
-    QRCode.toDataURL(qrUrl, { errorCorrectionLevel: "M", margin: 1, width: 320, color: { dark: "#0e0e0e", light: "#ffffff" } })
+    QRCode.toDataURL(qrUrl, { errorCorrectionLevel: "M", margin: 1, width: 320, color: { dark: "#08090b", light: "#ffffff" } })
       .then((data) => alive && setQr(data))
       .catch(() => alive && setQr(null));
     return () => {
@@ -226,19 +226,19 @@ export function ShowToWaiterSheetV5({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="gm5 inset-x-0 bottom-0 z-[96] mx-auto flex max-h-[96svh] w-full max-w-2xl flex-col overflow-hidden rounded-t-[20px] border border-[color:var(--gm5-line)] bg-[#0e0e0e] p-0 text-white">
+      <SheetContent side="bottom" className="gm5 inset-x-0 bottom-0 z-[96] mx-auto flex max-h-[96svh] w-full max-w-2xl flex-col overflow-hidden rounded-t-[20px] border border-[color:var(--gm5-line)] bg-[#08090b] p-0 text-white">
         <SheetHeader className="border-b border-white/10 p-4 pr-12 text-left">
           <SheetTitle className="gm5-display font-menu-display text-2xl font-extrabold italic text-white">{dineIn ? "Tunjukkan ke Waiter" : "Tunjukkan ke Kasir"}</SheetTitle>
-          <SheetDescription className="text-sm text-[#cfc9c4]">
+          <SheetDescription className="text-sm text-[#d4d4da]">
             {dineIn && qrUrl ? "Waiter memindai kode ini untuk mencatat pesananmu." : "Tunjukkan layar ini kepada staf Garage."}
           </SheetDescription>
         </SheetHeader>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
           <div className="flex flex-col items-center gap-3 sm:flex-row sm:items-start sm:gap-5">
-            <div className="flex min-w-[9rem] flex-col items-center rounded-2xl border border-[color:var(--gm5-line)] bg-[#141214] px-5 py-3 text-center">
-              <span className="text-sm font-semibold text-[#cfc9c4]">{dineIn ? "Meja" : "Pesanan"}</span>
+            <div className="flex min-w-[9rem] flex-col items-center rounded-2xl border border-[color:var(--gm5-line)] bg-[#111216] px-5 py-3 text-center">
+              <span className="text-sm font-semibold text-[#d4d4da]">{dineIn ? "Meja" : "Pesanan"}</span>
               <span className="gm5-display text-4xl text-white">{tableLabel.replace(/^Meja\s*/i, "")}</span>
-              <span className="mt-1 text-sm text-[#cfc9c4]">{count} item</span>
+              <span className="mt-1 text-sm text-[#d4d4da]">{count} item</span>
             </div>
             {qrUrl ? (
               <div className="flex flex-col items-center gap-2" data-waiter-url={qrUrl}>
@@ -246,30 +246,30 @@ export function ShowToWaiterSheetV5({
                   // eslint-disable-next-line @next/next/no-img-element -- QR data URL lokal
                   <img src={qr} alt="QR Daftar Pilihan untuk waiter" width={220} height={220} className="size-[220px] rounded-xl bg-white p-2" />
                 ) : (
-                  <span className="flex size-[220px] items-center justify-center rounded-xl bg-white/10 text-sm text-[#cfc9c4]">Menyiapkan QR…</span>
+                  <span className="flex size-[220px] items-center justify-center rounded-xl bg-white/10 text-sm text-[#d4d4da]">Menyiapkan QR…</span>
                 )}
               </div>
             ) : null}
           </div>
 
-          <ul className="mt-4 divide-y divide-white/10 rounded-2xl border border-white/10 bg-[#141214] px-4">
+          <ul className="mt-4 divide-y divide-white/10 rounded-2xl border border-white/10 bg-[#111216] px-4">
             {lines.map((line) => (
               <li key={line.key} className="flex items-start justify-between gap-3 py-3">
                 <span className="min-w-0">
                   <span className="block break-words text-lg font-bold text-white">
                     <span className="font-mono tabular-nums text-[var(--menu-red-bright)]">{line.qty}×</span> {line.item.name}
                   </span>
-                  {variantText(line) ? <span className="block text-base text-[#ede6dc]">{variantText(line)}</span> : null}
+                  {variantText(line) ? <span className="block text-base text-[#f3e8da]">{variantText(line)}</span> : null}
                   {line.note ? <span className="block break-words text-base text-[var(--garage-amber)]">Catatan: {line.note}</span> : null}
                 </span>
               </li>
             ))}
           </ul>
           <p className="mt-3 flex items-center justify-between px-1 text-base">
-            <span className="text-[#cfc9c4]">Perkiraan harga menu</span>
+            <span className="text-[#d4d4da]">Perkiraan harga menu</span>
             <span className="font-mono font-bold tabular-nums text-white">{rupiah.format(subtotal)}</span>
           </p>
-          {callMessage ? <p className="mt-3 rounded-xl border border-white/10 bg-[#141214] px-4 py-3 text-sm text-[#ede6dc]" role="status">{callMessage}</p> : null}
+          {callMessage ? <p className="mt-3 rounded-xl border border-white/10 bg-[#111216] px-4 py-3 text-sm text-[#f3e8da]" role="status">{callMessage}</p> : null}
         </div>
         <div className="flex gap-2 border-t border-white/10 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <button type="button" onClick={() => onOpenChange(false)} className="gm5-btn-ghost min-h-12 shrink-0 px-4 text-sm">

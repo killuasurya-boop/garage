@@ -9,6 +9,7 @@ export const metadata: Metadata = {
   title: "Login Member - Garage Coffee",
   description:
     "Pintu masuk member Garage Coffee untuk rewards, promo, dan riwayat kunjungan.",
+  alternates: { canonical: "/member-login" },
 };
 
 type SearchParams = Record<string, string | string[] | undefined>;

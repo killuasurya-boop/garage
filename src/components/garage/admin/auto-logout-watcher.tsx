@@ -17,6 +17,7 @@ const PUBLIC_PATH_PREFIXES = [
   "/order",
   "/display",
   "/grand-opening",
+  "/events",
   "/undangan",
   "/wifi",
   "/recruitment",

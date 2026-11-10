@@ -1,0 +1,323 @@
+/* =============================================================================
+   Garage Crystal V5 — Black Crystal Glass × Red Laser (Owner, Nov 2026).
+   Token --gc-* (sumber angka: src/lib/crystal-tokens.ts, dijaga crystal-tokens.test.ts).
+   Kelas gc-* dipakai /order, pilih meja, menu, member, dan sidebar internal.
+   Gerak: transform/opacity saja; semua animasi berhenti saat prefers-reduced-motion.
+   ============================================================================= */
+
+:root {
+  --gc-bg: #08090b;
+  --gc-bg-2: #111216;
+  --gc-surface: #1b1d21;
+  --gc-surface-2: #24272d;
+  --gc-text: #ffffff;
+  --gc-cream: #f3e8da;
+  --gc-text-2: #b8b8be;
+  --gc-red: #e1252b;
+  --gc-laser: #ff2638;
+  --gc-laser-bright: #ff5362;
+  --gc-emerald: #23c96b;
+  --gc-blue: #3984ff;
+  --gc-blue-text: #7fb0ff;
+  --gc-amber: #ffbd42;
+
+  --gc-edge: rgb(255 255 255 / 0.1);
+  --gc-edge-strong: rgb(255 255 255 / 0.18);
+  --gc-edge-laser: rgb(255 38 56 / 0.55);
+  --gc-radius-lg: 22px;
+  --gc-radius: 16px;
+  --gc-radius-sm: 12px;
+  --gc-radius-pill: 999px;
+  --gc-shadow: 0 18px 40px rgb(0 0 0 / 0.55), 0 2px 0 rgb(255 255 255 / 0.04) inset;
+  --gc-shadow-laser: 0 0 0 1px var(--gc-edge-laser), 0 0 26px rgb(255 38 56 / 0.28), 0 18px 40px rgb(0 0 0 / 0.55);
+  --gc-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --gc-font-display: var(--font-montserrat, "Montserrat"), var(--font-space-grotesk, system-ui), sans-serif;
+  --gc-font-body: var(--font-inter, "Inter"), system-ui, sans-serif;
+}
+
+@layer components {
+  .gc-root {
+    color: var(--gc-text);
+    background:
+      radial-gradient(120% 60% at 85% -10%, rgb(255 38 56 / 0.14), transparent 60%),
+      radial-gradient(90% 50% at -10% 110%, rgb(225 37 43 / 0.1), transparent 60%),
+      var(--gc-bg);
+    font-family: var(--gc-font-body);
+  }
+
+  .gc-eyebrow {
+    font-family: var(--gc-font-body);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--gc-cream);
+  }
+  .gc-display {
+    font-family: var(--gc-font-display);
+    font-weight: 800;
+    font-style: italic;
+    letter-spacing: -0.01em;
+    line-height: 0.98;
+    text-transform: uppercase;
+  }
+  .gc-accent { color: var(--gc-laser-bright); }
+  .gc-muted { color: var(--gc-text-2); }
+
+  /* ── Glass (8 varian) ─────────────────────────────────────────────── */
+  .gc-glass {
+    position: relative;
+    isolation: isolate;
+    border-radius: var(--gc-radius);
+    border: 1px solid var(--gc-edge);
+    background:
+      linear-gradient(160deg, rgb(255 255 255 / 0.07), rgb(255 255 255 / 0.015) 38%, rgb(0 0 0 / 0.18)),
+      var(--gc-surface);
+    box-shadow: var(--gc-shadow);
+    transition: transform var(--gc-dur-hover, 160ms) var(--gc-ease), box-shadow 200ms var(--gc-ease), border-color 200ms var(--gc-ease);
+  }
+  /* Kilau atas (reflection) — tipis, tidak blur berat. */
+  .gc-glass::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background: linear-gradient(180deg, rgb(255 255 255 / 0.09), transparent 32%);
+    pointer-events: none;
+  }
+  .gc-glass[data-variant="elevated"] { background-color: var(--gc-surface-2); }
+  .gc-glass[data-variant="active"],
+  .gc-glass[data-selected="true"] {
+    border-color: var(--gc-edge-laser);
+    box-shadow: var(--gc-shadow-laser);
+    background:
+      linear-gradient(160deg, rgb(255 38 56 / 0.22), rgb(255 38 56 / 0.04) 45%, rgb(0 0 0 / 0.25)),
+      var(--gc-surface);
+  }
+  .gc-glass[data-variant="disabled"],
+  .gc-glass[aria-disabled="true"] { opacity: 0.55; filter: grayscale(0.6); box-shadow: none; }
+  .gc-glass[data-variant="error"] { border-color: rgb(255 83 98 / 0.7); }
+  .gc-glass[data-variant="loading"] { overflow: hidden; }
+  .gc-glass[data-variant="loading"]::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(100deg, transparent 20%, rgb(255 255 255 / 0.07) 50%, transparent 80%);
+    background-size: 200% 100%;
+    animation: gc-sweep 1.4s linear infinite;
+  }
+  @media (hover: hover) {
+    .gc-glass[data-interactive="true"]:hover:not([aria-disabled="true"]) {
+      transform: translateY(-2px);
+      border-color: var(--gc-edge-strong);
+    }
+  }
+  .gc-glass[data-interactive="true"]:active:not([aria-disabled="true"]) { transform: scale(0.985); transition-duration: 90ms; }
+  .gc-glass[data-interactive="true"]:focus-visible { outline: 2px solid var(--gc-amber); outline-offset: 3px; }
+
+  /* ── Tombol ───────────────────────────────────────────────────────── */
+  .gc-btn {
+    position: relative;
+    display: inline-flex;
+    min-height: 48px;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 0 22px;
+    border-radius: var(--gc-radius-pill);
+    font-weight: 700;
+    font-size: 15px;
+    line-height: 1.15;
+    text-align: center;
+    color: var(--gc-text);
+    border: 1px solid var(--gc-edge-strong);
+    background: rgb(255 255 255 / 0.04);
+    transition: transform 90ms var(--gc-ease), box-shadow 200ms var(--gc-ease), background-color 200ms, border-color 200ms;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .gc-btn:focus-visible { outline: 2px solid var(--gc-amber); outline-offset: 3px; }
+  .gc-btn:active:not(:disabled) { transform: scale(0.97); }
+  .gc-btn:disabled, .gc-btn[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
+  .gc-btn-primary {
+    border-color: rgb(255 83 98 / 0.75);
+    background: linear-gradient(180deg, #f0333a, var(--gc-red) 55%, #b9161d);
+    box-shadow: 0 10px 28px rgb(225 37 43 / 0.42), inset 0 1px 0 rgb(255 255 255 / 0.28);
+  }
+  .gc-btn-ghost { border-color: transparent; background: transparent; color: var(--gc-text-2); }
+  .gc-btn-google { background: #ffffff; color: #1f1f1f; border-color: #dadce0; }
+  .gc-btn-icon { min-height: 44px; min-width: 44px; padding: 0; }
+  @media (hover: hover) {
+    .gc-btn-primary:hover:not(:disabled) { box-shadow: 0 14px 34px rgb(225 37 43 / 0.55), inset 0 1px 0 rgb(255 255 255 / 0.32); }
+    .gc-btn-secondary:hover:not(:disabled), .gc-btn:not(.gc-btn-primary):not(.gc-btn-google):hover:not(:disabled) { border-color: var(--gc-edge-laser); }
+  }
+  .gc-spinner {
+    width: 16px;
+    height: 16px;
+    border-radius: 999px;
+    border: 2px solid rgb(255 255 255 / 0.35);
+    border-top-color: #fff;
+    animation: gc-spin 0.8s linear infinite;
+  }
+
+  /* ── Chip, badge, titik status ────────────────────────────────────── */
+  .gc-chip {
+    display: inline-flex;
+    min-height: 38px;
+    align-items: center;
+    gap: 8px;
+    padding: 0 14px;
+    border-radius: var(--gc-radius-pill);
+    border: 1px solid var(--gc-edge);
+    background: rgb(255 255 255 / 0.04);
+    color: var(--gc-text-2);
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: border-color 160ms, color 160ms, background-color 160ms;
+  }
+  .gc-chip[aria-pressed="true"], .gc-chip[aria-selected="true"], .gc-chip[data-active="true"] {
+    border-color: var(--gc-edge-laser);
+    color: var(--gc-text);
+    background: rgb(255 38 56 / 0.16);
+  }
+  .gc-chip:focus-visible { outline: 2px solid var(--gc-amber); outline-offset: 2px; }
+  .gc-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    border-radius: var(--gc-radius-pill);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    border: 1px solid rgb(255 83 98 / 0.55);
+    background: rgb(225 37 43 / 0.22);
+    color: #fff;
+    white-space: nowrap;
+  }
+  .gc-badge[data-tone="gold"] { border-color: rgb(255 189 66 / 0.6); background: rgb(255 189 66 / 0.16); color: var(--gc-amber); }
+  .gc-badge[data-tone="neutral"] { border-color: var(--gc-edge-strong); background: rgb(255 255 255 / 0.06); color: var(--gc-text-2); }
+  .gc-dot { display: inline-block; width: 9px; height: 9px; flex: none; border-radius: 999px; background: currentColor; box-shadow: 0 0 10px currentColor; }
+
+  /* ── Sheet bawah & toast ──────────────────────────────────────────── */
+  .gc-sheet-backdrop { position: fixed; inset: 0; z-index: 80; background: rgb(0 0 0 / 0.62); animation: gc-fade 200ms var(--gc-ease); }
+  .gc-sheet {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 81;
+    max-height: min(86dvh, 720px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    margin: 0 auto;
+    width: min(100%, 560px);
+    padding: 10px 18px calc(18px + env(safe-area-inset-bottom));
+    border-radius: 26px 26px 0 0;
+    border: 1px solid var(--gc-edge-strong);
+    border-bottom: 0;
+    background: linear-gradient(180deg, #1f2126, var(--gc-bg-2));
+    box-shadow: 0 -20px 60px rgb(0 0 0 / 0.6), 0 -1px 0 rgb(255 38 56 / 0.35);
+    animation: gc-sheet-in 320ms var(--gc-ease);
+  }
+  .gc-sheet-handle { width: 44px; height: 5px; margin: 0 auto 12px; border-radius: 99px; background: rgb(255 255 255 / 0.25); }
+  .gc-toast {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    border-radius: var(--gc-radius);
+    border: 1px solid var(--gc-edge-strong);
+    background: rgb(17 18 22 / 0.96);
+    box-shadow: var(--gc-shadow);
+    animation: gc-rise 260ms var(--gc-ease);
+  }
+
+  .gc-skeleton {
+    border-radius: var(--gc-radius-sm);
+    background: linear-gradient(100deg, #1b1d21 20%, #2a2d33 50%, #1b1d21 80%);
+    background-size: 200% 100%;
+    animation: gc-sweep 1.4s linear infinite;
+  }
+
+  .gc-reveal { animation: gc-rise var(--gc-dur-reveal, 420ms) var(--gc-ease) both; }
+
+  /* ── Laser border (SVG) ───────────────────────────────────────────── */
+  .gc-laser { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; z-index: 2; }
+  .gc-laser rect { fill: none; vector-effect: non-scaling-stroke; }
+  .gc-laser-track { stroke: rgb(255 38 56 / 0.32); stroke-width: 1.2; }
+  .gc-laser-glow { stroke: var(--gc-laser); stroke-width: 5px; stroke-linecap: round; stroke-dasharray: 22 78; opacity: 0.6; filter: blur(4px); }
+  .gc-laser-core { stroke: #ff8a93; stroke-width: 2; stroke-linecap: round; stroke-dasharray: 18 82; filter: drop-shadow(0 0 4px var(--gc-laser)); }
+
+  /* ── Dashboard member (/member): material crystal di atas komponen lama, tanpa ubah logika ── */
+  .gc-member.garage-shell {
+    background:
+      radial-gradient(70% 40% at 88% -6%, rgb(255 38 56 / 0.16), transparent 70%),
+      radial-gradient(60% 36% at -8% 110%, rgb(225 37 43 / 0.1), transparent 65%),
+      var(--gc-bg);
+    font-family: var(--gc-font-body);
+  }
+  .gc-member .garage-panel {
+    border: 1px solid var(--gc-edge) !important;
+    border-radius: var(--gc-radius-lg) !important;
+    background:
+      linear-gradient(160deg, rgb(255 255 255 / 0.07), rgb(255 255 255 / 0.015) 38%, rgb(0 0 0 / 0.18)),
+      var(--gc-surface) !important;
+    box-shadow: var(--gc-shadow) !important;
+  }
+  .gc-member .garage-surface {
+    border: 1px solid var(--gc-edge) !important;
+    border-radius: var(--gc-radius) !important;
+    background: var(--gc-surface-2) !important;
+  }
+  .gc-member .garage-display {
+    font-family: var(--gc-font-display) !important;
+    font-style: italic;
+    font-weight: 800;
+    text-transform: none;
+  }
+  .gc-member .garage-mono { color: var(--gc-cream); letter-spacing: 0.22em; }
+
+  /* ── Sidebar Garage OS: indikator aktif laser (di atas tema OS pilihan Owner) ── */
+  .gc-nav-item[data-active="true"]::before {
+    content: "";
+    position: absolute;
+    left: -1px;
+    top: 18%;
+    bottom: 18%;
+    width: 3px;
+    border-radius: 99px;
+    background: linear-gradient(180deg, #ff8a93, var(--gc-laser) 50%, #ff8a93);
+    box-shadow: 0 0 10px var(--gc-laser), 0 0 18px rgb(255 38 56 / 0.55);
+  }
+
+  /* ── Scrollbar halus ──────────────────────────────────────────────── */
+  .gc-scroll { scrollbar-width: thin; scrollbar-color: rgb(255 255 255 / 0.18) transparent; }
+  .gc-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+  .gc-scroll::-webkit-scrollbar-thumb { border-radius: 99px; background: rgb(255 255 255 / 0.16); }
+  .gc-scroll:hover::-webkit-scrollbar-thumb { background: rgb(255 38 56 / 0.6); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .gc-laser-glow, .gc-laser-core { animation: gc-run var(--gc-laser-dur, 5.2s) linear infinite; }
+  .gc-laser[data-paused="true"] rect { animation-play-state: paused; }
+  .gc-pulse { animation: gc-pulse 2.4s ease-in-out infinite; }
+  .gc-float { animation: gc-float 6s ease-in-out infinite; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gc-glass, .gc-btn, .gc-chip { transition: none !important; }
+  .gc-glass[data-interactive="true"]:hover, .gc-glass[data-interactive="true"]:active, .gc-btn:active { transform: none !important; }
+  .gc-sheet, .gc-toast, .gc-reveal, .gc-sheet-backdrop { animation: gc-fade 120ms linear !important; }
+  .gc-skeleton, .gc-glass[data-variant="loading"]::after { animation: none !important; }
+  .gc-laser-glow, .gc-laser-core { stroke-dasharray: none; opacity: 0.5; }
+}
+
+@keyframes gc-run { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -100; } }
+@keyframes gc-sweep { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@keyframes gc-spin { to { transform: rotate(360deg); } }
+@keyframes gc-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes gc-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes gc-sheet-in { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes gc-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgb(255 38 56 / 0.45); } 50% { box-shadow: 0 0 0 8px rgb(255 38 56 / 0); } }
+@keyframes gc-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }

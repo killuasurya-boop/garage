@@ -1286,8 +1286,29 @@
     {
       "idx": 183,
       "version": "7",
-      "when": 1794018443472,
-      "tag": "0183_member_whatsapp_otp",
+      "when": 1794237092517,
+      "tag": "0183_dining_table_floor",
+      "breakpoints": true
+    },
+    {
+      "idx": 184,
+      "version": "7",
+      "when": 1794237677006,
+      "tag": "0184_member_google_consent",
+      "breakpoints": true
+    },
+    {
+      "idx": 185,
+      "version": "7",
+      "when": 1794290773907,
+      "tag": "0185_member_pin_set_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 186,
+      "version": "7",
+      "when": 1794293414412,
+      "tag": "0186_old_talon",
       "breakpoints": true
     }
   ]

@@ -64,7 +64,7 @@ export function HeroV5({
             Bikin Nagih.
           </h2>
           <span className="gm5-swash w-24 sm:w-40" aria-hidden />
-          <p className="max-w-[26ch] text-sm leading-5 text-[#ede6dc] sm:text-base sm:leading-6">Tempat nongkrong santai, kopi dan cemilan khas Garage.</p>
+          <p className="max-w-[26ch] text-sm leading-5 text-[#f3e8da] sm:text-base sm:leading-6">Tempat nongkrong santai, kopi dan cemilan khas Garage.</p>
           {eta ? (
             <p className="inline-flex w-fit items-center gap-1.5 rounded-full border border-[#f5a742]/40 bg-[#f5a742]/10 px-2.5 py-1 text-xs font-semibold text-[#ffd79e] sm:text-sm 2xl:hidden">
               <Clock className="size-3.5 shrink-0" aria-hidden /> {eta}
@@ -94,7 +94,7 @@ export function HeroV5({
             </button>
           ) : null}
           {items.length > 1 ? (
-            <div className="absolute inset-x-0 bottom-1.5 z-20 flex justify-center gap-1" role="group" aria-label="Ganti foto menu">
+            <div className="absolute inset-x-0 bottom-0 z-20 flex justify-center" role="group" aria-label="Ganti foto menu">
               {items.map((item, index) => (
                 <button
                   key={item.id}
@@ -102,7 +102,7 @@ export function HeroV5({
                   onClick={() => setActive(index)}
                   aria-label={`Foto ${index + 1}: ${item.name}`}
                   aria-pressed={index === active}
-                  className="flex h-6 w-6 cursor-pointer items-center justify-center"
+                  className="flex h-11 w-8 cursor-pointer items-end justify-center pb-2"
                 >
                   <span className={`block h-2 rounded-full transition-all ${index === active ? "w-5 bg-[var(--menu-red)]" : "w-2 bg-white/70"}`} />
                 </button>
@@ -113,9 +113,9 @@ export function HeroV5({
 
         <ul className="hidden min-w-[210px] flex-col justify-center gap-4 border-l border-white/10 px-6 py-5 2xl:flex" aria-label="Keunggulan Garage Coffee">
           {[...POINTS, ...(eta ? [{ icon: Clock, label: eta }] : [])].map(({ icon: Icon, label }) => (
-            <li key={label} className="flex items-center gap-3 text-sm font-semibold text-[#ede6dc]">
+            <li key={label} className="flex items-center gap-3 text-sm font-semibold text-[#f3e8da]">
               <span className="flex size-10 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/5">
-                <Icon className="size-5 text-[#ede6dc]" aria-hidden />
+                <Icon className="size-5 text-[#f3e8da]" aria-hidden />
               </span>
               <span className="max-w-[9rem] leading-snug">{label}</span>
             </li>

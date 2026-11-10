@@ -43,6 +43,11 @@ const env = {
   NEXT_TELEMETRY_DISABLED: "1",
   // Matikan MCP dev Next (log browser ke file .next/dev/logs memicu rebuild) — lihat next.config.ts.
   GARAGE_E2E_SERVER: "1",
+  // Login Google member diuji penuh terhadap "Google palsu" lokal (e2e/fake-google.ts, dijalankan oleh spec).
+  // googleEndpoints() mengabaikan override ini di produksi.
+  MEMBER_GOOGLE_CLIENT_ID: "e2e-client.apps.googleusercontent.com",
+  MEMBER_GOOGLE_CLIENT_SECRET: "e2e-secret",
+  MEMBER_GOOGLE_TEST_ENDPOINT: "http://127.0.0.1:3199",
 };
 
 const npx = process.platform === "win32" ? "npx.cmd" : "npx";

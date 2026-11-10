@@ -18,6 +18,7 @@ const registerSchema = z.object({
   password: z.string().min(6, "Password/PIN minimal 6 karakter."),
   birthday: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Tanggal lahir harus YYYY-MM-DD.").optional().or(z.literal("")),
   referralCode: z.string().trim().max(24).optional().or(z.literal("")),
+  acceptTerms: z.boolean().optional(),
   // CX Engine V4: izin promosi WhatsApp terpisah (default tidak dicentang di UI) +
   // asal pendaftaran. Opsional agar klien lama tetap jalan.
   marketingConsent: z.boolean().optional(),

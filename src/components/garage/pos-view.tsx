@@ -895,6 +895,8 @@ export function PosView({
   const [memberClaimCode, setMemberClaimCode] = useState<
     { customerId: string; code: string; expiresAt: string; maskedPhone: string } | null
   >(null);
+  // Pelanggan CRM tanpa akun online dari lookup terakhir (bukan member terpilih: tanpa hak poin/potongan).
+  const [memberClaimCandidate, setMemberClaimCandidate] = useState<{ customerId: string; name: string } | null>(null);
   const [memberClaimLoading, setMemberClaimLoading] = useState(false);
   const [memberClaimError, setMemberClaimError] = useState<string | null>(null);
   const [posVoucherCode, setPosVoucherCode] = useState("");
@@ -1491,12 +1493,20 @@ export function PosView({
       if (result.accountStatus !== "active") {
         setSelectedMember(null);
         setMemberCreatePhone(phone);
+        setMemberClaimCandidate(
+          result.accountStatus === "crm-only" ? { customerId: result.customerId, name: result.member.name } : null,
+        );
         if (!options.silent) {
-          setMemberError("Nomor ini ada di CRM, tapi belum menjadi member aktif.");
+          setMemberError(
+            result.accountStatus === "crm-only"
+              ? "Nomor ini ada di CRM, tapi belum punya akun member online. Buat kode klaim di bawah supaya pelanggan bisa daftar sendiri."
+              : "Nomor ini ada di CRM, tapi belum menjadi member aktif.",
+          );
         }
         return;
       }
 
+      setMemberClaimCandidate(null);
       setSelectedMember(result);
       setMemberPhone(result.member.phone);
       setPosCustomerMode("member");
@@ -1505,6 +1515,7 @@ export function PosView({
       }
     } catch (error) {
       setSelectedMember(null);
+      setMemberClaimCandidate(null);
       setMemberCreatePhone(phone);
       if (!options.silent) {
         setMemberError(error instanceof Error ? error.message : "Member tidak ditemukan.");
@@ -1553,8 +1564,8 @@ export function PosView({
   }
 
   async function requestMemberClaimCode() {
-    if (!selectedMember) return;
-    const customerId = selectedMember.customerId;
+    if (!memberClaimCandidate) return;
+    const customerId = memberClaimCandidate.customerId;
     setMemberClaimLoading(true);
     setMemberClaimError(null);
     try {
@@ -9004,8 +9015,9 @@ export function PosView({
                               setMemberClaimCode(null);
                               setMemberClaimError(null);
                             }}
+                            claimCandidate={memberClaimCandidate}
                             claimCode={
-                              memberClaimCode && memberClaimCode.customerId === selectedMember?.customerId
+                              memberClaimCode && memberClaimCode.customerId === memberClaimCandidate?.customerId
                                 ? memberClaimCode
                                 : null
                             }

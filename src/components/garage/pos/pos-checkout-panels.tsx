@@ -12,7 +12,7 @@ Printer,
 QrCode,
 RefreshCw,
 Search,
-ShieldCheck,
+KeyRound, ShieldCheck,
 WalletCards
 } from "lucide-react";
 import Image from "next/image";
@@ -517,6 +517,7 @@ export function CheckoutCustomerStep({
   onLookupMember,
   onSelectMember,
   onClearMember,
+  claimCandidate,
   claimCode,
   claimCodeLoading,
   claimCodeError,
@@ -546,7 +547,11 @@ export function CheckoutCustomerStep({
   onLookupMember: () => void;
   onSelectMember: (customer: Customer) => void;
   onClearMember: () => void;
-  /** Kode klaim member online dari kasir (owner Nov 2026). */
+  /**
+   * Kode klaim member online dari kasir (owner Nov 2026). Pelanggan CRM tanpa akun online TIDAK dipilih
+   * sebagai member (tanpa hak poin/potongan); ia hanya jadi kandidat untuk dibuatkan kode klaim.
+   */
+  claimCandidate: { customerId: string; name: string } | null;
   claimCode: { code: string; expiresAt: string; maskedPhone: string } | null;
   claimCodeLoading: boolean;
   claimCodeError: string | null;
@@ -689,14 +694,6 @@ export function CheckoutCustomerStep({
                 verified={memberQrVerified}
                 onScan={onScanMemberQr}
               />
-              {selectedMember.accountStatus === "crm-only" ? (
-                <PosMemberClaimCode
-                  claimCode={claimCode}
-                  loading={claimCodeLoading}
-                  error={claimCodeError}
-                  onRequest={onRequestClaimCode}
-                />
-              ) : null}
               {memberCreatedPin ? (
                 <Alert className="mt-3 border-[#22c55e]/45 bg-[#22c55e]/12 text-[#f4f4f5]">
                   <ShieldCheck className="size-4" />
@@ -780,6 +777,15 @@ export function CheckoutCustomerStep({
               <AlertTitle>Member</AlertTitle>
               <AlertDescription>{memberError}</AlertDescription>
             </Alert>
+          ) : null}
+          {!selectedMember && claimCandidate ? (
+            <PosMemberClaimCode
+              customerName={claimCandidate.name}
+              claimCode={claimCode}
+              loading={claimCodeLoading}
+              error={claimCodeError}
+              onRequest={onRequestClaimCode}
+            />
           ) : null}
         </div>
       )}
@@ -1363,11 +1369,13 @@ function PosPointsRedeemBox({
  * Poin & riwayat POS tersambung tanpa OTP WhatsApp. Kode hanya tampil di layar ini.
  */
 function PosMemberClaimCode({
+  customerName,
   claimCode,
   loading,
   error,
   onRequest,
 }: {
+  customerName: string;
   claimCode: { code: string; expiresAt: string; maskedPhone: string } | null;
   loading: boolean;
   error: string | null;
@@ -1377,40 +1385,45 @@ function PosMemberClaimCode({
     ? new Date(claimCode.expiresAt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
     : null;
   return (
-    <div className="mt-3 rounded-md border border-[#f5a742]/40 bg-[#f5a742]/[0.07] p-3" data-testid="pos-member-claim-code">
-      <p className="text-xs font-semibold text-[#ffe2b8]">Belum punya akun member online</p>
-      {claimCode ? (
-        <div className="mt-2 space-y-2">
-          <p
-            className="garage-mono text-center text-3xl font-bold tracking-[0.3em] text-white"
-            aria-label={`Kode klaim ${claimCode.code.split("").join(" ")}`}
-          >
-            {claimCode.code.slice(0, 3)} {claimCode.code.slice(3)}
+    <Alert className="mt-3 border-[#f5a742]/45 bg-[#f5a742]/12 text-[#f4f4f5]" data-testid="pos-member-claim-code">
+      <KeyRound className="size-4" />
+      <AlertTitle>{customerName} belum punya akun member online</AlertTitle>
+      <AlertDescription>
+        {claimCode ? (
+          <div className="mt-1 grid w-full gap-2">
+            <p
+              className="garage-mono text-center text-3xl font-bold tracking-[0.3em]"
+              aria-label={`Kode klaim ${claimCode.code.split("").join(" ")}`}
+            >
+              {claimCode.code.slice(0, 3)} {claimCode.code.slice(3)}
+            </p>
+            <p className="text-center text-sm">
+              Berlaku s/d <span className="garage-mono font-bold">{expiresLabel}</span> · nomor {claimCode.maskedPhone}
+            </p>
+            <p className="text-sm leading-5">
+              Pelanggan buka <b>garagecoffee.id/member-login</b> → Daftar → pilih <b>&quot;Punya kode dari kasir?&quot;</b> →
+              masukkan kode ini. Poin &amp; riwayatnya ikut tersambung.
+            </p>
+          </div>
+        ) : (
+          <p className="text-sm leading-5">Pelanggan mau daftar member online? Buat kode klaim lalu tunjukkan ke pelanggan.</p>
+        )}
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="garage-press mt-2 h-10 w-full font-semibold"
+          disabled={loading}
+          onClick={onRequest}
+        >
+          {loading ? "Membuat kode…" : claimCode ? "Buat kode baru" : "Buat kode klaim member online"}
+        </Button>
+        {error ? (
+          <p className="mt-2 text-sm font-semibold" role="alert">
+            {error}
           </p>
-          <p className="text-center text-xs text-[#e4e4e8]">
-            Berlaku s/d <span className="garage-mono font-semibold text-[#ffd08a]">{expiresLabel}</span> · nomor {claimCode.maskedPhone}
-          </p>
-          <p className="text-xs leading-5 text-[#d4d4d8]">
-            Pelanggan buka <span className="font-semibold text-white">garagecoffee.id/member-login</span> → Daftar → pilih
-            {" "}<span className="font-semibold text-white">&quot;Punya kode dari kasir?&quot;</span> → masukkan kode ini. Poin &amp; riwayatnya ikut tersambung.
-          </p>
-        </div>
-      ) : (
-        <p className="mt-1 text-xs leading-5 text-[#d4d4d8]">
-          Pelanggan mau daftar member online? Buat kode klaim di sini lalu tunjukkan ke pelanggan.
-        </p>
-      )}
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        className="garage-press mt-2 h-10 w-full border-[#f5a742]/55 text-[#ffd08a]"
-        disabled={loading}
-        onClick={onRequest}
-      >
-        {loading ? "Membuat kode…" : claimCode ? "Buat kode baru" : "Buat kode klaim member online"}
-      </Button>
-      {error ? <p className="mt-2 text-xs text-[#ff9aa2]" role="alert">{error}</p> : null}
-    </div>
+        ) : null}
+      </AlertDescription>
+    </Alert>
   );
 }

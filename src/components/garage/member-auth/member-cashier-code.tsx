@@ -17,11 +17,14 @@ export function MemberCashierCode({
   phone,
   alreadyVerified = false,
   onVerified,
+  onExpired,
 }: {
   phone: string;
   /** Nomor sudah terverifikasi lewat cara lain (OTP WhatsApp) → komponen disembunyikan. */
   alreadyVerified?: boolean;
   onVerified: (result: { token: string; digits: string }) => void;
+  /** Token verifikasi kedaluwarsa → induk wajib menghapus token supaya kontrol verifikasi muncul lagi. */
+  onExpired?: () => void;
 }) {
   const digits = phone.replace(/\D/g, "");
   const [open, setOpen] = useState(false);
@@ -38,6 +41,7 @@ export function MemberCashierCode({
     const expire = () => {
       setVerified(null);
       setCode("");
+      onExpired?.();
       setMessage({ status: { tone: "info", message: "Kode klaim kedaluwarsa. Minta kode baru di kasir." }, digits: verified.digits });
     };
     const remaining = verified.expiresAt - Date.now();
@@ -47,6 +51,8 @@ export function MemberCashierCode({
     }
     const id = window.setTimeout(expire, remaining);
     return () => window.clearTimeout(id);
+    // onExpired sengaja tidak jadi dependensi: induk biasanya memberi fungsi baru tiap render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [verified]);
 
   if (isVerified) {

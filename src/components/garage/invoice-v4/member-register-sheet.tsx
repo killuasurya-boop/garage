@@ -134,8 +134,8 @@ export function MemberRegisterSheet({
               error={errors.phone}
               hint="Dipakai untuk masuk member & pesan transaksi."
             />
-            {otpEnabled ? <MemberPhoneOtp phone={phone} alreadyVerified={Boolean(otpToken)} onVerified={setOtpResult} /> : null}
-            <MemberCashierCode phone={phone} alreadyVerified={Boolean(otpToken)} onVerified={setOtpResult} />
+            {otpEnabled ? <MemberPhoneOtp phone={phone} alreadyVerified={Boolean(otpToken)} onVerified={setOtpResult} onExpired={() => setOtpResult(null)} /> : null}
+            <MemberCashierCode phone={phone} alreadyVerified={Boolean(otpToken)} onVerified={setOtpResult} onExpired={() => setOtpResult(null)} />
             {errors.otp ? <p className="-mt-2 text-[13px] text-[#ffb3b5]">{errors.otp}</p> : null}
             <MemberField
               label="Buat PIN *"

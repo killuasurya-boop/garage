@@ -44,12 +44,15 @@ export function MemberPhoneOtp({
   phone,
   alreadyVerified = false,
   onVerified,
+  onExpired,
 }: {
   phone: string;
   /** Nomor sudah terverifikasi lewat kode kasir → tombol kirim OTP disembunyikan. */
   alreadyVerified?: boolean;
   /** Token verifikasi untuk /api/member/auth/register + nomor (digit) yang diverifikasi. */
   onVerified: (result: { token: string; digits: string }) => void;
+  /** Token verifikasi kedaluwarsa → induk wajib menghapus token supaya kontrol verifikasi muncul lagi. */
+  onExpired?: () => void;
 }) {
   const digits = phone.replace(/\D/g, "");
   // Tantangan & verifikasi terikat ke nomor: nomor diganti → otomatis tampil seperti awal.
@@ -73,6 +76,7 @@ export function MemberPhoneOtp({
     const remaining = tokenExpiresAt - Date.now();
     const expire = () => {
       setVerifiedFor(null);
+      onExpired?.();
       setChallenge(null);
       setCode("");
       setTokenExpiresAt(null);
@@ -84,6 +88,8 @@ export function MemberPhoneOtp({
     }
     const id = window.setTimeout(expire, remaining);
     return () => window.clearTimeout(id);
+    // onExpired sengaja tidak jadi dependensi: induk biasanya memberi fungsi baru tiap render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [verifiedFor, tokenExpiresAt]);
 
   useEffect(() => {

@@ -3,7 +3,7 @@
 // Kanvas adegan 3D emblem Garage. Tanpa efek di server; three.js baru diunduh (dynamic import) setelah halaman idle
 // dan hanya bila perangkat layak (decideScene). Gagal / tak ada WebGL / hemat data → tidak menampilkan apa pun
 // (halaman tetap utuh dengan latar aslinya). Pointer-events dimatikan: tidak pernah menghalangi tombol.
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { decideScene } from "./scene-math";
 import type { GarageSceneHandle, SceneOptions } from "./emblem-scene";
@@ -47,12 +47,23 @@ export function GarageEmblemCanvas({
     readyRef.current = onReady;
   }, [onReady]);
 
+  // Preferensi "kurangi gerak" diikuti saat berubah di tengah jalan: adegan dibuat ulang dalam mode statis
+  // (satu bingkai diam), tanpa perlu memuat ulang halaman.
+  const [reducedMotion, setReducedMotion] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const sync = () => setReducedMotion(query.matches);
+    sync();
+    query.addEventListener("change", sync);
+    return () => query.removeEventListener("change", sync);
+  }, []);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const nav = navigator as Navigator & { deviceMemory?: number; connection?: { saveData?: boolean } };
     const decision = decideScene({
-      reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+      reducedMotion,
       saveData: nav.connection?.saveData === true,
       deviceMemory: nav.deviceMemory,
       cores: navigator.hardwareConcurrency,
@@ -124,7 +135,7 @@ export function GarageEmblemCanvas({
       cleanups.forEach((fn) => fn());
       handle?.dispose();
     };
-  }, [variant]);
+  }, [variant, reducedMotion]);
 
   return <canvas ref={canvasRef} className={`gm-3d ${className}`} aria-hidden="true" data-variant={variant} />;
 }

@@ -865,7 +865,8 @@ export const memberAccounts = pgTable(
     marketingConsentAt: timestamp("marketing_consent_at", { withTimezone: true }),
     // Kapan member memilih PIN sendiri. Null = akun dibuat lewat Google (PIN acak, belum diketahui member) →
     // boleh "Buat PIN" sekali tanpa PIN lama (V6+, Owner Nov 2026).
-    pinSetAt: timestamp("pin_set_at", { withTimezone: true }),
+    // Default now(): semua jalur buat akun = PIN dipilih sendiri; hanya akun Google berpassword acak diisi null.
+    pinSetAt: timestamp("pin_set_at", { withTimezone: true }).defaultNow(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

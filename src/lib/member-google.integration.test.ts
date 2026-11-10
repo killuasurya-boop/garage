@@ -123,6 +123,36 @@ describe("Google sign-in member", () => {
     expect((await ms.signInMemberWithGoogle(identity({ sub: "g-sub-3", email: "budi@example.com" }))).kind).toBe("login");
   });
 
+  it("akun yang dibuat di luar registerMember (insert langsung) tetap dianggap sudah punya PIN", async () => {
+    // Review PR #186: jalur lain (mis. CRM kasir) tidak boleh membuka "buat PIN tanpa PIN lama" setelah Google ditautkan.
+    const s = t.schema.memberAccounts;
+    const reg = await ms.registerMember({ name: "Dewi", phone: "081234500009", password: "112233" });
+    const { eq } = await import("drizzle-orm");
+    // Hapus akun dari registerMember, lalu tulis ulang tanpa pin_set_at: nilai harus datang dari default kolom.
+    await t.getDb().delete(s).where(eq(s.phone, "081234500009"));
+    const [raw] = await t
+      .getDb()
+      .insert(s)
+      .values({ customerId: reg.data!.customer.id, name: "Dewi CRM", phone: "081234500010", passwordHash: "x", status: "active" } as any)
+      .returning();
+    expect(raw.pinSetAt).toBeTruthy();
+  });
+
+  it("identitas Google yang sudah punya akun: PIN di body diabaikan, bukan dianggap terverifikasi", async () => {
+    // Review PR #186: route hanya me-reset kunci salah-PIN bila linked = true.
+    const replay: any = await ms.completeGoogleMember({
+      identity: identity({ sub: "g-sub-3", email: "budi@example.com" }),
+      name: "Budi",
+      phone: "081234500002",
+      acceptTerms: true,
+      marketingConsent: false,
+      randomPassword: "r4",
+      existingPin: "999999",
+    });
+    expect(replay.error).toBeNull();
+    expect(replay.data.linked).toBe(false);
+  });
+
   it("HP yang sudah tertaut Google lain tidak bisa diambil alih", async () => {
     const res: any = await ms.completeGoogleMember({
       identity: identity({ sub: "g-sub-evil-2", email: "evil2@example.com" }),

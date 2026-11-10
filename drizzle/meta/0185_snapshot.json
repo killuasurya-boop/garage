@@ -1,5 +1,5 @@
 {
-  "id": "2f2c5141-7127-448b-be48-a4003b629187",
+  "id": "6a24b9a8-f943-4a64-b57b-e13e5583553c",
   "prevId": "62830191-8bf4-47ba-94c0-4f39ee1e4dc7",
   "version": "7",
   "dialect": "postgresql",
@@ -12378,7 +12378,8 @@
           "name": "pin_set_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "default": "now()"
         },
         "created_at": {
           "name": "created_at",

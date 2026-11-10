@@ -47,7 +47,9 @@ export async function POST(request: Request) {
     // Kode dikirim agar form menampilkan kolom PIN akun lama (PHONE_NEEDS_PIN) tanpa menebak dari teks.
     return Response.json({ success: false, message: result.error, code: result.code ?? "COMPLETE_FAILED" }, { status: result.code === "PIN_WRONG" ? 403 : 409 });
   }
-  if (body.data.existingPin) guardReset(guardKey);
+  // Reset hanya bila PIN benar-benar diverifikasi untuk akun bernomor ini (linked), bukan saat identitas Google
+  // sudah punya akun dan PIN diabaikan.
+  if (result.data.linked) guardReset(guardKey);
 
   const tokens = await createMemberTokenPair(result.data.account.id, request);
   const headers = new Headers();

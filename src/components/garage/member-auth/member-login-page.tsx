@@ -468,7 +468,12 @@ export function MemberLoginPage({
                       label="Nomor WhatsApp"
                       icon={<Phone size={19} />}
                       value={phone}
-                      onChange={(event) => setPhone(event.target.value)}
+                      onChange={(event) => {
+                        setPhone(event.target.value);
+                        // Tantangan PIN terikat ke nomor yang memicunya: nomor diubah → kolom PIN akun lama hilang.
+                        setLinkPinNeeded(false);
+                        setLinkPin("");
+                      }}
                       placeholder="0813..."
                       autoComplete="tel"
                       inputMode="tel"

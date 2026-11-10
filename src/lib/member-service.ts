@@ -241,7 +241,7 @@ export async function registerMember(input: RegisterMemberInput) {
       return {
         data: null,
         error:
-          "Nomor ini sudah punya riwayat poin/transaksi di Garage. Verifikasi nomor lewat kode WhatsApp untuk menghubungkannya, atau minta bantuan kasir.",
+          "Nomor ini sudah punya riwayat poin/transaksi di Garage. Minta kode klaim di kasir Garage, lalu pilih \"Punya kode dari kasir?\" saat daftar.",
         code: "PHONE_VERIFICATION_REQUIRED" as const,
       };
     }

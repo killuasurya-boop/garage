@@ -278,7 +278,9 @@ Scroll direction:
   server `member-otp.ts`, UI `member-auth/member-phone-otp.tsx` (shown only when the provider is configured — no fake OTP).
   Codes/tokens stored only as HMAC in `member_otp_challenges`; sent straight to Cloud API (never via `whatsapp_messaging_queue`).
   `registerMember` refuses to merge a POS customer with history (points/visits/paid order) unless `phoneVerified`; OTP active
-  = every registration needs `otpToken`. Never name a public-route function `verifyMember*` (matches a guard pattern).
+  = every registration needs `otpToken`. Never name a public-route function `verifyMember*` (matches a guard pattern). Without Meta, "Kode klaim kasir" works the same way: POS
+  `POST /api/pos/member/claim-code` (crm-only customer, 15 min, HMAC, `delivery_status='cashier'`) →
+  member enters it via "Punya kode dari kasir?" (`/api/member/auth/claim/verify`) → same OTP token → `phoneVerified`.
 - Browser-dialog printing uses `browserColumns` (huruf Besar → 24 col on 58 mm) with tall
   TOTAL/Kembali lines; cashier can print Bar/Dapur chits manually (`printKitchenChits`).
 - Production Hub V4 (owner, Nov 2026, no migration): UI `src/components/garage/production-hub/` (portal over the shell,

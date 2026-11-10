@@ -12,7 +12,7 @@ Printer,
 QrCode,
 RefreshCw,
 Search,
-ShieldCheck,
+KeyRound, ShieldCheck,
 WalletCards
 } from "lucide-react";
 import Image from "next/image";
@@ -517,6 +517,11 @@ export function CheckoutCustomerStep({
   onLookupMember,
   onSelectMember,
   onClearMember,
+  claimCandidate,
+  claimCode,
+  claimCodeLoading,
+  claimCodeError,
+  onRequestClaimCode,
 }: {
   mode: PosCustomerMode;
   guestName: string;
@@ -542,6 +547,15 @@ export function CheckoutCustomerStep({
   onLookupMember: () => void;
   onSelectMember: (customer: Customer) => void;
   onClearMember: () => void;
+  /**
+   * Kode klaim member online dari kasir (owner Nov 2026). Pelanggan CRM tanpa akun online TIDAK dipilih
+   * sebagai member (tanpa hak poin/potongan); ia hanya jadi kandidat untuk dibuatkan kode klaim.
+   */
+  claimCandidate: { customerId: string; name: string } | null;
+  claimCode: { code: string; expiresAt: string; maskedPhone: string } | null;
+  claimCodeLoading: boolean;
+  claimCodeError: string | null;
+  onRequestClaimCode: () => void;
 }) {
   const [memberSearch, setMemberSearch] = useState("");
   const memberSearchResults = useMemo(() => {
@@ -763,6 +777,15 @@ export function CheckoutCustomerStep({
               <AlertTitle>Member</AlertTitle>
               <AlertDescription>{memberError}</AlertDescription>
             </Alert>
+          ) : null}
+          {!selectedMember && claimCandidate ? (
+            <PosMemberClaimCode
+              customerName={claimCandidate.name}
+              claimCode={claimCode}
+              loading={claimCodeLoading}
+              error={claimCodeError}
+              onRequest={onRequestClaimCode}
+            />
           ) : null}
         </div>
       )}
@@ -1337,5 +1360,70 @@ function PosPointsRedeemBox({
         </p>
       )}
     </div>
+  );
+}
+
+/**
+ * Kode klaim member online (owner Nov 2026): pelanggan POS tanpa akun online hadir di kasir → kasir
+ * membuat kode 6 angka → pelanggan memasukkannya di /member-login (Daftar → "Punya kode dari kasir?").
+ * Poin & riwayat POS tersambung tanpa OTP WhatsApp. Kode hanya tampil di layar ini.
+ */
+function PosMemberClaimCode({
+  customerName,
+  claimCode,
+  loading,
+  error,
+  onRequest,
+}: {
+  customerName: string;
+  claimCode: { code: string; expiresAt: string; maskedPhone: string } | null;
+  loading: boolean;
+  error: string | null;
+  onRequest: () => void;
+}) {
+  const expiresLabel = claimCode
+    ? new Date(claimCode.expiresAt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
+    : null;
+  return (
+    <Alert className="mt-3 border-[#f5a742]/45 bg-[#f5a742]/12 text-[#f4f4f5]" data-testid="pos-member-claim-code">
+      <KeyRound className="size-4" />
+      <AlertTitle>{customerName} belum punya akun member online</AlertTitle>
+      <AlertDescription>
+        {claimCode ? (
+          <div className="mt-1 grid w-full gap-2">
+            <p
+              className="garage-mono text-center text-3xl font-bold tracking-[0.3em]"
+              aria-label={`Kode klaim ${claimCode.code.split("").join(" ")}`}
+            >
+              {claimCode.code.slice(0, 3)} {claimCode.code.slice(3)}
+            </p>
+            <p className="text-center text-sm">
+              Berlaku s/d <span className="garage-mono font-bold">{expiresLabel}</span> · nomor {claimCode.maskedPhone}
+            </p>
+            <p className="text-sm leading-5">
+              Pelanggan buka <b>garagecoffee.id/member-login</b> → Daftar → pilih <b>&quot;Punya kode dari kasir?&quot;</b> →
+              masukkan kode ini. Poin &amp; riwayatnya ikut tersambung.
+            </p>
+          </div>
+        ) : (
+          <p className="text-sm leading-5">Pelanggan mau daftar member online? Buat kode klaim lalu tunjukkan ke pelanggan.</p>
+        )}
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="garage-press mt-2 h-10 w-full font-semibold"
+          disabled={loading}
+          onClick={onRequest}
+        >
+          {loading ? "Membuat kode…" : claimCode ? "Buat kode baru" : "Buat kode klaim member online"}
+        </Button>
+        {error ? (
+          <p className="mt-2 text-sm font-semibold" role="alert">
+            {error}
+          </p>
+        ) : null}
+      </AlertDescription>
+    </Alert>
   );
 }

@@ -8,6 +8,8 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/
 import { AuthenticationStatus, type AuthStatus } from "@/components/garage/member-auth/authentication-status";
 import { MemberButton } from "@/components/garage/member-auth/member-button";
 import { MemberField } from "@/components/garage/member-auth/member-field";
+import { MemberCashierCode } from "@/components/garage/member-auth/member-cashier-code";
+import { useMemberVerification } from "@/components/garage/member-auth/use-member-verification";
 import { MemberPhoneOtp, useMemberOtpStatus } from "@/components/garage/member-auth/member-phone-otp";
 import "@/components/garage/member-auth/member-auth.css";
 
@@ -49,9 +51,9 @@ export function MemberRegisterSheet({
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const otpEnabled = useMemberOtpStatus();
-  const [otpResult, setOtpResult] = useState<{ token: string; digits: string } | null>(null);
   // Token hanya berlaku untuk nomor yang diverifikasi; nomor diganti → harus verifikasi ulang.
-  const otpToken = otpResult && otpResult.digits === phone.replace(/\D/g, "") ? otpResult.token : null;
+  // Token verifikasi nomor (OTP WhatsApp / kode kasir); masa berlaku dikelola di hook ini.
+  const { token: otpToken, onVerified: setOtpResult, expired: verificationExpired } = useMemberVerification(phone);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -133,7 +135,13 @@ export function MemberRegisterSheet({
               error={errors.phone}
               hint="Dipakai untuk masuk member & pesan transaksi."
             />
-            {otpEnabled ? <MemberPhoneOtp phone={phone} onVerified={setOtpResult} /> : null}
+            {otpEnabled ? <MemberPhoneOtp phone={phone} alreadyVerified={Boolean(otpToken)} onVerified={setOtpResult} /> : null}
+            <MemberCashierCode phone={phone} alreadyVerified={Boolean(otpToken)} onVerified={setOtpResult} />
+            {otpToken ? (
+              <AuthenticationStatus status={{ tone: "success", message: "Nomor terverifikasi. Poin & riwayatmu akan tersambung." }} />
+            ) : verificationExpired ? (
+              <AuthenticationStatus status={{ tone: "info", message: "Verifikasi nomor kedaluwarsa. Minta kode baru untuk melanjutkan." }} />
+            ) : null}
             {errors.otp ? <p className="-mt-2 text-[13px] text-[#ffb3b5]">{errors.otp}</p> : null}
             <MemberField
               label="Buat PIN *"

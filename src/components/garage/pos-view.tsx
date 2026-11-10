@@ -891,6 +891,14 @@ export function PosView({
   const [memberCreatePin, setMemberCreatePin] = useState(generateTemporaryMemberPin);
   const [memberCreatePending, setMemberCreatePending] = useState(false);
   const [memberCreatedPin, setMemberCreatedPin] = useState<string | null>(null);
+  // Kode klaim member online (owner Nov 2026) — terikat ke customerId yang sedang dipilih.
+  const [memberClaimCode, setMemberClaimCode] = useState<
+    { customerId: string; code: string; expiresAt: string; maskedPhone: string } | null
+  >(null);
+  // Pelanggan CRM tanpa akun online dari lookup terakhir (bukan member terpilih: tanpa hak poin/potongan).
+  const [memberClaimCandidate, setMemberClaimCandidate] = useState<{ customerId: string; name: string } | null>(null);
+  const [memberClaimLoading, setMemberClaimLoading] = useState(false);
+  const [memberClaimError, setMemberClaimError] = useState<string | null>(null);
   const [posVoucherCode, setPosVoucherCode] = useState("");
   const [posVoucherResult, setPosVoucherResult] = useState<VoucherValidation | null>(null);
   // Poin member yang dipakai sebagai potongan (owner, Okt 2026). Reset tiap ganti member.
@@ -1485,12 +1493,20 @@ export function PosView({
       if (result.accountStatus !== "active") {
         setSelectedMember(null);
         setMemberCreatePhone(phone);
+        setMemberClaimCandidate(
+          result.accountStatus === "crm-only" ? { customerId: result.customerId, name: result.member.name } : null,
+        );
         if (!options.silent) {
-          setMemberError("Nomor ini ada di CRM, tapi belum menjadi member aktif.");
+          setMemberError(
+            result.accountStatus === "crm-only"
+              ? "Nomor ini ada di CRM, tapi belum punya akun member online. Buat kode klaim di bawah supaya pelanggan bisa daftar sendiri."
+              : "Nomor ini ada di CRM, tapi belum menjadi member aktif.",
+          );
         }
         return;
       }
 
+      setMemberClaimCandidate(null);
       setSelectedMember(result);
       setMemberPhone(result.member.phone);
       setPosCustomerMode("member");
@@ -1499,6 +1515,7 @@ export function PosView({
       }
     } catch (error) {
       setSelectedMember(null);
+      setMemberClaimCandidate(null);
       setMemberCreatePhone(phone);
       if (!options.silent) {
         setMemberError(error instanceof Error ? error.message : "Member tidak ditemukan.");
@@ -1542,7 +1559,26 @@ export function PosView({
     if (!customer.phone) return;
     setMemberPhone(customer.phone);
     setMemberError(null);
+    setMemberClaimError(null);
     void lookupPosMember(customer.phone);
+  }
+
+  async function requestMemberClaimCode() {
+    if (!memberClaimCandidate) return;
+    const customerId = memberClaimCandidate.customerId;
+    setMemberClaimLoading(true);
+    setMemberClaimError(null);
+    try {
+      const result = await garageApi.post<{ code: string; expiresAt: string; maskedPhone: string }>(
+        "/api/pos/member/claim-code",
+        { customerId },
+      );
+      setMemberClaimCode({ customerId, ...result });
+    } catch (error) {
+      setMemberClaimError(error instanceof Error ? error.message : "Kode klaim gagal dibuat.");
+    } finally {
+      setMemberClaimLoading(false);
+    }
   }
 
   async function createPosMember(event: FormEvent<HTMLFormElement>) {
@@ -3359,6 +3395,9 @@ export function PosView({
     setMemberPhone("");
     setMemberError(null);
     setMemberCreatedPin(null);
+    setMemberClaimCandidate(null);
+    setMemberClaimCode(null);
+    setMemberClaimError(null);
     setPosVoucherCode("");
     setPosVoucherResult(null);
     setManualDiscount(null);
@@ -3398,6 +3437,9 @@ export function PosView({
     setMemberPhone("");
     setMemberError(null);
     setMemberCreatedPin(null);
+    setMemberClaimCandidate(null);
+    setMemberClaimCode(null);
+    setMemberClaimError(null);
     setManualDiscount(null);
     setSelectedPaymentMethod("Cash");
     setPaymentProvider(defaultPaymentProvider("Cash"));
@@ -4041,6 +4083,9 @@ export function PosView({
       setGuestPhone("");
       setPosCustomerMode("guest");
       setMemberCreatedPin(null);
+      setMemberClaimCandidate(null);
+      setMemberClaimCode(null);
+      setMemberClaimError(null);
       setPosVoucherCode("");
       setPosVoucherResult(null);
       setManualDiscount(null);
@@ -8976,7 +9021,18 @@ export function PosView({
                             onClearMember={() => {
                               setSelectedMember(null);
                               setMemberCreatedPin(null);
+                              setMemberClaimCode(null);
+                              setMemberClaimError(null);
                             }}
+                            claimCandidate={memberClaimCandidate}
+                            claimCode={
+                              memberClaimCode && memberClaimCode.customerId === memberClaimCandidate?.customerId
+                                ? memberClaimCode
+                                : null
+                            }
+                            claimCodeLoading={memberClaimLoading}
+                            claimCodeError={memberClaimError}
+                            onRequestClaimCode={() => void requestMemberClaimCode()}
                           />
                         ) : null}
                         {paymentStep === "payment" ? (

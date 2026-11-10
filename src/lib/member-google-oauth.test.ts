@@ -80,6 +80,16 @@ describe("Google OAuth member — konfigurasi & PKCE", () => {
   });
 });
 
+describe("Google OAuth member — endpoint uji", () => {
+  it("override endpoint hanya di luar produksi dan hanya ke localhost", async () => {
+    const { googleEndpoints } = await import("@/lib/member-google-oauth");
+    const dev = { NODE_ENV: "development", MEMBER_GOOGLE_TEST_ENDPOINT: "http://127.0.0.1:3199" } as unknown as NodeJS.ProcessEnv;
+    expect(googleEndpoints(dev).token).toBe("http://127.0.0.1:3199/token");
+    expect(googleEndpoints({ ...dev, NODE_ENV: "production" } as NodeJS.ProcessEnv).token).toBe("https://oauth2.googleapis.com/token");
+    expect(googleEndpoints({ ...dev, MEMBER_GOOGLE_TEST_ENDPOINT: "https://evil.example" } as NodeJS.ProcessEnv).auth).toContain("accounts.google.com");
+  });
+});
+
 describe("Google OAuth member — verifikasi ID token", () => {
   beforeEach(() => resetGoogleJwksCache());
   const opts = { clientId: "client-123", nonce: "n-1", now, fetchImpl: fetchJwks };

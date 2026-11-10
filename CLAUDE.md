@@ -226,7 +226,7 @@ Scroll direction:
     `cashCount(amount)` (`test-helpers/cash-count.ts`) for both `denominations` and `recountDenominations`.
   - B4 (owner, Okt 2026, migration 0167, PRD §10.8/§13):
     - Double blind count: `closeCashSession` needs `recountDenominations` (#2, empty form, never copied from #1)
-      while setting `shiftRequireDoubleCount` is on (default OFF since migration 0182, owner Nov 2026: count once). #1 ≠ #2 per denomination (`denominationMismatches`)
+      while setting `shiftRequireDoubleCount` is on (default OFF since migration 0181, owner Nov 2026: count once). #1 ≠ #2 per denomination (`denominationMismatches`)
       → `CashSessionCountMismatchError` (409 `COUNT_MISMATCH`) until `thirdCountDenominations` (#3) is sent; #3
       becomes `actual_cash`/`denominations`. Every count (+ manager recount) is an append-only row in
       `cash_session_counts` (trigger; purge only with the grand-opening GUC).
@@ -505,7 +505,7 @@ Scroll direction:
   (strict, never truncates "123" → "23"), `tableLabelFor` → canonical "Meja 06".
   Max 50 (`MAX_TABLE_NUMBER`, matches table-call voice assets & QR cards).
 - Tables in use per outlet live in `dining_tables` (Pengaturan → Meja & QR,
-  `/api/tables/config`). No rows for an outlet → all 01–50 active. `floor` (migration 0182, Crystal V5) = lantai per
+  `/api/tables/config`). No rows for an outlet → all 01–50 active. `floor` (migration 0183, Crystal V5) = lantai per
   meja; null → `defaultTableFloor` (01–25 = 1, 26–50 = 2). Customer picker groups/filters via `src/lib/table-floor-view.ts`. Inactive tables
   are hidden from waiter/POS maps and rejected for dine-in orders.
 - Live table state = `getTableLiveData({ outletId })` / `getTableLiveRow` (always pass
@@ -649,7 +649,13 @@ no automotive imagery, real member data, reduced motion, no fake OAuth/OTP, resp
 allowed once `MEMBER_GOOGLE_CLIENT_ID`/`_SECRET` (fallback: the existing `GOOGLE_OAUTH_CLIENT_ID`/`_SECRET`) are configured on
 the server (button hidden otherwise): code + PKCE,
 server-verified ID token (`src/lib/member-google-oauth.ts`), link by `google_sub` then Google-verified email (no duplicates),
-new accounts complete name + WhatsApp + S&K, marketing consent separate & default off (migration 0183, `docs/crystal-v5/02-GOOGLE-LOGIN.md`).
+new accounts complete name + WhatsApp + S&K, marketing consent separate & default off (migration 0184, `docs/crystal-v5/02-GOOGLE-LOGIN.md`).
+An existing phone account is linked only after its PIN (`completeGoogleMember`, pin-guard); Google-only accounts may set a first PIN
+without the old one while `member_accounts.pin_set_at` is null (migration 0185).
+**Member V6 (owner, 9 Nov 2026).** `/member-login` follows `docs/design-references/member-v6/` (`docs/crystal-v5/03-MEMBER-V6.md`):
+real Three.js cards (`member-auth/cinematic3d/`, lazy, adaptive quality, CSS fallback without WebGL, no chip/NFC), showcase left +
+glass panel right (`member-v6.css`), intro once per session, register needs S&K (`acceptTerms` → `terms_accepted_at`), success
+screen shows the tier returned by the backend. `MemberLoginCard`/`BrandExperiencePanel`/`CinematicBackground` are no longer used by the page.
 
 **Sources of truth.** Before you touch member UI, read all three:
 - `docs/GARAGE_MEMBER_DESIGN_SYSTEM.md`

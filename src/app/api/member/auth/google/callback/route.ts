@@ -16,8 +16,10 @@ import { rateLimit } from "@/lib/rate-limit";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function redirect(origin: string, path: string, cookies: string[]) {
-  const headers = new Headers({ Location: new URL(path, origin).toString(), "Cache-Control": "no-store" });
+// Location relatif (path saja): browser tetap di host yang sama dengan cookie yang baru dipasang. Origin dari request.url
+// bisa berbeda di belakang proxy / dev (localhost vs 127.0.0.1, http vs https) sehingga cookie sesi tidak terbawa.
+function redirect(_origin: string, path: string, cookies: string[]) {
+  const headers = new Headers({ Location: path.startsWith("/") ? path : "/member-login", "Cache-Control": "no-store" });
   for (const cookie of cookies) headers.append("Set-Cookie", cookie);
   return new Response(null, { status: 302, headers });
 }

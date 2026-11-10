@@ -35,7 +35,12 @@ export async function GET(request: Request) {
   }
 
   const member = await getMemberProfile(session.data.customer.id);
-  return successJson({ member: member ?? session.data.member });
+  const account = session.data.account;
+  return successJson({
+    member: member ?? session.data.member,
+    // Akun dari Google yang belum membuat PIN → dashboard menampilkan "Buat PIN" tanpa PIN lama.
+    security: { googleLinked: Boolean(account.googleSub), needsPin: !account.pinSetAt && Boolean(account.googleSub) },
+  });
 }
 
 export async function PATCH(request: Request) {

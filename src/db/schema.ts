@@ -5452,6 +5452,8 @@ export const partnerAccounts = pgTable(
     status: text("status").notNull().default("active"),
     // Naik saat PIN diganti / akun dinonaktifkan → semua sesi lama otomatis tidak berlaku.
     sessionVersion: integer("session_version").notNull().default(1),
+    // PIN dibuat / di-reset staf → mitra wajib menggantinya sendiri sebelum memakai portal (staf tidak lagi tahu PIN-nya).
+    mustChangePin: boolean("must_change_pin").notNull().default(false),
     lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
     createdBy: text("created_by").references(() => user.id),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

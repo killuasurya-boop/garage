@@ -86,6 +86,9 @@ Kolom **Bukti otomatis** merujuk ke tes PGlite/vitest; staging = UAT manual oleh
   Owner bisa **Pindahkan ke mitra lain** dari Kelola Mitra → Pengaturan produk (alasan wajib; hanya pesanan berikutnya
   yang ikut mitra baru; pengajuan harga yang menunggu dibatalkan; tercatat di log kedua mitra). Kesehatan mitra menandai
   mitra dengan produk tetapi tanpa akun portal, dan akun portal tanpa produk.
+  **Pindahkan semua produk…** (Owner, di atas daftar produk Kelola Mitra) memindahkan semua/sebagian produk terpilih
+  sekaligus (`movePartnerProducts`, `POST /api/partners/[id]/products/move`): satu transaksi, wajib konfirmasi; bila ada
+  produk terpilih yang bukan milik mitra asal, tidak ada yang dipindah. Aturan sama dengan pindah satu produk.
 
 - **Pelanggan pesan sendiri dari QR meja** (Nov 2026): setting `partnerCustomerSelfOrder` (bawaan ON) menggantikan DEC-14 —
   pelanggan bisa memasukkan produk mitra ke keranjang; pesanan menunggu kasir; saat kasir menerima, ketersediaan mitra dicek
@@ -95,3 +98,17 @@ Kolom **Bukti otomatis** merujuk ke tes PGlite/vitest; staging = UAT manual oleh
 ## Belum termasuk
 - Rute/trip pengantaran.
 - Template WhatsApp API resmi (perlu penyedia + persetujuan Owner).
+
+- **Keputusan di tangan mitra** (12 Nov 2026, migrasi 0192): produk mitra bebas dipesan siapa pun (pelanggan, waiter, kasir)
+  selama statusnya **Tersedia**. Buka/Jeda/Tutup/offline/last order tidak lagi menolak pesanan maupun Terima kasir — pesanan
+  masuk Portal Mitra, mitra yang menerima atau menolak; layar hanya menampilkan keterangan ("Mitra jeda · pesanan menunggu
+  mitra"). Yang tetap menolak: Partner Hub mati, mitra nonaktif, produk belum disetujui, produk Habis.
+  - Mitra menolak pada bill **belum dibayar** → kasir menekan **Keluarkan dari bill** di monitor pesanan mitra (jalur batal
+    item yang sudah ada). Belum Bayar menampilkan tanda "Ada item ditolak mitra"; Final Bayar tidak ditahan.
+  - Garage membatalkan pesanan → mitra mendapat push + kartu **Dibatalkan Garage — jangan dibuat** di portal (10 menit).
+  - PIN mitra buatan staf: PIN lemah ditolak; mitra wajib membuat PIN sendiri saat pertama masuk / setelah di-reset.
+  - Pindah meja ikut memperbarui meja di riwayat mitra.
+  - **Pembayaran mitra masuk buku kas** (keputusan Owner 12 Nov 2026): pembayaran yang sudah diverifikasi dari Rekening
+    Jago/BNI tercatat sebagai "Pembayaran ke mitra" (saldo bank turun); dibatalkan = baris pembalik. Uang pribadi Owner
+    dan catatan yang belum diverifikasi tidak dicatat. Pembayaran yang diverifikasi sebelum fitur ini tidak diisi mundur —
+    saldo bank dikoreksi lewat "Saldo pembuka disahkan Owner" di Kontrol Kas.

@@ -24,11 +24,28 @@ export type PartnerOrder = {
   partnerId: string;
   partnerName: string;
   partnerPhone: string | null;
+  partnerOperationalStatus?: string;
   handoverPoint: string | null;
   paymentLabel: string;
   needsRefund?: boolean;
   escalated?: boolean;
 };
+
+const OP_CHIP: Record<string, { label: string; tone: "green" | "amber" | "red" }> = {
+  buka: { label: "Mitra buka", tone: "green" },
+  jeda: { label: "Mitra jeda", tone: "amber" },
+  tutup: { label: "Mitra tutup", tone: "red" },
+};
+
+/** Satu kalimat "langkah berikutnya" per status, supaya kasir/waiter tidak menebak. */
+function nextStepText(order: PartnerOrder, mode: "monitor" | "pickup") {
+  if (order.needsRefund) return null; // sudah dijelaskan di baris merah
+  if (order.status === "queue") return "Menunggu mitra menerima atau menolak.";
+  if (order.status === "accepted") return "Diterima mitra — menunggu mulai dibuat.";
+  if (order.status === "cooking") return "Sedang dibuat mitra.";
+  if (order.status === "ready") return order.claimedByName ? `Sedang diantar ${order.claimedByName}.` : mode === "pickup" ? "Siap — klaim lalu ambil di mitra." : "Siap — menunggu waiter mengambil.";
+  return null;
+}
 
 function waLink(order: PartnerOrder) {
   const digits = (order.partnerPhone ?? "").replace(/\D/g, "");
@@ -115,9 +132,11 @@ export function DeskOrders({ mode, slaWarnMinutes = 2, readyWarnMinutes = 3 }: {
     setBusy(`${ticketNo}-refund`);
     setMessage(null);
     try {
-      const res = await api<{ kind: "refund" | "void"; status: string }>(`/api/pos/partner-orders/${ticketNo}/refund`, { method: "POST" });
-      const what = res.kind === "void" ? "Pembatalan order" : "Refund item";
-      setMessage({ tone: "ok", text: res.status === "pending" ? `${what} diajukan — menunggu persetujuan Manajer/Owner.` : `${what} selesai. Kembalikan uang ke pelanggan sesuai struk refund.` });
+      const res = await api<{ kind: "refund" | "void" | "cancel_item"; status: string }>(`/api/pos/partner-orders/${ticketNo}/refund`, { method: "POST" });
+      const what = res.kind === "void" ? "Pembatalan order" : res.kind === "cancel_item" ? "Batal item" : "Refund item";
+      const done =
+        res.kind === "cancel_item" ? "Item sudah dikeluarkan dari bill — pelanggan tidak ditagih item ini." : `${what} selesai. Kembalikan uang ke pelanggan sesuai struk refund.`;
+      setMessage({ tone: "ok", text: res.status === "pending" ? `${what} diajukan — menunggu persetujuan Manajer/Owner.` : done });
       await load();
     } catch (error) {
       setMessage({ tone: "error", text: (error as Error).message });
@@ -136,12 +155,12 @@ export function DeskOrders({ mode, slaWarnMinutes = 2, readyWarnMinutes = 3 }: {
       <Notice message={message} />
       {lateReady.length ? (
         <p role="alert" className="flex items-center gap-2 rounded-lg border border-[#ff5a66]/50 bg-[#3a1015] px-3 py-2 text-sm text-[#ffd0d4]">
-          <TriangleAlert className="size-4" /> {lateReady.length} pesanan mitra sudah siap lebih dari {readyWarnMinutes} menit — segera diantar.
+          <TriangleAlert className="size-4 shrink-0" aria-hidden /> {lateReady.length} pesanan mitra sudah siap lebih dari {readyWarnMinutes} menit — segera diantar.
         </p>
       ) : null}
       {mode === "monitor" && needRefund.length ? (
         <p role="alert" className="flex items-center gap-2 rounded-lg border border-[#ff5a66]/50 bg-[#3a1015] px-3 py-2 text-sm text-[#ffd0d4]">
-          <TriangleAlert className="size-4 shrink-0" /> {needRefund.length} pesanan ditolak mitra — uang pelanggan belum dikembalikan. Ajukan refund di kartu bertanda merah.
+          <TriangleAlert className="size-4 shrink-0" aria-hidden /> {needRefund.length} pesanan ditolak mitra dan itemnya masih ada di bill. Di kartu bertanda merah: bill lunas → ajukan refund, bill belum dibayar → keluarkan dari bill.
         </p>
       ) : null}
       <div className="flex items-center justify-between gap-2">
@@ -201,10 +220,15 @@ export function DeskOrders({ mode, slaWarnMinutes = 2, readyWarnMinutes = 3 }: {
                   </p>
                   <Chip tone={TICKET_TONE[order.status] ?? "default"}>{TICKET_LABEL[order.status] ?? order.status}</Chip>
                 </div>
-                <p className="mt-1 text-xs text-[#b8b8bf]">
-                  {order.partnerName} · {order.customerName ?? "Tanpa nama"} · masuk {timeWib(order.createdAt)} · {waitMin} mnt
-                  {mode === "monitor" ? ` · ${order.paymentLabel}` : ""}
+                <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-[#e4e4e8]">
+                  <span className="min-w-0 break-words font-semibold">{order.partnerName}</span>
+                  {OP_CHIP[order.partnerOperationalStatus ?? ""] ? <Chip tone={OP_CHIP[order.partnerOperationalStatus!].tone}>{OP_CHIP[order.partnerOperationalStatus!].label}</Chip> : null}
+                  {mode === "monitor" ? <Chip tone={order.paymentLabel === "Lunas" ? "green" : "amber"}>{order.paymentLabel === "Lunas" ? "Lunas" : "Belum dibayar"}</Chip> : null}
                 </p>
+                <p className="mt-1 text-xs text-[#b8b8bf]">
+                  {order.customerName ?? "Tanpa nama"} · masuk {timeWib(order.createdAt)} · <span className="tabular-nums">{waitMin} mnt</span>
+                </p>
+                {nextStepText(order, mode) ? <p className="mt-1 text-xs font-semibold text-[#ffd08a]">{nextStepText(order, mode)}</p> : null}
                 <ul className="mt-2 grid gap-0.5 text-sm text-[#f4f4f5]">
                   {order.items.map((item, index) => (
                     <li key={index}>
@@ -222,7 +246,7 @@ export function DeskOrders({ mode, slaWarnMinutes = 2, readyWarnMinutes = 3 }: {
                 ) : null}
                 {order.needsRefund ? (
                   <p className="mt-1 text-xs font-semibold text-[#ff8a94]">
-                    Ditolak mitra{order.issueReason ? `: ${order.issueReason}` : ""}. {order.paymentLabel === "Lunas" ? "Pelanggan sudah bayar — ajukan refund." : "Bill belum dibayar — keluarkan item ini sebelum pelanggan membayar."}
+                    Ditolak mitra{order.issueReason ? `: ${order.issueReason}` : ""}. {order.paymentLabel === "Lunas" ? "Pelanggan sudah bayar — ajukan refund." : "Bill belum dibayar — keluarkan item ini dari bill supaya pelanggan tidak ditagih."}
                   </p>
                 ) : null}
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -236,9 +260,9 @@ export function DeskOrders({ mode, slaWarnMinutes = 2, readyWarnMinutes = 3 }: {
                       <CheckCircle2 className="size-4" /> Sudah diantar
                     </Btn>
                   ) : null}
-                  {order.needsRefund && mode === "monitor" && order.paymentLabel === "Lunas" ? (
+                  {order.needsRefund && mode === "monitor" ? (
                     <Btn tone="danger" busy={busy === `${order.ticketNo}-refund`} onClick={() => void refundRejected(order.ticketNo)}>
-                      <Undo2 className="size-4" /> Ajukan refund
+                      <Undo2 className="size-4" /> {order.paymentLabel === "Lunas" ? "Ajukan refund" : "Keluarkan dari bill"}
                     </Btn>
                   ) : null}
                   {link && mode === "monitor" ? (

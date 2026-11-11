@@ -7,10 +7,11 @@
 
 import { createHash, randomUUID } from "node:crypto";
 
-import { and, asc, desc, eq, gte, inArray, lt, ne, notInArray, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lt, ne, or, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
+  cashLedgerEntries,
   expenses,
   kitchenTickets,
   menuItems,
@@ -31,9 +32,10 @@ import {
   partnerSettlements,
   partners,
 } from "@/db/schema";
+import { postAccountCash, type CashAccount } from "@/lib/cash-ledger";
 import type { GarageSession } from "@/lib/server-auth";
 import { hashPassword } from "@/lib/member-auth";
-import type { PartnerSession } from "@/lib/partner-auth";
+import { isWeakPartnerPin, type PartnerSession } from "@/lib/partner-auth";
 import {
   canChangePartnerStatus,
   effectiveOperationalStatus,
@@ -45,6 +47,7 @@ import {
   partnerBestSellers,
   partnerLineFinance,
   partnerCardLabel,
+  partnerServiceNote,
   partnerMarketingBlockers,
   PARTNER_WEBSITE_TAG,
   partnerSettlementTotals,
@@ -335,6 +338,7 @@ export async function verifyPartnerBankAccount(bankAccountId: string, garage: Ga
 export async function createPartnerAccount(partnerId: string, input: { phone: string; displayName: string; pin: string }, garage: GarageSession) {
   assertOwnerOrManager(garage, "Membuat akun mitra");
   if (!/^\d{6}$/.test(input.pin)) throw new PartnerHubError("INVALID_PIN", "PIN mitra harus 6 angka.");
+  if (isWeakPartnerPin(input.pin)) throw new PartnerHubError("WEAK_PIN", "PIN terlalu mudah ditebak. Pilih kombinasi lain.");
   const db = getDb();
   await loadPartner(db, partnerId, garage.profile.outlet.id);
   const phone = partnerPhoneOrThrow(input.phone);
@@ -343,7 +347,7 @@ export async function createPartnerAccount(partnerId: string, input: { phone: st
   return db.transaction(async (tx) => {
     const [row] = await tx
       .insert(partnerAccounts)
-      .values({ partnerId, phone, displayName: input.displayName.trim(), pinHash: await hashPassword(input.pin), createdBy: garage.user.id })
+      .values({ partnerId, phone, displayName: input.displayName.trim(), pinHash: await hashPassword(input.pin), mustChangePin: true, createdBy: garage.user.id })
       .returning({ id: partnerAccounts.id, phone: partnerAccounts.phone, displayName: partnerAccounts.displayName });
     await logEvent(tx, { partnerId, kind: "account_created", subjectId: row.id, actor: staffActor(garage) });
     return row;
@@ -357,12 +361,15 @@ export async function updatePartnerAccount(accountId: string, input: { pin?: str
   if (!account) throw new PartnerHubError("ACCOUNT_NOT_FOUND", "Akun mitra tidak ditemukan.", 404);
   await loadPartner(db, account.partnerId, garage.profile.outlet.id);
   if (input.pin !== undefined && !/^\d{6}$/.test(input.pin)) throw new PartnerHubError("INVALID_PIN", "PIN mitra harus 6 angka.");
+  if (input.pin !== undefined && isWeakPartnerPin(input.pin)) throw new PartnerHubError("WEAK_PIN", "PIN terlalu mudah ditebak. Pilih kombinasi lain.");
   return db.transaction(async (tx) => {
     await tx
       .update(partnerAccounts)
       .set({
         pinHash: input.pin ? await hashPassword(input.pin) : account.pinHash,
         status: input.status ?? account.status,
+        // PIN di-reset staf → mitra wajib menggantinya sendiri saat masuk.
+        mustChangePin: input.pin ? true : account.mustChangePin,
         // Ganti PIN / nonaktif → semua sesi lama berhenti berlaku.
         sessionVersion: account.sessionVersion + 1,
         updatedAt: new Date(),
@@ -474,17 +481,92 @@ export async function movePartnerProduct(linkId: string, input: { toPartnerId: s
   const [item] = await db.select({ name: menuItems.name }).from(menuItems).where(eq(menuItems.id, link.menuItemId)).limit(1);
   const actor = staffActor(garage);
   return db.transaction(async (tx) => {
-    await tx.update(partnerProductLinks).set({ partnerId: to.id, updatedAt: new Date() }).where(eq(partnerProductLinks.id, linkId));
-    const cancelled = await tx
-      .update(partnerPriceProposals)
-      .set({ status: "cancelled", decisionNote: `Produk dipindah ke ${to.name}`, updatedAt: new Date() })
-      .where(and(eq(partnerPriceProposals.linkId, linkId), eq(partnerPriceProposals.status, "pending")))
-      .returning({ id: partnerPriceProposals.id });
-    const metadata = { linkId, product: item?.name ?? null, from: { id: from.id, name: from.name }, to: { id: to.id, name: to.name }, cancelledProposals: cancelled.length };
-    await logEvent(tx, { partnerId: from.id, kind: "product_moved_out", subjectId: linkId, reason, actor, metadata });
-    await logEvent(tx, { partnerId: to.id, kind: "product_moved_in", subjectId: linkId, reason, actor, metadata });
-    return { linkId, fromPartnerId: from.id, toPartnerId: to.id, cancelledProposals: cancelled.length };
+    const cancelledProposals = await moveLinksInTx(tx, [{ id: linkId, name: item?.name ?? null }], from, to, reason, actor);
+    return { linkId, fromPartnerId: from.id, toPartnerId: to.id, cancelledProposals };
   });
+}
+
+/**
+ * Pindahkan SEMUA (atau sebagian terpilih) produk satu mitra ke mitra lain sekaligus (Owner) — mis. 20 SKU katalog impor
+ * yang ternyata milik mitra hasil pendaftaran. Aturan sama dengan pindah satu produk; semua atau tidak sama sekali (satu tx).
+ */
+export async function movePartnerProducts(
+  fromPartnerId: string,
+  input: { toPartnerId: string; reason: string; linkIds?: string[] },
+  garage: GarageSession,
+) {
+  assertOwner(garage, "Memindahkan produk ke mitra lain");
+  const reason = input.reason.trim();
+  if (reason.length < 3) throw new PartnerHubError("REASON_REQUIRED", "Alasan pemindahan wajib diisi.");
+  const db = getDb();
+  const from = await loadPartner(db, fromPartnerId, garage.profile.outlet.id);
+  const to = await loadPartner(db, input.toPartnerId, garage.profile.outlet.id);
+  if (from.id === to.id) throw new PartnerHubError("SAME_PARTNER", "Mitra tujuan sama dengan mitra asal.");
+  if (to.status === "nonaktif") throw new PartnerHubError("PARTNER_INACTIVE", "Mitra tujuan nonaktif. Buka ulang mitra itu dulu.", 409);
+  const wanted = input.linkIds ? [...new Set(input.linkIds)] : null;
+  if (wanted && wanted.length === 0) throw new PartnerHubError("NO_PRODUCTS", "Pilih minimal satu produk untuk dipindah.");
+  const actor = staffActor(garage);
+  return db.transaction(async (tx) => {
+    // Kunci produk mitra asal supaya pindah satu-per-satu yang berjalan bersamaan tidak ikut tercampur.
+    const owned = await tx
+      .select({ id: partnerProductLinks.id, menuItemId: partnerProductLinks.menuItemId })
+      .from(partnerProductLinks)
+      .where(eq(partnerProductLinks.partnerId, from.id))
+      .for("update");
+    if (!owned.length) throw new PartnerHubError("NO_PRODUCTS", `${from.name} tidak punya produk untuk dipindah.`, 409);
+    if (wanted) {
+      const ownedIds = new Set(owned.map((row) => row.id));
+      const foreign = wanted.filter((id) => !ownedIds.has(id));
+      if (foreign.length) {
+        throw new PartnerHubError("PRODUCT_NOT_FOUND", `${foreign.length} produk yang dipilih bukan milik ${from.name} (mungkin sudah dipindah). Muat ulang lalu coba lagi.`, 409);
+      }
+    }
+    const chosen = wanted ? owned.filter((row) => wanted.includes(row.id)) : owned;
+    const names = await tx
+      .select({ id: menuItems.id, name: menuItems.name })
+      .from(menuItems)
+      .where(inArray(menuItems.id, chosen.map((row) => row.menuItemId)));
+    const nameOf = new Map(names.map((row) => [row.id, row.name]));
+    const links = chosen
+      .map((row) => ({ id: row.id, name: nameOf.get(row.menuItemId) ?? null }))
+      .sort((a, b) => (a.name ?? "").localeCompare(b.name ?? "", "id"));
+    const cancelledProposals = await moveLinksInTx(tx, links, from, to, reason, actor);
+    return { fromPartnerId: from.id, toPartnerId: to.id, moved: links.length, cancelledProposals, products: links.map((l) => ({ linkId: l.id, name: l.name })) };
+  });
+}
+
+/**
+ * Inti pemindahan produk (dalam transaksi): ganti pemilik link, batalkan pengajuan harga yang menunggu (diajukan mitra
+ * asal), dan catat event keluar/masuk per produk di kedua mitra. Baris pesanan, tiket & setoran lama tidak disentuh.
+ */
+async function moveLinksInTx(
+  tx: Tx,
+  links: Array<{ id: string; name: string | null }>,
+  from: { id: string; name: string },
+  to: { id: string; name: string },
+  reason: string,
+  actor: Actor,
+) {
+  const ids = links.map((link) => link.id);
+  await tx.update(partnerProductLinks).set({ partnerId: to.id, updatedAt: new Date() }).where(inArray(partnerProductLinks.id, ids));
+  const cancelled = await tx
+    .update(partnerPriceProposals)
+    .set({ status: "cancelled", decisionNote: `Produk dipindah ke ${to.name}`, updatedAt: new Date() })
+    .where(and(inArray(partnerPriceProposals.linkId, ids), eq(partnerPriceProposals.status, "pending")))
+    .returning({ id: partnerPriceProposals.id, linkId: partnerPriceProposals.linkId });
+  for (const link of links) {
+    const metadata = {
+      linkId: link.id,
+      product: link.name,
+      from: { id: from.id, name: from.name },
+      to: { id: to.id, name: to.name },
+      cancelledProposals: cancelled.filter((row) => row.linkId === link.id).length,
+      ...(links.length > 1 ? { bulkCount: links.length } : {}),
+    };
+    await logEvent(tx, { partnerId: from.id, kind: "product_moved_out", subjectId: link.id, reason, actor, metadata });
+    await logEvent(tx, { partnerId: to.id, kind: "product_moved_in", subjectId: link.id, reason, actor, metadata });
+  }
+  return cancelled.length;
 }
 
 /** Tambah varian (mis. Large) ke produk mitra — Owner, harga awal tercatat di riwayat harga. */
@@ -730,16 +812,12 @@ export async function publicPartnerMarketingProducts() {
     const prices = variants.map((v) => v.price).filter((p) => p > 0);
     // Ketersediaan = aturan yang sama dengan menu digital & POS (Buka/Jeda/Tutup efektif, portal offline, last order, Habis).
     const link = (await loadPartnerLinks(db, [row.item.id], { heartbeatMinutes: cfg.heartbeat })).get(row.item.id);
-    const label = link
-      ? partnerCardLabel({
-          hubEnabled: true,
-          partnerStatus: link.partnerStatus,
-          operationalStatus: link.operationalStatus,
-          linkActive: link.linkActive,
-          productStock: row.item.stock,
-          lastOrderByDay: link.lastOrderByDay,
-        })
-      : "Tidak tersedia";
+    const availability = link
+      ? { hubEnabled: true, partnerStatus: link.partnerStatus, operationalStatus: link.operationalStatus, linkActive: link.linkActive, productStock: row.item.stock, lastOrderByDay: link.lastOrderByDay }
+      : null;
+    // "Tersedia sekarang" di website = bisa dipesan DAN mitra sedang buka normal (Jeda/Tutup/offline tetap bisa dipesan
+    // di outlet, tetapi tidak diiklankan sebagai tersedia sekarang).
+    const availableNow = availability ? partnerCardLabel(availability) === null && partnerServiceNote(availability) === null : false;
     out.push({
       id: row.item.id,
       name: row.item.name,
@@ -749,7 +827,7 @@ export async function publicPartnerMarketingProducts() {
       partnerName: row.partner.name,
       priceFrom: prices.length ? Math.min(...prices) : 0,
       multiPrice: new Set(prices).size > 1,
-      availableNow: label === null,
+      availableNow,
     });
   }
   return out.slice(0, 8);
@@ -842,6 +920,20 @@ export async function listTicketsForPartner(partnerId: string, scope: "active" |
   if (!rows.length) return [];
   const lines = await db.select().from(partnerOrderLines).where(inArray(partnerOrderLines.ticketId, rows.map((row) => row.id)));
   return rows.map((ticket) => ticketView(ticket, lines.filter((line) => line.ticketId === ticket.id)));
+}
+
+/** Tiket mitra yang dibatalkan Garage (void / batal item) dalam `minutes` terakhir. */
+export async function listRecentlyCancelledTickets(partnerId: string, now = new Date(), minutes = 10) {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(kitchenTickets)
+    .where(and(eq(kitchenTickets.partnerId, partnerId), eq(kitchenTickets.status, "cancelled"), gte(kitchenTickets.issueAt, new Date(now.getTime() - minutes * 60_000))))
+    .orderBy(desc(kitchenTickets.issueAt))
+    .limit(20);
+  if (!rows.length) return [];
+  const lines = await db.select().from(partnerOrderLines).where(inArray(partnerOrderLines.ticketId, rows.map((row) => row.id)));
+  return rows.map((ticket) => ({ ...ticketView(ticket, lines.filter((line) => line.ticketId === ticket.id)), cancelledAt: ticket.issueAt }));
 }
 
 /** Aksi mitra pada tiketnya: terima → proses → siap antar, atau tolak (dengan alasan). */
@@ -941,10 +1033,11 @@ export async function listPartnerOrdersForOutlet(
               inArray(kitchenTickets.status, ["queue", "cooking", "ready"]),
               // Ditolak mitra: tetap tampil sampai kasir menyelesaikan uang pelanggan (refund / batal).
               // Tanpa batas waktu: tiket tidak boleh hilang dari antrean refund sebelum item keluar dari bill.
+              // Bill dilihat dari baris mitra (bukan tiket): item yang dikeluarkan lewat pisah bill + void pindah ke
+              // bill pisahan yang void, sehingga tiket otomatis keluar dari antrean ini.
               and(
                 eq(kitchenTickets.status, "rejected"),
-                notInArray(orders.status, ["voided", "rejected", "cancelled", "failed", "void"]),
-                sql`exists (select 1 from partner_order_lines pol where pol.ticket_id = ${kitchenTickets.id} and pol.order_item_id is not null)`,
+                sql`exists (select 1 from partner_order_lines pol join orders po on po.id = pol.order_id where pol.ticket_id = ${kitchenTickets.id} and pol.order_item_id is not null and po.status not in ('voided','rejected','cancelled','failed','void'))`,
               ),
             ),
       ),
@@ -953,13 +1046,18 @@ export async function listPartnerOrdersForOutlet(
     .limit(200);
   if (!rows.length) return [];
   const lines = await db.select().from(partnerOrderLines).where(inArray(partnerOrderLines.ticketId, rows.map((row) => row.ticket.id)));
+  const lineOrderIds = [...new Set(lines.map((line) => line.orderId))];
+  const lineOrders = lineOrderIds.length ? await db.select({ id: orders.id, status: orders.status }).from(orders).where(inArray(orders.id, lineOrderIds)) : [];
+  const lineOrderStatus = new Map(lineOrders.map((row) => [row.id, row.status]));
   const now = Date.now();
   const result = rows
-    .map(({ ticket, partner, order }) => {
+    .map(({ ticket, partner, order: ticketOrder }) => {
       const own = lines.filter((line) => line.ticketId === ticket.id);
-      const orderGone = paymentStatusOf({ status: order.status }) === "cancelled";
-      // Item masih ada di bill (belum direfund/dibatalkan) → uang pelanggan belum diselesaikan.
-      const needsRefund = ticket.status === "rejected" && !orderGone && own.some((line) => line.orderItemId !== null);
+      // Item masih ada di bill yang hidup (belum direfund / dikeluarkan) → uang pelanggan belum diselesaikan.
+      const live = own.filter((line) => line.orderItemId !== null && paymentStatusOf({ status: lineOrderStatus.get(line.orderId) ?? null }) !== "cancelled");
+      const needsRefund = ticket.status === "rejected" && live.length > 0;
+      // Status bayar mengikuti bill tempat item itu sekarang berada (bisa bill pisahan).
+      const order = { ...ticketOrder, status: (live[0] && lineOrderStatus.get(live[0].orderId)) ?? ticketOrder.status };
       const view = ticketView(ticket, own);
       const waitedMin = Math.floor((now - ticket.createdAt.getTime()) / 60_000);
       return {
@@ -967,6 +1065,8 @@ export async function listPartnerOrdersForOutlet(
         partnerId: partner.id,
         partnerName: partner.name,
         partnerPhone: partner.phone,
+        // Status layanan yang berlaku (keterangan untuk kasir/waiter; tidak menentukan boleh-tidaknya pesanan).
+        partnerOperationalStatus: effectiveOperationalStatus({ operationalStatus: partner.operationalStatus, operationalStatusAt: partner.operationalStatusAt }),
         handoverPoint: partner.handoverPoint,
         orderStatus: order.status,
         paymentLabel: PAYMENT_STATUS_LABEL[paymentStatusOf({ status: order.status })],
@@ -1107,10 +1207,17 @@ export async function rejectedPartnerTicketForRefund(outletId: string, ticketNo:
     .limit(1);
   if (!row) throw new PartnerHubError("TICKET_NOT_FOUND", "Tiket tidak ditemukan.", 404);
   if (row.ticket.status !== "rejected") throw new PartnerHubError("INVALID_STATUS", "Tiket ini tidak ditolak mitra.", 409);
-  const lines = await db.select().from(partnerOrderLines).where(eq(partnerOrderLines.ticketId, row.ticket.id));
-  const items = lines.filter((line) => line.orderItemId !== null).map((line) => ({ orderItemId: line.orderItemId as string, qty: line.qty }));
-  if (!items.length) throw new PartnerHubError("ALREADY_RESOLVED", "Item ini sudah direfund / dibatalkan.", 409);
-  return { orderNo: row.order.orderNo, orderStatus: row.order.status, partnerName: row.partner.name, reason: row.ticket.issueReason ?? "", items };
+  const lines = await db
+    .select({ line: partnerOrderLines, order: { id: orders.id, orderNo: orders.orderNo, status: orders.status } })
+    .from(partnerOrderLines)
+    .innerJoin(orders, eq(partnerOrderLines.orderId, orders.id))
+    .where(eq(partnerOrderLines.ticketId, row.ticket.id));
+  // Hanya item yang masih ada di bill hidup. Bill bisa berbeda dari bill tiket (pisah bill) → ikuti bill baris pertama.
+  const live = lines.filter(({ line, order }) => line.orderItemId !== null && paymentStatusOf({ status: order.status }) !== "cancelled");
+  if (!live.length) throw new PartnerHubError("ALREADY_RESOLVED", "Item ini sudah direfund / dikeluarkan dari bill.", 409);
+  const target = live[0].order;
+  const items = live.filter(({ order }) => order.id === target.id).map(({ line }) => ({ orderItemId: line.orderItemId as string, qty: line.qty }));
+  return { orderNo: target.orderNo, orderStatus: target.status, partnerName: row.partner.name, reason: row.ticket.issueReason ?? "", items };
 }
 
 type FinanceLine = {
@@ -1543,7 +1650,10 @@ export async function recordPartnerPayout(
           selfVerified: owner,
         })
         .returning();
-      if (owner) await refreshSettlementPaid(tx, settlementId);
+      if (owner) {
+        await postPayoutToLedger(tx, row, { settlementNo: settlement.settlementNo, outletId: settlement.outletId }, garage.user.id);
+        await refreshSettlementPaid(tx, settlementId);
+      }
       await logEvent(tx, { partnerId: settlement.partnerId, kind: "payout_recorded", subjectId: row.id, toStatus: row.status, actor: staffActor(garage), metadata: { amount: row.amount, reference, selfVerified: owner } });
       return { id: row.id, status: row.status, replay: false };
     });
@@ -1557,16 +1667,55 @@ export async function recordPartnerPayout(
   }
 }
 
+/**
+ * Buku kas: pembayaran mitra yang SUDAH terverifikasi dari Rekening Jago/BNI = uang usaha keluar dari rekening itu.
+ * Satu baris per payout (dicek lebih dulu → verifikasi ulang tidak menggandakan). `external` (uang pribadi Owner)
+ * tidak lewat akun usaha → tidak diposting, sama dengan aturan biaya Finance.
+ */
+async function postPayoutToLedger(
+  tx: Tx,
+  payout: { id: string; amount: number; fundSource: string; reference: string; paidAt: Date; createdBy: string | null },
+  settlement: { settlementNo: string; outletId: string },
+  approverUserId: string,
+) {
+  if (payout.fundSource !== "bank_jago" && payout.fundSource !== "bank_bni") return null;
+  const [existing] = await tx
+    .select({ id: cashLedgerEntries.id })
+    .from(cashLedgerEntries)
+    .where(and(eq(cashLedgerEntries.sourceType, "partner_payout"), eq(cashLedgerEntries.sourceId, payout.id)))
+    .limit(1);
+  if (existing) return existing;
+  return postAccountCash(tx, {
+    from: payout.fundSource as CashAccount,
+    to: "external",
+    amount: payout.amount,
+    outletId: settlement.outletId,
+    sourceType: "partner_payout",
+    sourceId: payout.id,
+    sourceRef: `${settlement.settlementNo} · Ref ${payout.reference}`,
+    actorUserId: payout.createdBy,
+    approverUserId,
+    occurredAt: payout.paidAt,
+    idempotencyKey: `partner_payout:${payout.id}`,
+  });
+}
+
 export async function verifyPartnerPayout(payoutId: string, garage: GarageSession) {
   assertOwner(garage, "Verifikasi pembayaran mitra");
   const db = getDb();
   const [payout] = await db.select().from(partnerPayouts).where(eq(partnerPayouts.id, payoutId)).limit(1);
   if (!payout) throw new PartnerHubError("PAYOUT_NOT_FOUND", "Pembayaran tidak ditemukan.", 404);
-  await loadSettlement(db, payout.settlementId, garage.profile.outlet.id);
+  const settlement = await loadSettlement(db, payout.settlementId, garage.profile.outlet.id);
   if (payout.status !== "recorded") throw new PartnerHubError("INVALID_STATUS", "Pembayaran ini sudah diproses.", 409);
   if (payout.createdBy === garage.user.id) throw new PartnerHubError("SAME_PERSON", "Pemeriksa harus berbeda dari pencatat.", 409);
   const result = await db.transaction(async (tx) => {
-    await tx.update(partnerPayouts).set({ status: "verified", verifiedBy: garage.user.id, verifiedAt: new Date() }).where(and(eq(partnerPayouts.id, payoutId), eq(partnerPayouts.status, "recorded")));
+    const changed = await tx
+      .update(partnerPayouts)
+      .set({ status: "verified", verifiedBy: garage.user.id, verifiedAt: new Date() })
+      .where(and(eq(partnerPayouts.id, payoutId), eq(partnerPayouts.status, "recorded")))
+      .returning({ id: partnerPayouts.id });
+    if (!changed.length) throw new PartnerHubError("INVALID_STATUS", "Pembayaran ini sudah diproses.", 409);
+    await postPayoutToLedger(tx, payout, { settlementNo: settlement.settlementNo, outletId: settlement.outletId }, garage.user.id);
     const state = await refreshSettlementPaid(tx, payout.settlementId);
     await logEvent(tx, { partnerId: payout.partnerId, kind: "payout_verified", subjectId: payoutId, fromStatus: "recorded", toStatus: "verified", actor: staffActor(garage) });
     return state;
@@ -1593,6 +1742,30 @@ export async function voidPartnerPayout(payoutId: string, reason: string, garage
   await loadSettlement(db, payout.settlementId, garage.profile.outlet.id);
   return db.transaction(async (tx) => {
     await tx.update(partnerPayouts).set({ status: "void", voidReason: reason.trim() }).where(eq(partnerPayouts.id, payoutId));
+    // Buku kas: uang yang sudah tercatat keluar dari rekening dikembalikan dengan baris pembalik (riwayat tidak diubah).
+    const [posted] = await tx
+      .select()
+      .from(cashLedgerEntries)
+      .where(and(eq(cashLedgerEntries.sourceType, "partner_payout"), eq(cashLedgerEntries.sourceId, payoutId)))
+      .limit(1);
+    if (posted) {
+      const [already] = await tx.select({ id: cashLedgerEntries.id }).from(cashLedgerEntries).where(eq(cashLedgerEntries.reversesId, posted.id)).limit(1);
+      if (!already) {
+        await postAccountCash(tx, {
+          from: "external",
+          to: posted.fromAccount as CashAccount,
+          amount: posted.amount,
+          outletId: posted.outletId,
+          sourceType: "partner_payout_void",
+          sourceId: payoutId,
+          sourceRef: posted.sourceRef,
+          reversesId: posted.id,
+          actorUserId: garage.user.id,
+          note: reason.trim(),
+          idempotencyKey: `partner_payout_void:${payoutId}`,
+        });
+      }
+    }
     const state = await refreshSettlementPaid(tx, payout.settlementId);
     if (state.status !== "paid") {
       const [s] = await tx.select({ no: partnerSettlements.settlementNo }).from(partnerSettlements).where(eq(partnerSettlements.id, payout.settlementId)).limit(1);
@@ -1742,7 +1915,10 @@ export async function partnerPortalOverview(session: PartnerSession) {
     payouts,
     partner: session.partner,
     products,
+    mustChangePin: Boolean(session.account.mustChangePin),
     activeTickets: active,
+    // Dibatalkan Garage dalam 10 menit terakhir: tetap ditampilkan agar mitra berhenti membuat (push bisa tidak sampai).
+    cancelledTickets: await listRecentlyCancelledTickets(session.partner.id, now),
     today: { qty: today.totalQty, gross: today.grossSales, liability: today.liabilityTotal, orders: today.orderCount },
     unpaid,
     settlements,

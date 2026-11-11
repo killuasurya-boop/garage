@@ -1,0 +1,1 @@
+ALTER TABLE "partner_accounts" ADD COLUMN "must_change_pin" boolean DEFAULT false NOT NULL;

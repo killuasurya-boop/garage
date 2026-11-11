@@ -63,12 +63,15 @@ export function clearPartnerSessionCookie(request: Request) {
 }
 
 export type PartnerSession = {
-  account: { id: string; displayName: string; phone: string };
+  account: { id: string; displayName: string; phone: string; mustChangePin?: boolean };
   partner: { id: string; code: string; name: string; outletId: string; status: string; operationalStatus: string };
 };
 
 /** Guard route mitra. Akun & mitra wajib aktif (mitra dibekukan masih bisa menuntaskan tiket lama & melihat laporan). */
-export async function requirePartnerSession(request: Request): Promise<{ data: PartnerSession; response: null } | { data: null; response: Response }> {
+export async function requirePartnerSession(
+  request: Request,
+  options: { allowPinChangePending?: boolean } = {},
+): Promise<{ data: PartnerSession; response: null } | { data: null; response: Response }> {
   const token = parseCookies(request)[PARTNER_COOKIE];
   const payload = token ? verifyPartnerSession(token) : null;
   if (!payload) return { data: null, response: fail(401, "PARTNER_LOGIN_REQUIRED", "Silakan masuk ke Portal Mitra.") };
@@ -87,6 +90,10 @@ export async function requirePartnerSession(request: Request): Promise<{ data: P
   ) {
     return { data: null, response: fail(401, "PARTNER_SESSION_INVALID", "Sesi Portal Mitra tidak berlaku. Masuk lagi.") };
   }
+  // PIN buatan staf belum diganti: hanya ringkasan, ganti PIN dan keluar yang boleh (allowPinChangePending).
+  if (row.account.mustChangePin && !options.allowPinChangePending) {
+    return { data: null, response: fail(403, "PIN_CHANGE_REQUIRED", "Ganti PIN Anda dulu sebelum memakai Portal Mitra.") };
+  }
   // Tanda "portal masih terbuka": diperbarui paling sering tiap 30 detik (portal polling tiap 10 detik).
   const now = new Date();
   if (!row.partner.lastSeenAt || now.getTime() - row.partner.lastSeenAt.getTime() > 30_000) {
@@ -94,7 +101,7 @@ export async function requirePartnerSession(request: Request): Promise<{ data: P
   }
   return {
     data: {
-      account: { id: row.account.id, displayName: row.account.displayName, phone: row.account.phone },
+      account: { id: row.account.id, displayName: row.account.displayName, phone: row.account.phone, mustChangePin: row.account.mustChangePin },
       partner: {
         id: row.partner.id,
         code: row.partner.code,
@@ -107,6 +114,11 @@ export async function requirePartnerSession(request: Request): Promise<{ data: P
     },
     response: null,
   };
+}
+
+/** PIN yang terlalu mudah ditebak (angka sama semua / urutan umum). Dipakai saat mitra mengganti PIN dan saat staf membuat/reset PIN. */
+export function isWeakPartnerPin(pin: string) {
+  return /^(\d)\1{5}$/.test(pin) || ["123456", "654321", "012345", "111222", "112233", "121212"].includes(pin);
 }
 
 /** Cek PIN akun mitra (dipakai route login; batas tebakan ada di route lewat pin-attempt-guard). */
@@ -133,7 +145,7 @@ export async function authenticatePartner(phone: string, pin: string) {
 export async function changePartnerPin(accountId: string, oldPin: string, newPin: string) {
   if (!/^\d{6}$/.test(newPin)) return { ok: false as const, code: "INVALID_PIN", message: "PIN baru harus 6 angka." };
   if (oldPin === newPin) return { ok: false as const, code: "SAME_PIN", message: "PIN baru harus berbeda dari PIN lama." };
-  if (/^(\d)\1{5}$/.test(newPin) || ["123456", "654321", "012345"].includes(newPin)) {
+  if (isWeakPartnerPin(newPin)) {
     return { ok: false as const, code: "WEAK_PIN", message: "PIN terlalu mudah ditebak. Pilih kombinasi lain." };
   }
   const db = getDb();
@@ -142,7 +154,7 @@ export async function changePartnerPin(accountId: string, oldPin: string, newPin
   if (!(await verifyPassword(oldPin, account.pinHash))) return { ok: false as const, code: "WRONG_PIN", message: "PIN lama salah." };
   const [updated] = await db
     .update(partnerAccounts)
-    .set({ pinHash: await hashPassword(newPin), sessionVersion: account.sessionVersion + 1, updatedAt: new Date() })
+    .set({ pinHash: await hashPassword(newPin), sessionVersion: account.sessionVersion + 1, mustChangePin: false, updatedAt: new Date() })
     .where(eq(partnerAccounts.id, accountId))
     .returning();
   await db.insert(partnerEvents).values({ partnerId: account.partnerId, kind: "account_pin_changed_by_partner", subjectId: account.id, actorType: "partner", actorId: account.id, actorName: account.displayName });

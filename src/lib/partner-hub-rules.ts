@@ -113,33 +113,40 @@ export type PartnerAvailabilityInput = {
 };
 
 /**
- * Bolehkah produk mitra dipesan sekarang? (PRD 06). Null = boleh; teks = alasan (untuk kasir/waiter).
+ * Bolehkah produk mitra dipesan sekarang? Null = boleh; teks = alasan (untuk kasir/waiter).
+ * Arahan Owner (Nov 2026): siapa pun (pelanggan, waiter, kasir) bebas memesan selama produk berstatus Tersedia.
+ * Satu-satunya penentu harian = Tersedia/Habis yang diatur mitra. Buka/Jeda/Tutup/offline/last order TIDAK menolak
+ * pesanan: pesanan masuk antrean Portal Mitra dan mitra sendiri yang menerima atau menolak (lihat `partnerServiceNote`).
  * Server memanggil ini lagi saat order disahkan — status di layar tidak pernah dipercaya.
  */
-export function partnerOrderBlockReason(input: PartnerAvailabilityInput, at = new Date()): string | null {
+export function partnerOrderBlockReason(input: PartnerAvailabilityInput): string | null {
   if (!input.hubEnabled) return "Partner Hub belum aktif di outlet ini.";
   if (input.partnerStatus !== "aktif") return "Mitra belum aktif / sedang dihentikan.";
   if (!input.linkActive) return "Produk mitra belum disetujui Owner.";
-  if (input.operationalStatus === "tutup") return "Mitra sedang tutup.";
-  if (input.operationalStatus === "jeda") return "Mitra sedang jeda.";
-  if (input.operationalStatus === "offline") return "Portal Mitra tidak terhubung (HP mitra mati / tanpa sinyal). Hubungi mitra.";
-  if (input.operationalStatus !== "buka") return "Ketersediaan mitra belum terkonfirmasi.";
   if (input.productStock === "sold_out") return "Produk sedang habis (Sold Out).";
-  if (isPastLastOrder(input.lastOrderByDay, at)) return "Sudah lewat jam last order mitra.";
   return null;
 }
 
-/** Label pendek untuk kartu produk POS (kasir langsung tahu kenapa tidak bisa dijual). Null = bisa dipesan. */
-export function partnerCardLabel(input: PartnerAvailabilityInput, at = new Date()): string | null {
-  if (!partnerOrderBlockReason(input, at)) return null;
+/** Label pendek kartu produk saat TIDAK bisa dipesan (kasir langsung tahu kenapa). Null = bisa dipesan. */
+export function partnerCardLabel(input: PartnerAvailabilityInput): string | null {
+  if (!partnerOrderBlockReason(input)) return null;
   if (input.partnerStatus !== "aktif") return "Mitra nonaktif";
+  if (input.productStock === "sold_out") return "Habis";
+  return "Tidak tersedia";
+}
+
+/**
+ * Keterangan layanan mitra untuk produk yang TETAP bisa dipesan: memberi tahu pemesan bahwa pesanan akan menunggu
+ * keputusan mitra. Hanya informasi — tidak pernah mengunci tombol pesan. Null = mitra buka normal.
+ */
+export function partnerServiceNote(input: PartnerAvailabilityInput, at = new Date()): string | null {
+  if (partnerOrderBlockReason(input)) return null;
   if (input.operationalStatus === "tutup") return "Mitra tutup";
   if (input.operationalStatus === "jeda") return "Mitra jeda";
   if (input.operationalStatus === "offline") return "Mitra tidak terhubung";
   if (input.operationalStatus !== "buka") return "Mitra belum konfirmasi";
-  if (input.productStock === "sold_out") return "Habis";
   if (isPastLastOrder(input.lastOrderByDay, at)) return "Lewat last order";
-  return "Tidak tersedia";
+  return null;
 }
 
 /** Pesanan mitra yang perlu perhatian kasir: belum diterima lewat SLA, atau sudah siap tapi belum diambil. */

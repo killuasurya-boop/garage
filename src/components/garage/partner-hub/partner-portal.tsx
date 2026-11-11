@@ -25,13 +25,16 @@ type Ticket = {
   createdAt: string;
   acceptedAt?: string | null;
   readyAt: string | null;
+  issueReason?: string | null;
   notes: Record<string, string>;
   items: Array<{ name: string; variant: string; qty: number }>;
 };
 type Overview = {
   partner: { id: string; name: string; code: string; status: string; operationalStatus: string };
   products: Array<{ linkId: string; name: string; category: string; imageUrl: string | null; active: boolean; available: boolean; variants: Array<{ variantId?: string; label: string; sellPrice: number; unitCost?: number }> }>;
+  mustChangePin?: boolean;
   activeTickets: Ticket[];
+  cancelledTickets?: Array<Ticket & { cancelledAt: string | null }>;
   today: { qty: number; gross: number; liability: number; orders: number };
   unpaid: number;
   settlements: Array<{ id: string; settlementNo: string; status: string; liabilityTotal: number; paidAmount: number; periodFrom: string; periodTo: string }>;
@@ -134,6 +137,17 @@ export function PartnerPortal() {
     );
   }
   if (needLogin || !overview) return <PartnerLogin onDone={() => void load()} />;
+  if (overview.mustChangePin) {
+    // PIN buatan staf: portal baru bisa dipakai setelah mitra membuat PIN sendiri (server juga menolak aksi lain).
+    return (
+      <main className="grid min-h-dvh place-items-center bg-[#0b0b0d] px-4 py-8 text-[#e4e4e8]">
+        <div className="w-full max-w-md">
+          <p className="mb-3 text-lg font-bold text-white">Halo, {overview.partner.name}</p>
+          <PartnerPinChange forced onDone={() => void load()} />
+        </div>
+      </main>
+    );
+  }
 
   const p = overview.partner;
   const op = p.operationalStatus;
@@ -150,7 +164,7 @@ export function PartnerPortal() {
             onClick={() => void run("logout", () => alerts.releasePush().then(() => api("/api/partner/auth/logout", { method: "POST" })).then(() => setNeedLogin(true)))}
             className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#3a3a42] px-3 text-sm text-[#d4d4d8] hover:bg-white/5"
           >
-            <LogOut className="size-4" /> Keluar
+            <LogOut className="size-4" aria-hidden /> Keluar
           </button>
         </div>
       </header>
@@ -177,6 +191,11 @@ export function PartnerPortal() {
               {op === "buka" ? "BUKA" : op === "jeda" ? "JEDA" : "TUTUP"}
             </span>
           </div>
+          <p className="mt-2 text-sm text-[#d4d4d8]">
+            {op === "buka"
+              ? "Anda buka. Pesanan baru masuk di bawah — terima atau tolak."
+              : `Status ${op === "jeda" ? "Jeda" : "Tutup"} hanya keterangan untuk kasir dan pelanggan. Pesanan produk yang masih Tersedia tetap bisa masuk — Anda yang memutuskan terima atau tolak. Supaya tidak dipesan, tandai produknya Habis.`}
+          </p>
           {p.status !== "aktif" ? <p className="mt-2 text-sm text-[#fde68a]">Mitra sedang dihentikan sementara oleh Owner. Tiket lama tetap bisa diselesaikan.</p> : null}
           <div className="mt-3 grid grid-cols-3 gap-2" role="group" aria-label="Status layanan">
             {(["buka", "jeda", "tutup"] as const).map((status) => {
@@ -249,7 +268,7 @@ export function PartnerPortal() {
         <section className="grid grid-cols-2 gap-3">
           <div className="rounded-xl border border-[#34343c] bg-[#17171c] p-4">
             <p className="text-xs text-[#b8b8bf]">Hak mitra hari ini</p>
-            <p className="mt-1 text-xl font-black text-white">{rp(overview.today.liability)}</p>
+            <p className="mt-1 text-xl font-black tabular-nums text-white">{rp(overview.today.liability)}</p>
             <p className="text-xs text-[#b8b8bf]">{overview.today.qty} item siap · {overview.today.orders} order</p>
           </div>
           <div className="rounded-xl border border-[#34343c] bg-[#17171c] p-4">
@@ -269,6 +288,23 @@ export function PartnerPortal() {
               <span className="font-semibold text-[#ffd08a]">Perlu dibuat:</span> {toMake.map(([name, qty]) => `${qty}× ${name}`).join(" · ")}
             </p>
           ) : null}
+          {overview.cancelledTickets?.length ? (
+            <ul className="mt-3 grid gap-2" aria-label="Pesanan dibatalkan Garage">
+              {overview.cancelledTickets.map((ticket) => (
+                <li key={ticket.ticketNo} role="alert" className="rounded-lg border border-[#ff5a66] bg-[#3a1015] p-3">
+                  <p className="flex flex-wrap items-center gap-2 font-bold text-white">
+                    <CircleX className="size-4 shrink-0 text-[#ff8a94]" aria-hidden /> Dibatalkan Garage — jangan dibuat
+                  </p>
+                  <p className="mt-1 text-sm text-[#ffd0d4]">
+                    {ticket.orderNo} · {ticket.tableLabel ?? "Take away"}
+                    {ticket.cancelledAt ? ` · batal ${time(ticket.cancelledAt)}` : ""}
+                  </p>
+                  <p className="mt-1 text-sm text-[#f4f4f5]">{ticket.items.map((item) => `${item.qty}× ${item.name}`).join(" · ")}</p>
+                  {ticket.issueReason ? <p className="mt-1 text-xs text-[#ffd0d4]">Alasan: {ticket.issueReason}</p> : null}
+                </li>
+              ))}
+            </ul>
+          ) : null}
           {overview.activeTickets.length === 0 ? (
             <p className="mt-3 rounded-lg border border-dashed border-[#3a3a42] p-4 text-center text-sm text-[#b8b8bf]">Belum ada pesanan aktif.</p>
           ) : (
@@ -284,7 +320,7 @@ export function PartnerPortal() {
                         {ticket.orderNo} <span className="ml-1 rounded border border-[#4a4a54] px-1.5 py-0.5 text-xs text-[#e4e4e8]">{ticket.tableLabel ?? "Take away"}</span>
                       </p>
                       <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold ${waitMin >= (overview.slaWarnMinutes ?? 2) && ticket.status === "queue" ? "bg-[#7f1d1d] text-[#fecaca]" : "bg-white/10 text-[#e4e4e8]"}`}>
-                        <Timer className="size-3" /> {STATUS_LABEL[ticket.status] ?? ticket.status} · {sinceAccept !== null && ticket.status !== "queue" ? `diproses ${sinceAccept} mnt` : `${waitMin} mnt`}
+                        <Timer className="size-3" aria-hidden /> {STATUS_LABEL[ticket.status] ?? ticket.status} · {sinceAccept !== null && ticket.status !== "queue" ? `diproses ${sinceAccept} mnt` : `${waitMin} mnt`}
                       </span>
                     </div>
                     <p className="mt-1 text-xs text-[#b8b8bf]">{ticket.customerName ?? "Tanpa nama"} · masuk {time(ticket.createdAt)}</p>
@@ -296,7 +332,15 @@ export function PartnerPortal() {
                         </li>
                       ))}
                     </ul>
-                    {Object.values(ticket.notes ?? {}).length ? <p className="mt-1 text-xs text-[#ffd08a]">Catatan: {Object.values(ticket.notes).join(" · ")}</p> : null}
+                    {Object.keys(ticket.notes ?? {}).length ? (
+                      <ul className="mt-2 grid gap-1 rounded-lg border border-[#ffd08a]/40 bg-[#2a1d0a]/60 px-3 py-2 text-sm text-[#ffe2b0]" aria-label="Catatan pelanggan">
+                        {Object.entries(ticket.notes).map(([item, note]) => (
+                          <li key={item} className="break-words">
+                            <b>Catatan {item}:</b> {note}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
                     <div className="mt-3 flex flex-wrap gap-2">
                       {ticket.status === "queue" ? (
                         <>
@@ -391,7 +435,7 @@ function ActionButton({ children, onClick, busy, primary }: { children: React.Re
       type="button"
       onClick={onClick}
       disabled={busy}
-      className={`inline-flex min-h-11 items-center gap-2 rounded-lg px-4 text-sm font-bold transition-colors disabled:opacity-60 ${primary ? "bg-[#d11a2a] text-white hover:bg-[#e3263a]" : "border border-[#3a3a42] text-[#e4e4e8] hover:bg-white/10"}`}
+      className={`inline-flex min-h-11 items-center gap-2 rounded-lg px-4 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 disabled:opacity-60 ${primary ? "bg-[#d11a2a] text-white hover:bg-[#e3263a]" : "border border-[#3a3a42] text-[#e4e4e8] hover:bg-white/10"}`}
     >
       {busy ? <Loader2 className="size-4 animate-spin" /> : null}
       {children}

@@ -13,7 +13,7 @@ const schema = z.object({
 
 // Mitra mengganti PIN sendiri (PIN lama wajib). Perangkat lain otomatis keluar; perangkat ini dapat sesi baru.
 export async function POST(request: Request) {
-  const session = await requirePartnerSession(request);
+  const session = await requirePartnerSession(request, { allowPinChangePending: true });
   if (session.response) return session.response;
   const body = await readJson(request, schema);
   if (body.error) return body.error;

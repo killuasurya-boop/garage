@@ -1294,6 +1294,7 @@
     display: inline-flex; align-items: center; gap: 4px; min-height: 22px; padding: 0 7px; border-radius: 6px;
     font-size: 12px; font-weight: 700; border: 1px solid var(--pos-border, #34343c); background: var(--pos-surface-muted, #1f1f26);
   }
+  .pos-v6-pend-flag[data-partner-rejected="true"] { min-height: 0; padding: 3px 7px; white-space: normal; text-align: left; color: var(--pos-danger, #b91c1c); border-color: currentColor; }
   .pos-v6-pend-chip[data-lane="cash"] { color: var(--pos-warning, #b45309); }
   .pos-v6-pend-chip[data-lane="digital"] { color: var(--pos-info, #1f5fd1); }
   .pos-v6-pend-chip[data-unset="true"] { border-style: dashed; color: var(--pos-text-2, var(--pos-text, #ddd)); }

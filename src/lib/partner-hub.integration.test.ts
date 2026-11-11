@@ -107,7 +107,7 @@ describe("Smart Partner Hub — registrasi & aktivasi", () => {
 
   it("nomor HP/WA mitra wajib angka: nama pengguna ditolak untuk akun login & profil", async () => {
     await expect(
-      svc.createPartnerAccount(partnerA.id, { phone: "dimsumcidut", displayName: "Salah isi", pin: "123456" }, manager()),
+      svc.createPartnerAccount(partnerA.id, { phone: "dimsumcidut", displayName: "Salah isi", pin: "246810" }, manager()),
     ).rejects.toThrow(/Nomor HP\/WhatsApp tidak valid/);
     await expect(svc.updatePartnerProfile(partnerA.id, { phone: "eskrimpokatau" }, manager())).rejects.toThrow(/tidak valid/);
     const row = await svc.updatePartnerProfile(partnerA.id, { phone: "+62 851-3964-9855", handoverPoint: "Meja pass" }, manager());
@@ -164,12 +164,15 @@ describe("Smart Partner Hub — order & tiket", () => {
     expect(JSON.stringify(board)).not.toContain(partnerTicket.ticketNo);
   });
 
-  it("server menolak produk mitra saat Habis / Tutup / hub mati (UAT-03/04/24)", async () => {
+  it("server menolak produk mitra saat Habis / hub mati; Tutup tidak menolak (keputusan di mitra)", async () => {
     await svc.setPartnerProductAvailability(linkA, false, { partner: partnerSession(partnerA) });
     await expect(sale([{ itemId: menuA, qty: 1 }])).rejects.toThrow(/habis/i);
     await svc.setPartnerProductAvailability(linkA, true, { partner: partnerSession(partnerA) });
+    // Tutup/Jeda: pesanan tetap masuk antrean mitra — mitra yang menerima atau menolak.
     await svc.setPartnerOperationalStatus(partnerA.id, "tutup", { partner: partnerSession(partnerA) });
-    await expect(sale([{ itemId: menuA, qty: 1 }])).rejects.toThrow(/tutup/);
+    const closed = (await garageSvc.getMenuData() as Array<{ id: string; stock: string; partner?: { label: string | null; note?: string | null } }>).find((item) => item.id === menuA)!;
+    expect(closed.stock).not.toBe("sold_out");
+    expect(closed.partner).toMatchObject({ label: null, note: "Mitra tutup" });
     await svc.setPartnerOperationalStatus(partnerA.id, "buka", { partner: partnerSession(partnerA) });
     await setHub(false);
     await expect(sale([{ itemId: menuA, qty: 1 }])).rejects.toThrow(/Partner Hub belum aktif/);
@@ -264,6 +267,11 @@ describe("Smart Partner Hub — settlement & payout", () => {
     ).rejects.toThrow(/melebihi sisa/);
     const first = await svc.recordPartnerPayout(draft.id, { amount: 20_000, fundSource: "bank_jago", reference: "TRF-1001", paidAt: new Date(), idempotencyKey: "pay-1001-key" }, manager());
     expect(first.status).toBe("recorded");
+    // Buku kas: catatan Manajer yang belum diverifikasi belum mengurangi saldo bank.
+    const ledgerOf = (payoutId: string) => d.select().from(t.schema.cashLedgerEntries).where(eq(t.schema.cashLedgerEntries.sourceId, payoutId));
+    const { accountBalance } = await import("@/lib/cash-ledger");
+    const jagoBefore = await accountBalance("bank_jago", outletId);
+    expect(await ledgerOf(first.id)).toHaveLength(0);
     // Retry dengan kunci sama = hasil sama, bukan pembayaran kedua.
     const replay = await svc.recordPartnerPayout(draft.id, { amount: 20_000, fundSource: "bank_jago", reference: "TRF-1001", paidAt: new Date(), idempotencyKey: "pay-1001-key" }, manager());
     expect(replay).toMatchObject({ id: first.id, replay: true });
@@ -273,8 +281,26 @@ describe("Smart Partner Hub — settlement & payout", () => {
     await expect(svc.verifyPartnerPayout(first.id, manager())).rejects.toThrow(/Owner/);
     const afterFirst = await svc.verifyPartnerPayout(first.id, owner());
     expect(afterFirst).toMatchObject({ paidAmount: 20_000, status: "partially_paid" });
+    // Terverifikasi → satu baris Rekening Jago → luar usaha; saldo Jago di buku kas turun 20.000.
+    const jagoRows = await ledgerOf(first.id);
+    expect(jagoRows).toHaveLength(1);
+    expect(jagoRows[0]).toMatchObject({ fromAccount: "bank_jago", toAccount: "external", amount: 20_000, sourceType: "partner_payout" });
+    expect(await accountBalance("bank_jago", outletId)).toBe(jagoBefore - 20_000);
+    await expect(svc.verifyPartnerPayout(first.id, owner())).rejects.toThrow(/sudah diproses/);
+    expect(await ledgerOf(first.id)).toHaveLength(1);
     // Owner mencatat sisa → langsung terverifikasi (tanpa pemeriksa kedua) → lunas.
-    await svc.recordPartnerPayout(draft.id, { amount: 18_000, fundSource: "bank_bni", reference: "TRF-1002", paidAt: new Date(), idempotencyKey: "pay-1002-key" }, owner());
+    const bniBefore = await accountBalance("bank_bni", outletId);
+    const second = await svc.recordPartnerPayout(draft.id, { amount: 18_000, fundSource: "bank_bni", reference: "TRF-1002", paidAt: new Date(), idempotencyKey: "pay-1002-key" }, owner());
+    expect(await accountBalance("bank_bni", outletId)).toBe(bniBefore - 18_000);
+    // Batal → baris pembalik (riwayat tetap), saldo BNI kembali; batal dua kali tidak menggandakan pembalik.
+    await svc.voidPartnerPayout(second.id, "salah nominal transfer", owner());
+    const bniRows = await ledgerOf(second.id);
+    expect(bniRows.map((row: { sourceType: string }) => row.sourceType).sort()).toEqual(["partner_payout", "partner_payout_void"]);
+    expect(bniRows.find((row: { sourceType: string }) => row.sourceType === "partner_payout_void")).toMatchObject({ fromAccount: "external", toAccount: "bank_bni", amount: 18_000, reversesId: bniRows.find((row: { sourceType: string }) => row.sourceType === "partner_payout")!.id });
+    expect(await accountBalance("bank_bni", outletId)).toBe(bniBefore);
+    // Uang pribadi Owner (external) tidak lewat rekening usaha → tidak ada baris buku kas.
+    const personal = await svc.recordPartnerPayout(draft.id, { amount: 18_000, fundSource: "external", reference: "TRF-1003", paidAt: new Date(), idempotencyKey: "pay-1003-key" }, owner());
+    expect(await ledgerOf(personal.id)).toHaveLength(0);
     const detail = await svc.getPartnerSettlement(draft.id, { outletId });
     expect(detail.settlement).toMatchObject({ status: "paid", paidAmount: 38_000 });
     const [paidExpense] = await d.select().from(t.schema.expenses).where(eq(t.schema.expenses.sourceDoc, `PSET:${draft.settlementNo}`));
@@ -351,20 +377,21 @@ describe("Smart Partner Hub — settlement & payout", () => {
     expect(adjustments).toHaveLength(1);
   });
 
-  it("HP mitra mati / lupa tutup kemarin: produk tidak bisa dijual sampai portal terhubung lagi", async () => {
+  it("HP mitra mati / lupa tutup kemarin: produk tetap bisa dipesan, kartu memberi keterangan mitra", async () => {
     const d = t.getDb();
     const { eq } = await import("drizzle-orm");
     await d.update(t.schema.partners).set({ lastSeenAt: new Date(Date.now() - 10 * 60_000) }).where(eq(t.schema.partners.id, partnerA.id));
-    await expect(sale([{ itemId: menuA, qty: 1 }])).rejects.toThrow(/tidak terhubung/);
     const menu = await garageSvc.getMenuData();
-    const card = (menu as Array<{ id: string; stock: string; partner?: { label: string | null } }>).find((item) => item.id === menuA)!;
-    expect(card.stock).toBe("sold_out");
-    expect(card.partner?.label).toBe("Mitra tidak terhubung");
+    const card = (menu as Array<{ id: string; stock: string; partner?: { label: string | null; note?: string | null } }>).find((item) => item.id === menuA)!;
+    expect(card.stock).not.toBe("sold_out");
+    expect(card.partner).toMatchObject({ label: null, note: "Mitra tidak terhubung" });
     // Terhubung lagi tetapi status Buka berasal dari kemarin → dianggap Tutup.
     await d.update(t.schema.partners).set({ lastSeenAt: new Date(), operationalStatusAt: new Date(Date.now() - 30 * 3_600_000) }).where(eq(t.schema.partners.id, partnerA.id));
-    await expect(sale([{ itemId: menuA, qty: 1 }])).rejects.toThrow(/tutup/);
+    const stale = (await garageSvc.getMenuData() as Array<{ id: string; partner?: { note?: string | null } }>).find((item) => item.id === menuA)!;
+    expect(stale.partner?.note).toBe("Mitra tutup");
     await svc.setPartnerOperationalStatus(partnerA.id, "buka", { partner: partnerSession(partnerA) });
-    await expect(sale([{ itemId: menuA, qty: 1 }])).resolves.toBeTruthy();
+    const open = (await garageSvc.getMenuData() as Array<{ id: string; partner?: { note?: string | null } }>).find((item) => item.id === menuA)!;
+    expect(open.partner?.note ?? null).toBeNull();
   });
 
   it("mitra menolak pesanan lunas: masuk antrean refund kasir sampai item dikeluarkan dari bill", async () => {
@@ -583,7 +610,7 @@ describe("Smart Partner Hub — kesiapan operasional (11 Nov 2026)", () => {
   });
 
   it("nomor HP tidak valid tetap ditolak saat membuat akun dari portal admin", async () => {
-    await expect(svc.createPartnerAccount(partnerA.id, { phone: "abc12345678", displayName: "x", pin: "123456" }, manager())).rejects.toThrow(/tidak valid/);
+    await expect(svc.createPartnerAccount(partnerA.id, { phone: "abc12345678", displayName: "x", pin: "246810" }, manager())).rejects.toThrow(/tidak valid/);
   });
 });
 
@@ -723,6 +750,63 @@ describe("Smart Partner Hub — produk salah mitra & form produk umum", () => {
     // kembalikan supaya tes berikutnya tetap memakai mitra B
     await svc.movePartnerProduct(link.linkId, { toPartnerId: partnerB.id, reason: "kembalikan untuk uji" }, owner());
   });
+
+  it("Owner memindahkan semua/sebagian produk sekaligus; pilihan asing ditolak tanpa ada yang berpindah", async () => {
+    const d = t.getDb();
+    const { and, eq } = await import("drizzle-orm");
+    const source = await svc.createPartner({ code: "KTL", name: "Mitra Katalog Impor" }, manager());
+    const target = await svc.createPartner({ code: "DFT", name: "Mitra Pendaftar" }, manager());
+    const makeProduct = (code: string, name: string) =>
+      svc.createPartnerProduct(source.id, { code, name, category: "Dimsum", variants: [{ variantId: "reg", label: "Regular", unitCost: 20_000, sellPrice: 24_000 }] }, manager());
+    const p1 = await makeProduct("KTL-001", "Dimsum Ayam Katalog");
+    const p2 = await makeProduct("KTL-002", "Dimsum Udang Katalog");
+    const p3 = await makeProduct("KTL-003", "Siomay Katalog");
+    const ids = (rows: Array<{ linkId: string }>) => rows.map((p) => p.linkId).sort();
+    const listOf = (partnerId: string) => svc.listPartnerProducts(partnerId, { outletId, showCost: false });
+    const bProducts = await listOf(partnerB.id);
+
+    await expect(svc.movePartnerProducts(source.id, { toPartnerId: target.id, reason: "milik pendaftar" }, manager())).rejects.toThrow(/Owner/);
+    await expect(svc.movePartnerProducts(source.id, { toPartnerId: source.id, reason: "sama" }, owner())).rejects.toThrow(/sama dengan mitra asal/);
+    await expect(svc.movePartnerProducts(source.id, { toPartnerId: target.id, reason: "x" }, owner())).rejects.toThrow(/Alasan/);
+    // produk mitra B ikut dipilih → seluruh permintaan ditolak, tidak ada yang berpindah
+    await expect(
+      svc.movePartnerProducts(source.id, { toPartnerId: target.id, reason: "milik pendaftar", linkIds: [p1.linkId, bProducts[0].linkId] }, owner()),
+    ).rejects.toThrow(/bukan milik Mitra Katalog Impor/);
+    expect(ids(await listOf(source.id))).toEqual(ids([p1, p2, p3]));
+
+    // sebagian
+    const partial = await svc.movePartnerProducts(source.id, { toPartnerId: target.id, reason: "siomay milik pendaftar", linkIds: [p3.linkId] }, owner());
+    expect(partial).toMatchObject({ moved: 1, cancelledProposals: 0, products: [{ linkId: p3.linkId, name: "Siomay Katalog" }] });
+    expect(ids(await listOf(target.id))).toEqual([p3.linkId]);
+
+    // semua sisanya; pengajuan harga yang menunggu ikut dibatalkan
+    const [proposal] = await d
+      .insert(t.schema.partnerPriceProposals)
+      .values({ proposalNo: "PPR-UJI-BULK", partnerId: source.id, linkId: p1.linkId, variantId: "reg", currentUnitCost: 20_000, currentSellPrice: 24_000, proposedUnitCost: 21_000, reason: "uji pindah semua", createdBy: "uji" })
+      .returning();
+    const all = await svc.movePartnerProducts(source.id, { toPartnerId: target.id, reason: "semua milik pendaftar" }, owner());
+    expect(all).toMatchObject({ fromPartnerId: source.id, toPartnerId: target.id, moved: 2, cancelledProposals: 1 });
+    expect(all.products.map((p) => p.name)).toEqual(["Dimsum Ayam Katalog", "Dimsum Udang Katalog"]);
+    expect(await listOf(source.id)).toEqual([]);
+    expect(ids(await listOf(target.id))).toEqual(ids([p1, p2, p3]));
+    const [cancelled] = await d.select().from(t.schema.partnerPriceProposals).where(eq(t.schema.partnerPriceProposals.id, proposal.id));
+    expect(cancelled.status).toBe("cancelled");
+    const outEvents = await d
+      .select()
+      .from(t.schema.partnerEvents)
+      .where(and(eq(t.schema.partnerEvents.partnerId, source.id), eq(t.schema.partnerEvents.kind, "product_moved_out")));
+    expect(outEvents.length).toBe(3);
+    const inEvents = await d
+      .select()
+      .from(t.schema.partnerEvents)
+      .where(and(eq(t.schema.partnerEvents.partnerId, target.id), eq(t.schema.partnerEvents.kind, "product_moved_in")));
+    expect(inEvents.length).toBe(3);
+    // mitra B tidak tersentuh
+    expect(ids(await listOf(partnerB.id))).toEqual(ids(bProducts));
+
+    // mitra asal kini tanpa produk
+    await expect(svc.movePartnerProducts(source.id, { toPartnerId: target.id, reason: "lagi" }, owner())).rejects.toThrow(/tidak punya produk/);
+  });
 });
 
 describe("Smart Partner Hub — media marketing website", () => {
@@ -750,7 +834,7 @@ describe("Smart Partner Hub — media marketing website", () => {
     const menuId = (await svc.listPartnerProducts(partnerB.id, { outletId, showCost: false })).find((p) => p.linkId === link.linkId)!.menuItemId;
     await garageSvc.updateMenuProduct(menuId, { tags: ["Mitra"] } as never, manager());
     expect((await svc.partnerMarketingStatus(link.linkId, manager())).promoted).toBe(true);
-    // Portal mitra offline → tetap tampil tetapi "Sedang tutup" (aturan sama dengan menu digital).
+    // Portal mitra offline → tetap tampil di website tetapi tidak ditandai "tersedia sekarang".
     const d = t.getDb();
     const { eq } = await import("drizzle-orm");
     await d.update(t.schema.partners).set({ lastSeenAt: new Date(Date.now() - 60 * 60_000) }).where(eq(t.schema.partners.id, partnerB.id));
@@ -800,14 +884,16 @@ describe("Smart Partner Hub — pelanggan pesan sendiri dari QR meja (owner Nov 
     // Belum ada tiket apa pun sebelum kasir menerima.
     expect(await d.select().from(t.schema.kitchenTickets).where(eq(t.schema.kitchenTickets.orderId, orderId))).toHaveLength(0);
 
-    // Mitra jeda sebelum kasir menerima → terima ditolak dengan pesan mitra, tidak ada tiket setengah jadi.
-    await svc.setPartnerOperationalStatus(partnerB.id, "jeda", { partner: session });
-    await expect(garageSvc.updateCustomerOrderStatus(orderId, { action: "accept" }, kasir())).rejects.toThrow(/jeda.*Tolak pesanan/);
+    // Produk ditandai Habis oleh mitra sebelum kasir menerima → terima ditolak, tidak ada tiket setengah jadi.
+    await svc.setPartnerProductAvailability(product.linkId, false, { partner: session });
+    await expect(garageSvc.updateCustomerOrderStatus(orderId, { action: "accept" }, kasir())).rejects.toThrow(/habis/i);
     expect(await d.select().from(t.schema.kitchenTickets).where(eq(t.schema.kitchenTickets.orderId, orderId))).toHaveLength(0);
+    await svc.setPartnerProductAvailability(product.linkId, true, { partner: session });
 
-    // Mitra buka lagi → kasir terima → tiket Bar + Mitra, baris mitra dengan snapshot HPP.
-    await svc.setPartnerOperationalStatus(partnerB.id, "buka", { partner: session });
+    // Mitra JEDA: kasir tetap bisa menerima → tiket Bar + Mitra masuk; mitra yang memutuskan.
+    await svc.setPartnerOperationalStatus(partnerB.id, "jeda", { partner: session });
     await garageSvc.updateCustomerOrderStatus(orderId, { action: "accept" }, kasir());
+    await svc.setPartnerOperationalStatus(partnerB.id, "buka", { partner: session });
     const tickets = await d.select().from(t.schema.kitchenTickets).where(eq(t.schema.kitchenTickets.orderId, orderId));
     const mitra = tickets.find((x: { station: string }) => x.station === "Mitra");
     expect(mitra?.partnerId).toBe(partnerB.id);
@@ -819,12 +905,94 @@ describe("Smart Partner Hub — pelanggan pesan sendiri dari QR meja (owner Nov 
     expect(queue.some((x: { ticketNo: string }) => x.ticketNo === mitra?.ticketNo)).toBe(true);
   });
 
-  it("produk mitra saat mitra TUTUP: pelanggan langsung diberi alasan mitra", async () => {
+  it("produk mitra saat mitra TUTUP/JEDA: pelanggan tetap bisa pesan selama produk Tersedia; Habis ditolak", async () => {
     const session = partnerSession(partnerB, "Dimsum");
     const [product] = await svc.listPartnerProducts(partnerB.id, { outletId, showCost: true });
     await svc.setPartnerOperationalStatus(partnerB.id, "tutup", { partner: session });
-    await expect(customerOrder([{ itemId: product.menuItemId, variantId: "reg", qty: 1 }], "Meja 10")).rejects.toThrow(/tutup/i);
+    const created = await customerOrder([{ itemId: product.menuItemId, variantId: "reg", qty: 1 }], "Meja 10");
+    expect((created as { order: { status: string } }).order.status).toBe("pending_cashier");
     await svc.setPartnerOperationalStatus(partnerB.id, "buka", { partner: session });
+    await svc.setPartnerProductAvailability(product.linkId, false, { partner: session });
+    await expect(customerOrder([{ itemId: product.menuItemId, variantId: "reg", qty: 1 }], "Meja 11")).rejects.toThrow(/habis/i);
+    await svc.setPartnerProductAvailability(product.linkId, true, { partner: session });
+  });
+
+  it("mitra menolak pesanan meja yang BELUM dibayar: kasir mengeluarkan item dari bill, kopi tetap ditagih", async () => {
+    const d = t.getDb();
+    const { eq } = await import("drizzle-orm");
+    const session = partnerSession(partnerB, "Dimsum");
+    const [product] = await svc.listPartnerProducts(partnerB.id, { outletId, showCost: true });
+    const created = await customerOrder(
+      [
+        { itemId: "itm-coffee", variantId: "reg", qty: 1 },
+        { itemId: product.menuItemId, variantId: "reg", qty: 1 },
+      ],
+      "Meja 12",
+    );
+    const order = (created as { order: { id: string; orderNo: string } }).order;
+    await garageSvc.updateCustomerOrderStatus(order.id, { action: "accept" }, kasir());
+    const ticket = (await svc.listTicketsForPartner(partnerB.id, "active")).find((row) => row.orderNo === order.orderNo)!;
+    await svc.actOnPartnerTicket(session, ticket.ticketNo, "reject", "bahan habis");
+    const card = (await svc.listPartnerOrdersForOutlet(outletId, {})).find((row) => row.ticketNo === ticket.ticketNo)!;
+    expect(card.needsRefund).toBe(true);
+    expect(card.paymentLabel).not.toBe("Lunas");
+    const target = await svc.rejectedPartnerTicketForRefund(outletId, ticket.ticketNo);
+    const req = await garageSvc.requestUnpaidItemCancelApproval(target.orderNo, { reasonCode: "menu_habis", note: "Ditolak mitra", items: target.items }, manager());
+    if (req.status === "pending") await garageSvc.decideApproval(req.approvalId, { status: "approved" }, owner());
+    // Item mitra keluar dari bill → tiket hilang dari antrean kasir; bill asal tinggal kopi.
+    expect((await svc.listPartnerOrdersForOutlet(outletId, {})).find((row) => row.ticketNo === ticket.ticketNo)).toBeUndefined();
+    await expect(svc.rejectedPartnerTicketForRefund(outletId, ticket.ticketNo)).rejects.toThrow(/dikeluarkan/);
+    const left = await d.select().from(t.schema.orderItems).where(eq(t.schema.orderItems.orderId, order.id));
+    expect(left.filter((item: { qty: number }) => item.qty > 0).map((item: { menuItemId: string | null }) => item.menuItemId)).toEqual(["itm-coffee"]);
+  });
+
+  it("order dibatalkan setelah masuk ke mitra: tiket tampil sebagai 'Dibatalkan Garage' di portal + event tercatat", async () => {
+    const d = t.getDb();
+    const { and, eq } = await import("drizzle-orm");
+    const { cancelProductionForOrder } = await import("@/lib/garage-production-tickets");
+    const [product] = await svc.listPartnerProducts(partnerB.id, { outletId, showCost: true });
+    const created = await customerOrder([{ itemId: product.menuItemId, variantId: "reg", qty: 1 }], "Meja 14");
+    const order = (created as { order: { id: string; orderNo: string } }).order;
+    await garageSvc.updateCustomerOrderStatus(order.id, { action: "accept" }, kasir());
+    const ticket = (await svc.listTicketsForPartner(partnerB.id, "active")).find((row) => row.orderNo === order.orderNo)!;
+    await d.transaction((tx: never) => cancelProductionForOrder(tx, order.id, "Order dibatalkan: pelanggan pulang"));
+    expect((await svc.listTicketsForPartner(partnerB.id, "active")).find((row) => row.ticketNo === ticket.ticketNo)).toBeUndefined();
+    const recent = await svc.listRecentlyCancelledTickets(partnerB.id);
+    expect(recent.find((row) => row.ticketNo === ticket.ticketNo)).toMatchObject({ status: "cancelled", issueReason: "Order dibatalkan: pelanggan pulang" });
+    // Sudah lewat 10 menit → tidak lagi ditampilkan.
+    expect(await svc.listRecentlyCancelledTickets(partnerB.id, new Date(Date.now() + 11 * 60_000))).toHaveLength(0);
+    // Pemberitahuan dijadwalkan setelah transaksi (±1,5 dtk): event tercatat untuk mitra.
+    await new Promise((resolve) => setTimeout(resolve, 2_200));
+    const events = await d
+      .select()
+      .from(t.schema.partnerEvents)
+      .where(and(eq(t.schema.partnerEvents.partnerId, partnerB.id), eq(t.schema.partnerEvents.kind, "ticket_cancelled_by_garage"), eq(t.schema.partnerEvents.subjectId, ticket.ticketNo)));
+    expect(events).toHaveLength(1);
+    await d.update(t.schema.orders).set({ status: "voided" }).where(eq(t.schema.orders.id, order.id));
+  });
+
+  it("PIN buatan staf: PIN lemah ditolak; mitra wajib ganti PIN sebelum aksi lain", async () => {
+    const d = t.getDb();
+    const { eq } = await import("drizzle-orm");
+    const auth = await import("@/lib/partner-auth");
+    await expect(svc.createPartnerAccount(partnerB.id, { phone: "081277700011", displayName: "PIN lemah", pin: "111111" }, manager())).rejects.toThrow(/mudah ditebak/);
+    const acc = await svc.createPartnerAccount(partnerB.id, { phone: "081277700012", displayName: "Baru", pin: "864209" }, manager());
+    const [row] = await d.select().from(t.schema.partnerAccounts).where(eq(t.schema.partnerAccounts.id, acc.id));
+    expect(row.mustChangePin).toBe(true);
+    const cookie = (version: number) => `${auth.PARTNER_COOKIE}=${auth.signPartnerSession({ id: acc.id, partnerId: partnerB.id, sessionVersion: version })}`;
+    const req = (version: number) => new Request("http://localhost/api/partner/tickets", { headers: { cookie: cookie(version) } });
+    const blocked = await auth.requirePartnerSession(req(row.sessionVersion));
+    expect(blocked.response?.status).toBe(403);
+    expect((await auth.requirePartnerSession(req(row.sessionVersion), { allowPinChangePending: true })).data?.account.mustChangePin).toBe(true);
+    const changed = await auth.changePartnerPin(acc.id, "864209", "975318");
+    expect(changed.ok).toBe(true);
+    const after = await auth.requirePartnerSession(req(row.sessionVersion + 1));
+    expect(after.data?.account.mustChangePin).toBe(false);
+    // Reset PIN oleh staf → wajib ganti lagi.
+    await expect(svc.updatePartnerAccount(acc.id, { pin: "123456" }, manager())).rejects.toThrow(/mudah ditebak/);
+    await svc.updatePartnerAccount(acc.id, { pin: "531864" }, manager());
+    const [reset] = await d.select().from(t.schema.partnerAccounts).where(eq(t.schema.partnerAccounts.id, acc.id));
+    expect(reset.mustChangePin).toBe(true);
   });
 
   it("meja terisi: tanpa kode gabung (bawaan) siapa saja boleh menambah pesanan; setting wajib kode → ditolak", async () => {

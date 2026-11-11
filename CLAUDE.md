@@ -383,10 +383,12 @@ Scroll direction:
   `partner-hub-rules.ts`; order hooks `partner-hub-orders.ts` (no garage-service import); server `partner-hub-service.ts`; PDF
   `partner-report-pdf.ts`. Partner products = `menu_items.product_type 'partner'` + station `none` (no Bar/Dapur ticket) +
   `partner_product_links` (one partner per item, inactive until Owner approves). Availability = `menu_items.stock` ready/sold_out
-  (unlimited, no qty/WMS); partner BUKA/JEDA/TUTUP + last order per day (WIB) are re-validated server-side on every order
-  (`assertPartnerItemsOrderable`); customer self-order of partner items follows setting `partnerCustomerSelfOrder` (default ON,
+  (unlimited, no qty/WMS). Order rule (owner 12 Nov 2026): anyone (customer, waiter, cashier) may order a partner product while it
+  is Tersedia; `partnerOrderBlockReason` blocks only hub off / partner not aktif / product not approved / Habis, re-validated on every
+  order and at cashier accept (`assertPartnerItemsOrderable`). BUKA/JEDA/TUTUP/offline/last order never refuse an order: the ticket
+  goes to the portal and the partner accepts or rejects; screens show it as `partner.note` (`partnerServiceNote`), never as a lock; customer self-order of partner items follows setting `partnerCustomerSelfOrder` (default ON,
   owner Nov 2026; OFF = old DEC-14). Customer orders wait for the cashier; partner tickets are created only at cashier accept, which
-  re-validates partner availability (Jeda/Tutup/Habis → accept refused with the partner reason). Orders create one `kitchen_tickets`
+  re-validates the hard rules + Habis only. Orders create one `kitchen_tickets`
   row per partner (station `Mitra`, `partner_id`) + `partner_order_lines` with price/HPP snapshot (UNIQUE order_item). Production
   Hub excludes `partner_id` tickets. Partner portal `/partner` uses its own session (`partner-auth.ts`, cookie
   `garage_partner_session`, never staff_profiles); `partner_id` always from the session. Ready (mitra) sets `handoverAt` so the
@@ -435,7 +437,18 @@ Scroll direction:
   through (`PartnerProductEditError`); Inventory "Kelola Produk" shows the Partner Hub hint instead of opening the form.
   Wrong partner = Owner "Pindahkan ke mitra lain" (`movePartnerProduct`, `POST /api/partners/products/[linkId]/move`, reason
   required): only future orders follow the new partner, old lines/liabilities stay, pending price proposals are cancelled, events on
-  both partners. Health alerts `NO_PORTAL_ACCOUNT` (products, no portal account) and `NO_ACTIVE_PRODUCT` (account, no products).
+  both partners. Bulk = "Pindahkan semua produk…" (`movePartnerProducts`, `POST /api/partners/[id]/products/move`, optional `linkIds`;
+  one tx, links locked FOR UPDATE, a foreign link rejects the whole request; UI always sends the ids the Owner saw). Health alerts `NO_PORTAL_ACCOUNT` (products, no portal account) and `NO_ACTIVE_PRODUCT` (account, no products).
+  Decision stays with the partner (12 Nov 2026, migration 0192): rejected ticket on an UNPAID bill = cashier "Keluarkan dari bill"
+  (same endpoint `/api/pos/partner-orders/[ticketNo]/refund` → `requestUnpaidItemCancelApproval`, APP-PCX); `needsRefund` follows the
+  bill the partner line now lives on; Belum Bayar shows a warning chip only (Final Bayar is never blocked). Garage cancelling an order
+  (`cancelProductionForOrder` / `cancelProductionQuantities`) calls `schedulePartnerCancelNotice` (push + event
+  `ticket_cancelled_by_garage`), portal shows "Dibatalkan Garage" for 10 min (`listRecentlyCancelledTickets`). Staff-set PINs: weak PIN
+  refused (`isWeakPartnerPin`), `partner_accounts.must_change_pin` → `requirePartnerSession` returns 403 `PIN_CHANGE_REQUIRED` except
+  with `allowPinChangePending` (me, pin, logout). `moveTable` updates `partner_order_lines.table_label`. Partner payouts ARE posted to the cash book
+  (owner 12 Nov 2026): a VERIFIED payout from bank_jago/bank_bni = one `partner_payout` row bank → external (`postPayoutToLedger`,
+  one per payout); void = `partner_payout_void` reversal row; `external` and unverified (`recorded`) payouts are never posted; payouts
+  verified before this change are not backfilled (Owner corrects the bank balance via opening-balance certification).
   Self-order digital menu shows partner items with the partner status ("Tersedia di mitra" or the partner reason, never the Garage OS stock "Sold Out") plus "Disiapkan mitra · <nama>"; with `partnerCustomerSelfOrder` OFF the stepper is replaced by "Pesan ke kasir atau waiter" (DEC-14). POS search: Enter on an exact SKU/barcode (product or variant, partner items included) adds that variant (scanner).
   Media marketing (11 Nov 2026, no migration): homepage section `#mitra` (`partner-showcase.tsx`, public `GET /api/site/partner-products`,
   no HPP/contact) + hero tab "Mitra" + mobile drawer links. A product shows only when Owner picks it (tag `PARTNER_WEBSITE_TAG`

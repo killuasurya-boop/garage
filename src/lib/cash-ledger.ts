@@ -56,6 +56,8 @@ export const CASH_SOURCE_TYPES = [
   "close_variance",
   "close_deposit",
   "close_float",
+  "partner_payout",
+  "partner_payout_void",
 ] as const;
 export type CashSourceType = (typeof CASH_SOURCE_TYPES)[number];
 
@@ -82,6 +84,8 @@ export const CASH_SOURCE_LABEL: Record<CashSourceType, string> = {
   close_variance: "Selisih kas saat tutup shift",
   close_deposit: "Setoran tutup shift (dalam perjalanan ke bank)",
   close_float: "Modal ditinggal untuk shift berikutnya",
+  partner_payout: "Pembayaran ke mitra",
+  partner_payout_void: "Pembatalan pembayaran mitra",
 };
 
 /**

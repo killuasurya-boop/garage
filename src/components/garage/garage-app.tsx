@@ -32,10 +32,13 @@ useEffect,
 useMemo,
 useRef,
 useState,
-type CSSProperties
+type CSSProperties,
+type SetStateAction
 } from "react";
 
 import { GarageAiAlertsBell } from "@/components/garage/garage-ai-alerts-bell";
+import { usePartnerMenuRefresh } from "@/components/garage/partner-hub/use-partner-menu-refresh";
+import { hasPartnerItems } from "@/lib/partner-menu-refresh";
 import { StaffNotificationCenter } from "@/components/garage/staff-notification-center";
 import { releasePushSubscriptionOnSignOut } from "@/lib/push-client";
 import {
@@ -528,6 +531,21 @@ function GarageWorkspace({
       );
     }
   }, []);
+
+  // Smart Partner Hub: status produk mitra (Buka/Jeda/Tutup, Tersedia/Habis dari Portal Mitra) ikut
+  // berubah di POS/waiter tanpa muat ulang. Hanya produk mitra yang disentuh; tanpa perubahan = tanpa render.
+  const setMenuItemsInData = useCallback((action: SetStateAction<MenuItem[]>) => {
+    setData((current) => {
+      if (!current) return current;
+      const menuItems = typeof action === "function" ? action(current.menuItems) : action;
+      return menuItems === current.menuItems ? current : { ...current, menuItems };
+    });
+  }, []);
+  usePartnerMenuRefresh(
+    hasPartnerItems(data?.menuItems ?? []),
+    () => garageApi.get<MenuItem[]>("/api/menu", { cache: "no-store" }),
+    setMenuItemsInData,
+  );
 
   const loadCustomers = useCallback(async () => {
     try {

@@ -425,6 +425,9 @@ Scroll direction:
   `updateMenuProduct` throw `PartnerProductStockError` (409) for `product_type 'partner'`, bulk stock/type actions skip them, and
   the POS "Atur Stok Habis" dialog hides them and never resets them. Waiter "Ambil dari Mitra" groups ready tickets per table
   (`groupPickupByTable`) with Klaim/Antar semua — still one call per ticket to the existing claim/deliver endpoints.
+  Open screens refresh partner status: `usePartnerMenuRefresh` (digital menu `/api/customer/menu`, POS/waiter `/api/menu`) every
+  30 s while visible + on focus, only when the list has partner items; `mergePartnerStatus` (`partner-menu-refresh.ts`) copies only
+  `stock`/`partner` of partner items (event prices, bundle variants, cart untouched; missing item = locked).
   Self-order digital menu shows partner items with the partner status ("Tersedia di mitra" or the partner reason, never the Garage OS stock "Sold Out") and the note "Pesan ke kasir atau waiter" (DEC-14). POS search: Enter on an exact SKU/barcode (product or variant, partner items included) adds that variant (scanner).
 
 ## Product Management Rules

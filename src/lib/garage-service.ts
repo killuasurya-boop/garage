@@ -10495,7 +10495,17 @@ async function updateCustomerOrderStatusImpl(
       // tidak ada uang laci yang bergerak. Tunai tetap wajib shift (masuk laci).
       const adminNonCash =
         options.adminConfirm && input.action === "paid" && !isCashMethod(input.paymentMethod ?? "Cash");
-      if (!cashierOpenSession && !adminNonCash) {
+      // Owner tanpa shift: terima pesanan / Bayar nanti (belum ada uang) dan pelunasan NON-tunai boleh.
+      // Metode diambil seperti saat pelunasan (input → pembayaran terakhir → Cash).
+      let ownerNoShift = false;
+      if (!cashierOpenSession && !adminNonCash && garage.profile.role === "Owner") {
+        const [ownerLatestPayment] = input.paymentMethod?.trim()
+          ? []
+          : await tx.select({ method: payments.method }).from(payments).where(eq(payments.orderId, order.id)).orderBy(desc(payments.createdAt)).limit(1);
+        const ownerMethod = input.paymentMethod?.trim() || ownerLatestPayment?.method || "Cash";
+        ownerNoShift = input.action === "accept" || !isCashMethod(ownerMethod);
+      }
+      if (!cashierOpenSession && !adminNonCash && !ownerNoShift) {
         throw new Error(
           options.adminConfirm
             ? "Pelunasan TUNAI wajib dari shift yang sedang buka (uang masuk laci). Untuk QRIS/Transfer tidak perlu shift."
@@ -11656,12 +11666,15 @@ async function createOrderOnce(
     )
     .limit(1);
 
-  if (!openCashSession) {
+  // Owner (owner, Nov 2026): boleh transaksi tanpa shift untuk semua pembayaran NON-tunai. Tunai tetap wajib
+  // shift karena uang masuk laci (buku kas & tutup shift bergantung padanya) — dicek setelah metode diketahui.
+  const ownerNoShift = !openCashSession && garage.profile.role === "Owner";
+  if (!openCashSession && !ownerNoShift) {
     throw new Error("Open shift wajib dilakukan sebelum transaksi POS.");
   }
   // Shift lupa ditutup (buka > 20 jam): penjualan baru tidak boleh masuk ke
   // laci kemarin. Shift lewat tengah malam yang wajar tetap boleh.
-  if (!options.offlineSync && isStaleCashSession(openCashSession.openedAt)) {
+  if (openCashSession && !options.offlineSync && isStaleCashSession(openCashSession.openedAt)) {
     throw new Error(
       `Shift ${openCashSession.code} sudah terbuka lebih dari ${STALE_SHIFT_HOURS} jam. Tutup shift dulu (hitung uang laci), lalu buka shift baru.`,
     );
@@ -11903,6 +11916,12 @@ async function createOrderOnce(
     qrisReferenceRequired: settings.qrisReferenceRequired && !options.offlineSync,
     offlineSync: options.offlineSync,
   });
+  if (ownerNoShift) {
+    const paysCash = splits ? splits.some((split) => isCashMethod(split.method)) : isCashMethod(paymentMethod);
+    if (paysCash) {
+      throw new Error("Pembayaran TUNAI wajib dari shift yang sedang buka (uang masuk laci). Tanpa shift, Owner bisa memakai QRIS, Transfer, E-Wallet, atau Bayar nanti.");
+    }
+  }
   const cashShortfall = tender.cashShortfall;
   if (cashShortfall > 0) {
     paymentMetadata.cashShortfall = cashShortfall;
@@ -11963,14 +11982,16 @@ async function createOrderOnce(
     // Kunci sesi kas sampai transaksi commit: tutup shift memakai FOR UPDATE,
     // jadi tidak bisa menyelip sebelum kas order ini tercatat. Bukan FOR SHARE:
     // order lain kasir yang sama akan UPDATE baris ini juga → upgrade kunci deadlock.
-    const [lockedCashSession] = await tx
-      .select({ id: cashSessions.id })
-      .from(cashSessions)
-      .where(and(eq(cashSessions.id, openCashSession.id), eq(cashSessions.status, "open")))
-      .limit(1)
-      .for("no key update");
-    if (!lockedCashSession) {
-      throw new Error("Open shift wajib dilakukan sebelum transaksi POS.");
+    if (openCashSession) {
+      const [lockedCashSession] = await tx
+        .select({ id: cashSessions.id })
+        .from(cashSessions)
+        .where(and(eq(cashSessions.id, openCashSession.id), eq(cashSessions.status, "open")))
+        .limit(1)
+        .for("no key update");
+      if (!lockedCashSession) {
+        throw new Error("Open shift wajib dilakukan sebelum transaksi POS.");
+      }
     }
 
     if (usedDiscountApprovalId) {
@@ -12056,7 +12077,7 @@ async function createOrderOnce(
             if (isCash) cashContribution += s.amount;
             return {
               orderId: order.id,
-              cashSessionId: openCashSession.id,
+              cashSessionId: openCashSession?.id ?? null,
               method: s.method,
               amount: s.amount,
               metadata: {
@@ -12077,7 +12098,7 @@ async function createOrderOnce(
         .insert(payments)
         .values({
           orderId: order.id,
-          cashSessionId: openCashSession.id,
+          cashSessionId: openCashSession?.id ?? null,
           method: paymentMethod,
           amount: total,
           metadata: paymentMetadata,
@@ -12089,7 +12110,7 @@ async function createOrderOnce(
       }
     }
 
-    if (cashContribution > 0) {
+    if (cashContribution > 0 && openCashSession) {
       // Buku kas: hanya bagian tunai (split → bagian Cash saja; kembalian tidak masuk).
       await postDrawerCash(tx, {
         sessionId: openCashSession.id,

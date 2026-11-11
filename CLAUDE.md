@@ -115,6 +115,10 @@ Scroll direction:
   handed over by the cashier: `isDirectHandoverMenu` (`garage-production-rules.ts`) skips them
   in production tickets/chits. Rokok has `showInDigitalMenu: false`; staff open bills pass
   `allowHiddenItems`.
+- Owner without shift (owner, Nov 2026): POS "mode Owner" (`ownerNoShift` in `pos-view.tsx`) allows every NON-cash action without
+  an open shift — order with QRIS/Transfer/E-Wallet, Bayar nanti/accept, Final Bayar non-tunai (payments get `cash_session_id` null,
+  no ledger row). Cash (incl. a cash part of a split) is still refused server-side in `createOrderOnce` / `updateCustomerOrderStatus`
+  because cash must land in a drawer. Kasir/Manajer still need an open shift.
 - "Bayar nanti" = `POST /api/orders/open-bill` (staff customer order + accept with
   `{ openBill: true }`, skipping take-away pay-first); settled later via Final Bayar.
 - Order/invoice admin (owner, Okt 2026) is Owner/Manajer only, checked in the backend

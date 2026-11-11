@@ -838,6 +838,17 @@ export const SETTINGS_CATEGORIES: SettingCategory[] = [
         unit: "menit",
       },
       {
+        key: "partnerPrepTargetMinutes",
+        label: "Target waktu siap produk mitra",
+        type: "number",
+        defaultValue: DEFAULT_APP_SETTINGS.partnerPrepTargetMinutes,
+        min: 1,
+        max: 120,
+        step: 1,
+        unit: "menit",
+        hint: "Dipakai rapor kinerja mitra: dari pesanan diterima sampai Siap Antar.",
+      },
+      {
         key: "partnerHeartbeatMinutes",
         label: "Portal Mitra tidak terhubung",
         type: "number",

@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Download, Plus, ShieldCheck, UserPlus } from "lucide-react";
 
+import { PartnerHealthBoard, PartnerPerformanceStaff, PriceProposalQueue } from "./desk-growth";
 import { api, Btn, Card, Chip, Field, inputCls, Notice, rp } from "./desk-shared";
 
 type Partner = {
@@ -57,6 +58,7 @@ export function DeskManage({ role }: { role: string }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ tone: "error" | "ok"; text: string } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [healthKey, setHealthKey] = useState(0);
   const isOwner = role === "Owner";
 
   const load = useCallback(async () => {
@@ -90,6 +92,8 @@ export function DeskManage({ role }: { role: string }) {
   return (
     <div className="grid gap-4">
       <Notice message={message} />
+      <PartnerHealthBoard refreshKey={healthKey} />
+      <PriceProposalQueue isOwner={isOwner} onDecided={() => setHealthKey((k) => k + 1)} />
       {isOwner ? <ImportCatalogCard busy={busy === "import"} onImport={() => void run("import", () => api("/api/partners/import-catalog", { method: "POST" }), "Katalog awal diimpor: mitra Draft + produk nonaktif. Lengkapi data & setujui produk satu per satu.")} /> : null}
       <CreatePartner busy={busy === "create"} onCreate={(body) => void run("create", () => api("/api/partners", { method: "POST", body: JSON.stringify(body) }), "Mitra terdaftar sebagai Draft.")} />
       {partners === null ? (
@@ -443,6 +447,7 @@ function PartnerDetail({ partner, isOwner, busy, run }: { partner: Partner; isOw
             <Plus className="size-4" /> Tambah produk
           </Btn>
         </form>
+        <PartnerPerformanceStaff partnerId={partner.id} />
         <PartnerAuditPanel partnerId={partner.id} />
       </div>
     </div>

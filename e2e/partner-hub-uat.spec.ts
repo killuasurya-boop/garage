@@ -19,7 +19,7 @@ const PARTNER2_PHONE = "081299990002";
 
 type Ctx = { page: Page; api: APIRequestContext; close: () => Promise<void> };
 const roles: Record<string, Ctx> = {};
-const state = { partnerId: "", partner2Id: "", linkId: "", menuItemId: "", garageItem: { itemId: "", variantId: "" }, orders: [] as string[] };
+const state = { cashierEmail: "kasir@garage.id", partnerId: "", partner2Id: "", linkId: "", menuItemId: "", garageItem: { itemId: "", variantId: "" }, orders: [] as string[] };
 
 async function as(browser: Browser, email: string): Promise<Ctx> {
   if (roles[email]) return roles[email];
@@ -113,9 +113,22 @@ test("UAT-A: Owner & Manajer menyiapkan mitra pilot; aktivasi tidak bisa dilompa
 
 test("UAT-B: kasir jual kopi + produk mitra; Habis/Tutup ditolak server (UAT-03/04/06/26)", async ({ browser }, info) => {
   test.skip(info.project.name !== "desktop-1366", "alur Partner Hub diuji di desktop");
-  const kasir = await as(browser, "kasir@garage.id");
+  // Satu outlet = satu shift terbuka. Bila spec sebelumnya (mis. decision-center, Kasir 2) masih punya shift
+  // terbuka — dan spec POS sesudahnya memakai shift itu — jual lewat kasir yang shift-nya sedang buka.
+  let kasir = await as(browser, state.cashierEmail);
+  const opened = await kasir.api.fetch("/api/finance/cash-sessions", {
+    method: "POST",
+    data: { openingCash: 100_000, openingDenominations: { "100000": 1 } },
+    headers: { "content-type": "application/json" },
+  });
+  if (opened.status() !== 201) {
+    const json = (await opened.json().catch(() => ({}))) as { error?: { code?: string; message?: string } };
+    expect(json.error?.code, `buka shift: ${JSON.stringify(json)}`).toBe("OUTLET_CASH_SESSION_ALREADY_OPEN");
+    expect(json.error?.message ?? "").toMatch(/Kasir 2/);
+    state.cashierEmail = "kasir2@garage.id";
+    kasir = await as(browser, state.cashierEmail);
+  }
   const owner = await as(browser, "owner@garage.id");
-  await call(kasir.api, "POST", "/api/finance/cash-sessions", { openingCash: 100_000, openingDenominations: { "100000": 1 } }, 201);
 
   const menu = await call<{ items?: Array<{ id: string; productType?: string; category?: string; stock?: string; variants: Array<{ id: string }> }> }>(kasir.api, "GET", "/api/menu");
   const items = Array.isArray(menu.data) ? (menu.data as never as Array<{ id: string; category?: string; stock?: string; variants: Array<{ id: string }> }>) : (menu.data.items ?? []);
@@ -177,7 +190,7 @@ test("UAT-C: Portal Mitra terima → proses → siap; 2 waiter klaim bersamaan, 
   expect(overflow).toBeLessThanOrEqual(1);
   assertNoErrors();
 
-  const kasir = await as(browser, "kasir@garage.id");
+  const kasir = await as(browser, state.cashierEmail);
   const readTicket = async () => {
     const orders = await call<Array<{ ticketNo: string; orderNo: string; status: string }>>(kasir.api, "GET", "/api/pos/partner-orders");
     return orders.data.find((row) => row.orderNo === state.orders[0])!;
@@ -203,7 +216,7 @@ test("UAT-C: Portal Mitra terima → proses → siap; 2 waiter klaim bersamaan, 
 
 test("UAT-D: keuangan Rp0 selisih — refund penuh item mitra & void setelah siap (UAT-13/16)", async ({ browser }, info) => {
   test.skip(info.project.name !== "desktop-1366", "alur Partner Hub diuji di desktop");
-  const kasir = await as(browser, "kasir@garage.id");
+  const kasir = await as(browser, state.cashierEmail);
   const manager = await as(browser, "manajer@garage.id");
   const partner = await partnerApi(browser, PARTNER_PHONE);
 
@@ -364,7 +377,7 @@ test("UAT-E: settlement → approve → payout parsial & lunas; referensi ganda 
 test("UAT-F: hub dimatikan → produk mitra hilang, produk Garage tetap jual (UAT-24)", async ({ browser }, info) => {
   test.skip(info.project.name !== "desktop-1366", "alur Partner Hub diuji di desktop");
   const owner = await as(browser, "owner@garage.id");
-  const kasir = await as(browser, "kasir@garage.id");
+  const kasir = await as(browser, state.cashierEmail);
   await call(owner.api, "PATCH", "/api/settings", { partnerHubEnabled: false });
   const blocked = await sell(kasir.api, [partnerItem(1)], {}, 400);
   expect(blocked.error?.message ?? "").toMatch(/belum aktif|tidak tersedia/i);

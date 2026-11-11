@@ -2226,6 +2226,18 @@ export async function reorderMenuProducts(ids: string[], garage: GarageSession) 
   return { count: unique.length };
 }
 
+/**
+ * Smart Partner Hub: ketersediaan produk mitra hanya diatur mitra (Portal Mitra) atau Owner/Manajer di Partner Hub
+ * (setPartnerProductAvailability, tercatat di partner_events). Tanda HABIS kasir/produksi/menu tidak boleh
+ * menimpanya — mis. "hapus semua tanda HABIS" tidak boleh membuka produk yang ditandai Habis oleh mitra.
+ */
+export class PartnerProductStockError extends Error {
+  code = "PARTNER_PRODUCT_STOCK";
+  constructor(name: string) {
+    super(`${name} adalah produk mitra — status Tersedia/Habis diatur dari Portal Mitra atau Partner Hub.`);
+  }
+}
+
 export async function updateMenuProductStock(
   id: string,
   stock: "ready" | "limited" | "sold_out",
@@ -2233,6 +2245,8 @@ export async function updateMenuProductStock(
 ) {
   const db = getDb();
   const now = new Date();
+  const [current] = await db.select({ name: menuItems.name, productType: menuItems.productType }).from(menuItems).where(eq(menuItems.id, id)).limit(1);
+  if (current && (current.productType as string) === "partner") throw new PartnerProductStockError(current.name);
   const [updated] = await db
     .update(menuItems)
     .set({ stock, updatedAt: now })
@@ -2341,7 +2355,10 @@ export async function updateMenuProduct(
   if (input.productType !== undefined) update.productType = input.productType;
   if (input.brand !== undefined) update.brand = input.brand?.trim() || null;
   if (input.barcode !== undefined) update.barcode = normalizeBarcode(input.barcode);
-  if (input.stock !== undefined) update.stock = input.stock;
+  if (input.stock !== undefined && input.stock !== existing.stock) {
+    if ((existing.productType as string) === "partner") throw new PartnerProductStockError(existing.name);
+    update.stock = input.stock;
+  }
   if (input.status !== undefined) update.status = input.status;
   if (input.prep !== undefined) update.prep = input.prep.trim() || "10m";
   if (input.tags !== undefined) update.tags = input.tags;

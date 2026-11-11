@@ -3120,10 +3120,11 @@ export function PosView({
   }
 
   async function clearAllSoldOut() {
-    const ids = Array.from(soldOutIds);
+    // Produk mitra tidak ikut di-reset: Tersedia/Habis-nya milik mitra (Partner Hub), server juga menolak.
+    const ids = Array.from(soldOutIds).filter((id) => !menuItemsById.get(id)?.partner);
     if (!ids.length) return;
     setSoldOutPendingIds(new Set(ids));
-    setSoldOutIds(new Set());
+    setSoldOutIds((current) => new Set([...current].filter((id) => !ids.includes(id))));
     try {
       await Promise.all(
         ids.map((id) =>
@@ -3133,7 +3134,7 @@ export function PosView({
       setPosNotice("Semua tanda HABIS menu digital dihapus.");
       void onOrderCreated();
     } catch (error) {
-      setSoldOutIds(new Set(ids));
+      setSoldOutIds((current) => new Set([...current, ...ids]));
       setCustomerOrderError(
         error instanceof Error ? error.message : "Gagal reset stok habis menu digital.",
       );
@@ -8267,7 +8268,29 @@ export function PosView({
                     onChange={(event) => setQuery(event.target.value)}
                     onKeyDown={(event) => {
                       // Enter = pesan menu teratas hasil cari / kode singkat.
-                      if (event.key !== "Enter" || !query.trim() || deferredQuery !== query) return;
+                      if (event.key !== "Enter" || !query.trim()) return;
+                      // Scanner barcode: kode SKU/barcode persis (produk atau varian, termasuk produk mitra)
+                      // langsung masuk keranjang dengan varian yang discan.
+                      const scanned = query.trim().toLowerCase();
+                      for (const item of menuItems) {
+                        if (soldOutIds.has(item.id) || item.stock === "sold_out") continue;
+                        const variant = item.variants.find(
+                          (v) => (v.barcode ?? "").toLowerCase() === scanned || (v.sku ?? "").toLowerCase() === scanned,
+                        );
+                        const itemMatch = (item.barcode ?? "").toLowerCase() === scanned || (item.sku ?? "").toLowerCase() === scanned;
+                        if (variant || (itemMatch && item.variants.length === 1)) {
+                          event.preventDefault();
+                          if (!canTransact) {
+                            setShiftError("Buka shift terlebih dahulu sebelum transaksi.");
+                            return;
+                          }
+                          if (locked) return;
+                          addItem(item.id, (variant ?? item.variants[0]).id);
+                          setQuery("");
+                          return;
+                        }
+                      }
+                      if (deferredQuery !== query) return;
                       const first = filteredMenu.find((item) => !soldOutIds.has(item.id));
                       if (!first) return;
                       event.preventDefault();

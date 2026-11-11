@@ -416,7 +416,16 @@ Scroll direction:
   reasons panel. Staff: product photo upload (`/api/partners/products/[linkId]/image` → `/garage-uploads/menu`), variants add/remove
   (Owner), price history + event log, payout void button, Excel `GET /api/partners/finance-export` (Owner/Manajer; ringkasan,
   terlaris = `partnerBestSellers`, transaksi), Owner dashboard widget `/api/partners/dashboard`, waiter card "Ambil dari Mitra".
-  Self-order digital menu shows partner items as "pesan lewat waiter atau kasir" (DEC-14).
+  Growth (Nov 2026, migration 0191, `docs/partner-hub/01-IMPLEMENTASI.md`): pure rules `partner-hub-insights.ts` (price proposals,
+  performance report, health alerts — neutral wording). Partner price proposals = `partner_price_proposals` (one pending per variant,
+  partial unique index); master price changes only on Owner approval through `applyPartnerPrice` (the single price writer, also used by
+  `setPartnerProductPrice`); reject needs a reason. Portal shows the partner's own harga setor (same as its finance lines). Performance
+  (`/api/partner/performance`, `/api/partners/[id]/performance`, setting `partnerPrepTargetMinutes`) and health (`/api/partners/health`,
+  Owner/Manajer, read-only) never change data. Partner product Tersedia/Habis belongs to the partner: `updateMenuProductStock` /
+  `updateMenuProduct` throw `PartnerProductStockError` (409) for `product_type 'partner'`, bulk stock/type actions skip them, and
+  the POS "Atur Stok Habis" dialog hides them and never resets them. Waiter "Ambil dari Mitra" groups ready tickets per table
+  (`groupPickupByTable`) with Klaim/Antar semua — still one call per ticket to the existing claim/deliver endpoints.
+  Self-order digital menu shows partner items with the partner status ("Tersedia di mitra" or the partner reason, never the Garage OS stock "Sold Out") and the note "Pesan ke kasir atau waiter" (DEC-14). POS search: Enter on an exact SKU/barcode (product or variant, partner items included) adds that variant (scanner).
 
 ## Product Management Rules
 

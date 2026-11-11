@@ -5501,6 +5501,43 @@ export const partnerPriceHistory = pgTable(
   (table) => ({ linkIdx: index("partner_price_history_link_idx").on(table.linkId, table.variantId, table.effectiveFrom) }),
 );
 
+// Pengajuan harga dari mitra (PRD P2): mitra mengusulkan harga setor (HPP) baru per varian; harga master
+// TIDAK berubah sampai Owner menyetujui (lewat partner_price_history yang sama). Satu pengajuan aktif per varian.
+export const partnerPriceProposals = pgTable(
+  "partner_price_proposals",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    proposalNo: text("proposal_no").notNull(),
+    partnerId: uuid("partner_id").notNull().references(() => partners.id),
+    linkId: uuid("link_id").notNull().references(() => partnerProductLinks.id),
+    variantId: text("variant_id").notNull(),
+    // Snapshot saat diajukan (dasar perbandingan; master bisa berubah sebelum diputuskan).
+    currentUnitCost: integer("current_unit_cost").notNull(),
+    currentSellPrice: integer("current_sell_price").notNull(),
+    proposedUnitCost: integer("proposed_unit_cost").notNull(),
+    // Usulan harga jual (opsional) — keputusan akhir harga jual tetap milik Owner.
+    suggestedSellPrice: integer("suggested_sell_price"),
+    reason: text("reason").notNull(),
+    // pending | approved | rejected | cancelled
+    status: text("status").notNull().default("pending"),
+    decidedUnitCost: integer("decided_unit_cost"),
+    decidedSellPrice: integer("decided_sell_price"),
+    decisionNote: text("decision_note"),
+    decidedBy: text("decided_by").references(() => user.id),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    priceHistoryId: uuid("price_history_id").references(() => partnerPriceHistory.id),
+    createdBy: text("created_by").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    noIdx: uniqueIndex("partner_price_proposals_no_idx").on(table.proposalNo),
+    partnerIdx: index("partner_price_proposals_partner_idx").on(table.partnerId, table.createdAt),
+    // Anti dobel: hanya satu pengajuan pending per varian produk.
+    pendingIdx: uniqueIndex("partner_price_proposals_pending_idx").on(table.linkId, table.variantId).where(sql`status = 'pending'`),
+  }),
+);
+
 export const partnerOrderLines = pgTable(
   "partner_order_lines",
   {

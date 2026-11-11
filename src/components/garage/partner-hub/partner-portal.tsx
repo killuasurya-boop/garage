@@ -9,6 +9,7 @@ import { Bell, BellOff, BellRing, Check, CheckCircle2, ChefHat, CircleX, FileTex
 import { GarageBrandLogo } from "@/components/garage/member-auth/garage-brand-logo";
 
 import { usePartnerAlerts } from "./partner-portal-alerts";
+import { PartnerPerformancePanel, PartnerPricePanel } from "./partner-portal-growth";
 import { PartnerEarnings, PartnerInfo, PartnerPayouts, PartnerPinChange, RejectPanel, type PartnerPayout, type PartnerProfile } from "./partner-portal-extras";
 
 type Ticket = {
@@ -25,7 +26,7 @@ type Ticket = {
 };
 type Overview = {
   partner: { id: string; name: string; code: string; status: string; operationalStatus: string };
-  products: Array<{ linkId: string; name: string; category: string; imageUrl: string | null; active: boolean; available: boolean; variants: Array<{ label: string; sellPrice: number }> }>;
+  products: Array<{ linkId: string; name: string; category: string; imageUrl: string | null; active: boolean; available: boolean; variants: Array<{ variantId?: string; label: string; sellPrice: number; unitCost?: number }> }>;
   activeTickets: Ticket[];
   today: { qty: number; gross: number; liability: number; orders: number };
   unpaid: number;
@@ -369,6 +370,8 @@ export function PartnerPortal() {
         </section>
 
         <PartnerEarnings refreshKey={overview.activeTickets.map((t) => `${t.ticketNo}:${t.status}`).join("|") + `#${overview.today.liability}`} />
+        <PartnerPerformancePanel />
+        <PartnerPricePanel products={overview.products} refreshKey={overview.products.map((p) => p.variants.map((v) => `${v.variantId}:${v.unitCost}`).join(",")).join("|")} />
         <PartnerFinance settlements={overview.settlements} />
         <PartnerPayouts payouts={overview.payouts ?? []} />
         <PartnerInfo profile={overview.profile ?? null} />

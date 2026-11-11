@@ -728,6 +728,8 @@ export async function bulkProductAction(
       const prev = (row as Record<string, unknown>)[field];
       const next = (set as Record<string, unknown>)[field];
       if (prev === next) continue;
+      // Produk mitra: Tersedia/Habis diatur mitra (Partner Hub) dan tipenya tetap "partner" — dilewati di aksi massal.
+      if ((row.productType as string) === "partner" && (field === "stock" || field === "productType")) continue;
       await tx.update(menuItems).set({ ...set, updatedAt: new Date() }).where(eq(menuItems.id, row.id));
       await audit(tx, garage, {
         action: "Menu product bulk updated",

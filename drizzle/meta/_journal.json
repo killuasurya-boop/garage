@@ -1338,6 +1338,13 @@
       "when": 1794369737416,
       "tag": "0190_partner_applications",
       "breakpoints": true
+    },
+    {
+      "idx": 191,
+      "version": "7",
+      "when": 1794393822208,
+      "tag": "0191_partner_price_proposals",
+      "breakpoints": true
     }
   ]
 }

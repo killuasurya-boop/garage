@@ -99,7 +99,7 @@ export function assertPartnerItemsOrderable(
     if (!link && line.productType !== "partner") continue;
     if (options.customerSelfOrder) {
       // DEC-14: produk mitra hanya dipesan lewat waiter/kasir (menu digital = lihat saja).
-      throw new PartnerOrderError(`${line.itemName} adalah produk mitra — pesan lewat waiter atau kasir.`);
+      throw new PartnerOrderError(`${line.itemName} adalah produk mitra — pesan ke kasir atau waiter.`);
     }
     if (!link) throw new PartnerOrderError(`${line.itemName} belum terhubung ke mitra resmi.`);
     if (link.outletId !== options.outletId) throw new PartnerOrderError(`${line.itemName} bukan produk mitra outlet ini.`);

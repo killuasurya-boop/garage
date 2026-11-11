@@ -170,7 +170,9 @@ type SessionRow = {
 function formatDate(iso: string | null) {
   if (!iso) return "—";
   try {
+    // Zona waktu tetap WIB: server (UTC) & browser harus mencetak teks sama, kalau tidak terjadi hydration mismatch.
     return new Date(iso).toLocaleString("id-ID", {
+      timeZone: "Asia/Jakarta",
       day: "2-digit",
       month: "short",
       year: "numeric",

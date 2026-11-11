@@ -75,6 +75,12 @@ Kolom **Bukti otomatis** merujuk ke tes PGlite/vitest; staging = UAT manual oleh
   pengajuan/penyesuaian menunggu, setoran belum dibayar, rekening belum terverifikasi. Bahasa netral, tidak menuduh.
 - Penyesuaian manual via UI sudah ada (Keuangan → Penyesuaian). Alarm SLA otomatis sudah jalan di server sweeper.
 
+- **Klaim grup per meja** (papan 02): tab Ambil dari Mitra mengelompokkan pesanan Siap Antar per meja → "Klaim semua" /
+  "Antar semua". Tetap satu permintaan per tiket ke endpoint klaim/antar yang ada (klaim tunggal & hanya pengklaim yang
+  boleh menandai diantar dijaga server); gagal sebagian dilaporkan per tiket.
+- **Status produk mitra milik mitra**: kasir/produksi/aksi massal produk tidak bisa mengubah Tersedia/Habis produk mitra
+  (409 `PARTNER_PRODUCT_STOCK`); dialog POS "Atur Stok Habis" tidak menampilkan & tidak me-reset produk mitra.
+
 ## Belum termasuk
-- Klaim grup per meja dan rute/trip pengantaran.
+- Rute/trip pengantaran.
 - Template WhatsApp API resmi (perlu penyedia + persetujuan Owner).

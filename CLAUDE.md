@@ -421,7 +421,10 @@ Scroll direction:
   partial unique index); master price changes only on Owner approval through `applyPartnerPrice` (the single price writer, also used by
   `setPartnerProductPrice`); reject needs a reason. Portal shows the partner's own harga setor (same as its finance lines). Performance
   (`/api/partner/performance`, `/api/partners/[id]/performance`, setting `partnerPrepTargetMinutes`) and health (`/api/partners/health`,
-  Owner/Manajer, read-only) never change data.
+  Owner/Manajer, read-only) never change data. Partner product Tersedia/Habis belongs to the partner: `updateMenuProductStock` /
+  `updateMenuProduct` throw `PartnerProductStockError` (409) for `product_type 'partner'`, bulk stock/type actions skip them, and
+  the POS "Atur Stok Habis" dialog hides them and never resets them. Waiter "Ambil dari Mitra" groups ready tickets per table
+  (`groupPickupByTable`) with Klaim/Antar semua — still one call per ticket to the existing claim/deliver endpoints.
   Self-order digital menu shows partner items with the partner status ("Tersedia di mitra" or the partner reason, never the Garage OS stock "Sold Out") and the note "Pesan ke kasir atau waiter" (DEC-14). POS search: Enter on an exact SKU/barcode (product or variant, partner items included) adds that variant (scanner).
 
 ## Product Management Rules

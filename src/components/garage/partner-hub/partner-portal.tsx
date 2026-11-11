@@ -197,7 +197,7 @@ export function PartnerPortal() {
               className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border px-2 text-sm font-semibold ${alerts.soundOn ? "border-[#22c55e]/60 bg-[#0f2a1a] text-[#bbf7d0]" : "border-[#ffd08a]/50 bg-[#2a1d0a] text-[#ffe2b0]"}`}
             >
               {alerts.soundOn ? <Bell className="size-4" aria-hidden /> : <BellOff className="size-4" aria-hidden />}
-              {alerts.soundOn ? "Bunyi pesanan: nyala" : "Nyalakan bunyi pesanan"}
+              {alerts.soundOn ? "Bunyi pesanan: nyala" : alerts.soundPending ? "Ketuk untuk aktifkan bunyi" : "Nyalakan bunyi pesanan"}
             </button>
             {alerts.awakeSupported ? (
               <button

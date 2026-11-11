@@ -26,7 +26,10 @@ function writeFlag(key: string, on: boolean) {
 type WakeLockSentinelLike = { release: () => Promise<void> };
 
 export function usePartnerAlerts(queueTicketNos: string[] | null) {
-  const [soundOn, setSoundOn] = useState(() => (typeof window === "undefined" ? false : readFlag(SOUND_KEY)));
+  // Bunyi baru "nyala" setelah AudioContext benar-benar dibuat lewat sentuhan mitra. Pilihan yang tersimpan hanya
+  // berarti "aktifkan otomatis pada sentuhan pertama" — tombol tidak pernah mengaku nyala padahal belum bisa bunyi.
+  const [soundOn, setSoundOn] = useState(false);
+  const [soundWanted] = useState(() => (typeof window === "undefined" ? false : readFlag(SOUND_KEY)));
   const [awakeOn, setAwakeOn] = useState(() => (typeof window === "undefined" ? false : readFlag(AWAKE_KEY)));
   const [awakeSupported] = useState(() => typeof navigator !== "undefined" && "wakeLock" in navigator);
   const audioRef = useRef<AudioContext | null>(null);
@@ -50,16 +53,32 @@ export function usePartnerAlerts(queueTicketNos: string[] | null) {
     });
   }, []);
 
-  const toggleSound = useCallback(() => {
-    const next = !soundOn;
-    if (next && !audioRef.current && typeof window !== "undefined") {
+  const ensureAudio = useCallback(() => {
+    if (!audioRef.current && typeof window !== "undefined") {
       const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       if (Ctor) audioRef.current = new Ctor();
     }
-    setSoundOn(next);
+    void audioRef.current?.resume();
+    return Boolean(audioRef.current);
+  }, []);
+
+  const toggleSound = useCallback(() => {
+    const next = !soundOn;
+    const ready = next ? ensureAudio() : false;
+    setSoundOn(ready);
     writeFlag(SOUND_KEY, next);
-    if (next) beep();
-  }, [soundOn, beep]);
+    if (ready) beep();
+  }, [soundOn, beep, ensureAudio]);
+
+  // Setelah muat ulang: bunyi yang pernah dinyalakan aktif lagi pada sentuhan pertama di mana saja (aturan browser HP).
+  useEffect(() => {
+    if (!soundWanted || soundOn) return;
+    const arm = () => {
+      if (ensureAudio()) setSoundOn(true);
+    };
+    document.addEventListener("pointerdown", arm, { once: true });
+    return () => document.removeEventListener("pointerdown", arm);
+  }, [soundWanted, soundOn, ensureAudio]);
 
   // Pesanan baru (status "Pesanan baru" yang belum pernah terlihat) → bunyi + getar. Muatan pertama tidak berbunyi.
   useEffect(() => {
@@ -116,5 +135,5 @@ export function usePartnerAlerts(queueTicketNos: string[] | null) {
     });
   }, []);
 
-  return { soundOn, toggleSound, awakeOn, awakeSupported, toggleAwake };
+  return { soundOn, soundPending: soundWanted && !soundOn, toggleSound, awakeOn, awakeSupported, toggleAwake };
 }

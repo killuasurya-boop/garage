@@ -8381,7 +8381,10 @@ export function PosView({
                       name={item.name}
                       subtitle={
                         item.partner
-                          ? `Mitra ${item.partner.name}`
+                          ? // Alasan ikut di subjudul: mode daftar / tanpa foto tidak menampilkan label di atas foto.
+                            item.partner.label
+                            ? `Mitra ${item.partner.name} · ${item.partner.label}`
+                            : `Mitra ${item.partner.name}`
                           : isSoldOut
                             ? "Tidak bisa dipesan"
                             : variantText

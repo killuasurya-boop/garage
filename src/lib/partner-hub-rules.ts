@@ -325,3 +325,20 @@ export function partnerTicketWhatsappText(input: {
   if (input.portalUrl) lines.push(`Buka Portal Mitra: ${input.portalUrl}`);
   return lines.join("\n");
 }
+
+/** Produk terlaris mitra pada periode: qty terjual (setelah batal), penjualan, HPP, profit — urut qty lalu penjualan. */
+export function partnerBestSellers(lines: Array<PartnerLineAmounts & { itemName: string; variantLabel: string }>) {
+  const map = new Map<string, { itemName: string; variantLabel: string; qty: number; gross: number; cost: number; profit: number }>();
+  for (const line of lines) {
+    const f = partnerLineFinance(line);
+    if (f.soldQty <= 0 && f.gross === 0) continue;
+    const key = `${line.itemName}\u0000${line.variantLabel}`;
+    const row = map.get(key) ?? { itemName: line.itemName, variantLabel: line.variantLabel, qty: 0, gross: 0, cost: 0, profit: 0 };
+    row.qty += f.soldQty;
+    row.gross += f.gross;
+    row.cost += f.cost;
+    row.profit += f.profit;
+    map.set(key, row);
+  }
+  return [...map.values()].sort((a, b) => b.qty - a.qty || b.gross - a.gross);
+}

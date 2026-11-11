@@ -41,6 +41,13 @@ function startUnpaidOrderSweeper() {
       } catch (error) {
         console.warn("[approval-reconcile] gagal:", error instanceof Error ? error.message : error);
       }
+      // Smart Partner Hub: eskalasi SLA mitra (belum diterima / siap belum diambil) tanpa perlu layar POS terbuka.
+      try {
+        const { sweepPartnerSla } = await import("@/lib/partner-hub-service");
+        await sweepPartnerSla();
+      } catch (error) {
+        console.warn("[partner-sla] gagal:", error instanceof Error ? error.message : error);
+      }
       // Sekali per jam: bersihkan feed notifikasi staf yang sudah lama (> 14 hari).
       if (new Date().getMinutes() === 7) {
         const { pruneStaffNotifications } = await import("@/lib/staff-notifications");

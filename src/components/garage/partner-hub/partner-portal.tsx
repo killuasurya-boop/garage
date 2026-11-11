@@ -25,6 +25,7 @@ type Ticket = {
   createdAt: string;
   acceptedAt?: string | null;
   readyAt: string | null;
+  issueReason?: string | null;
   notes: Record<string, string>;
   items: Array<{ name: string; variant: string; qty: number }>;
 };
@@ -32,6 +33,7 @@ type Overview = {
   partner: { id: string; name: string; code: string; status: string; operationalStatus: string };
   products: Array<{ linkId: string; name: string; category: string; imageUrl: string | null; active: boolean; available: boolean; variants: Array<{ variantId?: string; label: string; sellPrice: number; unitCost?: number }> }>;
   activeTickets: Ticket[];
+  cancelledTickets?: Array<Ticket & { cancelledAt: string | null }>;
   today: { qty: number; gross: number; liability: number; orders: number };
   unpaid: number;
   settlements: Array<{ id: string; settlementNo: string; status: string; liabilityTotal: number; paidAmount: number; periodFrom: string; periodTo: string }>;
@@ -268,6 +270,23 @@ export function PartnerPortal() {
             <p className="mt-2 rounded-lg bg-white/[0.06] px-3 py-2 text-sm text-[#f4f4f5]">
               <span className="font-semibold text-[#ffd08a]">Perlu dibuat:</span> {toMake.map(([name, qty]) => `${qty}× ${name}`).join(" · ")}
             </p>
+          ) : null}
+          {overview.cancelledTickets?.length ? (
+            <ul className="mt-3 grid gap-2" aria-label="Pesanan dibatalkan Garage">
+              {overview.cancelledTickets.map((ticket) => (
+                <li key={ticket.ticketNo} role="alert" className="rounded-lg border border-[#ff5a66] bg-[#3a1015] p-3">
+                  <p className="flex flex-wrap items-center gap-2 font-bold text-white">
+                    <CircleX className="size-4 shrink-0 text-[#ff8a94]" aria-hidden /> Dibatalkan Garage — jangan dibuat
+                  </p>
+                  <p className="mt-1 text-sm text-[#ffd0d4]">
+                    {ticket.orderNo} · {ticket.tableLabel ?? "Take away"}
+                    {ticket.cancelledAt ? ` · batal ${time(ticket.cancelledAt)}` : ""}
+                  </p>
+                  <p className="mt-1 text-sm text-[#f4f4f5]">{ticket.items.map((item) => `${item.qty}× ${item.name}`).join(" · ")}</p>
+                  {ticket.issueReason ? <p className="mt-1 text-xs text-[#ffd0d4]">Alasan: {ticket.issueReason}</p> : null}
+                </li>
+              ))}
+            </ul>
           ) : null}
           {overview.activeTickets.length === 0 ? (
             <p className="mt-3 rounded-lg border border-dashed border-[#3a3a42] p-4 text-center text-sm text-[#b8b8bf]">Belum ada pesanan aktif.</p>

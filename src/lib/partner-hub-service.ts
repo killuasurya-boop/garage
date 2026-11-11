@@ -916,6 +916,20 @@ export async function listTicketsForPartner(partnerId: string, scope: "active" |
   return rows.map((ticket) => ticketView(ticket, lines.filter((line) => line.ticketId === ticket.id)));
 }
 
+/** Tiket mitra yang dibatalkan Garage (void / batal item) dalam `minutes` terakhir. */
+export async function listRecentlyCancelledTickets(partnerId: string, now = new Date(), minutes = 10) {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(kitchenTickets)
+    .where(and(eq(kitchenTickets.partnerId, partnerId), eq(kitchenTickets.status, "cancelled"), gte(kitchenTickets.issueAt, new Date(now.getTime() - minutes * 60_000))))
+    .orderBy(desc(kitchenTickets.issueAt))
+    .limit(20);
+  if (!rows.length) return [];
+  const lines = await db.select().from(partnerOrderLines).where(inArray(partnerOrderLines.ticketId, rows.map((row) => row.id)));
+  return rows.map((ticket) => ({ ...ticketView(ticket, lines.filter((line) => line.ticketId === ticket.id)), cancelledAt: ticket.issueAt }));
+}
+
 /** Aksi mitra pada tiketnya: terima → proses → siap antar, atau tolak (dengan alasan). */
 export async function actOnPartnerTicket(session: PartnerSession, ticketNo: string, action: PartnerTicketAction, reason?: string) {
   const db = getDb();
@@ -1828,6 +1842,8 @@ export async function partnerPortalOverview(session: PartnerSession) {
     partner: session.partner,
     products,
     activeTickets: active,
+    // Dibatalkan Garage dalam 10 menit terakhir: tetap ditampilkan agar mitra berhenti membuat (push bisa tidak sampai).
+    cancelledTickets: await listRecentlyCancelledTickets(session.partner.id, now),
     today: { qty: today.totalQty, gross: today.grossSales, liability: today.liabilityTotal, orders: today.orderCount },
     unpaid,
     settlements,

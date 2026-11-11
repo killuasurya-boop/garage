@@ -923,6 +923,31 @@ describe("Smart Partner Hub — pelanggan pesan sendiri dari QR meja (owner Nov 
     expect(left.filter((item: { qty: number }) => item.qty > 0).map((item: { menuItemId: string | null }) => item.menuItemId)).toEqual(["itm-coffee"]);
   });
 
+  it("order dibatalkan setelah masuk ke mitra: tiket tampil sebagai 'Dibatalkan Garage' di portal + event tercatat", async () => {
+    const d = t.getDb();
+    const { and, eq } = await import("drizzle-orm");
+    const { cancelProductionForOrder } = await import("@/lib/garage-production-tickets");
+    const [product] = await svc.listPartnerProducts(partnerB.id, { outletId, showCost: true });
+    const created = await customerOrder([{ itemId: product.menuItemId, variantId: "reg", qty: 1 }], "Meja 14");
+    const order = (created as { order: { id: string; orderNo: string } }).order;
+    await garageSvc.updateCustomerOrderStatus(order.id, { action: "accept" }, kasir());
+    const ticket = (await svc.listTicketsForPartner(partnerB.id, "active")).find((row) => row.orderNo === order.orderNo)!;
+    await d.transaction((tx: never) => cancelProductionForOrder(tx, order.id, "Order dibatalkan: pelanggan pulang"));
+    expect((await svc.listTicketsForPartner(partnerB.id, "active")).find((row) => row.ticketNo === ticket.ticketNo)).toBeUndefined();
+    const recent = await svc.listRecentlyCancelledTickets(partnerB.id);
+    expect(recent.find((row) => row.ticketNo === ticket.ticketNo)).toMatchObject({ status: "cancelled", issueReason: "Order dibatalkan: pelanggan pulang" });
+    // Sudah lewat 10 menit → tidak lagi ditampilkan.
+    expect(await svc.listRecentlyCancelledTickets(partnerB.id, new Date(Date.now() + 11 * 60_000))).toHaveLength(0);
+    // Pemberitahuan dijadwalkan setelah transaksi (±1,5 dtk): event tercatat untuk mitra.
+    await new Promise((resolve) => setTimeout(resolve, 2_200));
+    const events = await d
+      .select()
+      .from(t.schema.partnerEvents)
+      .where(and(eq(t.schema.partnerEvents.partnerId, partnerB.id), eq(t.schema.partnerEvents.kind, "ticket_cancelled_by_garage"), eq(t.schema.partnerEvents.subjectId, ticket.ticketNo)));
+    expect(events).toHaveLength(1);
+    await d.update(t.schema.orders).set({ status: "voided" }).where(eq(t.schema.orders.id, order.id));
+  });
+
   it("meja terisi: tanpa kode gabung (bawaan) siapa saja boleh menambah pesanan; setting wajib kode → ditolak", async () => {
     // Meja 09 terisi oleh pesanan di tes sebelumnya.
     const join = await garageSvc.holdCustomerTable({ tableNumber: "9", outletId });

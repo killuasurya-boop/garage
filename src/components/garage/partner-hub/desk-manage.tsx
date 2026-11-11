@@ -496,6 +496,7 @@ const EVENT_LABEL: Record<string, string> = {
   product_created: "Produk didaftarkan",
   product_approved: "Produk disetujui",
   product_deactivated: "Produk dinonaktifkan",
+  ticket_cancelled_by_garage: "Pesanan dibatalkan Garage",
   product_moved_out: "Produk dipindah ke mitra lain",
   product_moved_in: "Produk dipindah dari mitra lain",
   price_proposal_submitted: "Mitra mengajukan harga",

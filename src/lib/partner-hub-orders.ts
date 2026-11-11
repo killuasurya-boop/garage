@@ -15,6 +15,7 @@ import { getDb } from "@/db";
 import {
   kitchenTickets,
   partnerAdjustments,
+  partnerEvents,
   partnerOrderLines,
   partnerPriceHistory,
   partnerProductLinks,
@@ -313,6 +314,50 @@ function schedulePartnerPush(tickets: Array<{ ticketNo: string; partnerId: strin
         }
       } catch {
         /* push hanya pelengkap: portal tetap menampilkan pesanan lewat polling */
+      }
+    })();
+  }, 1500);
+  timer.unref?.();
+}
+
+/**
+ * Order dibatalkan Garage (void / batal item) setelah tiket masuk ke mitra → mitra diberi tahu supaya berhenti membuat.
+ * Dipanggil dari dalam transaksi pembatalan; push + catatan event dikirim sesaat setelahnya dan hanya bila tiketnya
+ * benar-benar berstatus cancelled (transaksi yang rollback tidak memicu apa pun). Tiket non-mitra diabaikan.
+ */
+export function schedulePartnerCancelNotice(ticketNos: string[]) {
+  if (!ticketNos.length) return;
+  const timer = setTimeout(() => {
+    void (async () => {
+      try {
+        const db = getDb();
+        const rows = await db
+          .select({ ticketNo: kitchenTickets.ticketNo, partnerId: kitchenTickets.partnerId, orderNo: kitchenTickets.orderNo, tableLabel: kitchenTickets.tableLabel, status: kitchenTickets.status, reason: kitchenTickets.issueReason })
+          .from(kitchenTickets)
+          .where(inArray(kitchenTickets.ticketNo, ticketNos));
+        const cancelled = rows.filter((row) => row.partnerId && row.status === "cancelled");
+        if (!cancelled.length) return;
+        const { sendPartnerPush } = await import("@/lib/web-push-sender");
+        for (const row of cancelled) {
+          await db.insert(partnerEvents).values({
+            partnerId: row.partnerId!,
+            kind: "ticket_cancelled_by_garage",
+            subjectId: row.ticketNo,
+            toStatus: "cancelled",
+            reason: row.reason ?? null,
+            actorType: "system",
+            actorName: "Garage OS",
+          });
+          await sendPartnerPush(row.partnerId!, {
+            title: "Pesanan DIBATALKAN Garage Coffee",
+            body: `${row.orderNo ?? row.ticketNo} · ${row.tableLabel ?? "Take away"} — jangan dibuat.`,
+            url: "/partner",
+            tag: `partner-ticket:${row.ticketNo}`,
+            requireInteraction: true,
+          }).catch(() => undefined);
+        }
+      } catch {
+        /* pemberitahuan pelengkap: portal tetap menampilkan kartu "Dibatalkan Garage" lewat polling */
       }
     })();
   }, 1500);

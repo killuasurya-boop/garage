@@ -14,6 +14,7 @@ import {
   productionTicketItems,
 } from "@/db/schema";
 import { productionStationFor, type ProductionStation } from "@/lib/garage-production-rules";
+import { schedulePartnerCancelNotice } from "@/lib/partner-hub-orders";
 
 type GarageDb = ReturnType<typeof getDb>;
 type GarageTx = Parameters<Parameters<GarageDb["transaction"]>[0]>[0];
@@ -181,7 +182,9 @@ export async function cancelProductionForOrder(
         inArray(kitchenTickets.status, ["queue", "cooking", "ready"]),
       ),
     )
-    .returning({ id: kitchenTickets.id, ticketNo: kitchenTickets.ticketNo });
+    .returning({ id: kitchenTickets.id, ticketNo: kitchenTickets.ticketNo, partnerId: kitchenTickets.partnerId });
+  // Smart Partner Hub: tiket mitra yang ikut batal → mitra diberi tahu (setelah transaksi tersimpan).
+  schedulePartnerCancelNotice(tickets.filter((ticket) => ticket.partnerId).map((ticket) => ticket.ticketNo));
   // Porsi yang sudah diantar (tiket delivered) = sudah dibuat & dikonsumsi.
   const servedItems = await tx
     .select({ menuItemId: productionTicketItems.menuItemId, variantId: productionTicketItems.variantId, qty: productionTicketItems.qty })
@@ -389,6 +392,8 @@ export async function cancelProductionQuantities(
         .set({ status: "cancelled", issueReason: input.reason, issueAt: now, updatedAt: now })
         .where(eq(kitchenTickets.id, ticket.id));
       touched.push(ticket.ticketNo);
+      // Tiket mitra yang habis porsinya (batal item) → mitra diberi tahu; tiket non-mitra diabaikan di dalam.
+      schedulePartnerCancelNotice([ticket.ticketNo]);
     } else if (live.length && cancelledQty > 0) {
       // Tiket tetap jalan dengan porsi tersisa; alasan tampil di kartu Bar/Dapur.
       await tx

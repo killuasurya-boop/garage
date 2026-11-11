@@ -444,7 +444,7 @@ export function ModuleNav({
   const NAV_GROUPS: Array<{ title: string; ids: ModuleId[] }> = [
     { title: "Ringkasan", ids: ["dashboard", "ops-center", "ai-agent"] },
     { title: "Absensi & Wallet", ids: ["absensi-v2", "wallet-gaji", "wallet-fee"] },
-    { title: "Operasional", ids: ["pos", "kitchen", "waiter", "courier", "produk", "inventory", "smart-notif"] },
+    { title: "Operasional", ids: ["pos", "kitchen", "waiter", "courier", "produk", "partners", "inventory", "smart-notif"] },
     { title: "Pelanggan & Penjualan", ids: ["crm", "membership", "marketing", "website", "events"] },
     { title: "Keuangan", ids: ["finance", "earnings", "payroll-owner", "approvals"] },
     {

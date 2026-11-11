@@ -87,6 +87,10 @@ export function Stepper({
   );
 }
 
+function StaffOnly({ note }: { note: string }) {
+  return <span className="rounded-lg border border-[#4a4a54] bg-white/[0.06] px-2 py-1.5 text-center text-xs font-semibold leading-4 text-[#e4e4e8]">{note}</span>;
+}
+
 export function MenuCardV5({
   item,
   cartQty,
@@ -97,6 +101,7 @@ export function MenuCardV5({
   onOpen,
   layout = "grid",
   index = 0,
+  staffOnlyNote = null,
 }: {
   item: MenuItem;
   cartQty: number;
@@ -108,6 +113,8 @@ export function MenuCardV5({
   layout?: "grid" | "list";
   /** Urutan untuk gerak masuk bertahap. */
   index?: number;
+  /** Diisi = tidak bisa ditambah pelanggan sendiri (mis. produk mitra); stepper diganti catatan ini. */
+  staffOnlyNote?: string | null;
 }) {
   const soldOut = item.stock === "sold_out";
   const multi = item.variants.length > 1;
@@ -151,7 +158,7 @@ export function MenuCardV5({
           {item.description ? <p className="line-clamp-2 text-sm leading-5 text-[#b8b8be]">{item.description}</p> : null}
           <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-1">
             <Price item={item} size="md" />
-            <Stepper label={item.name} qty={cartQty} soldOut={soldOut} onMinus={minus} onPlus={plus} minusOpens={multi} />
+            {staffOnlyNote ? <StaffOnly note={staffOnlyNote} /> : <Stepper label={item.name} qty={cartQty} soldOut={soldOut} onMinus={minus} onPlus={plus} minusOpens={multi} />}
           </div>
         </div>
         {heart}
@@ -174,7 +181,7 @@ export function MenuCardV5({
         <span className="mt-auto flex flex-col gap-2 pt-1.5">
           <Price item={item} size="md" />
           <span className="flex justify-center">
-            <Stepper label={item.name} qty={cartQty} soldOut={soldOut} onMinus={minus} onPlus={plus} minusOpens={multi} />
+            {staffOnlyNote ? <StaffOnly note={staffOnlyNote} /> : <Stepper label={item.name} qty={cartQty} soldOut={soldOut} onMinus={minus} onPlus={plus} minusOpens={multi} />}
           </span>
         </span>
       </div>

@@ -97,6 +97,16 @@ describe("Smart Partner Hub — registrasi & aktivasi", () => {
     await expect(svc.changePartnerStatus(row.id, "aktif", "ok", owner())).rejects.toThrow(/Rekening penerima belum diverifikasi/);
   });
 
+  it("nomor HP/WA mitra wajib angka: nama pengguna ditolak untuk akun login & profil", async () => {
+    await expect(
+      svc.createPartnerAccount(partnerA.id, { phone: "dimsumcidut", displayName: "Salah isi", pin: "123456" }, manager()),
+    ).rejects.toThrow(/Nomor HP\/WhatsApp tidak valid/);
+    await expect(svc.updatePartnerProfile(partnerA.id, { phone: "eskrimpokatau" }, manager())).rejects.toThrow(/tidak valid/);
+    const row = await svc.updatePartnerProfile(partnerA.id, { phone: "+62 851-3964-9855", handoverPoint: "Meja pass" }, manager());
+    expect(row.phone).toBe("085139649855");
+    expect(row.handoverPoint).toBe("Meja pass");
+  });
+
   it("produk mitra baru nonaktif sampai disetujui Owner; aktivasi lengkap lalu BUKA", async () => {
     const product = await svc.createPartnerProduct(
       partnerA.id,

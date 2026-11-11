@@ -204,6 +204,10 @@ const SettingsView = dynamic(
   () => import("@/components/garage/settings-view").then((m) => m.SettingsView),
   { loading: ModuleChunkFallback },
 );
+const PartnerHubRedirect = dynamic(
+  () => import("@/components/wms/warehouse-redirect").then((m) => m.PartnerHubRedirect),
+  { loading: ModuleChunkFallback },
+);
 const WarehouseRedirect = dynamic(
   () => import("@/components/wms/warehouse-redirect").then((m) => m.WarehouseRedirect),
   { loading: ModuleChunkFallback },
@@ -1393,6 +1397,7 @@ function GarageWorkspace({
               />
             )}
             {safeActiveModule === "inventory" && <WarehouseRedirect />}
+            {safeActiveModule === "partners" && <PartnerHubRedirect />}
             {safeActiveModule === "finance" && (
               <DateFilterProvider>
                 <div className="space-y-3">

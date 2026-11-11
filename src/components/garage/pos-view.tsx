@@ -8391,8 +8391,8 @@ export function PosView({
                         item.partner
                           ? // Alasan ikut di subjudul: mode daftar / tanpa foto tidak menampilkan label di atas foto.
                             item.partner.label
-                            ? `Mitra ${item.partner.name} · ${item.partner.label}`
-                            : `Mitra ${item.partner.name}`
+                            ? `${partnerTag(item.partner.name)} · ${item.partner.label}`
+                            : partnerTag(item.partner.name)
                           : isSoldOut
                             ? "Tidak bisa dipesan"
                             : variantText
@@ -9582,4 +9582,9 @@ export function PosView({
 
     </section>
   );
+}
+
+/** "Mitra X" tanpa dobel bila nama mitra sudah diawali "Mitra". */
+function partnerTag(name: string) {
+  return /^mitra\b/i.test(name.trim()) ? name.trim() : `Mitra ${name}`;
 }

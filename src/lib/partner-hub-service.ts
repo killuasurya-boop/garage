@@ -2217,7 +2217,14 @@ export async function partnerHealthForOutlet(garage: GarageSession, options: { a
   const ids = list.map((p) => p.id);
   const [products, tickets, proposals, adjustments, settlements, banks] = await Promise.all([
     db
-      .select({ partnerId: partnerProductLinks.partnerId, name: menuItems.name, active: partnerProductLinks.active, stock: menuItems.stock, availabilityUpdatedAt: partnerProductLinks.availabilityUpdatedAt })
+      .select({
+        partnerId: partnerProductLinks.partnerId,
+        name: menuItems.name,
+        active: partnerProductLinks.active,
+        stock: menuItems.stock,
+        // Belum pernah diubah mitra → hitung sejak produk disetujui/dibuat (bukan dianggap basi).
+        availabilityUpdatedAt: sql<Date>`coalesce(${partnerProductLinks.availabilityUpdatedAt}, ${partnerProductLinks.approvedAt}, ${partnerProductLinks.createdAt})`,
+      })
       .from(partnerProductLinks)
       .innerJoin(menuItems, eq(partnerProductLinks.menuItemId, menuItems.id))
       .where(inArray(partnerProductLinks.partnerId, ids)),

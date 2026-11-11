@@ -667,7 +667,10 @@ describe("Smart Partner Hub — pengajuan harga, rapor kinerja & kesehatan (back
     // akses lintas outlet ditolak
     await expect(svc.partnerPerformanceReport(partnerA.id, "00000000-0000-0000-0000-000000000000", from, to, { acceptSlaMinutes: 5, prepTargetMinutes: 15 })).rejects.toThrow(/tidak ditemukan/);
     const health = await svc.partnerHealthForOutlet(owner(), { acceptSlaMinutes: 5 });
-    expect(health.some((h) => h.partnerId === partnerB.id)).toBe(true);
+    const healthB = health.find((h) => h.partnerId === partnerB.id)!;
+    expect(healthB).toBeTruthy();
+    // produk yang baru disetujui/diubah tidak dianggap "ketersediaan basi"
+    expect(healthB.alerts.map((a) => a.code)).not.toContain("AVAILABILITY_STALE");
     await expect(svc.partnerHealthForOutlet(kasir(), { acceptSlaMinutes: 5 })).rejects.toThrow(/Owner\/Manajer/);
   });
 });

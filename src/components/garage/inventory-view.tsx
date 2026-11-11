@@ -654,6 +654,14 @@ export function InventoryView({
   }
 
   function beginEditProduct(product: ManagedProductItem) {
+    // Produk mitra: harga (riwayat harga mitra), foto, deskripsi dan Tersedia/Habis diatur di Partner Hub.
+    if ((product.productType as string | undefined) === "partner") {
+      setProductNotice(null);
+      setProductError(
+        `${product.name} adalah produk mitra${product.partner?.name ? ` ${product.partner.name}` : ""}. Ubah harga, foto, deskripsi dan Tersedia/Habis di Partner Hub → Kelola Mitra (menu samping "Partner Hub" atau alamat /partners).`,
+      );
+      return;
+    }
     setProductEditId(product.id);
     setProductName(product.name);
     setProductSku(product.sku ?? "");

@@ -234,6 +234,8 @@ export type HealthInput = {
   pendingAdjustments: number;
   unpaidApproved: number;
   hasVerifiedBank: boolean;
+  /** Jumlah akun Portal Mitra aktif (undefined = tidak dicek). */
+  portalAccounts?: number;
 };
 
 export type HealthAlert = { level: "info" | "warning" | "critical"; code: string; text: string };
@@ -260,7 +262,22 @@ export function partnerHealthAlerts(input: HealthInput, options: { now?: Date; s
   }
 
   const active = input.products.filter((p) => p.active);
-  if (input.partnerStatus === "aktif" && active.length === 0) alerts.push({ level: "warning", code: "NO_ACTIVE_PRODUCT", text: "Belum ada produk aktif yang bisa dijual." });
+  if (input.partnerStatus === "aktif" && active.length === 0) {
+    alerts.push({
+      level: "warning",
+      code: "NO_ACTIVE_PRODUCT",
+      text: input.portalAccounts
+        ? "Punya akun Portal Mitra tetapi belum ada produk aktif — Buka/Tersedia dari portal tidak memengaruhi menu. Cek apakah produknya tersambung ke mitra lain (Pengaturan produk → Pindahkan)."
+        : "Belum ada produk aktif yang bisa dijual.",
+    });
+  }
+  if (active.length && input.portalAccounts === 0) {
+    alerts.push({
+      level: "warning",
+      code: "NO_PORTAL_ACCOUNT",
+      text: `${active.length} produk aktif tetapi mitra belum punya akun Portal Mitra — status Buka/Jeda dan Tersedia/Habis tidak bisa diatur mitra sendiri.`,
+    });
+  }
   if (active.length && active.every((p) => !p.available)) alerts.push({ level: "info", code: "ALL_SOLD_OUT", text: "Semua produk ditandai Habis." });
   const stale = active.filter((p) => {
     if (!p.available) return false;

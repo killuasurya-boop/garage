@@ -123,7 +123,7 @@ export function DeskManage({ role }: { role: string }) {
                 <Btn onClick={() => setOpenId(openId === partner.id ? null : partner.id)}>{openId === partner.id ? "Tutup" : "Kelola"}</Btn>
               </div>
             </div>
-            {openId === partner.id ? <PartnerDetail partner={partner} isOwner={isOwner} busy={busy} run={run} /> : null}
+            {openId === partner.id ? <PartnerDetail partner={partner} allPartners={partners} isOwner={isOwner} busy={busy} run={run} /> : null}
           </Card>
         ))
       )}
@@ -181,7 +181,19 @@ function CreatePartner({ onCreate, busy }: { onCreate: (body: Record<string, unk
   );
 }
 
-function PartnerDetail({ partner, isOwner, busy, run }: { partner: Partner; isOwner: boolean; busy: string | null; run: (key: string, fn: () => Promise<unknown>, ok: string) => Promise<void> }) {
+function PartnerDetail({
+  partner,
+  allPartners,
+  isOwner,
+  busy,
+  run,
+}: {
+  partner: Partner;
+  allPartners: Partner[];
+  isOwner: boolean;
+  busy: string | null;
+  run: (key: string, fn: () => Promise<unknown>, ok: string) => Promise<void>;
+}) {
   const [products, setProducts] = useState<Product[] | null>(null);
   const [terms, setTerms] = useState(partner.terms ?? "");
   const [profile, setProfile] = useState({
@@ -417,7 +429,12 @@ function PartnerDetail({ partner, isOwner, busy, run }: { partner: Partner; isOw
                 {editing === p.linkId ? (
                   // key ikut harga terkini: setelah aturan harga/perubahan lain, form dibuat ulang dari data server
                   // (tidak menyimpan harga lama sebagai "perubahan" yang bisa membatalkan aturan).
-                  <ProductSettings key={`${p.linkId}:${p.variants.map((v) => `${v.variantId}=${v.unitCost ?? 0}/${v.sellPrice}`).join(",")}`} product={p} isOwner={isOwner} busy={busy} runP={runP} />
+                  <>
+                    <ProductSettings key={`${p.linkId}:${p.variants.map((v) => `${v.variantId}=${v.unitCost ?? 0}/${v.sellPrice}`).join(",")}`} product={p} isOwner={isOwner} busy={busy} runP={runP} />
+                    {isOwner ? (
+                      <MoveProduct product={p} targets={allPartners.filter((x) => x.id !== partner.id && x.status !== "nonaktif")} busy={busy} runP={runP} />
+                    ) : null}
+                  </>
                 ) : null}
               </li>
             ))}
@@ -477,6 +494,12 @@ const EVENT_LABEL: Record<string, string> = {
   product_created: "Produk didaftarkan",
   product_approved: "Produk disetujui",
   product_deactivated: "Produk dinonaktifkan",
+  product_moved_out: "Produk dipindah ke mitra lain",
+  product_moved_in: "Produk dipindah dari mitra lain",
+  price_proposal_submitted: "Mitra mengajukan harga",
+  price_proposal_approved: "Pengajuan harga disetujui",
+  price_proposal_rejected: "Pengajuan harga ditolak",
+  price_proposal_cancelled: "Pengajuan harga dibatalkan mitra",
   product_settings: "Pengaturan produk diubah",
   price_changed: "Harga diubah",
   variant_added: "Varian ditambah",
@@ -567,6 +590,52 @@ function PartnerAuditPanel({ partnerId }: { partnerId: string }) {
 }
 
 type RunP = (key: string, fn: () => Promise<unknown>, ok: string) => Promise<void>;
+
+/**
+ * Pindahkan produk ke mitra lain (Owner) — untuk produk yang tersambung ke data mitra yang salah (mis. katalog impor
+ * vs mitra hasil pendaftaran). Hanya pesanan berikutnya yang ikut mitra baru; riwayat & setoran lama tidak berubah.
+ */
+function MoveProduct({ product, targets, busy, runP }: { product: Product; targets: Partner[]; busy: string | null; runP: RunP }) {
+  const [to, setTo] = useState("");
+  const [reason, setReason] = useState("");
+  if (!targets.length) return null;
+  const key = `move-${product.linkId}`;
+  return (
+    <form
+      className="mt-2 grid gap-2 rounded-lg border border-[#f5a742]/40 bg-[#2a1d0a]/40 p-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end"
+      onSubmit={(event) => {
+        event.preventDefault();
+        const target = targets.find((x) => x.id === to);
+        if (!target) return;
+        void runP(
+          key,
+          () => api(`/api/partners/products/${product.linkId}/move`, { method: "POST", body: JSON.stringify({ toPartnerId: to, reason }) }),
+          `${product.name} dipindah ke ${target.name}. Status Buka/Jeda & Tersedia/Habis kini mengikuti ${target.name}.`,
+        );
+      }}
+    >
+      <p className="text-xs text-[#ffe2b0] sm:col-span-3">
+        Salah mitra? Pindahkan produk ini. Pesanan berikutnya, status Buka/Jeda dan Tersedia/Habis ikut mitra tujuan; pesanan & setoran lama tetap milik mitra ini.
+      </p>
+      <Field label="Pindahkan ke mitra">
+        <select value={to} onChange={(e) => setTo(e.target.value)} required className={inputCls}>
+          <option value="">Pilih mitra…</option>
+          {targets.map((x) => (
+            <option key={x.id} value={x.id}>
+              {x.name} (#{x.code} · {x.operationalStatus.toUpperCase()})
+            </option>
+          ))}
+        </select>
+      </Field>
+      <Field label="Alasan">
+        <input value={reason} onChange={(e) => setReason(e.target.value)} required minLength={3} maxLength={300} placeholder="mis. produk milik Dimsum Cidut" className={inputCls} />
+      </Field>
+      <Btn type="submit" tone="primary" busy={busy === key} disabled={!to || reason.trim().length < 3}>
+        Pindahkan
+      </Btn>
+    </form>
+  );
+}
 
 /** Impor katalog PRD 05 sekali tekan (Owner). Idempoten: kode yang sudah ada dilewati. */
 function ImportCatalogCard({ busy, onImport }: { busy: boolean; onImport: () => void }) {

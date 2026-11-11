@@ -153,6 +153,8 @@ import {
   operationLocations,
   orders,
   outlets,
+  partnerProductLinks,
+  partners,
   diningTables,
   payments,
   paymentSettlements,
@@ -2238,6 +2240,34 @@ export class PartnerProductStockError extends Error {
   }
 }
 
+/** Edit produk mitra lewat form produk umum ditolak dengan arahan yang jelas (bukan "payload tidak valid"). */
+export class PartnerProductEditError extends Error {
+  code = "PARTNER_PRODUCT_EDIT";
+  constructor(name: string, partnerName: string | null) {
+    super(
+      `${name} adalah produk mitra${partnerName ? ` ${partnerName}` : ""}. Harga, foto, deskripsi dan Tersedia/Habis diatur di Partner Hub → Kelola Mitra${partnerName ? ` → ${partnerName}` : ""}.`,
+    );
+  }
+}
+
+/** Pesan arahan bila id adalah produk mitra (null = bukan produk mitra). Dipakai route sebelum validasi payload. */
+export async function partnerProductEditBlock(menuItemId: string): Promise<string | null> {
+  const db = getDb();
+  const [item] = await db.select({ name: menuItems.name, productType: menuItems.productType }).from(menuItems).where(eq(menuItems.id, menuItemId.trim())).limit(1);
+  if (!item || (item.productType as string) !== "partner") return null;
+  return new PartnerProductEditError(item.name, await partnerNameForMenuItem(db, menuItemId.trim())).message;
+}
+
+async function partnerNameForMenuItem(db: ReturnType<typeof getDb>, menuItemId: string) {
+  const [row] = await db
+    .select({ name: partners.name })
+    .from(partnerProductLinks)
+    .innerJoin(partners, eq(partnerProductLinks.partnerId, partners.id))
+    .where(eq(partnerProductLinks.menuItemId, menuItemId))
+    .limit(1);
+  return row?.name ?? null;
+}
+
 export async function updateMenuProductStock(
   id: string,
   stock: "ready" | "limited" | "sold_out",
@@ -2327,6 +2357,14 @@ export async function updateMenuProduct(
     .limit(1);
 
   if (!existing) return null;
+
+  // Produk mitra: harga (riwayat harga mitra), foto/deskripsi, tipe/station dan Tersedia/Habis diatur lewat
+  // Partner Hub. Edit menu umum hanya boleh menyentuh urutan, unggulan dan tag (tag promosi website tetap dijaga).
+  if ((existing.productType as string) === "partner") {
+    const allowed = new Set(["tags", "sortOrder", "featured"]);
+    const blocked = Object.entries(input).filter(([key, value]) => value !== undefined && !allowed.has(key));
+    if (blocked.length) throw new PartnerProductEditError(existing.name, await partnerNameForMenuItem(db, existing.id));
+  }
 
   const nextName = input.name?.trim();
   if (input.name !== undefined && !nextName) {

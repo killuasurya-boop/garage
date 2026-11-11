@@ -6,7 +6,9 @@ import {
   deleteMenuProduct,
   getMenuProductAuditHistory,
   getMenuProductOrderCount,
+  PartnerProductEditError,
   PartnerProductStockError,
+  partnerProductEditBlock,
   updateMenuProduct,
   updateMenuProductStock,
 } from "@/lib/garage-service";
@@ -167,6 +169,12 @@ export async function PATCH(
   }
 
   const body = menuProductUpdateSchema.safeParse(raw);
+  // Produk mitra yang dikirim lewat form produk umum: arahkan ke Partner Hub (bukan "payload tidak valid").
+  const onlyMenuOrderFields = body.success && Object.keys(body.data).every((key) => ["tags", "sortOrder", "featured"].includes(key));
+  if (!onlyMenuOrderFields) {
+    const partnerBlock = await partnerProductEditBlock(id);
+    if (partnerBlock) return fail(409, "PARTNER_PRODUCT_EDIT", partnerBlock);
+  }
   if (!body.success || Object.keys(body.data).length === 0) {
     return fail(400, "MENU_PRODUCT_PATCH_INVALID", "Payload update produk tidak valid.");
   }
@@ -178,6 +186,9 @@ export async function PATCH(
     }
     return ok({ product });
   } catch (error) {
+    if (error instanceof PartnerProductEditError || error instanceof PartnerProductStockError) {
+      return fail(409, error.code, error.message);
+    }
     return fail(
       400,
       "MENU_PRODUCT_UPDATE_FAILED",

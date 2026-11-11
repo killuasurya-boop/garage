@@ -607,7 +607,9 @@ function ActivationChecklist({
       ? "Status sudah Disetujui Owner"
       : partner.status === "verifikasi"
         ? "Status: tekan \"Setujui (Owner)\""
-        : "Status: tekan \"Ajukan verifikasi\", lalu \"Setujui (Owner)\"";
+        : partner.status === "nonaktif"
+          ? "Status Nonaktif: dibuka ulang otomatis saat \"Aktifkan mitra sekarang\""
+          : "Status: tekan \"Ajukan verifikasi\", lalu \"Setujui (Owner)\"";
   const items: Array<{ ok: boolean; label: string }> = [
     { ok: Boolean(partner.phone?.trim()), label: "WhatsApp mitra diisi lalu disimpan" },
     { ok: Boolean(partner.terms?.trim()), label: "Kesepakatan harga, pembatalan & serah-terima disimpan" },
@@ -617,7 +619,15 @@ function ActivationChecklist({
     { ok: partner.status === "disetujui" || partner.status === "dibekukan", label: statusStep },
   ];
   const dataReady = prereqOk(items.slice(0, 5).map((i) => i.ok));
-  const statusPath = (partner.status === "draft" ? ["verifikasi", "disetujui", "aktif"] : partner.status === "verifikasi" ? ["disetujui", "aktif"] : ["aktif"]) as string[];
+  // Urutan transisi sah (PARTNER_STATUS_FLOW): nonaktif harus dibuka ulang ke draft dulu.
+  const STATUS_PATH: Record<string, string[]> = {
+    nonaktif: ["draft", "verifikasi", "disetujui", "aktif"],
+    draft: ["verifikasi", "disetujui", "aktif"],
+    verifikasi: ["disetujui", "aktif"],
+    disetujui: ["aktif"],
+    dibekukan: ["aktif"],
+  };
+  const statusPath = STATUS_PATH[partner.status] ?? [];
   const activateNow = () => {
     const reason = window.prompt("Alasan aktivasi (tercatat di riwayat), mis. kontrak & harga sudah disepakati");
     if (!reason?.trim()) return;
@@ -661,7 +671,7 @@ function ActivationChecklist({
               Setujui semua produk ({pendingProducts.length})
             </Btn>
           ) : null}
-          <Btn tone="primary" disabled={!dataReady} busy={busy === `quick-${partner.id}`} onClick={activateNow}>
+          <Btn tone="primary" disabled={!dataReady || statusPath.length === 0} busy={busy === `quick-${partner.id}`} onClick={activateNow}>
             <ShieldCheck className="size-4" /> Aktifkan mitra sekarang
           </Btn>
         </div>

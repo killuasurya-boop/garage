@@ -435,7 +435,8 @@ Scroll direction:
   through (`PartnerProductEditError`); Inventory "Kelola Produk" shows the Partner Hub hint instead of opening the form.
   Wrong partner = Owner "Pindahkan ke mitra lain" (`movePartnerProduct`, `POST /api/partners/products/[linkId]/move`, reason
   required): only future orders follow the new partner, old lines/liabilities stay, pending price proposals are cancelled, events on
-  both partners. Health alerts `NO_PORTAL_ACCOUNT` (products, no portal account) and `NO_ACTIVE_PRODUCT` (account, no products).
+  both partners. Bulk = "Pindahkan semua produk…" (`movePartnerProducts`, `POST /api/partners/[id]/products/move`, optional `linkIds`;
+  one tx, links locked FOR UPDATE, a foreign link rejects the whole request; UI always sends the ids the Owner saw). Health alerts `NO_PORTAL_ACCOUNT` (products, no portal account) and `NO_ACTIVE_PRODUCT` (account, no products).
   Self-order digital menu shows partner items with the partner status ("Tersedia di mitra" or the partner reason, never the Garage OS stock "Sold Out") plus "Disiapkan mitra · <nama>"; with `partnerCustomerSelfOrder` OFF the stepper is replaced by "Pesan ke kasir atau waiter" (DEC-14). POS search: Enter on an exact SKU/barcode (product or variant, partner items included) adds that variant (scanner).
   Media marketing (11 Nov 2026, no migration): homepage section `#mitra` (`partner-showcase.tsx`, public `GET /api/site/partner-products`,
   no HPP/contact) + hero tab "Mitra" + mobile drawer links. A product shows only when Owner picks it (tag `PARTNER_WEBSITE_TAG`

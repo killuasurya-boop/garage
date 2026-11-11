@@ -474,17 +474,92 @@ export async function movePartnerProduct(linkId: string, input: { toPartnerId: s
   const [item] = await db.select({ name: menuItems.name }).from(menuItems).where(eq(menuItems.id, link.menuItemId)).limit(1);
   const actor = staffActor(garage);
   return db.transaction(async (tx) => {
-    await tx.update(partnerProductLinks).set({ partnerId: to.id, updatedAt: new Date() }).where(eq(partnerProductLinks.id, linkId));
-    const cancelled = await tx
-      .update(partnerPriceProposals)
-      .set({ status: "cancelled", decisionNote: `Produk dipindah ke ${to.name}`, updatedAt: new Date() })
-      .where(and(eq(partnerPriceProposals.linkId, linkId), eq(partnerPriceProposals.status, "pending")))
-      .returning({ id: partnerPriceProposals.id });
-    const metadata = { linkId, product: item?.name ?? null, from: { id: from.id, name: from.name }, to: { id: to.id, name: to.name }, cancelledProposals: cancelled.length };
-    await logEvent(tx, { partnerId: from.id, kind: "product_moved_out", subjectId: linkId, reason, actor, metadata });
-    await logEvent(tx, { partnerId: to.id, kind: "product_moved_in", subjectId: linkId, reason, actor, metadata });
-    return { linkId, fromPartnerId: from.id, toPartnerId: to.id, cancelledProposals: cancelled.length };
+    const cancelledProposals = await moveLinksInTx(tx, [{ id: linkId, name: item?.name ?? null }], from, to, reason, actor);
+    return { linkId, fromPartnerId: from.id, toPartnerId: to.id, cancelledProposals };
   });
+}
+
+/**
+ * Pindahkan SEMUA (atau sebagian terpilih) produk satu mitra ke mitra lain sekaligus (Owner) — mis. 20 SKU katalog impor
+ * yang ternyata milik mitra hasil pendaftaran. Aturan sama dengan pindah satu produk; semua atau tidak sama sekali (satu tx).
+ */
+export async function movePartnerProducts(
+  fromPartnerId: string,
+  input: { toPartnerId: string; reason: string; linkIds?: string[] },
+  garage: GarageSession,
+) {
+  assertOwner(garage, "Memindahkan produk ke mitra lain");
+  const reason = input.reason.trim();
+  if (reason.length < 3) throw new PartnerHubError("REASON_REQUIRED", "Alasan pemindahan wajib diisi.");
+  const db = getDb();
+  const from = await loadPartner(db, fromPartnerId, garage.profile.outlet.id);
+  const to = await loadPartner(db, input.toPartnerId, garage.profile.outlet.id);
+  if (from.id === to.id) throw new PartnerHubError("SAME_PARTNER", "Mitra tujuan sama dengan mitra asal.");
+  if (to.status === "nonaktif") throw new PartnerHubError("PARTNER_INACTIVE", "Mitra tujuan nonaktif. Buka ulang mitra itu dulu.", 409);
+  const wanted = input.linkIds ? [...new Set(input.linkIds)] : null;
+  if (wanted && wanted.length === 0) throw new PartnerHubError("NO_PRODUCTS", "Pilih minimal satu produk untuk dipindah.");
+  const actor = staffActor(garage);
+  return db.transaction(async (tx) => {
+    // Kunci produk mitra asal supaya pindah satu-per-satu yang berjalan bersamaan tidak ikut tercampur.
+    const owned = await tx
+      .select({ id: partnerProductLinks.id, menuItemId: partnerProductLinks.menuItemId })
+      .from(partnerProductLinks)
+      .where(eq(partnerProductLinks.partnerId, from.id))
+      .for("update");
+    if (!owned.length) throw new PartnerHubError("NO_PRODUCTS", `${from.name} tidak punya produk untuk dipindah.`, 409);
+    if (wanted) {
+      const ownedIds = new Set(owned.map((row) => row.id));
+      const foreign = wanted.filter((id) => !ownedIds.has(id));
+      if (foreign.length) {
+        throw new PartnerHubError("PRODUCT_NOT_FOUND", `${foreign.length} produk yang dipilih bukan milik ${from.name} (mungkin sudah dipindah). Muat ulang lalu coba lagi.`, 409);
+      }
+    }
+    const chosen = wanted ? owned.filter((row) => wanted.includes(row.id)) : owned;
+    const names = await tx
+      .select({ id: menuItems.id, name: menuItems.name })
+      .from(menuItems)
+      .where(inArray(menuItems.id, chosen.map((row) => row.menuItemId)));
+    const nameOf = new Map(names.map((row) => [row.id, row.name]));
+    const links = chosen
+      .map((row) => ({ id: row.id, name: nameOf.get(row.menuItemId) ?? null }))
+      .sort((a, b) => (a.name ?? "").localeCompare(b.name ?? "", "id"));
+    const cancelledProposals = await moveLinksInTx(tx, links, from, to, reason, actor);
+    return { fromPartnerId: from.id, toPartnerId: to.id, moved: links.length, cancelledProposals, products: links.map((l) => ({ linkId: l.id, name: l.name })) };
+  });
+}
+
+/**
+ * Inti pemindahan produk (dalam transaksi): ganti pemilik link, batalkan pengajuan harga yang menunggu (diajukan mitra
+ * asal), dan catat event keluar/masuk per produk di kedua mitra. Baris pesanan, tiket & setoran lama tidak disentuh.
+ */
+async function moveLinksInTx(
+  tx: Tx,
+  links: Array<{ id: string; name: string | null }>,
+  from: { id: string; name: string },
+  to: { id: string; name: string },
+  reason: string,
+  actor: Actor,
+) {
+  const ids = links.map((link) => link.id);
+  await tx.update(partnerProductLinks).set({ partnerId: to.id, updatedAt: new Date() }).where(inArray(partnerProductLinks.id, ids));
+  const cancelled = await tx
+    .update(partnerPriceProposals)
+    .set({ status: "cancelled", decisionNote: `Produk dipindah ke ${to.name}`, updatedAt: new Date() })
+    .where(and(inArray(partnerPriceProposals.linkId, ids), eq(partnerPriceProposals.status, "pending")))
+    .returning({ id: partnerPriceProposals.id, linkId: partnerPriceProposals.linkId });
+  for (const link of links) {
+    const metadata = {
+      linkId: link.id,
+      product: link.name,
+      from: { id: from.id, name: from.name },
+      to: { id: to.id, name: to.name },
+      cancelledProposals: cancelled.filter((row) => row.linkId === link.id).length,
+      ...(links.length > 1 ? { bulkCount: links.length } : {}),
+    };
+    await logEvent(tx, { partnerId: from.id, kind: "product_moved_out", subjectId: link.id, reason, actor, metadata });
+    await logEvent(tx, { partnerId: to.id, kind: "product_moved_in", subjectId: link.id, reason, actor, metadata });
+  }
+  return cancelled.length;
 }
 
 /** Tambah varian (mis. Large) ke produk mitra — Owner, harga awal tercatat di riwayat harga. */

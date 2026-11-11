@@ -86,6 +86,9 @@ Kolom **Bukti otomatis** merujuk ke tes PGlite/vitest; staging = UAT manual oleh
   Owner bisa **Pindahkan ke mitra lain** dari Kelola Mitra → Pengaturan produk (alasan wajib; hanya pesanan berikutnya
   yang ikut mitra baru; pengajuan harga yang menunggu dibatalkan; tercatat di log kedua mitra). Kesehatan mitra menandai
   mitra dengan produk tetapi tanpa akun portal, dan akun portal tanpa produk.
+  **Pindahkan semua produk…** (Owner, di atas daftar produk Kelola Mitra) memindahkan semua/sebagian produk terpilih
+  sekaligus (`movePartnerProducts`, `POST /api/partners/[id]/products/move`): satu transaksi, wajib konfirmasi; bila ada
+  produk terpilih yang bukan milik mitra asal, tidak ada yang dipindah. Aturan sama dengan pindah satu produk.
 
 - **Pelanggan pesan sendiri dari QR meja** (Nov 2026): setting `partnerCustomerSelfOrder` (bawaan ON) menggantikan DEC-14 —
   pelanggan bisa memasukkan produk mitra ke keranjang; pesanan menunggu kasir; saat kasir menerima, ketersediaan mitra dicek

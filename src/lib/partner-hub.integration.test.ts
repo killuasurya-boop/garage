@@ -723,6 +723,63 @@ describe("Smart Partner Hub — produk salah mitra & form produk umum", () => {
     // kembalikan supaya tes berikutnya tetap memakai mitra B
     await svc.movePartnerProduct(link.linkId, { toPartnerId: partnerB.id, reason: "kembalikan untuk uji" }, owner());
   });
+
+  it("Owner memindahkan semua/sebagian produk sekaligus; pilihan asing ditolak tanpa ada yang berpindah", async () => {
+    const d = t.getDb();
+    const { and, eq } = await import("drizzle-orm");
+    const source = await svc.createPartner({ code: "KTL", name: "Mitra Katalog Impor" }, manager());
+    const target = await svc.createPartner({ code: "DFT", name: "Mitra Pendaftar" }, manager());
+    const makeProduct = (code: string, name: string) =>
+      svc.createPartnerProduct(source.id, { code, name, category: "Dimsum", variants: [{ variantId: "reg", label: "Regular", unitCost: 20_000, sellPrice: 24_000 }] }, manager());
+    const p1 = await makeProduct("KTL-001", "Dimsum Ayam Katalog");
+    const p2 = await makeProduct("KTL-002", "Dimsum Udang Katalog");
+    const p3 = await makeProduct("KTL-003", "Siomay Katalog");
+    const ids = (rows: Array<{ linkId: string }>) => rows.map((p) => p.linkId).sort();
+    const listOf = (partnerId: string) => svc.listPartnerProducts(partnerId, { outletId, showCost: false });
+    const bProducts = await listOf(partnerB.id);
+
+    await expect(svc.movePartnerProducts(source.id, { toPartnerId: target.id, reason: "milik pendaftar" }, manager())).rejects.toThrow(/Owner/);
+    await expect(svc.movePartnerProducts(source.id, { toPartnerId: source.id, reason: "sama" }, owner())).rejects.toThrow(/sama dengan mitra asal/);
+    await expect(svc.movePartnerProducts(source.id, { toPartnerId: target.id, reason: "x" }, owner())).rejects.toThrow(/Alasan/);
+    // produk mitra B ikut dipilih → seluruh permintaan ditolak, tidak ada yang berpindah
+    await expect(
+      svc.movePartnerProducts(source.id, { toPartnerId: target.id, reason: "milik pendaftar", linkIds: [p1.linkId, bProducts[0].linkId] }, owner()),
+    ).rejects.toThrow(/bukan milik Mitra Katalog Impor/);
+    expect(ids(await listOf(source.id))).toEqual(ids([p1, p2, p3]));
+
+    // sebagian
+    const partial = await svc.movePartnerProducts(source.id, { toPartnerId: target.id, reason: "siomay milik pendaftar", linkIds: [p3.linkId] }, owner());
+    expect(partial).toMatchObject({ moved: 1, cancelledProposals: 0, products: [{ linkId: p3.linkId, name: "Siomay Katalog" }] });
+    expect(ids(await listOf(target.id))).toEqual([p3.linkId]);
+
+    // semua sisanya; pengajuan harga yang menunggu ikut dibatalkan
+    const [proposal] = await d
+      .insert(t.schema.partnerPriceProposals)
+      .values({ proposalNo: "PPR-UJI-BULK", partnerId: source.id, linkId: p1.linkId, variantId: "reg", currentUnitCost: 20_000, currentSellPrice: 24_000, proposedUnitCost: 21_000, reason: "uji pindah semua", createdBy: "uji" })
+      .returning();
+    const all = await svc.movePartnerProducts(source.id, { toPartnerId: target.id, reason: "semua milik pendaftar" }, owner());
+    expect(all).toMatchObject({ fromPartnerId: source.id, toPartnerId: target.id, moved: 2, cancelledProposals: 1 });
+    expect(all.products.map((p) => p.name)).toEqual(["Dimsum Ayam Katalog", "Dimsum Udang Katalog"]);
+    expect(await listOf(source.id)).toEqual([]);
+    expect(ids(await listOf(target.id))).toEqual(ids([p1, p2, p3]));
+    const [cancelled] = await d.select().from(t.schema.partnerPriceProposals).where(eq(t.schema.partnerPriceProposals.id, proposal.id));
+    expect(cancelled.status).toBe("cancelled");
+    const outEvents = await d
+      .select()
+      .from(t.schema.partnerEvents)
+      .where(and(eq(t.schema.partnerEvents.partnerId, source.id), eq(t.schema.partnerEvents.kind, "product_moved_out")));
+    expect(outEvents.length).toBe(3);
+    const inEvents = await d
+      .select()
+      .from(t.schema.partnerEvents)
+      .where(and(eq(t.schema.partnerEvents.partnerId, target.id), eq(t.schema.partnerEvents.kind, "product_moved_in")));
+    expect(inEvents.length).toBe(3);
+    // mitra B tidak tersentuh
+    expect(ids(await listOf(partnerB.id))).toEqual(ids(bProducts));
+
+    // mitra asal kini tanpa produk
+    await expect(svc.movePartnerProducts(source.id, { toPartnerId: target.id, reason: "lagi" }, owner())).rejects.toThrow(/tidak punya produk/);
+  });
 });
 
 describe("Smart Partner Hub — media marketing website", () => {

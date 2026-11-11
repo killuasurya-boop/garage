@@ -221,6 +221,7 @@ function PartnerDetail({
     await run(key, fn, ok);
     await loadProducts();
   };
+  const moveTargets = allPartners.filter((x) => x.id !== partner.id && x.status !== "nonaktif");
 
   return (
     <div className="mt-4 grid items-start gap-4 border-t border-[#2a2a30] pt-4 lg:grid-cols-2">
@@ -397,6 +398,7 @@ function PartnerDetail({
             </label>
           ) : null}
         </div>
+        {isOwner && products !== null ? <MoveAllProducts partner={partner} products={products} targets={moveTargets} busy={busy} runP={runP} /> : null}
         {products === null ? (
           <p className="text-sm text-[#b8b8bf]">Memuat…</p>
         ) : products.length === 0 ? (
@@ -432,7 +434,7 @@ function PartnerDetail({
                   <>
                     <ProductSettings key={`${p.linkId}:${p.variants.map((v) => `${v.variantId}=${v.unitCost ?? 0}/${v.sellPrice}`).join(",")}`} product={p} isOwner={isOwner} busy={busy} runP={runP} />
                     {isOwner ? (
-                      <MoveProduct product={p} targets={allPartners.filter((x) => x.id !== partner.id && x.status !== "nonaktif")} busy={busy} runP={runP} />
+                      <MoveProduct product={p} targets={moveTargets} busy={busy} runP={runP} />
                     ) : null}
                   </>
                 ) : null}
@@ -634,6 +636,190 @@ function MoveProduct({ product, targets, busy, runP }: { product: Product; targe
         Pindahkan
       </Btn>
     </form>
+  );
+}
+
+/**
+ * Pindahkan semua (atau sebagian terpilih) produk mitra ini ke mitra lain sekaligus (Owner) — mis. 20 SKU katalog impor
+ * yang ternyata milik mitra hasil pendaftaran. Satu transaksi di server; selalu mengirim daftar produk yang dilihat Owner
+ * (produk baru yang muncul setelah layar dimuat tidak ikut terpindah diam-diam).
+ */
+function MoveAllProducts({ partner, products, targets, busy, runP }: { partner: Partner; products: Product[]; targets: Partner[]; busy: string | null; runP: RunP }) {
+  const [open, setOpen] = useState(false);
+  const [to, setTo] = useState("");
+  const [reason, setReason] = useState("");
+  const [excluded, setExcluded] = useState<Set<string>>(() => new Set());
+  const [confirming, setConfirming] = useState(false);
+  const [done, setDone] = useState<string | null>(null);
+  if (!targets.length) return null;
+  if (!products.length && !done) return null;
+  const key = `moveall-${partner.id}`;
+  const selected = products.filter((p) => !excluded.has(p.linkId));
+  const target = targets.find((x) => x.id === to);
+  const ready = Boolean(target) && reason.trim().length >= 3 && selected.length > 0;
+
+  const toggle = (linkId: string) => {
+    setConfirming(false);
+    setExcluded((prev) => {
+      const next = new Set(prev);
+      if (next.has(linkId)) next.delete(linkId);
+      else next.add(linkId);
+      return next;
+    });
+  };
+  const submit = () => {
+    if (!target || !selected.length) return;
+    const count = selected.length;
+    void runP(
+      key,
+      async () => {
+        const result = await api<{ moved: number; cancelledProposals: number }>(`/api/partners/${partner.id}/products/move`, {
+          method: "POST",
+          body: JSON.stringify({ toPartnerId: target.id, reason, linkIds: selected.map((p) => p.linkId) }),
+        });
+        setDone(
+          `${result.moved} produk dipindah ke ${target.name}${result.cancelledProposals ? ` · ${result.cancelledProposals} pengajuan harga dibatalkan` : ""}. Status Buka/Jeda & Tersedia/Habis kini mengikuti ${target.name}.`,
+        );
+        setOpen(false);
+        setExcluded(new Set());
+        setReason("");
+      },
+      `${count} produk dipindah ke ${target.name}. Pesanan & setoran lama tetap milik ${partner.name}.`,
+    ).finally(() => setConfirming(false));
+  };
+
+  return (
+    <div className="grid gap-2 rounded-lg border border-[#f5a742]/40 bg-[#2a1d0a]/40 p-3">
+      {done ? (
+        <p role="status" className="text-sm text-[#bbf7d0]">
+          {done}
+          {!products.length ? ` ${partner.name} kini tanpa produk — bila tidak dipakai lagi, ubah statusnya ke "Nonaktifkan mitra".` : ""}
+        </p>
+      ) : null}
+      {!products.length ? null : !open ? (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="min-w-0 flex-1 text-xs text-[#ffe2b0]">Produk mitra ini sebenarnya milik mitra lain? Pindahkan sekaligus, tidak perlu satu per satu.</p>
+          <Btn
+            onClick={() => {
+              setOpen(true);
+              setDone(null);
+            }}
+          >
+            Pindahkan semua produk…
+          </Btn>
+        </div>
+      ) : (
+        <form
+          className="grid gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (ready) setConfirming(true);
+          }}
+        >
+          <p className="text-xs text-[#ffe2b0]">
+            Pesanan berikutnya, status Buka/Jeda dan Tersedia/Habis ikut mitra tujuan. Pesanan, tiket & setoran lama tetap milik {partner.name}; pengajuan harga yang
+            masih menunggu dibatalkan.
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Field label="Pindahkan ke mitra">
+              <select
+                value={to}
+                onChange={(e) => {
+                  setTo(e.target.value);
+                  setConfirming(false);
+                }}
+                required
+                className={inputCls}
+              >
+                <option value="">Pilih mitra…</option>
+                {targets.map((x) => (
+                  <option key={x.id} value={x.id}>
+                    {x.name} (#{x.code} · {x.operationalStatus.toUpperCase()})
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Alasan">
+              <input
+                value={reason}
+                onChange={(e) => {
+                  setReason(e.target.value);
+                  setConfirming(false);
+                }}
+                required
+                minLength={3}
+                maxLength={300}
+                placeholder="mis. semua produk milik Dimsum Cidut"
+                className={inputCls}
+              />
+            </Field>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-sm font-semibold text-[#e4e4e8]">
+              Produk dipilih: {selected.length} dari {products.length}
+            </span>
+            <span className="flex flex-wrap gap-2">
+              <Btn
+                onClick={() => {
+                  setExcluded(new Set());
+                  setConfirming(false);
+                }}
+              >
+                Pilih semua
+              </Btn>
+              <Btn
+                onClick={() => {
+                  setExcluded(new Set(products.map((p) => p.linkId)));
+                  setConfirming(false);
+                }}
+              >
+                Kosongkan
+              </Btn>
+            </span>
+          </div>
+          <ul className="grid max-h-64 overflow-auto rounded-lg border border-[#3a3a42] bg-black/20 px-2" aria-label="Produk yang dipindah">
+            {products.map((p) => (
+              <li key={p.linkId}>
+                <label className="flex min-h-11 items-center gap-2 text-sm text-[#f4f4f5]">
+                  <input type="checkbox" checked={!excluded.has(p.linkId)} onChange={() => toggle(p.linkId)} className="size-4 shrink-0" />
+                  <span className="min-w-0 break-words">
+                    {p.code} · {p.name}
+                  </span>
+                  {!p.active ? <span className="shrink-0 text-xs text-[#ffd28a]">nonaktif</span> : null}
+                </label>
+              </li>
+            ))}
+          </ul>
+          {confirming && target ? (
+            <div className="grid gap-2 rounded-lg border border-[#ff5a66]/50 bg-[#3a1015]/60 p-3">
+              <p role="alert" className="text-sm text-[#ffd0d4]">
+                Yakin pindahkan <b>{selected.length} produk</b> dari <b>{partner.name}</b> ke <b>{target.name}</b>? Pesanan, tiket & setoran lama tetap milik {partner.name}.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Btn tone="danger" busy={busy === key} onClick={submit}>
+                  Ya, pindahkan {selected.length} produk
+                </Btn>
+                <Btn onClick={() => setConfirming(false)}>Kembali</Btn>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              <Btn type="submit" tone="primary" disabled={!ready}>
+                Pindahkan {selected.length} produk
+              </Btn>
+              <Btn
+                onClick={() => {
+                  setOpen(false);
+                  setConfirming(false);
+                }}
+              >
+                Batal
+              </Btn>
+            </div>
+          )}
+        </form>
+      )}
+    </div>
   );
 }
 

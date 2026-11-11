@@ -6219,8 +6219,8 @@ export function PosView({
               <Button type="button" size="sm" className="h-9" onClick={prepareShiftDialog}>
                 Mulai Shift
               </Button>
-              <Button type="button" size="sm" variant="outline" className="h-9" onClick={() => setOwnerViewing(false)}>
-                Keluar mode pantau
+              <Button type="button" size="sm" variant="outline" className="h-9 border-[#ffe0ad]/60 bg-black/30 text-white hover:bg-white/10" onClick={() => setOwnerViewing(false)}>
+                Keluar mode Owner
               </Button>
             </span>
           </div>

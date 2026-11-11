@@ -24,17 +24,6 @@ test("Decision Center: tolak pengajuan diskon dengan alasan; R3 meminta 2FA", as
     });
     expect(res.status()).toBe(201);
   }
-  // Tutup lagi shift Kasir 2: satu outlet hanya boleh satu shift terbuka, jadi shift yang ditinggal terbuka
-  // membuat spec berikutnya (mis. partner-hub-uat UAT-B) gagal membuka shift. Pengajuan diskon tidak
-  // memindahkan uang → laci tetap Rp100.000.
-  const history = await kasir.request.get("/api/finance/cash-sessions/me?limit=8");
-  const open = ((await history.json()) as { data?: { rows?: Array<{ id: string; closedAt: string | null }> } }).data?.rows?.find((row) => !row.closedAt);
-  if (open) {
-    const closeRes = await kasir.request.patch(`/api/finance/cash-sessions/${open.id}/close`, {
-      data: { actualCash: 100_000, denominations: { "100000": 1 } },
-    });
-    expect(closeRes.status(), await closeRes.text()).toBeLessThan(300);
-  }
   await ctx.close();
 
   const assertNoErrors = failOnPageErrors(page);

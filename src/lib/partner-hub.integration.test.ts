@@ -674,3 +674,45 @@ describe("Smart Partner Hub — pengajuan harga, rapor kinerja & kesehatan (back
     await expect(svc.partnerHealthForOutlet(kasir(), { acceptSlaMinutes: 5 })).rejects.toThrow(/Owner\/Manajer/);
   });
 });
+
+describe("Smart Partner Hub — media marketing website", () => {
+  it("produk mitra baru boleh dipromosikan setelah memenuhi syarat; publik tanpa HPP; Manajer tidak bisa memilih", async () => {
+    await setHub(true);
+    const products = await svc.listPartnerProducts(partnerB.id, { outletId, showCost: true });
+    const link = products[0];
+    const before = await svc.partnerMarketingStatus(link.linkId, manager());
+    expect(before.blockers.length).toBeGreaterThan(0);
+    await expect(svc.setPartnerWebsitePromotion(link.linkId, true, owner())).rejects.toThrow(/Belum memenuhi syarat/);
+    await svc.updatePartnerProductSettings(link.linkId, { imageUrl: "/garage-uploads/menu/dimsum-ayam.webp", description: "Dimsum ayam kukus isi ayam cincang, disajikan hangat.", showInDigitalMenu: true }, manager());
+    expect((await svc.partnerMarketingStatus(link.linkId, manager())).blockers).toEqual([]);
+    await expect(svc.setPartnerWebsitePromotion(link.linkId, true, manager())).rejects.toThrow(/Owner/);
+    await svc.setPartnerWebsitePromotion(link.linkId, true, owner());
+    const pub = await svc.publicPartnerMarketingProducts();
+    const card = pub.find((p) => p.name === link.name)!;
+    expect(card).toBeTruthy();
+    expect(card).not.toHaveProperty("unitCost");
+    expect(JSON.stringify(card)).not.toMatch(/22000|baseCost|phone/);
+    // Hub dimatikan → tidak tampil; nyalakan lagi lalu lepas dari website.
+    await setHub(false);
+    expect((await svc.publicPartnerMarketingProducts()).some((p) => p.name === link.name)).toBe(false);
+    await setHub(true);
+    // Edit menu biasa (Manajer) tidak bisa menghapus/menambah tag promosi.
+    const menuId = (await svc.listPartnerProducts(partnerB.id, { outletId, showCost: false })).find((p) => p.linkId === link.linkId)!.menuItemId;
+    await garageSvc.updateMenuProduct(menuId, { tags: ["Mitra"] } as never, manager());
+    expect((await svc.partnerMarketingStatus(link.linkId, manager())).promoted).toBe(true);
+    // Portal mitra offline → tetap tampil tetapi "Sedang tutup" (aturan sama dengan menu digital).
+    const d = t.getDb();
+    const { eq } = await import("drizzle-orm");
+    await d.update(t.schema.partners).set({ lastSeenAt: new Date(Date.now() - 60 * 60_000) }).where(eq(t.schema.partners.id, partnerB.id));
+    expect((await svc.publicPartnerMarketingProducts()).find((p) => p.name === link.name)?.availableNow).toBe(false);
+    // Diarsipkan → hilang dari website.
+    await d.update(t.schema.menuItems).set({ status: "archived" }).where(eq(t.schema.menuItems.id, menuId));
+    expect((await svc.publicPartnerMarketingProducts()).some((p) => p.name === link.name)).toBe(false);
+    await d.update(t.schema.menuItems).set({ status: "active" }).where(eq(t.schema.menuItems.id, menuId));
+    await svc.setPartnerWebsitePromotion(link.linkId, false, owner());
+    expect((await svc.publicPartnerMarketingProducts()).some((p) => p.name === link.name)).toBe(false);
+    // Manajer mencoba menambah tag lewat edit menu → diabaikan.
+    await garageSvc.updateMenuProduct(menuId, { tags: ["Mitra", "Promo Website"] } as never, manager());
+    expect((await svc.partnerMarketingStatus(link.linkId, manager())).promoted).toBe(false);
+  });
+});

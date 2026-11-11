@@ -18,6 +18,7 @@ export const PUBLIC_API_ROUTES: Record<string, PublicRoute> = {
   "wifi/config": { reason: "SSID & durasi WiFi member (tanpa password)", abuseGuard: "readonly" },
   "site/live-tracking": { reason: "Statistik kunjungan website", abuseGuard: "rateLimit" },
   "site/live-visit": { reason: "Penghitung kunjungan website", abuseGuard: "rateLimit" },
+  "site/partner-products": { reason: "Produk mitra pilihan untuk media marketing halaman utama (tanpa HPP)", abuseGuard: "rateLimit" },
   // Pelanggan (menu digital / meja / pesanan sendiri)
   "customer/menu": { reason: "Menu digital pelanggan", abuseGuard: "rateLimit" },
   "partner-applications": { reason: "Formulir pendaftaran calon mitra (halaman /mitra)", abuseGuard: "rateLimit" },

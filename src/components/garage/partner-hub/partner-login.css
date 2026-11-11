@@ -1,0 +1,22 @@
+/* Login Portal Mitra (Crystal V5): latar asphalt + cahaya laser merah/amber, kartu kaca gelap. */
+.pl-root { position: relative; overflow: hidden; background: radial-gradient(90% 60% at 85% 10%, rgb(255 38 56 / 0.16), transparent 60%), radial-gradient(70% 50% at 0% 100%, rgb(255 189 66 / 0.10), transparent 60%), var(--gc-bg); }
+.pl-glow { position: absolute; border-radius: 999px; filter: blur(70px); pointer-events: none; opacity: 0.55; }
+.pl-glow-a { width: 420px; height: 420px; right: -120px; top: -120px; background: rgb(255 38 56 / 0.35); animation: plFloat 14s ease-in-out infinite alternate; }
+.pl-glow-b { width: 360px; height: 360px; left: -140px; bottom: -140px; background: rgb(255 189 66 / 0.22); animation: plFloat 18s ease-in-out infinite alternate-reverse; }
+@keyframes plFloat { to { transform: translate3d(30px, 24px, 0) scale(1.08); } }
+.pl-card { position: relative; width: 100%; max-width: 440px; margin: 0 auto; padding: 28px 22px; border-radius: var(--gc-radius-lg); border: 1px solid var(--gc-edge-strong); background: linear-gradient(180deg, rgb(36 39 45 / 0.92), rgb(17 18 22 / 0.96)); box-shadow: var(--gc-shadow); animation: plRise 0.5s var(--gc-ease) both; }
+@media (min-width: 640px) { .pl-card { padding: 34px 32px; } }
+.pl-card-laser { position: absolute; inset: -1px; border-radius: inherit; pointer-events: none; background: linear-gradient(120deg, transparent 30%, rgb(255 38 56 / 0.55), transparent 70%) border-box; -webkit-mask: linear-gradient(#000 0 0) padding-box exclude, linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) padding-box exclude, linear-gradient(#000 0 0); border: 1px solid transparent; opacity: 0.8; }
+@keyframes plRise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.pl-badge { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; border: 1px solid rgb(255 189 66 / 0.5); background: rgb(255 189 66 / 0.08); color: var(--gc-amber); font-size: 12px; font-weight: 700; }
+.pl-input { height: 52px; width: 100%; border-radius: var(--gc-radius-sm); border: 1px solid var(--gc-edge-strong); background: rgb(0 0 0 / 0.35); padding: 0 14px; color: #fff; font-size: 16px; outline: none; transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+.pl-input::placeholder { color: #8b8b93; letter-spacing: normal; }
+.pl-input:focus-visible { border-color: var(--gc-laser-bright); box-shadow: 0 0 0 3px rgb(255 38 56 / 0.25); }
+.pl-dot { width: 10px; height: 10px; border-radius: 999px; border: 1px solid var(--gc-edge-strong); transition: background 0.15s ease, transform 0.15s ease; }
+.pl-dot.is-on { background: var(--gc-laser-bright); border-color: var(--gc-laser-bright); transform: scale(1.1); }
+.pl-perk { display: flex; gap: 12px; align-items: flex-start; padding: 14px; border-radius: var(--gc-radius); border: 1px solid var(--gc-edge); background: rgb(255 255 255 / 0.03); }
+.pl-perk-icon { display: grid; place-items: center; flex: none; width: 40px; height: 40px; border-radius: 12px; background: rgb(255 38 56 / 0.14); color: var(--gc-laser-bright); }
+@media (prefers-reduced-motion: reduce) {
+  .pl-glow-a, .pl-glow-b, .pl-card { animation: none; }
+  .pl-dot, .pl-input { transition: none; }
+}

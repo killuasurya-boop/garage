@@ -3,8 +3,12 @@
 // Portal Mitra (Smart Partner Hub, papan 03). Mobile-first; hanya data mitra yang login (partner_id dari sesi).
 // Mitra: Buka/Jeda/Tutup, Tersedia/Habis per produk, Terima → Proses → Siap Antar, keuangan & PDF miliknya.
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Bell, BellOff, BellRing, Check, CheckCircle2, ChefHat, CircleX, FileText, Loader2, LogOut, PackageCheck, Store, Sun, Timer } from "lucide-react";
+
+import "@/components/crystal/crystal.css";
+import "./partner-login.css";
 
 import { GarageBrandLogo } from "@/components/garage/member-auth/garage-brand-logo";
 
@@ -435,9 +439,16 @@ function PartnerFinance({ settlements }: { settlements: Overview["settlements"] 
   );
 }
 
+const LOGIN_PERKS = [
+  { icon: Bell, title: "Pesanan masuk real-time", text: "Bunyi & notifikasi HP setiap ada pesanan dari kasir atau waiter Garage." },
+  { icon: PackageCheck, title: "Terima → Proses → Siap Antar", text: "Satu tombol per langkah. Waiter otomatis diberi tahu saat pesanan siap." },
+  { icon: FileText, title: "Setoran transparan", text: "Penghasilan per hari/bulan, transfer, dan laporan PDF resmi bisa dicek kapan saja." },
+];
+
 function PartnerLogin({ onDone }: { onDone: () => void }) {
   const [phone, setPhone] = useState("");
   const [pin, setPin] = useState("");
+  const [showPin, setShowPin] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   async function submit(event: React.FormEvent) {
@@ -454,31 +465,111 @@ function PartnerLogin({ onDone }: { onDone: () => void }) {
     }
   }
   return (
-    <main className="grid min-h-dvh place-items-center bg-[#0b0b0d] px-4 py-10 text-[#f4f4f5]">
-      <form onSubmit={submit} className="w-full max-w-sm rounded-2xl border border-[#34343c] bg-[#17171c] p-6 shadow-[0_24px_60px_rgba(0,0,0,0.5)]">
-        <div className="mx-auto w-48">
-          <GarageBrandLogo sizes="192px" />
-        </div>
-        <h1 className="mt-5 text-center text-xl font-black text-white">Portal Mitra</h1>
-        <p className="mt-1 text-center text-sm text-[#b8b8bf]">Khusus mitra resmi Garage Coffee.</p>
-        <label className="mt-5 block text-sm font-semibold text-[#e4e4e8]" htmlFor="partner-phone">
-          Nomor HP
-        </label>
-        <input id="partner-phone" value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" autoComplete="tel" required className="mt-1 h-12 w-full rounded-lg border border-[#3a3a42] bg-black/30 px-3 text-base text-white outline-none focus-visible:border-[#ff5a66] focus-visible:ring-2 focus-visible:ring-[#ff5a66]/40" />
-        <label className="mt-4 block text-sm font-semibold text-[#e4e4e8]" htmlFor="partner-pin">
-          PIN (6 angka)
-        </label>
-        <input id="partner-pin" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" type="password" autoComplete="current-password" required className="mt-1 h-12 w-full rounded-lg border border-[#3a3a42] bg-black/30 px-3 text-base tracking-[0.3em] text-white outline-none focus-visible:border-[#ff5a66] focus-visible:ring-2 focus-visible:ring-[#ff5a66]/40" />
-        {error ? (
-          <p role="alert" className="mt-3 rounded-lg border border-[#ff5a66]/50 bg-[#3a1015] px-3 py-2 text-sm text-[#ffd0d4]">
-            {error}
+    <main className="gc-root pl-root min-h-dvh text-[var(--gc-text)]">
+      <div className="pl-glow pl-glow-a" aria-hidden />
+      <div className="pl-glow pl-glow-b" aria-hidden />
+      <div className="relative z-[1] mx-auto grid min-h-dvh max-w-6xl items-center gap-8 px-4 py-8 lg:grid-cols-[1.1fr_1fr] lg:gap-14 lg:py-12">
+        {/* Kiri: cerita & manfaat (di HP tampil di bawah form) */}
+        <section className="order-2 lg:order-1" aria-labelledby="pl-hero-title">
+          <Link href="/" className="hidden w-44 lg:block" aria-label="Garage Coffee — beranda">
+            <GarageBrandLogo sizes="176px" />
+          </Link>
+          <p className="gc-eyebrow mt-6 hidden lg:flex">Portal Mitra Resmi</p>
+          <h2 id="pl-hero-title" className="gc-display mt-3 text-3xl leading-[1.08] sm:text-5xl">
+            Jualan bareng <span className="text-[var(--gc-laser-bright)]">Garage Coffee</span>, kendali di tangan Anda.
+          </h2>
+          <ul className="mt-6 grid gap-3">
+            {LOGIN_PERKS.map(({ icon: Icon, title, text }) => (
+              <li key={title} className="pl-perk">
+                <span className="pl-perk-icon" aria-hidden>
+                  <Icon className="size-5" />
+                </span>
+                <span>
+                  <span className="block font-bold text-white">{title}</span>
+                  <span className="block text-sm leading-relaxed text-[var(--gc-text-2)]">{text}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-6 text-sm text-[var(--gc-text-2)]">
+            Belum jadi mitra?{" "}
+            <a href="/mitra" className="font-semibold text-[var(--gc-amber)] underline underline-offset-4">
+              Daftar di halaman Jadi Mitra
+            </a>
           </p>
-        ) : null}
-        <button type="submit" disabled={busy || pin.length !== 6} className="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#d11a2a] text-base font-bold text-white hover:bg-[#e3263a] disabled:opacity-60">
-          {busy ? <Loader2 className="size-4 animate-spin" /> : null} Masuk
-        </button>
-        <p className="mt-4 text-center text-xs text-[#b8b8bf]">Lupa PIN? Hubungi Owner/Manajer Garage Coffee untuk mengatur ulang. Setelah masuk, ganti PIN Anda di menu Ganti PIN.</p>
-      </form>
+        </section>
+
+        {/* Kanan: kartu login */}
+        <section className="order-1 lg:order-2">
+          <form onSubmit={submit} className="pl-card" aria-labelledby="pl-title">
+            <span className="pl-card-laser" aria-hidden />
+            <div className="mx-auto w-44 lg:hidden">
+              <GarageBrandLogo sizes="176px" />
+            </div>
+            <div className="mt-4 flex justify-center lg:mt-0">
+              <span className="pl-badge">
+                <Store className="size-3.5" aria-hidden /> Khusus mitra resmi
+              </span>
+            </div>
+            <h1 id="pl-title" className="gc-display mt-3 text-center text-2xl text-white">
+              Masuk Portal Mitra
+            </h1>
+            <p className="mt-1 text-center text-sm text-[var(--gc-text-2)]">Gunakan nomor HP & PIN dari Garage Coffee.</p>
+            <label className="mt-6 block text-sm font-semibold text-[#e4e4e8]" htmlFor="partner-phone">
+              Nomor HP
+            </label>
+            <input
+              id="partner-phone"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              inputMode="tel"
+              autoComplete="tel"
+              placeholder="0812xxxxxxx"
+              required
+              className="pl-input mt-1"
+            />
+            <label className="mt-4 block text-sm font-semibold text-[#e4e4e8]" htmlFor="partner-pin">
+              PIN (6 angka)
+            </label>
+            <div className="relative mt-1">
+              <input
+                id="partner-pin"
+                value={pin}
+                onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                inputMode="numeric"
+                type={showPin ? "text" : "password"}
+                autoComplete="current-password"
+                required
+                className="pl-input pr-24 tracking-[0.4em]"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPin((v) => !v)}
+                className="absolute right-1.5 top-1/2 min-h-10 -translate-y-1/2 rounded-lg px-3 text-xs font-semibold text-[var(--gc-text-2)] hover:text-white"
+                aria-pressed={showPin}
+              >
+                {showPin ? "Sembunyikan" : "Lihat"}
+              </button>
+            </div>
+            <div className="mt-2 flex justify-center gap-1.5" aria-hidden>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <span key={i} className={`pl-dot ${i < pin.length ? "is-on" : ""}`} />
+              ))}
+            </div>
+            {error ? (
+              <p role="alert" className="mt-4 rounded-lg border border-[#ff5a66]/50 bg-[#3a1015] px-3 py-2 text-sm text-[#ffd0d4]">
+                {error}
+              </p>
+            ) : null}
+            <button type="submit" disabled={busy || pin.length !== 6} className="gc-btn gc-btn-primary mt-5 h-12 w-full text-base">
+              {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null} Masuk
+            </button>
+            <p className="mt-4 text-center text-xs leading-relaxed text-[var(--gc-text-2)]">
+              Lupa PIN? Hubungi Owner/Manajer Garage Coffee untuk reset. Setelah masuk, ganti PIN di menu Ganti PIN.
+            </p>
+          </form>
+        </section>
+      </div>
     </main>
   );
 }

@@ -87,6 +87,11 @@ Kolom **Bukti otomatis** merujuk ke tes PGlite/vitest; staging = UAT manual oleh
   yang ikut mitra baru; pengajuan harga yang menunggu dibatalkan; tercatat di log kedua mitra). Kesehatan mitra menandai
   mitra dengan produk tetapi tanpa akun portal, dan akun portal tanpa produk.
 
+- **Pelanggan pesan sendiri dari QR meja** (Nov 2026): setting `partnerCustomerSelfOrder` (bawaan ON) menggantikan DEC-14 —
+  pelanggan bisa memasukkan produk mitra ke keranjang; pesanan menunggu kasir; saat kasir menerima, ketersediaan mitra dicek
+  ulang lalu tiket station Mitra + snapshot HPP dibuat. Setting `tableJoinCodeRequired` (bawaan OFF): meja terisi bisa
+  ditambah pesanan dari HP siapa saja tanpa kode gabung. Kedua setting bisa dikembalikan Owner di Pengaturan.
+
 ## Belum termasuk
 - Rute/trip pengantaran.
 - Template WhatsApp API resmi (perlu penyedia + persetujuan Owner).

@@ -56,7 +56,7 @@ export function PartnerShowcase() {
               <span>Produk</span> <span className="gw-partner-red">mitra pilihan.</span>
             </h2>
             <p className="gw-partner-lead">
-              UMKM lokal terkurasi yang dijual di Garage Coffee. Pesan lewat waiter atau kasir, diantar ke meja bersama pesanan Anda.
+              UMKM lokal terkurasi yang dijual di Garage Coffee. Pesan dari menu digital di meja atau lewat kasir, diantar ke meja bersama pesanan Anda.
             </p>
           </div>
           <Link href="/mitra" className="btn gw-partner-join">

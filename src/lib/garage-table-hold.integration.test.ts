@@ -122,8 +122,30 @@ describe("Kunci meja (Sedang dipilih)", () => {
   });
 });
 
+async function setJoinCodeRequired(required: boolean) {
+  const d = t.getDb();
+  const { and, eq } = await import("drizzle-orm");
+  await d.delete(t.schema.appSettings).where(and(eq(t.schema.appSettings.outletId, outletId), eq(t.schema.appSettings.key, "tableJoinCodeRequired")));
+  await d.insert(t.schema.appSettings).values({ outletId, key: "tableJoinCodeRequired", valueJson: required });
+}
+
 describe("Meja terisi & kode gabung", () => {
-  it("teman semeja tanpa kode ditolak, kode salah ditolak, kode benar masuk meja yang sama", async () => {
+  it("bawaan (kode tidak wajib): HP lain boleh menambah pesanan ke meja terisi tanpa kode; kode salah tetap ditolak", async () => {
+    const a = await svc.holdCustomerTable({ tableNumber: "13", outletId });
+    const first = await customerOrder("13", { tableHoldToken: a.holdToken });
+    const join = await svc.holdCustomerTable({ tableNumber: "13", outletId });
+    expect(join.mode).toBe("join");
+    expect(join.holdToken).toBeNull();
+    const second = await customerOrder("13", {});
+    expect(second.order.tableLabel).toBe("Meja 13");
+    expect(second.joinCode).toBe(first.joinCode);
+    const wrong = first.joinCode === "1234" ? "4321" : "1234";
+    await expect(customerOrder("13", { tableJoinCode: wrong })).rejects.toMatchObject({ code: "TABLE_JOIN_CODE_INVALID" });
+    expect((await publicRow("13"))?.joinCodeRequired).toBe(false);
+  });
+
+  it("setting wajib kode: teman semeja tanpa kode ditolak, kode salah ditolak, kode benar masuk meja yang sama", async () => {
+    await setJoinCodeRequired(true);
     const a = await svc.holdCustomerTable({ tableNumber: "14", outletId });
     const first = await customerOrder("14", { tableHoldToken: a.holdToken });
     const code = first.joinCode as string;
@@ -141,6 +163,7 @@ describe("Meja terisi & kode gabung", () => {
 
     const status = await svc.getPublicCustomerOrderStatus(second.order.id);
     expect(status.tableJoin?.joinCode).toBe(code);
+    await setJoinCodeRequired(false);
   });
 
   it("kode ikut pindah meja dan hilang saat meja dikosongkan", async () => {

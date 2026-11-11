@@ -117,7 +117,7 @@ export function MenuCardV5({
   staffOnlyNote?: string | null;
 }) {
   // Produk mitra: status mengikuti mitra (bukan stok Garage OS). Tampil "Tersedia di mitra" / alasan mitra,
-  // tetap bisa dibuka detailnya; pemesanan lewat kasir atau waiter (staffOnlyNote).
+  // tetap bisa dibuka detailnya. Bila outlet melarang pesan mandiri produk mitra, stepper diganti staffOnlyNote.
   const partnerItem = Boolean(item.partner);
   const partnerStatusText = item.partner ? item.partner.label ?? "Tersedia di mitra" : null;
   // Tidak bisa ditambah (stok Habis, atau mitra tutup/jeda/offline/lewat last order). Produk mitra tetap bisa
@@ -163,6 +163,7 @@ export function MenuCardV5({
           {badges.length ? <BadgeRow kinds={badges} /> : null}
           <h3 className="gm5-title break-words text-base leading-snug text-white">{item.name}</h3>
           {summary ? <p className="text-sm text-[#d4d4da]">{summary}</p> : null}
+          {item.partner ? <p className="text-xs font-semibold text-[#d4d4da]">Disiapkan mitra · {item.partner.name}</p> : null}
           {item.description ? <p className="line-clamp-2 text-sm leading-5 text-[#b8b8be]">{item.description}</p> : null}
           <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-1">
             <Price item={item} size="md" />
@@ -186,6 +187,7 @@ export function MenuCardV5({
       <div className="flex min-w-0 flex-1 flex-col gap-1 p-3">
         <h3 className="gm5-title break-words text-[15px] leading-snug text-white sm:text-base">{item.name}</h3>
         {summary ? <p className="text-sm leading-5 text-[#d4d4da]">{summary}</p> : null}
+        {item.partner ? <p className="text-xs font-semibold leading-4 text-[#d4d4da]">Disiapkan mitra · {item.partner.name}</p> : null}
         <span className="mt-auto flex flex-col gap-2 pt-1.5">
           <Price item={item} size="md" />
           <span className="flex justify-center">

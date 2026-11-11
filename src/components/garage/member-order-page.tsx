@@ -742,6 +742,7 @@ export function MemberOrderPage({
     | "deliveryAreaNote"
     | "garageWhatsapp"
     | "unpaidOrderAutoRejectMinutes"
+    | "partnerCustomerSelfOrder"
   > & {
     /** Menu V5: mode menu digital outlet (bawaan "self_order"). */
     digitalMenuMode?: AppSettings["digitalMenuMode"];
@@ -1177,8 +1178,9 @@ export function MemberOrderPage({
   // Mode menu outlet (Menu V5): "waiter_list" = pelanggan hanya menyusun Daftar Pilihan → Tunjukkan ke Waiter.
   // Mode Pesankan waiter (staffOrder) selalu bisa mengirim pesanan.
   const waiterList = !staffOrder && billingSettings.digitalMenuMode === "waiter_list";
-  // Produk mitra: pelanggan pesan sendiri = tidak boleh (DEC-14); Daftar Pilihan → waiter & Pesankan staf boleh.
-  const partnerSelfOrderBlocked = !staffOrder && !waiterList;
+  // Produk mitra: pelanggan boleh pesan sendiri bila setting outlet partnerCustomerSelfOrder aktif (pesanan masuk kasir dulu,
+  // tiket mitra dibuat saat kasir menerima). Setting mati = DEC-14 lama: hanya lewat kasir/waiter.
+  const partnerSelfOrderBlocked = !staffOrder && !waiterList && billingSettings.partnerCustomerSelfOrder === false;
   /** Mode Daftar Pilihan: meja info dari pemilih (tanpa kunci meja) bila QR tidak membawa nomor meja. */
   const infoTableLabel = waiterList && qrContext.orderType === "dine-in" ? (tableInfo?.tableLabel ?? (/\d/.test(qrContext.tableLabel) ? qrContext.tableLabel : null)) : null;
   // Rekening transfer dari Pengaturan → Pembayaran (bukan lagi hardcode).
@@ -1552,7 +1554,7 @@ export function MemberOrderPage({
       setMessage(`${item.name} sedang habis.`);
       return;
     }
-    // DEC-14: produk mitra tidak bisa dipesan sendiri oleh pelanggan (server juga menolak).
+    // DEC-14 (setting partnerCustomerSelfOrder mati): produk mitra tidak bisa dipesan sendiri (server juga menolak).
     if (delta > 0 && item?.partner && partnerSelfOrderBlocked) {
       showToast({ tone: "warning", title: item.name, detail: PARTNER_VIA_STAFF });
       return;
@@ -3037,7 +3039,11 @@ export function MemberOrderPage({
                   onOpen={openMenuItem}
                 />
                 <p className="mt-8 border-t border-garage-line pt-4 text-center text-sm text-garage-mute">
-                  {waiterList ? "Pesanan resmi dicatat waiter, lalu diproses dapur & bar." : "Pesanan dikonfirmasi kasir sebelum diproses dapur & bar."}
+                  {waiterList
+                    ? "Pesanan resmi dicatat waiter, lalu diproses dapur & bar."
+                    : cartLines.some((line) => line.item.partner)
+                      ? "Pesanan dikonfirmasi kasir dulu, lalu diteruskan ke dapur, bar & mitra."
+                      : "Pesanan dikonfirmasi kasir sebelum diproses dapur & bar."}
                 </p>
               </>
             ) : (

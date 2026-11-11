@@ -781,6 +781,13 @@ export const SETTINGS_CATEGORIES: SettingCategory[] = [
         hint: "Meja tampil kuning \"Sedang dipilih\" selama ini; tanpa checkout, meja lepas lagi.",
       },
       {
+        key: "tableJoinCodeRequired",
+        label: "Meja terisi wajib kode gabung",
+        type: "boolean",
+        defaultValue: DEFAULT_APP_SETTINGS.tableJoinCodeRequired,
+        hint: "Mati = siapa saja yang scan QR meja boleh menambah pesanan ke tagihan meja itu (kasir tetap menerima tiap pesanan). Nyala = HP lain perlu kode 4 angka dari teman semeja.",
+      },
+      {
         key: "tableIdleWarnHours",
         label: "Peringatan meja lupa ditutup",
         type: "number",
@@ -806,6 +813,13 @@ export const SETTINGS_CATEGORIES: SettingCategory[] = [
         type: "boolean",
         defaultValue: DEFAULT_APP_SETTINGS.partnerHubEnabled,
         hint: "Mati = POS, Bar/Dapur & laporan berjalan persis seperti sebelumnya. Nyalakan hanya setelah mitra & produknya disetujui Owner.",
+      },
+      {
+        key: "partnerCustomerSelfOrder",
+        label: "Pelanggan boleh pesan produk mitra dari menu digital",
+        type: "boolean",
+        defaultValue: DEFAULT_APP_SETTINGS.partnerCustomerSelfOrder,
+        hint: "Pesanan masuk kasir dulu; setelah kasir menerima, tiket langsung ke Portal Mitra. Mati = produk mitra hanya bisa dipesan lewat kasir/waiter.",
       },
       {
         key: "partnerSlaAcceptWarnMinutes",

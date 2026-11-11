@@ -82,11 +82,17 @@ export type AppSettings = {
   // memilih (menit) dan peringatan meja terisi tanpa aktivitas (jam).
   tableHoldMinutes: number;
   tableIdleWarnHours: number;
+  // Meja terisi (owner, Nov 2026): wajib kode gabung 4 angka untuk menambah pesanan dari HP lain? false = siapa saja
+  // yang scan QR meja boleh menambah pesanan ke tagihan meja itu (kasir tetap menerima setiap pesanan).
+  tableJoinCodeRequired: boolean;
   // Menu V5 (Owner, 4 Nov 2026): mode menu digital per outlet — "self_order" (pesan & bayar sendiri, bawaan)
   // atau "waiter_list" (Daftar Pilihan → Tunjukkan ke Waiter). Lihat src/lib/digital-menu-mode.ts.
   digitalMenuMode: "self_order" | "waiter_list";
   // Smart Partner Hub (Owner, 10 Nov 2026, docs/partner-hub/): modul mitra resmi per outlet. OFF = perilaku lama 100%.
   partnerHubEnabled: boolean;
+  // Pelanggan boleh memesan produk mitra dari menu digital (owner, Nov 2026). Pesanan tetap menunggu kasir menerima,
+  // baru tiket mitra dibuat. false = DEC-14 lama (produk mitra hanya lewat kasir/waiter).
+  partnerCustomerSelfOrder: boolean;
   // SLA tiket mitra (menit): peringatan belum diterima, eskalasi ke kasir, produk siap menunggu diambil.
   partnerSlaAcceptWarnMinutes: number;
   partnerSlaEscalateMinutes: number;
@@ -275,8 +281,10 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   garageLng: 0,
   tableHoldMinutes: 5,
   tableIdleWarnHours: 3,
+  tableJoinCodeRequired: false,
   digitalMenuMode: "self_order",
   partnerHubEnabled: false,
+  partnerCustomerSelfOrder: true,
   partnerSlaAcceptWarnMinutes: 2,
   partnerSlaEscalateMinutes: 5,
   partnerReadyWaitWarnMinutes: 3,

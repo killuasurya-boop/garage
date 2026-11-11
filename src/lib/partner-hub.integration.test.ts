@@ -675,6 +675,45 @@ describe("Smart Partner Hub — pengajuan harga, rapor kinerja & kesehatan (back
   });
 });
 
+describe("Smart Partner Hub — produk salah mitra & form produk umum", () => {
+  it("form produk umum menolak edit produk mitra dengan arahan ke Partner Hub; tag/urutan tetap boleh", async () => {
+    const products = await svc.listPartnerProducts(partnerB.id, { outletId, showCost: true });
+    const menuId = products[0].menuItemId;
+    await expect(garageSvc.updateMenuProduct(menuId, { productType: "menu", description: "x" } as never, owner())).rejects.toThrow(/Partner Hub/);
+    expect(await garageSvc.partnerProductEditBlock(menuId)).toMatch(/produk mitra .*Kelola Mitra/);
+    expect(await garageSvc.partnerProductEditBlock("itm-coffee")).toBeNull();
+    await garageSvc.updateMenuProduct(menuId, { sortOrder: 5 } as never, owner());
+  });
+
+  it("Owner memindahkan produk ke mitra lain: status mitra tujuan berlaku, pesanan lama tetap milik mitra asal", async () => {
+    const d = t.getDb();
+    const { eq } = await import("drizzle-orm");
+    // Mitra tujuan (mis. hasil pendaftaran) yang punya akun portal tetapi belum punya produk.
+    const target = await svc.createPartner({ code: "CDT", name: "Mitra Dimsum Cidut" }, manager());
+    await svc.createPartnerAccount(target.id, { phone: "081299900011", displayName: "Cidut", pin: "135791" }, manager());
+    const before = await svc.partnerHealthForOutlet(owner(), { acceptSlaMinutes: 5 });
+    expect(before.find((h) => h.partnerId === target.id)).toBeUndefined(); // draft: tidak dipantau
+    const products = await svc.listPartnerProducts(partnerB.id, { outletId, showCost: true });
+    const link = products[0];
+    const oldLines = await d.select().from(t.schema.partnerOrderLines).where(eq(t.schema.partnerOrderLines.partnerId, partnerB.id));
+    await expect(svc.movePartnerProduct(link.linkId, { toPartnerId: target.id, reason: "salah mitra" }, manager())).rejects.toThrow(/Owner/);
+    await expect(svc.movePartnerProduct(link.linkId, { toPartnerId: partnerB.id, reason: "sama" }, owner())).rejects.toThrow(/sudah milik/);
+    // pengajuan harga pending ikut dibatalkan
+    const proposal = await svc.submitPartnerPriceProposal(partnerSession(partnerB, "Dimsum"), { linkId: link.linkId, variantId: "reg", proposedUnitCost: (link.variants[0].unitCost ?? 0) + 1_000, reason: "uji pindah mitra" });
+    const moved = await svc.movePartnerProduct(link.linkId, { toPartnerId: target.id, reason: "produk milik Dimsum Cidut" }, owner());
+    expect(moved).toMatchObject({ fromPartnerId: partnerB.id, toPartnerId: target.id, cancelledProposals: 1 });
+    expect((await svc.listPartnerProducts(target.id, { outletId, showCost: false })).map((p) => p.linkId)).toContain(link.linkId);
+    expect((await svc.listPartnerProducts(partnerB.id, { outletId, showCost: false })).map((p) => p.linkId)).not.toContain(link.linkId);
+    const [row] = await d.select().from(t.schema.partnerPriceProposals).where(eq(t.schema.partnerPriceProposals.id, proposal.id));
+    expect(row.status).toBe("cancelled");
+    // baris pesanan lama tetap milik mitra asal
+    const stillOld = await d.select().from(t.schema.partnerOrderLines).where(eq(t.schema.partnerOrderLines.partnerId, partnerB.id));
+    expect(stillOld.length).toBe(oldLines.length);
+    // kembalikan supaya tes berikutnya tetap memakai mitra B
+    await svc.movePartnerProduct(link.linkId, { toPartnerId: partnerB.id, reason: "kembalikan untuk uji" }, owner());
+  });
+});
+
 describe("Smart Partner Hub — media marketing website", () => {
   it("produk mitra baru boleh dipromosikan setelah memenuhi syarat; publik tanpa HPP; Manajer tidak bisa memilih", async () => {
     await setHub(true);

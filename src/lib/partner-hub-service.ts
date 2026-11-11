@@ -455,6 +455,38 @@ export async function setPartnerProductActive(linkId: string, active: boolean, g
   });
 }
 
+/**
+ * Pindahkan produk ke mitra lain (Owner) — mis. produk katalog impor tersambung ke data mitra yang salah.
+ * Hanya pesanan BERIKUTNYA yang ikut mitra baru: tiket, baris pesanan, kewajiban & setoran lama tetap milik mitra asal
+ * (snapshot partner_id). Pengajuan harga yang masih menunggu dibatalkan karena diajukan oleh mitra asal.
+ */
+export async function movePartnerProduct(linkId: string, input: { toPartnerId: string; reason: string }, garage: GarageSession) {
+  assertOwner(garage, "Memindahkan produk ke mitra lain");
+  const reason = input.reason.trim();
+  if (reason.length < 3) throw new PartnerHubError("REASON_REQUIRED", "Alasan pemindahan wajib diisi.");
+  const db = getDb();
+  const [link] = await db.select().from(partnerProductLinks).where(eq(partnerProductLinks.id, linkId)).limit(1);
+  if (!link) throw new PartnerHubError("PRODUCT_NOT_FOUND", "Produk mitra tidak ditemukan.", 404);
+  const from = await loadPartner(db, link.partnerId, garage.profile.outlet.id);
+  const to = await loadPartner(db, input.toPartnerId, garage.profile.outlet.id);
+  if (from.id === to.id) throw new PartnerHubError("SAME_PARTNER", "Produk sudah milik mitra ini.");
+  if (to.status === "nonaktif") throw new PartnerHubError("PARTNER_INACTIVE", "Mitra tujuan nonaktif. Buka ulang mitra itu dulu.", 409);
+  const [item] = await db.select({ name: menuItems.name }).from(menuItems).where(eq(menuItems.id, link.menuItemId)).limit(1);
+  const actor = staffActor(garage);
+  return db.transaction(async (tx) => {
+    await tx.update(partnerProductLinks).set({ partnerId: to.id, updatedAt: new Date() }).where(eq(partnerProductLinks.id, linkId));
+    const cancelled = await tx
+      .update(partnerPriceProposals)
+      .set({ status: "cancelled", decisionNote: `Produk dipindah ke ${to.name}`, updatedAt: new Date() })
+      .where(and(eq(partnerPriceProposals.linkId, linkId), eq(partnerPriceProposals.status, "pending")))
+      .returning({ id: partnerPriceProposals.id });
+    const metadata = { linkId, product: item?.name ?? null, from: { id: from.id, name: from.name }, to: { id: to.id, name: to.name }, cancelledProposals: cancelled.length };
+    await logEvent(tx, { partnerId: from.id, kind: "product_moved_out", subjectId: linkId, reason, actor, metadata });
+    await logEvent(tx, { partnerId: to.id, kind: "product_moved_in", subjectId: linkId, reason, actor, metadata });
+    return { linkId, fromPartnerId: from.id, toPartnerId: to.id, cancelledProposals: cancelled.length };
+  });
+}
+
 /** Tambah varian (mis. Large) ke produk mitra — Owner, harga awal tercatat di riwayat harga. */
 export async function addPartnerVariant(
   linkId: string,
@@ -2335,7 +2367,7 @@ export async function partnerHealthForOutlet(garage: GarageSession, options: { a
     .orderBy(asc(partners.name));
   if (!list.length) return [];
   const ids = list.map((p) => p.id);
-  const [products, tickets, proposals, adjustments, settlements, banks] = await Promise.all([
+  const [products, tickets, proposals, adjustments, settlements, banks, accounts] = await Promise.all([
     db
       .select({
         partnerId: partnerProductLinks.partnerId,
@@ -2371,6 +2403,11 @@ export async function partnerHealthForOutlet(garage: GarageSession, options: { a
       .select({ partnerId: partnerBankAccounts.partnerId })
       .from(partnerBankAccounts)
       .where(and(inArray(partnerBankAccounts.partnerId, ids), eq(partnerBankAccounts.status, "verified"))),
+    db
+      .select({ partnerId: partnerAccounts.partnerId, n: sql<number>`count(*)::int` })
+      .from(partnerAccounts)
+      .where(and(inArray(partnerAccounts.partnerId, ids), eq(partnerAccounts.status, "active")))
+      .groupBy(partnerAccounts.partnerId),
   ]);
   const count = (rows: Array<{ partnerId: string; n: number }>, id: string) => rows.find((r) => r.partnerId === id)?.n ?? 0;
   return list.map((partner) => {
@@ -2391,6 +2428,7 @@ export async function partnerHealthForOutlet(garage: GarageSession, options: { a
         pendingAdjustments: count(adjustments, partner.id),
         unpaidApproved: settlements.find((s) => s.partnerId === partner.id)?.unpaid ?? 0,
         hasVerifiedBank: banks.some((b) => b.partnerId === partner.id),
+        portalAccounts: count(accounts, partner.id),
       },
       { acceptSlaMinutes: options.acceptSlaMinutes },
     );

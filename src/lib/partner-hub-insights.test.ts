@@ -156,3 +156,30 @@ describe("klaim grup per meja", () => {
     expect(table.partners).toEqual(["Pokat Au", "Dimsum"]);
   });
 });
+
+describe("kesehatan mitra — akun portal vs produk", () => {
+  const base = {
+    partnerName: "Dimsum",
+    partnerStatus: "aktif",
+    operationalStatus: "buka",
+    products: [] as Array<{ name: string; active: boolean; available: boolean; availabilityUpdatedAt?: Date | null }>,
+    activeTickets: [],
+    pendingProposals: 0,
+    pendingAdjustments: 0,
+    unpaidApproved: 0,
+    hasVerifiedBank: true,
+  };
+
+  it("punya akun portal tapi tanpa produk → arahkan cek produk di mitra lain", async () => {
+    const { partnerHealthAlerts } = await import("@/lib/partner-hub-insights");
+    const alerts = partnerHealthAlerts({ ...base, portalAccounts: 1 });
+    expect(alerts.find((a) => a.code === "NO_ACTIVE_PRODUCT")?.text).toMatch(/mitra lain/);
+  });
+
+  it("produk aktif tanpa akun portal → peringatan, mitra tidak bisa atur status sendiri", async () => {
+    const { partnerHealthAlerts } = await import("@/lib/partner-hub-insights");
+    const alerts = partnerHealthAlerts({ ...base, products: [{ name: "Dimsum Ayam", active: true, available: true, availabilityUpdatedAt: new Date() }], portalAccounts: 0 });
+    expect(alerts.map((a) => a.code)).toContain("NO_PORTAL_ACCOUNT");
+    expect(partnerHealthAlerts({ ...base, products: [{ name: "Dimsum Ayam", active: true, available: true, availabilityUpdatedAt: new Date() }], portalAccounts: 1 }).map((a) => a.code)).not.toContain("NO_PORTAL_ACCOUNT");
+  });
+});

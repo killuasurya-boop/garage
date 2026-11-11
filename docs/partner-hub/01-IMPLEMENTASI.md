@@ -81,6 +81,12 @@ Kolom **Bukti otomatis** merujuk ke tes PGlite/vitest; staging = UAT manual oleh
 - **Status produk mitra milik mitra**: kasir/produksi/aksi massal produk tidak bisa mengubah Tersedia/Habis produk mitra
   (409 `PARTNER_PRODUCT_STOCK`); dialog POS "Atur Stok Habis" tidak menampilkan & tidak me-reset produk mitra.
 
+- **Produk salah mitra** (Nov 2026): form produk umum (Inventory → Kelola Produk, `PATCH /api/menu/[id]`) tidak lagi
+  menolak dengan "Payload update produk tidak valid" — produk mitra diarahkan ke Partner Hub dengan nama mitranya.
+  Owner bisa **Pindahkan ke mitra lain** dari Kelola Mitra → Pengaturan produk (alasan wajib; hanya pesanan berikutnya
+  yang ikut mitra baru; pengajuan harga yang menunggu dibatalkan; tercatat di log kedua mitra). Kesehatan mitra menandai
+  mitra dengan produk tetapi tanpa akun portal, dan akun portal tanpa produk.
+
 ## Belum termasuk
 - Rute/trip pengantaran.
 - Template WhatsApp API resmi (perlu penyedia + persetujuan Owner).

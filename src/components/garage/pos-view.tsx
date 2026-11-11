@@ -1022,6 +1022,9 @@ export function PosView({
   // memantau (Bar & Dapur, pesanan, laporan). Transaksi & kas tetap butuh shift.
   const [ownerViewing, setOwnerViewing] = useState(false);
   const posVisible = shiftOpen || ownerViewing;
+  // Owner tanpa shift (owner, Nov 2026): semua fitur POS boleh, kecuali pembayaran TUNAI (uang harus masuk laci shift).
+  const ownerNoShift = !shiftOpen && ownerViewing && me.role === "Owner";
+  const canTransact = shiftOpen || ownerNoShift;
   useEffect(() => {
     if (!posVisible) return;
     const onKey = (event: KeyboardEvent) => {
@@ -3345,7 +3348,7 @@ export function PosView({
   }
 
   function handleProductTap(item: MenuItem) {
-    if (!shiftOpen) {
+    if (!canTransact) {
       setShiftError("Buka shift terlebih dahulu sebelum transaksi.");
       return;
     }
@@ -3953,6 +3956,11 @@ export function PosView({
       return;
     }
 
+    if (paymentMethod === "Cash" && !shiftOpen) {
+      setPaymentError("Pembayaran tunai wajib dari shift yang sedang buka (uang masuk laci). Pakai QRIS / Transfer / E-Wallet / Bayar nanti, atau Mulai Shift.");
+      return;
+    }
+
     if (paymentMethod === "Cash" && effectiveCash < totalDue) {
       setPaymentError("Uang diterima belum cukup untuk pembayaran cash.");
       return;
@@ -4351,7 +4359,7 @@ export function PosView({
               className="garage-press mt-2 h-11 w-full border-[#4a4a54] bg-white/[0.06]"
               onClick={() => setOwnerViewing(true)}
             >
-              Lihat POS tanpa shift (mode pantau Owner)
+              Pakai POS tanpa shift (mode Owner)
             </Button>
           ) : null}
           {/* Absen kelas satu: bisa clock-in tanpa harus buka shift dulu (NAV_ACTION_AUDIT §1.3). */}
@@ -6204,15 +6212,15 @@ export function PosView({
             className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-md border border-[#f5a742]/55 bg-[#f5a742]/12 px-3 py-2 text-sm text-[#ffe0ad]"
           >
             <span className="text-[#ffe0ad]">
-              <b className="text-white">Mode pantau Owner</b> — tanpa shift. Bisa melihat menu, pesanan, Bar &amp; Dapur, dan laporan. Transaksi &amp; kas
-              butuh Mulai Shift.
+              <b className="text-white">Mode Owner tanpa shift</b> — semua fitur POS bisa dipakai: pesan, Bayar nanti, QRIS / Transfer / E-Wallet, Final
+              Bayar non-tunai, Bar &amp; Dapur, laporan. Hanya pembayaran <b className="text-white">tunai</b> &amp; kas laci yang butuh Mulai Shift.
             </span>
             <span className="flex gap-2">
               <Button type="button" size="sm" className="h-9" onClick={prepareShiftDialog}>
                 Mulai Shift
               </Button>
-              <Button type="button" size="sm" variant="outline" className="h-9" onClick={() => setOwnerViewing(false)}>
-                Keluar mode pantau
+              <Button type="button" size="sm" variant="outline" className="h-9 border-[#ffe0ad]/60 bg-black/30 text-white hover:bg-white/10" onClick={() => setOwnerViewing(false)}>
+                Keluar mode Owner
               </Button>
             </span>
           </div>
@@ -8274,14 +8282,14 @@ export function PosView({
                   />
                 </div>
                 <PosEventBundles
-                  shiftOpen={shiftOpen}
+                  shiftOpen={canTransact}
                   regularCart={cart.map((line) => ({ itemId: line.itemId, variantId: line.variantId, qty: line.qty, note: line.note || undefined }))}
                   regularCartTotal={subtotal}
                   makeKey={makeIdempotencyKey}
                   onSaved={handleEventBundleSaved}
                 />
                 <PosQuickRetail
-                  shiftOpen={shiftOpen}
+                  shiftOpen={canTransact}
                   menuItems={menuItems}
                   settings={settings}
                   qrisImagePath={paymentBrandConfig.qrisImagePath}
@@ -8750,7 +8758,7 @@ export function PosView({
                     type="button"
                     variant="outline"
                     data-testid="pos-quick-qris"
-                    disabled={!cartLines.length || paymentPending || !shiftOpen}
+                    disabled={!cartLines.length || paymentPending || !canTransact}
                     className="garage-press pos-v6-quick h-12 border-[#f5a742]/55 bg-[#f5a742]/12 px-2 text-xs font-bold text-[#ffd08a]"
                     onClick={() => {
                       resetPaymentDialog();

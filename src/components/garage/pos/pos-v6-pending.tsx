@@ -117,6 +117,25 @@ export function PosV6PendingBills({
   const [filter, setFilter] = useState<PendingFilter>("all");
   const [query, setQuery] = useState("");
   const view = useMemo(() => pendingBillsView(orders, now, filter, query), [orders, now, filter, query]);
+  // Partner Hub: bill yang masih memuat item ditolak mitra. Hanya peringatan — Final Bayar tidak ditahan.
+  const [partnerRejected, setPartnerRejected] = useState<ReadonlySet<string>>(() => new Set());
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/pos/partner-orders", { cache: "no-store" });
+        if (!res.ok) return;
+        const json = (await res.json()) as { data?: Array<{ orderNo: string | null; needsRefund?: boolean }> };
+        if (!cancelled) setPartnerRejected(new Set((json.data ?? []).filter((row) => row.needsRefund && row.orderNo).map((row) => row.orderNo as string)));
+      } catch {
+        // Tanda ini pelengkap; daftar Belum Bayar tetap dipakai walau gagal dimuat.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, orders]);
   const tabs: Array<{ value: PendingFilter; label: string; icon: ReactNode; hint?: string }> = [
     { value: "all", label: "Semua", icon: null },
     { value: "cash", label: "Cash pending", icon: <Banknote className="size-4" aria-hidden />, hint: currency.format(view.totals.cash) },
@@ -184,7 +203,7 @@ export function PosV6PendingBills({
           ) : (
             <ul className="space-y-2" aria-label="Daftar tagihan belum bayar">
               {view.bills.map((bill) => (
-                <PendingRow key={bill.order.id} bill={bill} onOpenDetail={onOpenDetail} onPrimary={onPrimary} />
+                <PendingRow key={bill.order.id} bill={bill} partnerRejected={partnerRejected.has(bill.order.orderNo)} onOpenDetail={onOpenDetail} onPrimary={onPrimary} />
               ))}
             </ul>
           )}
@@ -198,10 +217,12 @@ function PendingRow({
   bill,
   onOpenDetail,
   onPrimary,
+  partnerRejected = false,
 }: {
   bill: PendingBill;
   onOpenDetail: (order: CustomerOrder) => void;
   onPrimary: (bill: PendingBill) => void;
+  partnerRejected?: boolean;
 }) {
   const { order } = bill;
   return (
@@ -225,6 +246,11 @@ function PendingRow({
               </span>
             ) : null}
             {order.paymentProofUrl ? <span className="pos-v6-pend-flag">Bukti bayar masuk</span> : null}
+            {partnerRejected ? (
+              <span className="pos-v6-pend-flag" data-partner-rejected="true" data-testid="pos-pending-partner-rejected">
+                <AlertTriangle className="size-3.5" aria-hidden /> Ada item ditolak mitra — keluarkan di Partner Hub sebelum bayar
+              </span>
+            ) : null}
           </span>
         </span>
         <span className="pos-v6-pend-total font-mono tabular-nums">{currency.format(order.total)}</span>

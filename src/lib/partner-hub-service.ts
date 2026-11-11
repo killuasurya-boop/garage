@@ -7,7 +7,7 @@
 
 import { createHash, randomUUID } from "node:crypto";
 
-import { and, asc, desc, eq, gte, inArray, lt, ne, notInArray, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lt, ne, or, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
@@ -1013,10 +1013,11 @@ export async function listPartnerOrdersForOutlet(
               inArray(kitchenTickets.status, ["queue", "cooking", "ready"]),
               // Ditolak mitra: tetap tampil sampai kasir menyelesaikan uang pelanggan (refund / batal).
               // Tanpa batas waktu: tiket tidak boleh hilang dari antrean refund sebelum item keluar dari bill.
+              // Bill dilihat dari baris mitra (bukan tiket): item yang dikeluarkan lewat pisah bill + void pindah ke
+              // bill pisahan yang void, sehingga tiket otomatis keluar dari antrean ini.
               and(
                 eq(kitchenTickets.status, "rejected"),
-                notInArray(orders.status, ["voided", "rejected", "cancelled", "failed", "void"]),
-                sql`exists (select 1 from partner_order_lines pol where pol.ticket_id = ${kitchenTickets.id} and pol.order_item_id is not null)`,
+                sql`exists (select 1 from partner_order_lines pol join orders po on po.id = pol.order_id where pol.ticket_id = ${kitchenTickets.id} and pol.order_item_id is not null and po.status not in ('voided','rejected','cancelled','failed','void'))`,
               ),
             ),
       ),
@@ -1025,13 +1026,18 @@ export async function listPartnerOrdersForOutlet(
     .limit(200);
   if (!rows.length) return [];
   const lines = await db.select().from(partnerOrderLines).where(inArray(partnerOrderLines.ticketId, rows.map((row) => row.ticket.id)));
+  const lineOrderIds = [...new Set(lines.map((line) => line.orderId))];
+  const lineOrders = lineOrderIds.length ? await db.select({ id: orders.id, status: orders.status }).from(orders).where(inArray(orders.id, lineOrderIds)) : [];
+  const lineOrderStatus = new Map(lineOrders.map((row) => [row.id, row.status]));
   const now = Date.now();
   const result = rows
-    .map(({ ticket, partner, order }) => {
+    .map(({ ticket, partner, order: ticketOrder }) => {
       const own = lines.filter((line) => line.ticketId === ticket.id);
-      const orderGone = paymentStatusOf({ status: order.status }) === "cancelled";
-      // Item masih ada di bill (belum direfund/dibatalkan) → uang pelanggan belum diselesaikan.
-      const needsRefund = ticket.status === "rejected" && !orderGone && own.some((line) => line.orderItemId !== null);
+      // Item masih ada di bill yang hidup (belum direfund / dikeluarkan) → uang pelanggan belum diselesaikan.
+      const live = own.filter((line) => line.orderItemId !== null && paymentStatusOf({ status: lineOrderStatus.get(line.orderId) ?? null }) !== "cancelled");
+      const needsRefund = ticket.status === "rejected" && live.length > 0;
+      // Status bayar mengikuti bill tempat item itu sekarang berada (bisa bill pisahan).
+      const order = { ...ticketOrder, status: (live[0] && lineOrderStatus.get(live[0].orderId)) ?? ticketOrder.status };
       const view = ticketView(ticket, own);
       const waitedMin = Math.floor((now - ticket.createdAt.getTime()) / 60_000);
       return {
@@ -1179,10 +1185,17 @@ export async function rejectedPartnerTicketForRefund(outletId: string, ticketNo:
     .limit(1);
   if (!row) throw new PartnerHubError("TICKET_NOT_FOUND", "Tiket tidak ditemukan.", 404);
   if (row.ticket.status !== "rejected") throw new PartnerHubError("INVALID_STATUS", "Tiket ini tidak ditolak mitra.", 409);
-  const lines = await db.select().from(partnerOrderLines).where(eq(partnerOrderLines.ticketId, row.ticket.id));
-  const items = lines.filter((line) => line.orderItemId !== null).map((line) => ({ orderItemId: line.orderItemId as string, qty: line.qty }));
-  if (!items.length) throw new PartnerHubError("ALREADY_RESOLVED", "Item ini sudah direfund / dibatalkan.", 409);
-  return { orderNo: row.order.orderNo, orderStatus: row.order.status, partnerName: row.partner.name, reason: row.ticket.issueReason ?? "", items };
+  const lines = await db
+    .select({ line: partnerOrderLines, order: { id: orders.id, orderNo: orders.orderNo, status: orders.status } })
+    .from(partnerOrderLines)
+    .innerJoin(orders, eq(partnerOrderLines.orderId, orders.id))
+    .where(eq(partnerOrderLines.ticketId, row.ticket.id));
+  // Hanya item yang masih ada di bill hidup. Bill bisa berbeda dari bill tiket (pisah bill) → ikuti bill baris pertama.
+  const live = lines.filter(({ line, order }) => line.orderItemId !== null && paymentStatusOf({ status: order.status }) !== "cancelled");
+  if (!live.length) throw new PartnerHubError("ALREADY_RESOLVED", "Item ini sudah direfund / dikeluarkan dari bill.", 409);
+  const target = live[0].order;
+  const items = live.filter(({ order }) => order.id === target.id).map(({ line }) => ({ orderItemId: line.orderItemId as string, qty: line.qty }));
+  return { orderNo: target.orderNo, orderStatus: target.status, partnerName: row.partner.name, reason: row.ticket.issueReason ?? "", items };
 }
 
 type FinanceLine = {

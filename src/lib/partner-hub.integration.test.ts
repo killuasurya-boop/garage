@@ -894,6 +894,35 @@ describe("Smart Partner Hub — pelanggan pesan sendiri dari QR meja (owner Nov 
     await svc.setPartnerProductAvailability(product.linkId, true, { partner: session });
   });
 
+  it("mitra menolak pesanan meja yang BELUM dibayar: kasir mengeluarkan item dari bill, kopi tetap ditagih", async () => {
+    const d = t.getDb();
+    const { eq } = await import("drizzle-orm");
+    const session = partnerSession(partnerB, "Dimsum");
+    const [product] = await svc.listPartnerProducts(partnerB.id, { outletId, showCost: true });
+    const created = await customerOrder(
+      [
+        { itemId: "itm-coffee", variantId: "reg", qty: 1 },
+        { itemId: product.menuItemId, variantId: "reg", qty: 1 },
+      ],
+      "Meja 12",
+    );
+    const order = (created as { order: { id: string; orderNo: string } }).order;
+    await garageSvc.updateCustomerOrderStatus(order.id, { action: "accept" }, kasir());
+    const ticket = (await svc.listTicketsForPartner(partnerB.id, "active")).find((row) => row.orderNo === order.orderNo)!;
+    await svc.actOnPartnerTicket(session, ticket.ticketNo, "reject", "bahan habis");
+    const card = (await svc.listPartnerOrdersForOutlet(outletId, {})).find((row) => row.ticketNo === ticket.ticketNo)!;
+    expect(card.needsRefund).toBe(true);
+    expect(card.paymentLabel).not.toBe("Lunas");
+    const target = await svc.rejectedPartnerTicketForRefund(outletId, ticket.ticketNo);
+    const req = await garageSvc.requestUnpaidItemCancelApproval(target.orderNo, { reasonCode: "menu_habis", note: "Ditolak mitra", items: target.items }, manager());
+    if (req.status === "pending") await garageSvc.decideApproval(req.approvalId, { status: "approved" }, owner());
+    // Item mitra keluar dari bill → tiket hilang dari antrean kasir; bill asal tinggal kopi.
+    expect((await svc.listPartnerOrdersForOutlet(outletId, {})).find((row) => row.ticketNo === ticket.ticketNo)).toBeUndefined();
+    await expect(svc.rejectedPartnerTicketForRefund(outletId, ticket.ticketNo)).rejects.toThrow(/dikeluarkan/);
+    const left = await d.select().from(t.schema.orderItems).where(eq(t.schema.orderItems.orderId, order.id));
+    expect(left.filter((item: { qty: number }) => item.qty > 0).map((item: { menuItemId: string | null }) => item.menuItemId)).toEqual(["itm-coffee"]);
+  });
+
   it("meja terisi: tanpa kode gabung (bawaan) siapa saja boleh menambah pesanan; setting wajib kode → ditolak", async () => {
     // Meja 09 terisi oleh pesanan di tes sebelumnya.
     const join = await garageSvc.holdCustomerTable({ tableNumber: "9", outletId });

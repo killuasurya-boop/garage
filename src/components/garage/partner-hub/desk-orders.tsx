@@ -115,9 +115,11 @@ export function DeskOrders({ mode, slaWarnMinutes = 2, readyWarnMinutes = 3 }: {
     setBusy(`${ticketNo}-refund`);
     setMessage(null);
     try {
-      const res = await api<{ kind: "refund" | "void"; status: string }>(`/api/pos/partner-orders/${ticketNo}/refund`, { method: "POST" });
-      const what = res.kind === "void" ? "Pembatalan order" : "Refund item";
-      setMessage({ tone: "ok", text: res.status === "pending" ? `${what} diajukan — menunggu persetujuan Manajer/Owner.` : `${what} selesai. Kembalikan uang ke pelanggan sesuai struk refund.` });
+      const res = await api<{ kind: "refund" | "void" | "cancel_item"; status: string }>(`/api/pos/partner-orders/${ticketNo}/refund`, { method: "POST" });
+      const what = res.kind === "void" ? "Pembatalan order" : res.kind === "cancel_item" ? "Batal item" : "Refund item";
+      const done =
+        res.kind === "cancel_item" ? "Item sudah dikeluarkan dari bill — pelanggan tidak ditagih item ini." : `${what} selesai. Kembalikan uang ke pelanggan sesuai struk refund.`;
+      setMessage({ tone: "ok", text: res.status === "pending" ? `${what} diajukan — menunggu persetujuan Manajer/Owner.` : done });
       await load();
     } catch (error) {
       setMessage({ tone: "error", text: (error as Error).message });
@@ -222,7 +224,7 @@ export function DeskOrders({ mode, slaWarnMinutes = 2, readyWarnMinutes = 3 }: {
                 ) : null}
                 {order.needsRefund ? (
                   <p className="mt-1 text-xs font-semibold text-[#ff8a94]">
-                    Ditolak mitra{order.issueReason ? `: ${order.issueReason}` : ""}. {order.paymentLabel === "Lunas" ? "Pelanggan sudah bayar — ajukan refund." : "Bill belum dibayar — keluarkan item ini sebelum pelanggan membayar."}
+                    Ditolak mitra{order.issueReason ? `: ${order.issueReason}` : ""}. {order.paymentLabel === "Lunas" ? "Pelanggan sudah bayar — ajukan refund." : "Bill belum dibayar — keluarkan item ini dari bill supaya pelanggan tidak ditagih."}
                   </p>
                 ) : null}
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -236,9 +238,9 @@ export function DeskOrders({ mode, slaWarnMinutes = 2, readyWarnMinutes = 3 }: {
                       <CheckCircle2 className="size-4" /> Sudah diantar
                     </Btn>
                   ) : null}
-                  {order.needsRefund && mode === "monitor" && order.paymentLabel === "Lunas" ? (
+                  {order.needsRefund && mode === "monitor" ? (
                     <Btn tone="danger" busy={busy === `${order.ticketNo}-refund`} onClick={() => void refundRejected(order.ticketNo)}>
-                      <Undo2 className="size-4" /> Ajukan refund
+                      <Undo2 className="size-4" /> {order.paymentLabel === "Lunas" ? "Ajukan refund" : "Keluarkan dari bill"}
                     </Btn>
                   ) : null}
                   {link && mode === "monitor" ? (

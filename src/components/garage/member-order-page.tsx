@@ -32,6 +32,8 @@ import {
 
 import { AyaFloatingPet, requestAyaChirp, type LaneX } from "@/components/garage/aya/aya-floating-pet";
 import { AyaGreeting } from "@/components/garage/order/aya-greeting";
+import { usePartnerMenuRefresh } from "@/components/garage/partner-hub/use-partner-menu-refresh";
+import { hasPartnerItems } from "@/lib/partner-menu-refresh";
 import { AyaGuideBubble, useAyaOrderGuide } from "@/components/garage/order/aya-order-guide";
 import { CategoryNav, type CategoryTab } from "@/components/garage/order/category-nav";
 import {
@@ -762,6 +764,12 @@ export function MemberOrderPage({
   const [member, setMember] = useState<MemberProfile | null>(null);
   const [mode, setMode] = useState<"guest" | "member">("guest");
   const [menuItemState, setMenuItems] = useState<MenuItem[]>(() => initialMenuItems ?? []);
+  // Status produk mitra (Buka/Jeda/Tutup, Tersedia/Habis) ikut berubah tanpa refresh halaman.
+  usePartnerMenuRefresh(
+    hasPartnerItems(menuItemState) && !(eventContext && eventContext.mode !== "main"),
+    () => getJson<MenuItem[]>("/api/customer/menu"),
+    setMenuItems,
+  );
   const [cart, setCart] = useState<Record<string, number>>({});
   // Catatan per-item keranjang (mis. "less ice"), keyed by cartKey item::variant.
   const [cartNotes, setCartNotes] = useState<Record<string, string>>({});

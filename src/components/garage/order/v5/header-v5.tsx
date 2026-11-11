@@ -7,6 +7,7 @@
 // Scan QR tidak dipasang: pelanggan memindai QR meja dengan kamera HP, tidak ada fungsi scan di dalam menu.
 import { useEffect, type ReactNode } from "react";
 import Image from "next/image";
+import { GARAGE_BRAND_ASSETS } from "@/lib/garage-brand-assets";
 import Link from "next/link";
 import { ArrowLeft, AudioLines, Bell, ChevronDown, Clock, LogIn, Menu as MenuIcon, Search, UserRound } from "lucide-react";
 
@@ -123,7 +124,7 @@ export function HeaderV5({
         </button>
         <Link href="/" className="flex min-h-11 min-w-0 flex-1 items-center justify-center lg:w-[188px] lg:flex-none lg:justify-start" aria-label="Kembali ke website Garage">
           <Image
-            src="/garage-brand/garage-coffee-logo.png"
+            src={GARAGE_BRAND_ASSETS.wordmark}
             alt="Garage Coffee"
             width={1200}
             height={282}

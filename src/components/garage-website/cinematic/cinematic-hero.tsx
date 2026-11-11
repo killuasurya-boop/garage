@@ -12,6 +12,7 @@ import Link from "next/link";
 import type { UrlObject } from "url";
 import { ArrowRight, ChevronLeft, ChevronRight, Clock, Coffee, ThumbsUp, Users } from "lucide-react";
 import { gsap } from "gsap";
+import { GARAGE_BRAND_ASSETS } from "@/lib/garage-brand-assets";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 
 import { LaserBorder } from "./laser-border";
@@ -294,7 +295,7 @@ export function CinematicHero({
               ) : (
                 <span className="cine-card-empty">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/garage-brand/garage-coffee-logo.png" alt="Garage Coffee" className="cine-card-logo" />
+                  <img src={GARAGE_BRAND_ASSETS.wordmark} alt="Garage Coffee" className="cine-card-logo" />
                 </span>
               )}
               <span className="cine-card-sheen" aria-hidden />

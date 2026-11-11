@@ -7,6 +7,7 @@ import { CUSTOMER_TABLE_STATUS_COPY, TABLE_STATUS_COLORS } from "@/lib/garage-ta
 import Image from "next/image";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SiteAsset } from "@/lib/site-assets";
+import { GARAGE_BRAND_ASSETS, GARAGE_BRAND_LOGO_ASPECT } from "@/lib/garage-brand-assets";
 import type { PublicEvent } from "@/lib/event-format";
 import { GrandOpeningBanner } from "@/components/garage-website/grand-opening-banner";
 import { SuryaShowcase } from "@/components/surya/surya-showcase";
@@ -30,7 +31,9 @@ import {
   TrainFront,
   Trees,
   UtensilsCrossed,
+  Handshake,
 } from "lucide-react";
+import { PartnerShowcase } from "@/components/garage-website/partner-showcase";
 
 import {
   Sheet,
@@ -92,8 +95,8 @@ const tableCheckMenuUrl = (tableNumber) => ({
 });
 const LOGIN_URL = "/login";
 const MEMBER_LOGIN_URL = "/member-login";
-const BRAND_LOGO_URL = "/garage-brand/garage-coffee-logo.png";
-const BRAND_LOGO_ASPECT = 1200 / 282;
+const BRAND_LOGO_URL = GARAGE_BRAND_ASSETS.wordmark;
+const BRAND_LOGO_ASPECT = GARAGE_BRAND_LOGO_ASPECT;
 const SOCIAL_LINKS = [
   {
     id: "youtube",
@@ -695,6 +698,8 @@ function Nav() {
   ...items,
   ["Cara Pesan", "#cara-pesan"],
   ["Lacak Pesanan", "#tracking-order"],
+  ["Produk Mitra", "#mitra"],
+  ["Jadi Mitra", "/mitra"],
   ["Franchise", "/franchise"],
   ["Karier", "/recruitment"]];
 
@@ -1886,6 +1891,7 @@ function Hero({ landingHero }) {
               <div className="hero-image-actions">
                 <Link href={DIGITAL_MENU_URL} className="btn btn-primary"><span>Pesan Sekarang</span><ArrowRight /></Link>
                 <button type="button" onClick={requestTablePanelOpen} className="btn"><span>Cek Meja Kosong</span><ArrowRight /></button>
+                <a href="#mitra" className="btn hero-partner-tab"><Handshake aria-hidden /><span>Mitra</span></a>
               </div>
             </Reveal>
           </div>
@@ -2279,6 +2285,7 @@ function Hero({ landingHero }) {
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
               <Link href={DIGITAL_MENU_URL} className="btn btn-primary"><span>Pesan Sekarang</span><ArrowRight /></Link>
               <button type="button" onClick={requestTablePanelOpen} className="btn"><span>Cek Meja Kosong</span><ArrowRight /></button>
+              <a href="#mitra" className="btn hero-partner-tab"><Handshake aria-hidden /><span>Mitra</span></a>
             </div>
           </Reveal>
 
@@ -6208,6 +6215,7 @@ function GarageWebsiteRoot({
       <Menu />
       <PromoProducts />
       <FeaturedMenu />
+      <PartnerShowcase />
       <HowToOrder />
       <SuryaShowcase />
       {/* 2. Live outlet: meja, keramaian, estimasi, lacak pesanan */}

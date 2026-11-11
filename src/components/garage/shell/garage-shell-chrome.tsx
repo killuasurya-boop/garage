@@ -9,6 +9,7 @@ RefreshCw,
 Search
 } from "lucide-react";
 import Image from "next/image";
+import { GARAGE_BRAND_ASSETS, GARAGE_BRAND_WORDMARK_SIZE } from "@/lib/garage-brand-assets";
 import {
 useEffect,
 useRef,
@@ -41,10 +42,10 @@ type StaffCapabilityProfile,
 } from "@/lib/role-access";
 
 
-const GARAGE_BRAND_LOGO_SRC = "/garage-brand/garage-coffee-logo.png";
-const GARAGE_BRAND_ICON_SRC = "/garage-brand/garage-coffee-icon.png";
-const GARAGE_BRAND_LOGO_WIDTH = 1200;
-const GARAGE_BRAND_LOGO_HEIGHT = 282;
+const GARAGE_BRAND_LOGO_SRC = GARAGE_BRAND_ASSETS.wordmark;
+const GARAGE_BRAND_ICON_SRC = GARAGE_BRAND_ASSETS.icon;
+const GARAGE_BRAND_LOGO_WIDTH = GARAGE_BRAND_WORDMARK_SIZE.width;
+const GARAGE_BRAND_LOGO_HEIGHT = GARAGE_BRAND_WORDMARK_SIZE.height;
 
 export function GarageLoading({ title, detail }: { title: string; detail: string }) {
   return (

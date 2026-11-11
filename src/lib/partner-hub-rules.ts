@@ -342,3 +342,45 @@ export function partnerBestSellers(lines: Array<PartnerLineAmounts & { itemName:
   }
   return [...map.values()].sort((a, b) => b.qty - a.qty || b.gross - a.gross);
 }
+
+// ─── Media marketing (website Garage) ────────────────────────────────────────
+
+/** Tag di menu_items.tags: produk mitra dipilih Owner untuk tampil di media marketing website. */
+export const PARTNER_WEBSITE_TAG = "Promo Website";
+
+export type PartnerMarketingInput = {
+  partnerStatus: string;
+  /** menu_items.status — produk yang diarsipkan tidak boleh tampil. */
+  menuStatus?: string;
+  linkActive: boolean;
+  imageUrl: string | null;
+  description: string | null;
+  showInDigitalMenu: boolean;
+  hasVerifiedBank: boolean;
+  priceOk: boolean;
+};
+
+/**
+ * Syarat & kualifikasi produk mitra tampil di media marketing Garage (halaman utama website).
+ * Kosong = memenuhi syarat. Owner tetap harus memilih produknya ("Promosikan di website").
+ */
+export function partnerMarketingBlockers(input: PartnerMarketingInput): string[] {
+  const blockers: string[] = [];
+  if (input.partnerStatus !== "aktif") blockers.push("Mitra harus berstatus Aktif (bukan draft/dibekukan/nonaktif).");
+  if (!input.hasVerifiedBank) blockers.push("Rekening mitra belum diverifikasi.");
+  if (!input.linkActive) blockers.push("Produk belum disetujui Owner.");
+  if (input.menuStatus && input.menuStatus !== "active") blockers.push("Produk diarsipkan / tidak aktif di menu.");
+  if (!input.imageUrl) blockers.push("Foto produk asli wajib ada.");
+  if (!input.description || input.description.trim().length < 15) blockers.push("Deskripsi produk minimal 15 huruf.");
+  if (!input.showInDigitalMenu) blockers.push("Produk harus tampil di menu digital.");
+  if (!input.priceOk) blockers.push("Harga jual harus di atas HPP.");
+  return blockers;
+}
+
+export const PARTNER_MARKETING_RULES = [
+  "Mitra resmi berstatus Aktif dengan rekening terverifikasi",
+  "Produk sudah disetujui Owner & harga jual di atas HPP",
+  "Foto produk asli (bukan gambar AI/contoh) dan deskripsi jelas",
+  "Tampil di menu digital Garage",
+  "Dipilih Owner untuk dipromosikan (maks. 8 produk di halaman utama)",
+] as const;

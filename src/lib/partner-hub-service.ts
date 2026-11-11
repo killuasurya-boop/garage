@@ -1063,6 +1063,8 @@ export async function listPartnerOrdersForOutlet(
         partnerId: partner.id,
         partnerName: partner.name,
         partnerPhone: partner.phone,
+        // Status layanan yang berlaku (keterangan untuk kasir/waiter; tidak menentukan boleh-tidaknya pesanan).
+        partnerOperationalStatus: effectiveOperationalStatus({ operationalStatus: partner.operationalStatus, operationalStatusAt: partner.operationalStatusAt }),
         handoverPoint: partner.handoverPoint,
         orderStatus: order.status,
         paymentLabel: PAYMENT_STATUS_LABEL[paymentStatusOf({ status: order.status })],

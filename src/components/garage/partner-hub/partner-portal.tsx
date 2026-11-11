@@ -164,7 +164,7 @@ export function PartnerPortal() {
             onClick={() => void run("logout", () => alerts.releasePush().then(() => api("/api/partner/auth/logout", { method: "POST" })).then(() => setNeedLogin(true)))}
             className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#3a3a42] px-3 text-sm text-[#d4d4d8] hover:bg-white/5"
           >
-            <LogOut className="size-4" /> Keluar
+            <LogOut className="size-4" aria-hidden /> Keluar
           </button>
         </div>
       </header>
@@ -191,6 +191,11 @@ export function PartnerPortal() {
               {op === "buka" ? "BUKA" : op === "jeda" ? "JEDA" : "TUTUP"}
             </span>
           </div>
+          <p className="mt-2 text-sm text-[#d4d4d8]">
+            {op === "buka"
+              ? "Anda buka. Pesanan baru masuk di bawah — terima atau tolak."
+              : `Status ${op === "jeda" ? "Jeda" : "Tutup"} hanya keterangan untuk kasir dan pelanggan. Pesanan produk yang masih Tersedia tetap bisa masuk — Anda yang memutuskan terima atau tolak. Supaya tidak dipesan, tandai produknya Habis.`}
+          </p>
           {p.status !== "aktif" ? <p className="mt-2 text-sm text-[#fde68a]">Mitra sedang dihentikan sementara oleh Owner. Tiket lama tetap bisa diselesaikan.</p> : null}
           <div className="mt-3 grid grid-cols-3 gap-2" role="group" aria-label="Status layanan">
             {(["buka", "jeda", "tutup"] as const).map((status) => {
@@ -263,7 +268,7 @@ export function PartnerPortal() {
         <section className="grid grid-cols-2 gap-3">
           <div className="rounded-xl border border-[#34343c] bg-[#17171c] p-4">
             <p className="text-xs text-[#b8b8bf]">Hak mitra hari ini</p>
-            <p className="mt-1 text-xl font-black text-white">{rp(overview.today.liability)}</p>
+            <p className="mt-1 text-xl font-black tabular-nums text-white">{rp(overview.today.liability)}</p>
             <p className="text-xs text-[#b8b8bf]">{overview.today.qty} item siap · {overview.today.orders} order</p>
           </div>
           <div className="rounded-xl border border-[#34343c] bg-[#17171c] p-4">
@@ -315,7 +320,7 @@ export function PartnerPortal() {
                         {ticket.orderNo} <span className="ml-1 rounded border border-[#4a4a54] px-1.5 py-0.5 text-xs text-[#e4e4e8]">{ticket.tableLabel ?? "Take away"}</span>
                       </p>
                       <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold ${waitMin >= (overview.slaWarnMinutes ?? 2) && ticket.status === "queue" ? "bg-[#7f1d1d] text-[#fecaca]" : "bg-white/10 text-[#e4e4e8]"}`}>
-                        <Timer className="size-3" /> {STATUS_LABEL[ticket.status] ?? ticket.status} · {sinceAccept !== null && ticket.status !== "queue" ? `diproses ${sinceAccept} mnt` : `${waitMin} mnt`}
+                        <Timer className="size-3" aria-hidden /> {STATUS_LABEL[ticket.status] ?? ticket.status} · {sinceAccept !== null && ticket.status !== "queue" ? `diproses ${sinceAccept} mnt` : `${waitMin} mnt`}
                       </span>
                     </div>
                     <p className="mt-1 text-xs text-[#b8b8bf]">{ticket.customerName ?? "Tanpa nama"} · masuk {time(ticket.createdAt)}</p>
@@ -327,7 +332,15 @@ export function PartnerPortal() {
                         </li>
                       ))}
                     </ul>
-                    {Object.values(ticket.notes ?? {}).length ? <p className="mt-1 text-xs text-[#ffd08a]">Catatan: {Object.values(ticket.notes).join(" · ")}</p> : null}
+                    {Object.keys(ticket.notes ?? {}).length ? (
+                      <ul className="mt-2 grid gap-1 rounded-lg border border-[#ffd08a]/40 bg-[#2a1d0a]/60 px-3 py-2 text-sm text-[#ffe2b0]" aria-label="Catatan pelanggan">
+                        {Object.entries(ticket.notes).map(([item, note]) => (
+                          <li key={item} className="break-words">
+                            <b>Catatan {item}:</b> {note}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
                     <div className="mt-3 flex flex-wrap gap-2">
                       {ticket.status === "queue" ? (
                         <>
@@ -422,7 +435,7 @@ function ActionButton({ children, onClick, busy, primary }: { children: React.Re
       type="button"
       onClick={onClick}
       disabled={busy}
-      className={`inline-flex min-h-11 items-center gap-2 rounded-lg px-4 text-sm font-bold transition-colors disabled:opacity-60 ${primary ? "bg-[#d11a2a] text-white hover:bg-[#e3263a]" : "border border-[#3a3a42] text-[#e4e4e8] hover:bg-white/10"}`}
+      className={`inline-flex min-h-11 items-center gap-2 rounded-lg px-4 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 disabled:opacity-60 ${primary ? "bg-[#d11a2a] text-white hover:bg-[#e3263a]" : "border border-[#3a3a42] text-[#e4e4e8] hover:bg-white/10"}`}
     >
       {busy ? <Loader2 className="size-4 animate-spin" /> : null}
       {children}

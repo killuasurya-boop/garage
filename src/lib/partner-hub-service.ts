@@ -42,6 +42,8 @@ import {
   OPERATIONAL_STATUSES,
   partnerActivationBlockers,
   partnerLineFinance,
+  partnerMarketingBlockers,
+  PARTNER_WEBSITE_TAG,
   partnerSettlementTotals,
   partnerTicketNextStatus,
   payoutBlockReason,
@@ -574,6 +576,7 @@ export async function listPartnerProducts(partnerId: string, viewer: { outletId:
     imageUrl: item.imageUrl,
     description: item.description,
     showInDigitalMenu: item.showInDigitalMenu,
+    promotedOnWebsite: (item.tags ?? []).includes(PARTNER_WEBSITE_TAG),
     active: link.active,
     available: item.stock !== "sold_out",
     availabilityUpdatedAt: link.availabilityUpdatedAt,
@@ -582,6 +585,105 @@ export async function listPartnerProducts(partnerId: string, viewer: { outletId:
       .filter((v) => v.itemId === item.id)
       .map((v) => ({ variantId: v.variantId, label: v.label, sellPrice: v.price, unitCost: viewer.showCost ? v.baseCost : undefined })),
   }));
+}
+
+// ─── Media marketing website (produk mitra pilihan) ───────────────────────────
+
+async function marketingContext(db: DbLike, linkId: string) {
+  const [row] = await db
+    .select({ link: partnerProductLinks, item: menuItems, partner: partners })
+    .from(partnerProductLinks)
+    .innerJoin(menuItems, eq(partnerProductLinks.menuItemId, menuItems.id))
+    .innerJoin(partners, eq(partnerProductLinks.partnerId, partners.id))
+    .where(eq(partnerProductLinks.id, linkId))
+    .limit(1);
+  if (!row) throw new PartnerHubError("PRODUCT_NOT_FOUND", "Produk mitra tidak ditemukan.", 404);
+  const [bank] = await db
+    .select({ id: partnerBankAccounts.id })
+    .from(partnerBankAccounts)
+    .where(and(eq(partnerBankAccounts.partnerId, row.partner.id), eq(partnerBankAccounts.status, "verified")))
+    .limit(1);
+  const variants = await db.select().from(menuVariants).where(eq(menuVariants.itemId, row.item.id));
+  const blockers = partnerMarketingBlockers({
+    partnerStatus: row.partner.status,
+    linkActive: row.link.active,
+    imageUrl: row.item.imageUrl,
+    description: row.item.description,
+    showInDigitalMenu: row.item.showInDigitalMenu,
+    hasVerifiedBank: Boolean(bank),
+    priceOk: variants.length > 0 && variants.every((v) => v.price > v.baseCost),
+  });
+  return { ...row, blockers };
+}
+
+/** Syarat media marketing satu produk (untuk checklist di Pengaturan produk). */
+export async function partnerMarketingStatus(linkId: string, garage: GarageSession) {
+  assertOwnerOrManager(garage, "Melihat syarat media marketing");
+  const db = getDb();
+  const ctx = await marketingContext(db, linkId);
+  await loadPartner(db, ctx.partner.id, garage.profile.outlet.id);
+  return { linkId, promoted: (ctx.item.tags ?? []).includes(PARTNER_WEBSITE_TAG), blockers: ctx.blockers };
+}
+
+/** Owner memilih/menghapus produk mitra dari media marketing website. Hanya produk yang memenuhi syarat. */
+export async function setPartnerWebsitePromotion(linkId: string, promoted: boolean, garage: GarageSession) {
+  assertOwner(garage, "Mempromosikan produk mitra di website");
+  const db = getDb();
+  const ctx = await marketingContext(db, linkId);
+  await loadPartner(db, ctx.partner.id, garage.profile.outlet.id);
+  if (promoted && ctx.blockers.length) throw new PartnerHubError("MARKETING_NOT_ELIGIBLE", `Belum memenuhi syarat: ${ctx.blockers.join(" ")}`, 409);
+  if (promoted) {
+    const all = await db.select({ tags: menuItems.tags }).from(menuItems).where(eq(menuItems.productType, "partner"));
+    const count = all.filter((r) => (r.tags ?? []).includes(PARTNER_WEBSITE_TAG)).length;
+    if (count >= 8 && !(ctx.item.tags ?? []).includes(PARTNER_WEBSITE_TAG)) throw new PartnerHubError("MARKETING_FULL", "Maksimal 8 produk mitra di halaman utama. Lepas salah satu dulu.", 409);
+  }
+  const tags = (ctx.item.tags ?? []).filter((t) => t !== PARTNER_WEBSITE_TAG);
+  if (promoted) tags.push(PARTNER_WEBSITE_TAG);
+  return db.transaction(async (tx) => {
+    await tx.update(menuItems).set({ tags, updatedAt: new Date() }).where(eq(menuItems.id, ctx.item.id));
+    await logEvent(tx, { partnerId: ctx.partner.id, kind: promoted ? "website_promoted" : "website_unpromoted", subjectId: linkId, actor: staffActor(garage) });
+    return { linkId, promoted };
+  });
+}
+
+/**
+ * Publik (halaman utama website): produk mitra pilihan Owner yang MASIH memenuhi syarat saat ini.
+ * Tanpa HPP/profit/kontak mitra. Partner Hub mati di outlet mitra → tidak tampil.
+ */
+export async function publicPartnerMarketingProducts() {
+  const db = getDb();
+  const rows = await db
+    .select({ link: partnerProductLinks, item: menuItems, partner: partners })
+    .from(partnerProductLinks)
+    .innerJoin(menuItems, eq(partnerProductLinks.menuItemId, menuItems.id))
+    .innerJoin(partners, eq(partnerProductLinks.partnerId, partners.id))
+    .where(and(eq(partnerProductLinks.active, true), eq(partners.status, "aktif"), eq(menuItems.productType, "partner")));
+  const promoted = rows.filter((r) => (r.item.tags ?? []).includes(PARTNER_WEBSITE_TAG));
+  if (!promoted.length) return [];
+  const { getAppSettings } = await import("@/lib/garage-service");
+  const hub = new Map<string, boolean>();
+  const out = [];
+  for (const row of promoted) {
+    if (!hub.has(row.partner.outletId)) hub.set(row.partner.outletId, (await getAppSettings(row.partner.outletId)).partnerHubEnabled);
+    if (!hub.get(row.partner.outletId)) continue;
+    const ctx = await marketingContext(db, row.link.id);
+    if (ctx.blockers.length) continue;
+    const variants = await db.select().from(menuVariants).where(eq(menuVariants.itemId, row.item.id));
+    const prices = variants.map((v) => v.price).filter((p) => p > 0);
+    const status = effectiveOperationalStatus({ operationalStatus: row.partner.operationalStatus, operationalStatusAt: row.partner.operationalStatusAt });
+    out.push({
+      id: row.item.id,
+      name: row.item.name,
+      category: row.item.category,
+      description: row.item.description,
+      imageUrl: row.item.imageUrl,
+      partnerName: row.partner.name,
+      priceFrom: prices.length ? Math.min(...prices) : 0,
+      multiPrice: new Set(prices).size > 1,
+      availableNow: status === "buka" && row.item.stock !== "sold_out",
+    });
+  }
+  return out.slice(0, 8);
 }
 
 // ─── Ketersediaan & status layanan (mitra pemilik / Owner) ───────────────────

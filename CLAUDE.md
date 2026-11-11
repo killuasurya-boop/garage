@@ -417,6 +417,11 @@ Scroll direction:
   (Owner), price history + event log, payout void button, Excel `GET /api/partners/finance-export` (Owner/Manajer; ringkasan,
   terlaris = `partnerBestSellers`, transaksi), Owner dashboard widget `/api/partners/dashboard`, waiter card "Ambil dari Mitra".
   Self-order digital menu shows partner items as "pesan lewat waiter atau kasir" (DEC-14).
+  Media marketing (11 Nov 2026, no migration): homepage section `#mitra` (`partner-showcase.tsx`, public `GET /api/site/partner-products`,
+  no HPP/contact) + hero tab "Mitra" + mobile drawer links. A product shows only when Owner picks it (tag `PARTNER_WEBSITE_TAG`
+  "Promo Website", max 8, `setPartnerWebsitePromotion`) AND it still passes `partnerMarketingBlockers` (partner aktif + verified bank,
+  product approved, real photo, description ≥15, in digital menu, price > HPP) and the outlet hub is on. Owner panel "Media marketing
+  website" in product settings. `/partner` login = Crystal V5 split layout (`partner-login.css`).
 
 ## Product Management Rules
 

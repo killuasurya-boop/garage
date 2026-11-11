@@ -36,6 +36,7 @@ type Product = {
   imageUrl: string | null;
   description: string | null;
   showInDigitalMenu: boolean;
+  promotedOnWebsite?: boolean;
   active: boolean;
   available: boolean;
   variants: Array<{ variantId: string; label: string; sellPrice: number; unitCost?: number }>;
@@ -462,6 +463,8 @@ const EVENT_LABEL: Record<string, string> = {
   settlement_submitted: "Settlement diajukan",
   payout_proof: "Bukti transfer diunggah",
   report_generated: "Laporan PDF diterbitkan",
+  website_promoted: "Dipromosikan di website",
+  website_unpromoted: "Dilepas dari website",
   bank_added: "Rekening ditambahkan",
   bank_verified: "Rekening diverifikasi",
   account_created: "Akun portal dibuat",
@@ -714,6 +717,63 @@ function ProductSettings({ product, isOwner, busy, runP }: { product: Product; i
         <p className="text-xs text-[#b8b8bf]">Perubahan HPP &amp; harga jual hanya oleh Owner.</p>
       )}
       {isOwner ? <VariantManager product={product} busy={busy} runP={runP} /> : null}
+      <MarketingPanel product={product} isOwner={isOwner} busy={busy} runP={runP} />
+    </div>
+  );
+}
+
+/** Media marketing website: checklist syarat + pilih produk untuk halaman utama (Owner). */
+function MarketingPanel({ product, isOwner, busy, runP }: { product: Product; isOwner: boolean; busy: string | null; runP: RunP }) {
+  const [status, setStatus] = useState<{ promoted: boolean; blockers: string[] } | null>(null);
+  const load = useCallback(async () => {
+    try {
+      setStatus(await api(`/api/partners/products/${product.linkId}/marketing`));
+    } catch {
+      setStatus(null);
+    }
+  }, [product.linkId]);
+  useEffect(() => {
+    // Ambil data saat tampil (pola repo: fetch-on-mount).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void load();
+  }, [load, product.imageUrl, product.description, product.active, product.showInDigitalMenu]);
+  if (!status) return null;
+  const eligible = status.blockers.length === 0;
+  return (
+    <div className="grid gap-2 border-t border-[#2a2a30] pt-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-semibold text-white">Media marketing website (halaman utama)</p>
+        <Chip tone={status.promoted ? "green" : eligible ? "amber" : "red"}>{status.promoted ? "Tampil di website" : eligible ? "Memenuhi syarat" : "Belum memenuhi syarat"}</Chip>
+      </div>
+      {status.blockers.length ? (
+        <ul className="grid gap-1 text-sm text-amber-300">
+          {status.blockers.map((b) => (
+            <li key={b}>✗ {b}</li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-emerald-300">✓ Semua syarat terpenuhi: mitra aktif & rekening terverifikasi, produk disetujui, foto asli, deskripsi, tampil di menu digital, harga di atas HPP.</p>
+      )}
+      {isOwner ? (
+        <div>
+          <Btn
+            tone={status.promoted ? "danger" : "primary"}
+            disabled={!status.promoted && !eligible}
+            busy={busy === `mkt-${product.linkId}`}
+            onClick={() =>
+              void runP(
+                `mkt-${product.linkId}`,
+                () => api(`/api/partners/products/${product.linkId}/marketing`, { method: "POST", body: JSON.stringify({ promoted: !status.promoted }) }).then(load),
+                status.promoted ? "Produk dilepas dari halaman utama website." : "Produk tampil di halaman utama website (section Produk Mitra).",
+              )
+            }
+          >
+            {status.promoted ? "Lepas dari website" : "Promosikan di website"}
+          </Btn>
+        </div>
+      ) : (
+        <p className="text-xs text-[#b8b8bf]">Pilihan produk untuk website hanya oleh Owner.</p>
+      )}
     </div>
   );
 }

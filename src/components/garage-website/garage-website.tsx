@@ -30,7 +30,9 @@ import {
   TrainFront,
   Trees,
   UtensilsCrossed,
+  Handshake,
 } from "lucide-react";
+import { PartnerShowcase } from "@/components/garage-website/partner-showcase";
 
 import {
   Sheet,
@@ -695,6 +697,8 @@ function Nav() {
   ...items,
   ["Cara Pesan", "#cara-pesan"],
   ["Lacak Pesanan", "#tracking-order"],
+  ["Produk Mitra", "#mitra"],
+  ["Jadi Mitra", "/mitra"],
   ["Franchise", "/franchise"],
   ["Karier", "/recruitment"]];
 
@@ -1886,6 +1890,7 @@ function Hero({ landingHero }) {
               <div className="hero-image-actions">
                 <Link href={DIGITAL_MENU_URL} className="btn btn-primary"><span>Pesan Sekarang</span><ArrowRight /></Link>
                 <button type="button" onClick={requestTablePanelOpen} className="btn"><span>Cek Meja Kosong</span><ArrowRight /></button>
+                <a href="#mitra" className="btn hero-partner-tab"><Handshake aria-hidden /><span>Mitra</span></a>
               </div>
             </Reveal>
           </div>
@@ -2279,6 +2284,7 @@ function Hero({ landingHero }) {
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
               <Link href={DIGITAL_MENU_URL} className="btn btn-primary"><span>Pesan Sekarang</span><ArrowRight /></Link>
               <button type="button" onClick={requestTablePanelOpen} className="btn"><span>Cek Meja Kosong</span><ArrowRight /></button>
+              <a href="#mitra" className="btn hero-partner-tab"><Handshake aria-hidden /><span>Mitra</span></a>
             </div>
           </Reveal>
 
@@ -6208,6 +6214,7 @@ function GarageWebsiteRoot({
       <Menu />
       <PromoProducts />
       <FeaturedMenu />
+      <PartnerShowcase />
       <HowToOrder />
       <SuryaShowcase />
       {/* 2. Live outlet: meja, keramaian, estimasi, lacak pesanan */}

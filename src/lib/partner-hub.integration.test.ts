@@ -575,3 +575,29 @@ describe("Smart Partner Hub — kesiapan operasional (11 Nov 2026)", () => {
     await expect(svc.createPartnerAccount(partnerA.id, { phone: "abc12345678", displayName: "x", pin: "123456" }, manager())).rejects.toThrow(/tidak valid/);
   });
 });
+
+describe("Smart Partner Hub — media marketing website", () => {
+  it("produk mitra baru boleh dipromosikan setelah memenuhi syarat; publik tanpa HPP; Manajer tidak bisa memilih", async () => {
+    await setHub(true);
+    const products = await svc.listPartnerProducts(partnerB.id, { outletId, showCost: true });
+    const link = products[0];
+    const before = await svc.partnerMarketingStatus(link.linkId, manager());
+    expect(before.blockers.length).toBeGreaterThan(0);
+    await expect(svc.setPartnerWebsitePromotion(link.linkId, true, owner())).rejects.toThrow(/Belum memenuhi syarat/);
+    await svc.updatePartnerProductSettings(link.linkId, { imageUrl: "/garage-uploads/menu/dimsum-ayam.webp", description: "Dimsum ayam kukus isi ayam cincang, disajikan hangat.", showInDigitalMenu: true }, manager());
+    expect((await svc.partnerMarketingStatus(link.linkId, manager())).blockers).toEqual([]);
+    await expect(svc.setPartnerWebsitePromotion(link.linkId, true, manager())).rejects.toThrow(/Owner/);
+    await svc.setPartnerWebsitePromotion(link.linkId, true, owner());
+    const pub = await svc.publicPartnerMarketingProducts();
+    const card = pub.find((p) => p.name === link.name)!;
+    expect(card).toBeTruthy();
+    expect(card).not.toHaveProperty("unitCost");
+    expect(JSON.stringify(card)).not.toMatch(/22000|baseCost|phone/);
+    // Hub dimatikan → tidak tampil; nyalakan lagi lalu lepas dari website.
+    await setHub(false);
+    expect((await svc.publicPartnerMarketingProducts()).some((p) => p.name === link.name)).toBe(false);
+    await setHub(true);
+    await svc.setPartnerWebsitePromotion(link.linkId, false, owner());
+    expect((await svc.publicPartnerMarketingProducts()).some((p) => p.name === link.name)).toBe(false);
+  });
+});

@@ -161,3 +161,14 @@ describe("Partner Hub — rumus keuangan (PRD 12.1)", () => {
     expect(maskAccountNumber("1234560148")).toBe("•••• 0148");
   });
 });
+
+describe("partnerMarketingBlockers (media marketing)", () => {
+  it("semua syarat terpenuhi = kosong; tiap syarat yang kurang disebut", async () => {
+    const { partnerMarketingBlockers } = await import("@/lib/partner-hub-rules");
+    const ok = { partnerStatus: "aktif", linkActive: true, imageUrl: "/x.webp", description: "Dimsum ayam kukus hangat", showInDigitalMenu: true, hasVerifiedBank: true, priceOk: true };
+    expect(partnerMarketingBlockers(ok)).toEqual([]);
+    expect(partnerMarketingBlockers({ ...ok, partnerStatus: "dibekukan" })[0]).toMatch(/Aktif/);
+    expect(partnerMarketingBlockers({ ...ok, imageUrl: null, description: "pendek" })).toHaveLength(2);
+    expect(partnerMarketingBlockers({ ...ok, priceOk: false, showInDigitalMenu: false, linkActive: false, hasVerifiedBank: false })).toHaveLength(4);
+  });
+});

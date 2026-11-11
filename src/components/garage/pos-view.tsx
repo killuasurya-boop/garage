@@ -8267,7 +8267,29 @@ export function PosView({
                     onChange={(event) => setQuery(event.target.value)}
                     onKeyDown={(event) => {
                       // Enter = pesan menu teratas hasil cari / kode singkat.
-                      if (event.key !== "Enter" || !query.trim() || deferredQuery !== query) return;
+                      if (event.key !== "Enter" || !query.trim()) return;
+                      // Scanner barcode: kode SKU/barcode persis (produk atau varian, termasuk produk mitra)
+                      // langsung masuk keranjang dengan varian yang discan.
+                      const scanned = query.trim().toLowerCase();
+                      for (const item of menuItems) {
+                        if (soldOutIds.has(item.id) || item.stock === "sold_out") continue;
+                        const variant = item.variants.find(
+                          (v) => (v.barcode ?? "").toLowerCase() === scanned || (v.sku ?? "").toLowerCase() === scanned,
+                        );
+                        const itemMatch = (item.barcode ?? "").toLowerCase() === scanned || (item.sku ?? "").toLowerCase() === scanned;
+                        if (variant || (itemMatch && item.variants.length === 1)) {
+                          event.preventDefault();
+                          if (!canTransact) {
+                            setShiftError("Buka shift terlebih dahulu sebelum transaksi.");
+                            return;
+                          }
+                          if (locked) return;
+                          addItem(item.id, (variant ?? item.variants[0]).id);
+                          setQuery("");
+                          return;
+                        }
+                      }
+                      if (deferredQuery !== query) return;
                       const first = filteredMenu.find((item) => !soldOutIds.has(item.id));
                       if (!first) return;
                       event.preventDefault();

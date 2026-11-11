@@ -645,7 +645,7 @@ function OrderTracker({ status }: { status: PublicOrderStatus | null }) {
   );
 }
 
-const PARTNER_VIA_STAFF = "Produk mitra: pesan lewat waiter atau kasir.";
+const PARTNER_VIA_STAFF = "Pesan ke kasir atau waiter.";
 
 /** Kartu Menu V5 dengan aksi berbasis id (aksi tidak dibungkus closure saat render induk). */
 function V5CardSlot({

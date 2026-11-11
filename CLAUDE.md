@@ -416,7 +416,7 @@ Scroll direction:
   reasons panel. Staff: product photo upload (`/api/partners/products/[linkId]/image` → `/garage-uploads/menu`), variants add/remove
   (Owner), price history + event log, payout void button, Excel `GET /api/partners/finance-export` (Owner/Manajer; ringkasan,
   terlaris = `partnerBestSellers`, transaksi), Owner dashboard widget `/api/partners/dashboard`, waiter card "Ambil dari Mitra".
-  Self-order digital menu shows partner items as "pesan lewat waiter atau kasir" (DEC-14).
+  Self-order digital menu shows partner items with the partner status ("Tersedia di mitra" or the partner reason, never the Garage OS stock "Sold Out") and the note "Pesan ke kasir atau waiter" (DEC-14). POS search: Enter on an exact SKU/barcode (product or variant, partner items included) adds that variant (scanner).
 
 ## Product Management Rules
 

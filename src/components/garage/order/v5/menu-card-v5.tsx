@@ -116,7 +116,11 @@ export function MenuCardV5({
   /** Diisi = tidak bisa ditambah pelanggan sendiri (mis. produk mitra); stepper diganti catatan ini. */
   staffOnlyNote?: string | null;
 }) {
-  const soldOut = item.stock === "sold_out";
+  // Produk mitra: status mengikuti mitra (bukan stok Garage OS). Tampil "Tersedia di mitra" / alasan mitra,
+  // tetap bisa dibuka detailnya; pemesanan lewat kasir atau waiter (staffOnlyNote).
+  const partnerItem = Boolean(item.partner);
+  const partnerStatusText = item.partner ? item.partner.label ?? "Tersedia di mitra" : null;
+  const soldOut = item.stock === "sold_out" && !partnerItem;
   const multi = item.variants.length > 1;
   const single = item.variants[0]?.id;
   const summary = variantSummary(item);
@@ -150,6 +154,7 @@ export function MenuCardV5({
         <div className="gm5-card-photo relative size-[104px] shrink-0 rounded-xl sm:size-[120px]">
           {photo}
           {soldOut ? <span className="gm5-badge gm5-badge-soldout absolute bottom-1.5 left-1.5">Sold Out</span> : null}
+          {partnerStatusText ? <span className="gm5-badge absolute bottom-1.5 left-1.5">{partnerStatusText}</span> : null}
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-1 pr-9">
           {badges.length ? <BadgeRow kinds={badges} /> : null}
@@ -171,7 +176,7 @@ export function MenuCardV5({
       <div className="gm5-card-photo relative aspect-[4/3] w-full">
         {photo}
         <span className="pointer-events-none absolute left-2 top-2 z-10 flex max-w-[calc(100%-3.5rem)]">
-          {soldOut ? <span className="gm5-badge gm5-badge-soldout">Sold Out</span> : <BadgeRow kinds={badges} />}
+          {soldOut ? <span className="gm5-badge gm5-badge-soldout">Sold Out</span> : partnerStatusText ? <span className="gm5-badge">{partnerStatusText}</span> : <BadgeRow kinds={badges} />}
         </span>
         {heart}
       </div>

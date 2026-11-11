@@ -399,4 +399,61 @@ describe("Smart Partner Hub — settlement & payout", () => {
     const list = await svc.listPartners(owner());
     expect(list.find((p) => p.id === partnerB.id)?.status).toBe("aktif");
   });
+
+  it("pendaftar /mitra → ditinjau → jadi mitra Draft dengan produk nonaktif; nomor WA sama tidak bisa daftar dobel", async () => {
+    const app = await svc.submitPartnerApplication({
+      businessName: "Kue Lapis Bu Rina",
+      ownerName: "Rina",
+      whatsapp: "0812 7777 1111",
+      productKind: "Kue & roti",
+      products: [
+        { name: "Lapis Legit", offerPrice: 15_000, suggestedPrice: 20_000 },
+        { name: "Bolu Pandan", offerPrice: 10_000 },
+      ],
+    });
+    expect(app.applicationNo).toMatch(/^MTR-/);
+    await expect(
+      svc.submitPartnerApplication({ businessName: "Dobel", ownerName: "Rina", whatsapp: "081277771111", productKind: "Kue", products: [{ name: "X", offerPrice: 1_000 }] }),
+    ).rejects.toThrow(/masih diproses/);
+    await expect(svc.convertPartnerApplication(app.id, { code: "KLB", margin: 3_000, category: "Kue" }, manager())).rejects.toThrow();
+    const result = await svc.convertPartnerApplication(app.id, { code: "KLB", margin: 3_000, category: "Kue" }, owner());
+    expect(result.products).toBe(2);
+    const products = await svc.listPartnerProducts(result.partnerId, { outletId, showCost: true });
+    expect(products.map((p) => [p.code, p.active, p.variants[0].unitCost, p.variants[0].sellPrice])).toEqual([
+      ["KLB-001", false, 15_000, 20_000],
+      ["KLB-002", false, 10_000, 13_000],
+    ]);
+    const list = await svc.listPartnerApplications(manager());
+    expect(list.find((row) => row.id === app.id)).toMatchObject({ status: "diterima", partnerId: result.partnerId });
+    await expect(svc.convertPartnerApplication(app.id, { code: "KLC", margin: 0, category: "Kue" }, owner())).rejects.toThrow(/sudah dijadikan/);
+  });
+
+  it("impor katalog PRD idempoten; pengaturan produk & aturan harga HPP + margin", async () => {
+    const first = await svc.importPrdPartnerCatalog(owner());
+    const pau = first.find((r) => r.partner.includes("Pokat"))!;
+    // Es Krim (kode PAU) sudah ada dari tes awal: mitra tidak dibuat ulang, PAU-001 dkk tetap diimpor bila belum ada.
+    expect(pau.created).toBe(false);
+    const dsm = first.find((r) => r.partner.includes("Dimsum"))!;
+    expect(dsm.productsCreated.length + dsm.productsSkipped.length).toBe(20);
+    const again = await svc.importPrdPartnerCatalog(owner());
+    expect(again.every((r) => r.productsCreated.length === 0 && !r.created)).toBe(true);
+    await expect(svc.importPrdPartnerCatalog(manager())).rejects.toThrow();
+
+    const d = t.getDb();
+    const { eq } = await import("drizzle-orm");
+    const [dimsumPartner] = await d.select().from(t.schema.partners).where(eq(t.schema.partners.code, "DSM"));
+    const products = await svc.listPartnerProducts(dimsumPartner.id, { outletId, showCost: true });
+    const ayam = products.find((p) => p.code === "DSM-001");
+    if (ayam) {
+      await svc.updatePartnerProductSettings(ayam.linkId, { name: "Dimsum Ayam Spesial", showInDigitalMenu: false, imageUrl: "/garage-uploads/menu/dimsum.webp" }, manager());
+      await expect(svc.updatePartnerProductSettings(ayam.linkId, { imageUrl: "javascript:alert(1)" }, manager())).rejects.toThrow(/Foto/);
+      const [item] = await d.select().from(t.schema.menuItems).where(eq(t.schema.menuItems.id, ayam.menuItemId));
+      expect(item).toMatchObject({ name: "Dimsum Ayam Spesial", showInDigitalMenu: false });
+    }
+    await expect(svc.applyPartnerMarginRule(dimsumPartner.id, { margin: 4_000, reason: "uji" }, manager())).rejects.toThrow();
+    const rule = await svc.applyPartnerMarginRule(dimsumPartner.id, { margin: 4_000, reason: "kesepakatan baru" }, owner());
+    expect(rule.changed).toBeGreaterThan(0);
+    const after = await svc.listPartnerProducts(dimsumPartner.id, { outletId, showCost: true });
+    expect(after.every((p) => p.variants.every((v) => v.sellPrice - (v.unitCost ?? 0) === 4_000))).toBe(true);
+  });
 });

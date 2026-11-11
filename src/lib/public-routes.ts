@@ -20,6 +20,7 @@ export const PUBLIC_API_ROUTES: Record<string, PublicRoute> = {
   "site/live-visit": { reason: "Penghitung kunjungan website", abuseGuard: "rateLimit" },
   // Pelanggan (menu digital / meja / pesanan sendiri)
   "customer/menu": { reason: "Menu digital pelanggan", abuseGuard: "rateLimit" },
+  "partner-applications": { reason: "Formulir pendaftaran calon mitra (halaman /mitra)", abuseGuard: "rateLimit" },
   "customer/ordering-status": { reason: "Status buka/tutup pemesanan", abuseGuard: "rateLimit" },
   "customer/qr": { reason: "QR meja pelanggan", abuseGuard: "rateLimit" },
   "customer/qr-card": { reason: "Kartu QR meja", abuseGuard: "rateLimit" },

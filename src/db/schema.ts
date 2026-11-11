@@ -5366,6 +5366,42 @@ export const partners = pgTable(
   }),
 );
 
+// Pendaftaran calon mitra dari halaman publik /mitra (penawaran kerja sama). Bukan mitra aktif: Owner/Manajer
+// meninjau lalu bisa menjadikannya mitra DRAFT (produk nonaktif sampai disetujui Owner).
+export const partnerApplications = pgTable(
+  "partner_applications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    applicationNo: text("application_no").notNull(),
+    businessName: text("business_name").notNull(),
+    ownerName: text("owner_name").notNull(),
+    whatsapp: text("whatsapp").notNull(),
+    email: text("email"),
+    city: text("city"),
+    address: text("address"),
+    productKind: text("product_kind").notNull(),
+    instagram: text("instagram"),
+    legality: jsonb("legality").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    // Produk yang ditawarkan: nama, harga ke Garage (HPP usulan), harga jual usulan (opsional).
+    products: jsonb("products").$type<Array<{ name: string; offerPrice: number; suggestedPrice: number | null; note: string | null }>>().notNull().default(sql`'[]'::jsonb`),
+    deliveryMode: text("delivery_mode"),
+    operatingHours: text("operating_hours"),
+    message: text("message"),
+    // baru | dihubungi | diterima | ditolak
+    status: text("status").notNull().default("baru"),
+    reviewNote: text("review_note"),
+    reviewedBy: text("reviewed_by"),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    partnerId: uuid("partner_id").references(() => partners.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    noIdx: uniqueIndex("partner_applications_no_idx").on(table.applicationNo),
+    statusIdx: index("partner_applications_status_idx").on(table.status, table.createdAt),
+  }),
+);
+
 // Web Push untuk HP mitra (pesanan baru saat layar terkunci). Terikat akun portal; hilang saat akun dihapus.
 export const partnerPushSubscriptions = pgTable(
   "partner_push_subscriptions",

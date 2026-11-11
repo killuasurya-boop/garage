@@ -4,7 +4,7 @@
 // Aksi Owner-only (setujui/aktifkan, verifikasi rekening, setujui produk, ubah harga) dicek ulang di server.
 
 import { useCallback, useEffect, useState } from "react";
-import { Plus, ShieldCheck, UserPlus } from "lucide-react";
+import { Download, Plus, ShieldCheck, UserPlus } from "lucide-react";
 
 import { api, Btn, Card, Chip, Field, inputCls, Notice, rp } from "./desk-shared";
 
@@ -28,7 +28,18 @@ type Partner = {
   bank: Array<{ id: string; bankName: string; accountName: string; accountMasked: string; status: string; accountNumber?: string }>;
   accounts: Array<{ id: string; phone: string; displayName: string; status: string }>;
 };
-type Product = { linkId: string; code: string; name: string; category: string; active: boolean; available: boolean; variants: Array<{ variantId: string; label: string; sellPrice: number; unitCost?: number }> };
+type Product = {
+  linkId: string;
+  code: string;
+  name: string;
+  category: string;
+  imageUrl: string | null;
+  description: string | null;
+  showInDigitalMenu: boolean;
+  active: boolean;
+  available: boolean;
+  variants: Array<{ variantId: string; label: string; sellPrice: number; unitCost?: number }>;
+};
 
 const STATUS_LABEL: Record<string, string> = { draft: "Draft", verifikasi: "Verifikasi", disetujui: "Disetujui", aktif: "Aktif", dibekukan: "Dibekukan", nonaktif: "Nonaktif" };
 const NEXT: Record<string, Array<{ to: string; label: string; owner?: boolean }>> = {
@@ -79,6 +90,7 @@ export function DeskManage({ role }: { role: string }) {
   return (
     <div className="grid gap-4">
       <Notice message={message} />
+      {isOwner ? <ImportCatalogCard busy={busy === "import"} onImport={() => void run("import", () => api("/api/partners/import-catalog", { method: "POST" }), "Katalog awal diimpor: mitra Draft + produk nonaktif. Lengkapi data & setujui produk satu per satu.")} /> : null}
       <CreatePartner busy={busy === "create"} onCreate={(body) => void run("create", () => api("/api/partners", { method: "POST", body: JSON.stringify(body) }), "Mitra terdaftar sebagai Draft.")} />
       {partners === null ? (
         <Card>
@@ -171,6 +183,7 @@ function PartnerDetail({ partner, isOwner, busy, run }: { partner: Partner; isOw
   const [bank, setBank] = useState({ bankName: "", accountName: "", accountNumber: "" });
   const [account, setAccount] = useState({ phone: partner.phone ?? "", displayName: partner.picName ?? "", pin: "" });
   const [product, setProduct] = useState({ code: "", name: "", category: partner.productKind ?? "", unitCost: "", sellPrice: "" });
+  const [editing, setEditing] = useState<string | null>(null);
 
   const loadProducts = useCallback(async () => setProducts(await api<Product[]>(`/api/partners/${partner.id}/products`)), [partner.id]);
   useEffect(() => {
@@ -184,8 +197,8 @@ function PartnerDetail({ partner, isOwner, busy, run }: { partner: Partner; isOw
   };
 
   return (
-    <div className="mt-4 grid gap-4 border-t border-[#2a2a30] pt-4 lg:grid-cols-2">
-      <div className="grid gap-3">
+    <div className="mt-4 grid items-start gap-4 border-t border-[#2a2a30] pt-4 lg:grid-cols-2">
+      <div className="grid content-start gap-3">
         <h4 className="text-sm font-bold text-white">Status & kesepakatan</h4>
         <div className="flex flex-wrap gap-2">
           {(NEXT[partner.status] ?? [])
@@ -338,25 +351,14 @@ function PartnerDetail({ partner, isOwner, busy, run }: { partner: Partner; isOw
                   <Btn busy={busy === `pav-${p.linkId}`} onClick={() => void runP(`pav-${p.linkId}`, () => api(`/api/partners/products/${p.linkId}`, { method: "PATCH", body: JSON.stringify({ available: !p.available }) }), "Ketersediaan diubah.")}>
                     Tandai {p.available ? "Habis" : "Tersedia"}
                   </Btn>
-                  {isOwner ? (
-                    <Btn
-                      busy={busy === `pprice-${p.linkId}`}
-                      onClick={() => {
-                        const v = p.variants[0];
-                        const cost = window.prompt(`HPP baru ${p.name} (${v.label})`, String(v.unitCost ?? 0));
-                        const sell = cost ? window.prompt(`Harga jual baru ${p.name} (${v.label})`, String(v.sellPrice)) : null;
-                        const reason = sell ? window.prompt("Alasan perubahan harga") : null;
-                        if (cost && sell && reason?.trim()) void runP(`pprice-${p.linkId}`, () => api(`/api/partners/products/${p.linkId}`, { method: "PATCH", body: JSON.stringify({ price: { variantId: v.variantId, unitCost: Number(cost), sellPrice: Number(sell), reason } }) }), "Harga baru berlaku untuk transaksi berikutnya.");
-                      }}
-                    >
-                      Ubah harga
-                    </Btn>
-                  ) : null}
+                  <Btn onClick={() => setEditing(editing === p.linkId ? null : p.linkId)}>{editing === p.linkId ? "Tutup pengaturan" : "Pengaturan"}</Btn>
                 </div>
+                {editing === p.linkId ? <ProductSettings product={p} isOwner={isOwner} busy={busy} runP={runP} /> : null}
               </li>
             ))}
           </ul>
         )}
+        {isOwner && products?.length ? <MarginRule partnerId={partner.id} busy={busy} runP={runP} /> : null}
         <form
           className="grid gap-2 rounded-lg border border-[#2a2a30] p-3 sm:grid-cols-2"
           onSubmit={(event) => {
@@ -383,5 +385,153 @@ function PartnerDetail({ partner, isOwner, busy, run }: { partner: Partner; isOw
         </form>
       </div>
     </div>
+  );
+}
+
+type RunP = (key: string, fn: () => Promise<unknown>, ok: string) => Promise<void>;
+
+/** Impor katalog PRD 05 sekali tekan (Owner). Idempoten: kode yang sudah ada dilewati. */
+function ImportCatalogCard({ busy, onImport }: { busy: boolean; onImport: () => void }) {
+  return (
+    <Card>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="flex items-center gap-2 text-base font-bold text-white">
+            <Download className="size-4 text-[#ff5a66]" /> Katalog awal PRD (Es Krim Pokat Au + Dimsum)
+          </h3>
+          <p className="mt-1 text-xs text-[#b8b8bf]">
+            4 produk Es Krim (HPP 19.000–25.000) dan 20 produk Dimsum (harga jual = HPP + Rp3.000) dari PRD bagian 05. Masuk sebagai mitra <b>Draft</b> &amp;
+            produk <b>nonaktif</b> — belum bisa dijual sampai data mitra lengkap dan tiap produk Anda setujui. Data Dimsum wajib dikonfirmasi dengan mitra.
+          </p>
+        </div>
+        <Btn tone="primary" busy={busy} onClick={onImport}>
+          <Download className="size-4" /> Impor katalog
+        </Btn>
+      </div>
+    </Card>
+  );
+}
+
+/** Pengaturan khusus satu produk mitra: tampilan (Owner/Manajer) + HPP & harga jual per varian (Owner, wajib alasan). */
+function ProductSettings({ product, isOwner, busy, runP }: { product: Product; isOwner: boolean; busy: string | null; runP: RunP }) {
+  const [form, setForm] = useState({
+    name: product.name,
+    category: product.category,
+    imageUrl: product.imageUrl ?? "",
+    description: product.description ?? "",
+    showInDigitalMenu: product.showInDigitalMenu,
+  });
+  const [prices, setPrices] = useState(() => Object.fromEntries(product.variants.map((v) => [v.variantId, { cost: String(v.unitCost ?? 0), sell: String(v.sellPrice) }])));
+  const [reason, setReason] = useState("");
+  const changedPrices = product.variants.filter((v) => Number(prices[v.variantId]?.cost) !== (v.unitCost ?? 0) || Number(prices[v.variantId]?.sell) !== v.sellPrice);
+  return (
+    <div className="mt-3 grid gap-3 rounded-lg border border-[#3a3a42] bg-black/20 p-3">
+      <form
+        className="grid gap-2 sm:grid-cols-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void runP(
+            `pset-${product.linkId}`,
+            () => api(`/api/partners/products/${product.linkId}`, { method: "PATCH", body: JSON.stringify({ settings: { ...form, imageUrl: form.imageUrl || null, description: form.description || null } }) }),
+            "Pengaturan produk disimpan.",
+          );
+        }}
+      >
+        <Field label="Nama di POS & menu">
+          <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required minLength={2} className={inputCls} />
+        </Field>
+        <Field label="Kategori">
+          <input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} required minLength={2} className={inputCls} />
+        </Field>
+        <Field label="Foto produk (https:// atau /garage-uploads/…)">
+          <input value={form.imageUrl} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })} placeholder="kosongkan bila belum ada foto" className={inputCls} />
+        </Field>
+        <Field label="Deskripsi singkat">
+          <input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} maxLength={500} className={inputCls} />
+        </Field>
+        <label className="flex min-h-11 items-center gap-2 text-sm text-[#e4e4e8] sm:col-span-2">
+          <input type="checkbox" checked={form.showInDigitalMenu} onChange={(e) => setForm({ ...form, showInDigitalMenu: e.target.checked })} className="size-4" />
+          Tampil di menu digital pelanggan (lihat saja — pelanggan tetap pesan lewat waiter/kasir)
+        </label>
+        <div className="sm:col-span-2">
+          <Btn type="submit" tone="primary" busy={busy === `pset-${product.linkId}`}>
+            Simpan pengaturan
+          </Btn>
+        </div>
+      </form>
+      {isOwner ? (
+        <form
+          className="grid gap-2 border-t border-[#2a2a30] pt-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void runP(
+              `pprice-${product.linkId}`,
+              async () => {
+                for (const v of changedPrices) {
+                  await api(`/api/partners/products/${product.linkId}`, {
+                    method: "PATCH",
+                    body: JSON.stringify({ price: { variantId: v.variantId, unitCost: Number(prices[v.variantId].cost), sellPrice: Number(prices[v.variantId].sell), reason } }),
+                  });
+                }
+              },
+              "Harga baru berlaku untuk transaksi berikutnya (transaksi lama tetap memakai harga lama).",
+            ).then(() => setReason(""));
+          }}
+        >
+          <p className="text-sm font-semibold text-white">HPP &amp; harga jual (Owner)</p>
+          {product.variants.map((v) => {
+            const cost = Number(prices[v.variantId]?.cost) || 0;
+            const sell = Number(prices[v.variantId]?.sell) || 0;
+            return (
+              <div key={v.variantId} className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:items-end">
+                <p className="col-span-2 text-xs text-[#b8b8bf] sm:col-span-1">{v.label}</p>
+                <Field label="HPP mitra">
+                  <input inputMode="numeric" value={prices[v.variantId]?.cost ?? ""} onChange={(e) => setPrices({ ...prices, [v.variantId]: { ...prices[v.variantId], cost: e.target.value.replace(/\D/g, "") } })} className={inputCls} />
+                </Field>
+                <Field label="Harga jual">
+                  <input inputMode="numeric" value={prices[v.variantId]?.sell ?? ""} onChange={(e) => setPrices({ ...prices, [v.variantId]: { ...prices[v.variantId], sell: e.target.value.replace(/\D/g, "") } })} className={inputCls} />
+                </Field>
+                <p className={`text-sm font-semibold ${sell - cost < 0 ? "text-[#ff8a94]" : "text-[#86efac]"}`}>Laba Garage {rp(sell - cost)}</p>
+              </div>
+            );
+          })}
+          <Field label="Alasan perubahan (wajib, tercatat di riwayat)">
+            <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="mis. kesepakatan baru dengan mitra 12 Nov" className={inputCls} />
+          </Field>
+          <div>
+            <Btn type="submit" tone="primary" busy={busy === `pprice-${product.linkId}`} disabled={!changedPrices.length || reason.trim().length < 3}>
+              Simpan harga baru
+            </Btn>
+          </div>
+        </form>
+      ) : (
+        <p className="text-xs text-[#b8b8bf]">Perubahan HPP &amp; harga jual hanya oleh Owner.</p>
+      )}
+    </div>
+  );
+}
+
+/** Aturan harga satu mitra: harga jual = HPP + laba per unit (mis. Dimsum +Rp3.000). Owner. */
+function MarginRule({ partnerId, busy, runP }: { partnerId: string; busy: string | null; runP: RunP }) {
+  const [margin, setMargin] = useState("3000");
+  const [reason, setReason] = useState("");
+  return (
+    <form
+      className="grid gap-2 rounded-lg border border-[#2a2a30] p-3 sm:grid-cols-[1fr_2fr_auto] sm:items-end"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void runP(`margin-${partnerId}`, () => api(`/api/partners/${partnerId}/margin-rule`, { method: "POST", body: JSON.stringify({ margin: Number(margin), reason }) }), "Aturan harga diterapkan ke semua produk mitra ini.").then(() => setReason(""));
+      }}
+    >
+      <Field label="Aturan harga: HPP + laba (Rp)">
+        <input inputMode="numeric" value={margin} onChange={(e) => setMargin(e.target.value.replace(/\D/g, ""))} className={inputCls} />
+      </Field>
+      <Field label="Alasan (wajib)">
+        <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="mis. kesepakatan harga jual = HPP + 3.000" className={inputCls} />
+      </Field>
+      <Btn type="submit" busy={busy === `margin-${partnerId}`} disabled={!margin || reason.trim().length < 3}>
+        Terapkan ke semua produk
+      </Btn>
+    </form>
   );
 }

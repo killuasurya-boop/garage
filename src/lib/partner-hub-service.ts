@@ -18,6 +18,7 @@ import {
   orders,
   partnerAccounts,
   partnerAdjustments,
+  partnerApplications,
   partnerBankAccounts,
   partnerEvents,
   partnerOrderLines,
@@ -479,6 +480,8 @@ export async function listPartnerProducts(partnerId: string, viewer: { outletId:
     name: item.name,
     category: item.category,
     imageUrl: item.imageUrl,
+    description: item.description,
+    showInDigitalMenu: item.showInDigitalMenu,
     active: link.active,
     available: item.stock !== "sold_out",
     availabilityUpdatedAt: link.availabilityUpdatedAt,
@@ -1395,4 +1398,263 @@ export async function generatePartnerReport(
     .returning();
   await logEvent(db, { partnerId: s.partnerId, kind: "report_generated", subjectId: reportNo, toStatus: kind, actor: { type: input.partnerId ? "partner" : "staff", id: input.generatedBy, name: input.generatedBy ?? "-" }, metadata: { checksum: pdf.sha256, lines: detail.lines.length } });
   return { buffer: pdf.buffer, report, fileName: `${reportNo}.pdf` };
+}
+
+// ─── Pengaturan produk mitra (Owner/Manajer) ─────────────────────────────────
+
+/**
+ * Data tampilan produk mitra: nama, kategori, foto, deskripsi, tampil di menu digital. Tidak menyentuh harga/HPP
+ * (itu lewat `setPartnerProductPrice`, Owner + alasan + riwayat). Menu digital tetap hanya LIHAT (DEC-14).
+ */
+export async function updatePartnerProductSettings(
+  linkId: string,
+  input: { name?: string; category?: string; imageUrl?: string | null; description?: string | null; showInDigitalMenu?: boolean },
+  garage: GarageSession,
+) {
+  assertOwnerOrManager(garage, "Mengubah pengaturan produk mitra");
+  const db = getDb();
+  const [link] = await db.select().from(partnerProductLinks).where(eq(partnerProductLinks.id, linkId)).limit(1);
+  if (!link) throw new PartnerHubError("PRODUCT_NOT_FOUND", "Produk mitra tidak ditemukan.", 404);
+  await loadPartner(db, link.partnerId, garage.profile.outlet.id);
+  const [before] = await db
+    .select({ name: menuItems.name, category: menuItems.category, imageUrl: menuItems.imageUrl, description: menuItems.description, showInDigitalMenu: menuItems.showInDigitalMenu })
+    .from(menuItems)
+    .where(eq(menuItems.id, link.menuItemId))
+    .limit(1);
+  const patch: Partial<typeof menuItems.$inferInsert> = { updatedAt: new Date() };
+  if (input.name !== undefined) {
+    if (input.name.trim().length < 2) throw new PartnerHubError("INVALID_NAME", "Nama produk minimal 2 huruf.");
+    patch.name = input.name.trim();
+  }
+  if (input.category !== undefined) {
+    if (input.category.trim().length < 2) throw new PartnerHubError("INVALID_CATEGORY", "Kategori minimal 2 huruf.");
+    patch.category = input.category.trim();
+    patch.section = input.category.trim();
+  }
+  if (input.imageUrl !== undefined) {
+    const url = input.imageUrl?.trim() || null;
+    if (url && !/^(https:\/\/|\/)/.test(url)) throw new PartnerHubError("INVALID_IMAGE", "Foto harus alamat https:// atau path /garage-uploads/….");
+    patch.imageUrl = url;
+  }
+  if (input.description !== undefined) patch.description = input.description?.trim() || null;
+  if (input.showInDigitalMenu !== undefined) patch.showInDigitalMenu = input.showInDigitalMenu;
+  return db.transaction(async (tx) => {
+    await tx.update(menuItems).set(patch).where(eq(menuItems.id, link.menuItemId));
+    await logEvent(tx, { partnerId: link.partnerId, kind: "product_settings", subjectId: linkId, actor: staffActor(garage), metadata: { before, after: input } });
+    return { linkId, ...input };
+  });
+}
+
+/**
+ * Aturan harga per mitra (mis. Dimsum: harga jual = HPP + Rp3.000, PRD 05.2). Owner saja; dicatat sebagai
+ * perubahan harga biasa (riwayat + alasan) dan hanya berlaku untuk transaksi berikutnya.
+ */
+export async function applyPartnerMarginRule(partnerId: string, input: { margin: number; reason: string }, garage: GarageSession) {
+  assertOwner(garage, "Menerapkan aturan harga mitra");
+  if (!Number.isInteger(input.margin) || input.margin < 0 || input.margin > 1_000_000) throw new PartnerHubError("INVALID_MARGIN", "Laba per unit harus rupiah bulat 0–1.000.000.");
+  if (!input.reason.trim()) throw new PartnerHubError("REASON_REQUIRED", "Alasan wajib diisi.");
+  const products = await listPartnerProducts(partnerId, { outletId: garage.profile.outlet.id, showCost: true });
+  let changed = 0;
+  for (const product of products) {
+    for (const variant of product.variants) {
+      const cost = variant.unitCost ?? 0;
+      const sellPrice = cost + input.margin;
+      if (sellPrice === variant.sellPrice) continue;
+      await setPartnerProductPrice(product.linkId, { variantId: variant.variantId, unitCost: cost, sellPrice, reason: `Aturan harga: HPP + ${input.margin} · ${input.reason.trim()}` }, garage);
+      changed += 1;
+    }
+  }
+  return { partnerId, margin: input.margin, changed };
+}
+
+// ─── Impor katalog awal PRD 05 ───────────────────────────────────────────────
+
+/**
+ * Impor sekali (idempoten) mitra Es Krim Pokat Au & Dimsum dari PRD 05. Mitra baru berstatus DRAFT, produk NONAKTIF:
+ * tidak ada yang bisa dijual sebelum Owner melengkapi syarat aktivasi & menyetujui tiap produk. Kode yang sudah ada dilewati.
+ */
+export async function importPrdPartnerCatalog(garage: GarageSession) {
+  assertOwner(garage, "Mengimpor katalog mitra");
+  const { PRD_PARTNER_CATALOG } = await import("@/lib/partner-hub-catalog");
+  const db = getDb();
+  const report: Array<{ partner: string; created: boolean; productsCreated: string[]; productsSkipped: string[] }> = [];
+  for (const entry of PRD_PARTNER_CATALOG) {
+    const [existing] = await db.select().from(partners).where(eq(partners.code, entry.code)).limit(1);
+    if (existing && existing.outletId !== garage.profile.outlet.id) {
+      throw new PartnerHubError("PARTNER_CODE_TAKEN", `Kode mitra ${entry.code} sudah dipakai outlet lain.`, 409);
+    }
+    const partner =
+      existing ??
+      (await createPartner(
+        {
+          code: entry.code,
+          name: entry.name,
+          phone: entry.phone,
+          address: entry.address,
+          productKind: entry.productKind,
+          payoutSchedule: entry.payoutSchedule,
+          lastOrderByDay: entry.lastOrderByDay,
+          terms: entry.terms,
+        },
+        garage,
+      ));
+    const productsCreated: string[] = [];
+    const productsSkipped: string[] = [];
+    for (const product of entry.products) {
+      const [taken] = await db.select({ id: partnerProductLinks.id }).from(partnerProductLinks).where(eq(partnerProductLinks.code, product.code)).limit(1);
+      if (taken) {
+        productsSkipped.push(product.code);
+        continue;
+      }
+      await createPartnerProduct(
+        partner.id,
+        { code: product.code, name: product.name, category: entry.category, variants: [{ variantId: "reg", label: "Regular", unitCost: product.unitCost, sellPrice: product.sellPrice }] },
+        garage,
+      );
+      productsCreated.push(product.code);
+    }
+    report.push({ partner: entry.name, created: !existing, productsCreated, productsSkipped });
+  }
+  return report;
+}
+
+// ─── Pendaftaran calon mitra (halaman publik /mitra) ─────────────────────────
+
+export type PartnerApplicationInput = {
+  businessName: string;
+  ownerName: string;
+  whatsapp: string;
+  email?: string | null;
+  city?: string | null;
+  address?: string | null;
+  productKind: string;
+  instagram?: string | null;
+  legality?: string[];
+  products: Array<{ name: string; offerPrice: number; suggestedPrice?: number | null; note?: string | null }>;
+  deliveryMode?: string | null;
+  operatingHours?: string | null;
+  message?: string | null;
+};
+
+/** Publik. Nomor WA yang sama hanya boleh punya satu pendaftaran aktif (baru/dihubungi) — anti spam & dobel. */
+export async function submitPartnerApplication(input: PartnerApplicationInput) {
+  const db = getDb();
+  const whatsapp = normalizePhone(input.whatsapp);
+  const [active] = await db
+    .select({ applicationNo: partnerApplications.applicationNo })
+    .from(partnerApplications)
+    .where(and(eq(partnerApplications.whatsapp, whatsapp), inArray(partnerApplications.status, ["baru", "dihubungi"])))
+    .limit(1);
+  if (active) throw new PartnerHubError("APPLICATION_EXISTS", `Pendaftaran ${active.applicationNo} dengan nomor ini masih diproses. Tim Garage akan menghubungi Anda.`, 409);
+  const now = new Date();
+  const day = new Date(now.getTime() + 7 * 3_600_000).toISOString().slice(2, 10).replace(/-/g, "");
+  const applicationNo = `MTR-${day}-${now.getTime().toString(36).toUpperCase().slice(-5)}`;
+  const [row] = await db
+    .insert(partnerApplications)
+    .values({
+      applicationNo,
+      businessName: input.businessName.trim(),
+      ownerName: input.ownerName.trim(),
+      whatsapp,
+      email: input.email?.trim() || null,
+      city: input.city?.trim() || null,
+      address: input.address?.trim() || null,
+      productKind: input.productKind.trim(),
+      instagram: input.instagram?.trim() || null,
+      legality: input.legality ?? [],
+      products: input.products.map((p) => ({ name: p.name.trim(), offerPrice: p.offerPrice, suggestedPrice: p.suggestedPrice ?? null, note: p.note?.trim() || null })),
+      deliveryMode: input.deliveryMode?.trim() || null,
+      operatingHours: input.operatingHours?.trim() || null,
+      message: input.message?.trim() || null,
+    })
+    .returning({ id: partnerApplications.id, applicationNo: partnerApplications.applicationNo });
+  try {
+    const { notifyStaff } = await import("@/lib/staff-notifications");
+    await notifyStaff({
+      outletId: null,
+      audience: "management",
+      kind: "partner_application",
+      severity: "info",
+      title: `Pendaftar mitra baru: ${input.businessName.trim()}`,
+      body: `${input.productKind.trim()} · ${input.products.length} produk ditawarkan`,
+      url: "/partners?tab=applications",
+      dedupKey: `partner_application:${row.id}`,
+    });
+  } catch {
+    /* notifikasi tidak boleh menggagalkan pendaftaran */
+  }
+  return row;
+}
+
+export async function listPartnerApplications(garage: GarageSession) {
+  assertOwnerOrManager(garage, "Melihat pendaftar mitra");
+  return getDb().select().from(partnerApplications).orderBy(desc(partnerApplications.createdAt)).limit(200);
+}
+
+const APPLICATION_STATUSES = ["baru", "dihubungi", "diterima", "ditolak"] as const;
+
+export async function updatePartnerApplication(id: string, input: { status?: string; reviewNote?: string | null }, garage: GarageSession) {
+  assertOwnerOrManager(garage, "Meninjau pendaftar mitra");
+  if (input.status && !(APPLICATION_STATUSES as readonly string[]).includes(input.status)) throw new PartnerHubError("INVALID_STATUS", "Status pendaftar tidak dikenal.");
+  const db = getDb();
+  const [row] = await db
+    .update(partnerApplications)
+    .set({
+      ...(input.status ? { status: input.status } : {}),
+      ...(input.reviewNote !== undefined ? { reviewNote: input.reviewNote?.trim() || null } : {}),
+      reviewedBy: garage.user.id,
+      reviewedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(partnerApplications.id, id))
+    .returning();
+  if (!row) throw new PartnerHubError("APPLICATION_NOT_FOUND", "Pendaftar tidak ditemukan.", 404);
+  return row;
+}
+
+/**
+ * Jadikan pendaftar sebagai mitra DRAFT di outlet ini + produk usulan sebagai produk NONAKTIF
+ * (HPP = harga penawaran; harga jual = usulan, atau HPP + margin bila kosong). Aktivasi tetap lewat alur biasa.
+ */
+export async function convertPartnerApplication(id: string, input: { code: string; margin: number; category: string }, garage: GarageSession) {
+  assertOwner(garage, "Menerima pendaftar sebagai mitra");
+  const db = getDb();
+  const [app] = await db.select().from(partnerApplications).where(eq(partnerApplications.id, id)).limit(1);
+  if (!app) throw new PartnerHubError("APPLICATION_NOT_FOUND", "Pendaftar tidak ditemukan.", 404);
+  if (app.partnerId) throw new PartnerHubError("ALREADY_CONVERTED", "Pendaftar ini sudah dijadikan mitra.", 409);
+  const code = input.code.trim().toUpperCase();
+  if (!/^[A-Z0-9]{2,8}$/.test(code)) throw new PartnerHubError("INVALID_CODE", "Kode mitra 2–8 huruf/angka (mis. DSM).");
+  const partner = await createPartner(
+    {
+      code,
+      name: app.businessName,
+      picName: app.ownerName,
+      phone: app.whatsapp,
+      address: [app.address, app.city].filter(Boolean).join(", ") || null,
+      productKind: app.productKind,
+      terms: `Dari pendaftaran ${app.applicationNo}. Harga awal = penawaran mitra; konfirmasi sebelum aktivasi.`,
+    },
+    garage,
+  );
+  let index = 0;
+  for (const product of app.products) {
+    index += 1;
+    const sellPrice = product.suggestedPrice && product.suggestedPrice >= product.offerPrice ? product.suggestedPrice : product.offerPrice + input.margin;
+    await createPartnerProduct(
+      partner.id,
+      {
+        code: `${code}-${String(index).padStart(3, "0")}`,
+        name: product.name,
+        category: input.category.trim() || app.productKind,
+        description: product.note,
+        variants: [{ variantId: "reg", label: "Regular", unitCost: product.offerPrice, sellPrice }],
+      },
+      garage,
+    );
+  }
+  await db
+    .update(partnerApplications)
+    .set({ status: "diterima", partnerId: partner.id, reviewedBy: garage.user.id, reviewedAt: new Date(), updatedAt: new Date() })
+    .where(eq(partnerApplications.id, id));
+  return { partnerId: partner.id, code, products: app.products.length };
 }

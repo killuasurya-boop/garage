@@ -5497,6 +5497,7 @@ function FooterMvp() {
     ["Event", "#events"],
     ["Member", MEMBER_LOGIN_URL],
     ["Franchise", "/franchise"],
+    ["Jadi Mitra", "/mitra"],
     ["Karier", "/recruitment"],
     ["Login Karyawan", LOGIN_URL],
   ];

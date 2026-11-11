@@ -5,6 +5,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { createPushSubscription, pushSupport, type PushSupport } from "@/lib/push-client";
+
 const SOUND_KEY = "garage:partner-portal-sound";
 const AWAKE_KEY = "garage:partner-portal-awake";
 
@@ -128,6 +130,67 @@ export function usePartnerAlerts(queueTicketNos: string[] | null) {
     };
   }, [awakeOn, awakeSupported]);
 
+  // Push ke HP terkunci (Web Push). iPhone: hanya setelah portal "Tambahkan ke Layar Utama".
+  const [pushState, setPushState] = useState<PushSupport | "on" | "off" | "denied">("off");
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const support = pushSupport();
+      let next: PushSupport | "on" | "off" | "denied" = support === "supported" ? "off" : support;
+      if (support === "supported") {
+        if (Notification.permission === "denied") next = "denied";
+        else {
+          const registration = await navigator.serviceWorker.getRegistration("/").catch(() => undefined);
+          const current = await registration?.pushManager?.getSubscription().catch(() => null);
+          if (current && Notification.permission === "granted") next = "on";
+        }
+      }
+      if (!cancelled) setPushState(next);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const enablePush = useCallback(async () => {
+    try {
+      const subscription = await createPushSubscription();
+      if (!subscription?.endpoint || !subscription.keys) {
+        setPushState(typeof Notification !== "undefined" && Notification.permission === "denied" ? "denied" : "off");
+        return false;
+      }
+      const res = await fetch("/api/partner/push", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ endpoint: subscription.endpoint, keys: subscription.keys }),
+      });
+      setPushState(res.ok ? "on" : "off");
+      return res.ok;
+    } catch {
+      setPushState("off");
+      return false;
+    }
+  }, []);
+
+  /** Dipanggil sebelum logout: HP ini berhenti menerima push mitra. Tidak pernah melempar. */
+  const releasePush = useCallback(async () => {
+    try {
+      const registration = await navigator.serviceWorker?.getRegistration("/");
+      const subscription = await registration?.pushManager?.getSubscription();
+      if (!subscription) return;
+      await fetch("/api/partner/push", {
+        method: "DELETE",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ endpoint: subscription.endpoint }),
+      }).catch(() => undefined);
+      await subscription.unsubscribe().catch(() => false);
+    } catch {
+      // abaikan: logout tetap jalan
+    }
+  }, []);
+
   const toggleAwake = useCallback(() => {
     setAwakeOn((on) => {
       writeFlag(AWAKE_KEY, !on);
@@ -135,5 +198,5 @@ export function usePartnerAlerts(queueTicketNos: string[] | null) {
     });
   }, []);
 
-  return { soundOn, soundPending: soundWanted && !soundOn, toggleSound, awakeOn, awakeSupported, toggleAwake };
+  return { soundOn, soundPending: soundWanted && !soundOn, toggleSound, awakeOn, awakeSupported, toggleAwake, pushState, enablePush, releasePush };
 }

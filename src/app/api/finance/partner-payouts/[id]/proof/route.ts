@@ -1,0 +1,52 @@
+import { fail, ok } from "@/lib/api-response";
+import { CASH_RECEIPT_MAX_INPUT_BYTES, isAcceptedReceiptImage, readCashReceipt, storeCashReceipt } from "@/lib/cash-receipt-storage";
+import { PartnerHubError, partnerPayoutForOutlet, setPartnerPayoutProof } from "@/lib/partner-hub-service";
+import { requireOwnerOrManager } from "@/lib/server-auth";
+
+export const runtime = "nodejs";
+export const maxDuration = 30;
+
+const toFail = (error: unknown) =>
+  error instanceof PartnerHubError ? fail(error.status, error.code, error.message) : fail(400, "PROOF_FAILED", error instanceof Error ? error.message : "Gagal memproses bukti.");
+
+/** Lihat bukti transfer ke mitra (Owner/Manajer outlet ini). Disimpan di storage non-publik yang sama dengan nota kas. */
+export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
+  const session = await requireOwnerOrManager();
+  if (session.response) return session.response;
+  const { id } = await context.params;
+  try {
+    const payout = await partnerPayoutForOutlet(id, session.data);
+    const data = payout.proofUrl ? await readCashReceipt(payout.proofUrl) : null;
+    if (!data) return fail(404, "PROOF_NOT_FOUND", "Bukti transfer belum diunggah.");
+    return new Response(new Uint8Array(data), {
+      headers: { "Content-Type": "image/webp", "Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff" },
+    });
+  } catch (error) {
+    return toFail(error);
+  }
+}
+
+/** Unggah / ganti foto bukti transfer (multipart, field `image`). */
+export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+  const session = await requireOwnerOrManager();
+  if (session.response) return session.response;
+  const { id } = await context.params;
+  try {
+    // Cek akses dulu supaya permintaan tanpa hak tidak menulis file.
+    const payout = await partnerPayoutForOutlet(id, session.data);
+    let formData: FormData;
+    try {
+      formData = await request.formData();
+    } catch {
+      return fail(400, "INVALID_MULTIPART_FORM", "Kirim foto sebagai multipart/form-data (field image).");
+    }
+    const image = formData.get("image");
+    if (!(image instanceof File) || image.size <= 0) return fail(400, "PROOF_MISSING", "Foto bukti transfer wajib dipilih.");
+    if (image.size > CASH_RECEIPT_MAX_INPUT_BYTES) return fail(413, "PROOF_TOO_LARGE", "Ukuran foto maksimal 8 MB.");
+    if (!isAcceptedReceiptImage(image)) return fail(400, "PROOF_UNSUPPORTED", "Format belum didukung. Gunakan foto JPG, PNG, atau WebP.");
+    const relative = await storeCashReceipt(payout.id, Buffer.from(await image.arrayBuffer()));
+    return ok(await setPartnerPayoutProof(id, relative, session.data), { status: 201 });
+  } catch (error) {
+    return toFail(error);
+  }
+}

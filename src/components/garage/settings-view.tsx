@@ -429,7 +429,7 @@ export function SettingsView({ me }: { me: GarageMe }) {
     ],
     branding: ["brandName", "brandTagline", "outletAddress", "outletPhone", "npwp", "receiptFooter"],
     notif: ["approvalPollIntervalSec", "qrSoundOn", "autoPrintReceipt"],
-    partners: ["partnerHubEnabled", "partnerSlaAcceptWarnMinutes", "partnerSlaEscalateMinutes", "partnerReadyWaitWarnMinutes"],
+    partners: ["partnerHubEnabled", "partnerSlaAcceptWarnMinutes", "partnerSlaEscalateMinutes", "partnerReadyWaitWarnMinutes", "partnerHeartbeatMinutes"],
     ai: [
       "aiAutopilotEnabled", "aiAutopilotStartHour", "aiAutopilotEndHour", "aiWhatsappHighAlerts",
       "aiWhatsappAlertTemplate", "aiWhatsappPhonesCashier", "aiWhatsappPhonesKitchen",
@@ -1280,7 +1280,7 @@ export function SettingsView({ me }: { me: GarageMe }) {
                 </SettingsField>
                 <SettingsField
                   label="Eskalasi ke kasir (menit)"
-                  description="Kasir diminta menghubungi mitra."
+                  description="Kasir & Manajer mendapat pemberitahuan mendesak untuk menghubungi mitra."
                   defaultValue={defaults.partnerSlaEscalateMinutes}
                   currentValue={merged.partnerSlaEscalateMinutes}
                   onReset={() => resetField("partnerSlaEscalateMinutes")}
@@ -1310,6 +1310,24 @@ export function SettingsView({ me }: { me: GarageMe }) {
                     max={30}
                     value={merged.partnerReadyWaitWarnMinutes}
                     onChange={(e) => setField("partnerReadyWaitWarnMinutes", Number(e.target.value))}
+                    disabled={!canWrite}
+                    className="h-10 border-[#34343c] bg-white/[0.06]"
+                  />
+                </SettingsField>
+                <SettingsField
+                  label="Portal Mitra tidak terhubung (menit)"
+                  description="Produk mitra otomatis tidak bisa dijual bila Portal Mitra tidak terbuka selama ini (HP mati / tanpa sinyal). 0 = tidak dicek."
+                  defaultValue={defaults.partnerHeartbeatMinutes}
+                  currentValue={merged.partnerHeartbeatMinutes}
+                  onReset={() => resetField("partnerHeartbeatMinutes")}
+                  disabled={!canWrite}
+                >
+                  <Input
+                    type="number"
+                    min={0}
+                    max={120}
+                    value={merged.partnerHeartbeatMinutes}
+                    onChange={(e) => setField("partnerHeartbeatMinutes", Number(e.target.value))}
                     disabled={!canWrite}
                     className="h-10 border-[#34343c] bg-white/[0.06]"
                   />

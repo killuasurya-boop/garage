@@ -4,7 +4,7 @@
 // Mitra: Buka/Jeda/Tutup, Tersedia/Habis per produk, Terima → Proses → Siap Antar, keuangan & PDF miliknya.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Bell, BellOff, Check, CheckCircle2, ChefHat, CircleX, FileText, Loader2, LogOut, PackageCheck, RefreshCw, Store, Sun, Timer } from "lucide-react";
+import { Bell, BellOff, BellRing, Check, CheckCircle2, ChefHat, CircleX, FileText, Loader2, LogOut, PackageCheck, RefreshCw, Store, Sun, Timer } from "lucide-react";
 
 import { GarageBrandLogo } from "@/components/garage/member-auth/garage-brand-logo";
 
@@ -137,7 +137,7 @@ export function PartnerPortal() {
           </div>
           <button
             type="button"
-            onClick={() => void run("logout", () => api("/api/partner/auth/logout", { method: "POST" }).then(() => setNeedLogin(true)))}
+            onClick={() => void run("logout", () => alerts.releasePush().then(() => api("/api/partner/auth/logout", { method: "POST" })).then(() => setNeedLogin(true)))}
             className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#3a3a42] px-3 text-sm text-[#d4d4d8] hover:bg-white/5"
           >
             <LogOut className="size-4" /> Keluar
@@ -211,6 +211,27 @@ export function PartnerPortal() {
               </button>
             ) : (
               <p className="self-center text-xs text-[#b8b8bf]">Atur layar HP agar tidak cepat mati saat jualan.</p>
+            )}
+            {alerts.pushState === "on" ? (
+              <p className="col-span-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#22c55e]/60 bg-[#0f2a1a] px-2 text-sm font-semibold text-[#bbf7d0]">
+                <BellRing className="size-4" aria-hidden /> Notifikasi HP aktif (juga saat layar terkunci)
+              </p>
+            ) : alerts.pushState === "off" ? (
+              <button
+                type="button"
+                onClick={() => void alerts.enablePush()}
+                className="col-span-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#ffd08a]/50 bg-[#2a1d0a] px-2 text-sm font-semibold text-[#ffe2b0]"
+              >
+                <BellRing className="size-4" aria-hidden /> Aktifkan notifikasi saat layar terkunci
+              </button>
+            ) : (
+              <p className="col-span-2 text-xs text-[#b8b8bf]">
+                {alerts.pushState === "ios-needs-install"
+                  ? "iPhone: buka menu Bagikan → \"Tambahkan ke Layar Utama\", lalu buka Portal Mitra dari ikon itu untuk mengaktifkan notifikasi."
+                  : alerts.pushState === "denied"
+                    ? "Notifikasi diblokir di browser ini. Izinkan notifikasi untuk situs ini di pengaturan browser."
+                    : "Browser ini tidak mendukung notifikasi saat layar terkunci — biarkan Portal Mitra terbuka."}
+              </p>
             )}
           </div>
         </section>

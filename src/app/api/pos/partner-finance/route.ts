@@ -19,6 +19,20 @@ export async function GET(request: Request) {
     const summaries = await Promise.all(
       targets.map(async (partner) => ({ partnerId: partner.id, partnerName: partner.name, partnerCode: partner.code, ...(await partnerFinanceSummary(partner.id, outletId, from, to)) })),
     );
-    return { from, to, partners: summaries };
+    // Kasir cukup tahu penjualan & jumlah setoran; HPP per item dan profit Garage hanya untuk Owner/Manajer.
+    if (session.data.profile.role === "Kasir") {
+      return {
+        from,
+        to,
+        costHidden: true,
+        partners: summaries.map((summary) => ({
+          ...summary,
+          totalCost: null,
+          garageProfit: null,
+          lines: summary.lines.map((line) => ({ ...line, unitCost: null, cost: null, profit: null })),
+        })),
+      };
+    }
+    return { from, to, costHidden: false, partners: summaries };
   });
 }

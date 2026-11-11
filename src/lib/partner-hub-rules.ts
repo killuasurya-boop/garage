@@ -76,6 +76,33 @@ export function isPastLastOrder(lastOrderByDay: Record<string, string | null> | 
   return limit !== null && minute > limit;
 }
 
+/** Awal hari operasional WIB (05:00) yang memuat instant `at` — status Buka/Jeda tidak terbawa ke hari berikutnya. */
+export function operationalDayStart(at: Date) {
+  const shifted = at.getTime() + 7 * 3_600_000 - 5 * 3_600_000;
+  return new Date(Math.floor(shifted / 86_400_000) * 86_400_000 - 2 * 3_600_000);
+}
+
+/**
+ * Status layanan yang BERLAKU sekarang:
+ * - Buka/Jeda yang ditekan sebelum hari operasional ini → "tutup" (mitra lupa menutup kemarin).
+ * - Buka tetapi Portal Mitra tidak terhubung lebih dari `heartbeatMinutes` → "offline" (HP mati / tanpa sinyal).
+ */
+export function effectiveOperationalStatus(
+  input: { operationalStatus: string; operationalStatusAt?: Date | string | null; lastSeenAt?: Date | string | null; heartbeatMinutes?: number },
+  at = new Date(),
+): string {
+  const status = input.operationalStatus;
+  if (status !== "buka" && status !== "jeda") return status;
+  const since = input.operationalStatusAt ? new Date(input.operationalStatusAt).getTime() : null;
+  if (since !== null && since < operationalDayStart(at).getTime()) return "tutup";
+  const window = input.heartbeatMinutes ?? 0;
+  if (status === "buka" && window > 0) {
+    const seen = input.lastSeenAt ? new Date(input.lastSeenAt).getTime() : null;
+    if (seen === null || at.getTime() - seen > window * 60_000) return "offline";
+  }
+  return status;
+}
+
 export type PartnerAvailabilityInput = {
   hubEnabled: boolean;
   partnerStatus: string;
@@ -95,6 +122,7 @@ export function partnerOrderBlockReason(input: PartnerAvailabilityInput, at = ne
   if (!input.linkActive) return "Produk mitra belum disetujui Owner.";
   if (input.operationalStatus === "tutup") return "Mitra sedang tutup.";
   if (input.operationalStatus === "jeda") return "Mitra sedang jeda.";
+  if (input.operationalStatus === "offline") return "Portal Mitra tidak terhubung (HP mitra mati / tanpa sinyal). Hubungi mitra.";
   if (input.operationalStatus !== "buka") return "Ketersediaan mitra belum terkonfirmasi.";
   if (input.productStock === "sold_out") return "Produk sedang habis (Sold Out).";
   if (isPastLastOrder(input.lastOrderByDay, at)) return "Sudah lewat jam last order mitra.";
@@ -107,6 +135,7 @@ export function partnerCardLabel(input: PartnerAvailabilityInput, at = new Date(
   if (input.partnerStatus !== "aktif") return "Mitra nonaktif";
   if (input.operationalStatus === "tutup") return "Mitra tutup";
   if (input.operationalStatus === "jeda") return "Mitra jeda";
+  if (input.operationalStatus === "offline") return "Mitra tidak terhubung";
   if (input.operationalStatus !== "buka") return "Mitra belum konfirmasi";
   if (input.productStock === "sold_out") return "Habis";
   if (isPastLastOrder(input.lastOrderByDay, at)) return "Lewat last order";
@@ -115,12 +144,14 @@ export function partnerCardLabel(input: PartnerAvailabilityInput, at = new Date(
 
 /** Pesanan mitra yang perlu perhatian kasir: belum diterima lewat SLA, atau sudah siap tapi belum diambil. */
 export function partnerOrdersNeedingAttention(
-  orders: Array<{ status: string; createdAt: string | Date; readyAt: string | Date | null; claimedByName?: string | null }>,
+  orders: Array<{ status: string; createdAt: string | Date; readyAt: string | Date | null; claimedByName?: string | null; needsRefund?: boolean }>,
   now: number,
   slaWarnMinutes: number,
   readyWarnMinutes: number,
 ) {
   return orders.filter((order) => {
+    // Ditolak mitra & uang pelanggan belum diselesaikan: selalu perlu perhatian.
+    if (order.needsRefund) return true;
     if (order.status === "queue") return now - new Date(order.createdAt).getTime() >= slaWarnMinutes * 60_000;
     if (order.status === "ready" && !order.claimedByName) return Boolean(order.readyAt) && now - new Date(order.readyAt as string | Date).getTime() >= readyWarnMinutes * 60_000;
     return false;

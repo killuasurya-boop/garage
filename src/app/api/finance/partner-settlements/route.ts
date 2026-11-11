@@ -19,7 +19,11 @@ export async function GET(request: Request) {
   const session = await requireCashierSession();
   if (session.response) return session.response;
   const partnerId = new URL(request.url).searchParams.get("partnerId") || undefined;
-  return partnerRoute(() => listPartnerSettlements(session.data.profile.outlet.id, partnerId));
+  return partnerRoute(async () => {
+    const rows = await listPartnerSettlements(session.data.profile.outlet.id, partnerId);
+    if (session.data.profile.role !== "Kasir") return rows;
+    return rows.map((row) => ({ ...row, settlement: { ...row.settlement, totalCost: null, garageProfit: null } }));
+  });
 }
 
 // Draft closing/settlement per mitra (kasir boleh menyusun & mengajukan; persetujuan = Owner).

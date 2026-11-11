@@ -4,7 +4,7 @@
 // endpoint waiter yang sudah ada (/api/waiter/tickets/[no]/claim|deliver): satu klaim sah, anti dobel.
 
 import { useCallback, useEffect, useState } from "react";
-import { Bike, CheckCircle2, MessageCircle, RefreshCw, TriangleAlert } from "lucide-react";
+import { Bike, CheckCircle2, MessageCircle, RefreshCw, TriangleAlert, Undo2 } from "lucide-react";
 
 import { api, Btn, Card, Chip, Notice, TICKET_LABEL, TICKET_TONE, timeWib } from "./desk-shared";
 
@@ -24,6 +24,8 @@ export type PartnerOrder = {
   partnerPhone: string | null;
   handoverPoint: string | null;
   paymentLabel: string;
+  needsRefund?: boolean;
+  escalated?: boolean;
 };
 
 function waLink(order: PartnerOrder) {
@@ -83,7 +85,23 @@ export function DeskOrders({ mode, slaWarnMinutes = 2, readyWarnMinutes = 3 }: {
     }
   }
 
+  async function refundRejected(ticketNo: string) {
+    setBusy(`${ticketNo}-refund`);
+    setMessage(null);
+    try {
+      const res = await api<{ kind: "refund" | "void"; status: string }>(`/api/pos/partner-orders/${ticketNo}/refund`, { method: "POST" });
+      const what = res.kind === "void" ? "Pembatalan order" : "Refund item";
+      setMessage({ tone: "ok", text: res.status === "pending" ? `${what} diajukan — menunggu persetujuan Manajer/Owner.` : `${what} selesai. Kembalikan uang ke pelanggan sesuai struk refund.` });
+      await load();
+    } catch (error) {
+      setMessage({ tone: "error", text: (error as Error).message });
+    } finally {
+      setBusy(null);
+    }
+  }
+
   const list = (orders ?? []).filter((order) => (mode === "pickup" ? order.status === "ready" : true));
+  const needRefund = (orders ?? []).filter((order) => order.needsRefund);
   const lateReady = (orders ?? []).filter((o) => o.status === "ready" && o.readyAt && now - new Date(o.readyAt).getTime() > readyWarnMinutes * 60_000);
 
   return (
@@ -92,6 +110,11 @@ export function DeskOrders({ mode, slaWarnMinutes = 2, readyWarnMinutes = 3 }: {
       {lateReady.length ? (
         <p role="alert" className="flex items-center gap-2 rounded-lg border border-[#ff5a66]/50 bg-[#3a1015] px-3 py-2 text-sm text-[#ffd0d4]">
           <TriangleAlert className="size-4" /> {lateReady.length} pesanan mitra sudah siap lebih dari {readyWarnMinutes} menit — segera diantar.
+        </p>
+      ) : null}
+      {mode === "monitor" && needRefund.length ? (
+        <p role="alert" className="flex items-center gap-2 rounded-lg border border-[#ff5a66]/50 bg-[#3a1015] px-3 py-2 text-sm text-[#ffd0d4]">
+          <TriangleAlert className="size-4 shrink-0" /> {needRefund.length} pesanan ditolak mitra — uang pelanggan belum dikembalikan. Ajukan refund di kartu bertanda merah.
         </p>
       ) : null}
       <div className="flex items-center justify-between gap-2">
@@ -115,7 +138,7 @@ export function DeskOrders({ mode, slaWarnMinutes = 2, readyWarnMinutes = 3 }: {
             const late = order.status === "queue" && waitMin >= slaWarnMinutes;
             const link = waLink(order);
             return (
-              <li key={order.ticketNo} className={`rounded-xl border bg-[#17171c] p-4 ${late ? "border-[#ff5a66]/70" : "border-[#34343c]"}`}>
+              <li key={order.ticketNo} className={`rounded-xl border bg-[#17171c] p-4 ${late || order.needsRefund ? "border-[#ff5a66]/70" : "border-[#34343c]"}`}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-base font-bold text-white">
                     {order.orderNo} <span className="ml-1 rounded border border-[#4a4a54] px-1.5 py-0.5 text-xs">{order.tableLabel ?? "Take away"}</span>
@@ -136,7 +159,16 @@ export function DeskOrders({ mode, slaWarnMinutes = 2, readyWarnMinutes = 3 }: {
                 </ul>
                 {order.handoverPoint ? <p className="mt-1 text-xs text-[#ffd08a]">Ambil di: {order.handoverPoint}</p> : null}
                 {order.claimedByName ? <p className="mt-1 text-xs text-[#bfdbfe]">Diklaim: {order.claimedByName}</p> : null}
-                {late ? <p className="mt-1 text-xs font-semibold text-[#ff8a94]">Belum diterima mitra lebih dari {slaWarnMinutes} menit.</p> : null}
+                {late ? (
+                  <p className="mt-1 text-xs font-semibold text-[#ff8a94]">
+                    {order.escalated ? `Belum diterima mitra — hubungi mitra sekarang (${waitMin} menit).` : `Belum diterima mitra lebih dari ${slaWarnMinutes} menit.`}
+                  </p>
+                ) : null}
+                {order.needsRefund ? (
+                  <p className="mt-1 text-xs font-semibold text-[#ff8a94]">
+                    Ditolak mitra{order.issueReason ? `: ${order.issueReason}` : ""}. {order.paymentLabel === "Lunas" ? "Pelanggan sudah bayar — ajukan refund." : "Bill belum dibayar — keluarkan item ini sebelum pelanggan membayar."}
+                  </p>
+                ) : null}
                 <div className="mt-3 flex flex-wrap gap-2">
                   {order.status === "ready" && !order.claimedByName ? (
                     <Btn tone="primary" busy={busy === `${order.ticketNo}-claim`} onClick={() => void act(order.ticketNo, "claim")}>
@@ -146,6 +178,11 @@ export function DeskOrders({ mode, slaWarnMinutes = 2, readyWarnMinutes = 3 }: {
                   {order.status === "ready" && order.claimedByName ? (
                     <Btn tone="success" busy={busy === `${order.ticketNo}-deliver`} onClick={() => void act(order.ticketNo, "deliver")}>
                       <CheckCircle2 className="size-4" /> Sudah diantar
+                    </Btn>
+                  ) : null}
+                  {order.needsRefund && mode === "monitor" && order.paymentLabel === "Lunas" ? (
+                    <Btn tone="danger" busy={busy === `${order.ticketNo}-refund`} onClick={() => void refundRejected(order.ticketNo)}>
+                      <Undo2 className="size-4" /> Ajukan refund
                     </Btn>
                   ) : null}
                   {link && mode === "monitor" ? (

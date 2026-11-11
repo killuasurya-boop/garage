@@ -390,6 +390,13 @@ Scroll direction:
   the drawer; Manajer records → Owner verifies (Owner = self_verified). FINAL PDF only after approval, official logo required
   (fail-closed), versions + checksum in `partner_reports` (regenerated from snapshot). `partner_events` is append-only.
   Staff UI `/partners` (tabs per role; POS nav "Partner Hub" when enabled).
+  Hardening (11 Nov 2026, migration 0189): effective service status = `effectiveOperationalStatus` (Buka/Jeda never carries past
+  05:00 WIB; portal heartbeat `partners.last_seen_at` older than `partnerHeartbeatMinutes` → "offline", 0 = off) — always go through
+  `loadPartnerLinks`. Rejected paid tickets stay on the cashier monitor (`needsRefund`) until refunded via
+  `POST /api/pos/partner-orders/[ticketNo]/refund` (existing refund/void approval, no new money path). `partnerSlaEscalateMinutes`
+  = one urgent notify per ticket (cashier + management). Partner Web Push = `partner_push_subscriptions` (`sendPartnerPush`, sent
+  after commit). Owner with 2FA must pass `totpCode` to approve a settlement. Payout proof photos reuse `storage/cash-receipts`.
+  Split bill moves/splits `partner_order_lines` (`movePartnerLineOnSplit`). Kasir never receives partner HPP/profit; session 7 days.
 
 ## Product Management Rules
 

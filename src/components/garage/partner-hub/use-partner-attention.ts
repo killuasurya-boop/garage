@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 
 import { partnerOrdersNeedingAttention } from "@/lib/partner-hub-rules";
 
-type Row = { status: string; createdAt: string; readyAt: string | null; claimedByName: string | null };
+type Row = { status: string; createdAt: string; readyAt: string | null; claimedByName: string | null; needsRefund?: boolean };
 
 export function usePartnerAttention(enabled: boolean, slaWarnMinutes: number, readyWarnMinutes: number) {
   const [count, setCount] = useState(0);

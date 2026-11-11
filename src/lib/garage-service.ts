@@ -79,8 +79,8 @@ import {
   syncProductionItemsForTicket,
   type ProductionMenuInfo,
 } from "@/lib/garage-production-tickets";
-import { assertPartnerItemsOrderable, createPartnerTicketsForOrder, loadPartnerLinks, recordPartnerRefundAdjustment } from "@/lib/partner-hub-orders";
-import { partnerCardLabel } from "@/lib/partner-hub-rules";
+import { assertPartnerItemsOrderable, createPartnerTicketsForOrder, loadPartnerLinks, movePartnerLineOnSplit, recordPartnerRefundAdjustment } from "@/lib/partner-hub-orders";
+import { effectiveOperationalStatus, partnerCardLabel } from "@/lib/partner-hub-rules";
 import {
   GarageOsThemeSaveError,
   isSavableGarageOsThemePreset,
@@ -1733,13 +1733,18 @@ export async function getMenuData(params?: {
   if (partnerRows.length) {
     const links = await loadPartnerLinks(db, partnerRows.map((row) => row.id));
     const hubByOutlet = new Map<string, boolean>();
+    const heartbeatByOutlet = new Map<string, number>();
     for (const row of partnerRows) {
       const link = links.get(row.id);
       if (!link) {
         hiddenPartnerIds.add(row.id);
         continue;
       }
-      if (!hubByOutlet.has(link.outletId)) hubByOutlet.set(link.outletId, (await getAppSettings(link.outletId)).partnerHubEnabled);
+      if (!hubByOutlet.has(link.outletId)) {
+        const outletSettings = await getAppSettings(link.outletId);
+        hubByOutlet.set(link.outletId, outletSettings.partnerHubEnabled);
+        heartbeatByOutlet.set(link.outletId, outletSettings.partnerHeartbeatMinutes);
+      }
       if (!hubByOutlet.get(link.outletId) || !link.linkActive || !["aktif", "dibekukan"].includes(link.partnerStatus)) {
         hiddenPartnerIds.add(row.id);
         continue;
@@ -1747,7 +1752,12 @@ export async function getMenuData(params?: {
       const availability = {
         hubEnabled: true,
         partnerStatus: link.partnerStatus,
-        operationalStatus: link.operationalStatus,
+        operationalStatus: effectiveOperationalStatus({
+          operationalStatus: link.rawOperationalStatus,
+          operationalStatusAt: link.operationalStatusAt,
+          lastSeenAt: link.lastSeenAt,
+          heartbeatMinutes: heartbeatByOutlet.get(link.outletId),
+        }),
         linkActive: link.linkActive,
         productStock: row.stock,
         lastOrderByDay: link.lastOrderByDay,
@@ -9769,7 +9779,7 @@ async function createCustomerOrderImpl(input: CustomerOrderInput) {
   const regularSubtotal = subtotal - packageSubtotal;
   const settings = await getAppSettings(settingsOutlet?.id ?? null);
   // Smart Partner Hub (DEC-14): produk mitra tidak bisa di-checkout pelanggan sendiri; order staf divalidasi ulang.
-  const partnerLinks = await loadPartnerLinks(db, itemIds);
+  const partnerLinks = await loadPartnerLinks(db, itemIds, { heartbeatMinutes: settings.partnerHeartbeatMinutes });
   assertPartnerItemsOrderable(
     lines.map((line) => ({ itemId: line.itemId, itemName: line.itemName, productType: line.productType, stock: line.stock })),
     partnerLinks,
@@ -11739,7 +11749,7 @@ async function createOrderOnce(
   );
   const settings = await getAppSettings(garage.profile.outlet.id);
   // Smart Partner Hub: produk mitra divalidasi ulang di server (aktif, BUKA, Tersedia, last order).
-  const partnerLinks = await loadPartnerLinks(db, itemIds);
+  const partnerLinks = await loadPartnerLinks(db, itemIds, { heartbeatMinutes: settings.partnerHeartbeatMinutes });
   assertPartnerItemsOrderable(
     lines.map((line) => ({ itemId: line.itemId, itemName: line.itemName, productType: line.productType, stock: line.stock })),
     partnerLinks,
@@ -16219,6 +16229,7 @@ export async function splitCustomerOrder(
       const item = currentItems.find((row) => row.id === line.orderItemId)!;
       if (line.qty >= item.qty) {
         await tx.update(orderItems).set({ orderId: child.id }).where(eq(orderItems.id, item.id));
+        await movePartnerLineOnSplit(tx, { orderItemId: item.id, child: { id: child.id, orderNo: child.orderNo } });
         continue;
       }
       const keepQty = item.qty - line.qty;
@@ -16226,18 +16237,23 @@ export async function splitCustomerOrder(
         .update(orderItems)
         .set({ qty: keepQty, lineTotal: item.unitPrice * keepQty })
         .where(eq(orderItems.id, item.id));
-      await tx.insert(orderItems).values({
-        orderId: child.id,
-        menuItemId: item.menuItemId,
-        variantId: item.variantId,
-        itemName: item.itemName,
-        variantLabel: item.variantLabel,
-        unitPrice: item.unitPrice,
-        qty: line.qty,
-        lineTotal: item.unitPrice * line.qty,
-        eventSnapshot: item.eventSnapshot,
-        note: item.note,
-      });
+      const [movedItem] = await tx
+        .insert(orderItems)
+        .values({
+          orderId: child.id,
+          menuItemId: item.menuItemId,
+          variantId: item.variantId,
+          itemName: item.itemName,
+          variantLabel: item.variantLabel,
+          unitPrice: item.unitPrice,
+          qty: line.qty,
+          lineTotal: item.unitPrice * line.qty,
+          eventSnapshot: item.eventSnapshot,
+          note: item.note,
+        })
+        .returning({ id: orderItems.id });
+      // Smart Partner Hub: snapshot mitra ikut terbagi supaya void/refund bill pisahan dihitung benar.
+      await movePartnerLineOnSplit(tx, { orderItemId: item.id, child: { id: child.id, orderNo: child.orderNo }, movedQty: line.qty, newOrderItemId: movedItem.id });
     }
 
     await tx

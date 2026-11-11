@@ -384,3 +384,79 @@ export const PARTNER_MARKETING_RULES = [
   "Tampil di menu digital Garage",
   "Dipilih Owner untuk dipromosikan (maks. 8 produk di halaman utama)",
 ] as const;
+
+// ─── Kontrol status mitra dari daftar (Owner) ────────────────────────────────
+
+export type PartnerStatusActionKind = "activate" | "freeze" | "deactivate" | "reopen";
+export type PartnerStatusAction = {
+  kind: PartnerStatusActionKind;
+  label: string;
+  /** Urutan transisi sah sampai tujuan (PARTNER_STATUS_FLOW), dijalankan berurutan oleh server. */
+  path: PartnerStatus[];
+  ownerOnly: boolean;
+  /** Akibat yang ditampilkan di dialog konfirmasi. */
+  effect: string;
+};
+
+/** Hak ubah status (dicek ulang di server): aktif & nonaktif = Owner; bekukan/draft/verifikasi = Owner atau Manajer. */
+export function partnerStatusNeedsOwner(to: string) {
+  return to === "disetujui" || to === "aktif" || to === "nonaktif";
+}
+
+const ACTIVATE_PATH: Partial<Record<PartnerStatus, PartnerStatus[]>> = {
+  draft: ["verifikasi", "disetujui", "aktif"],
+  verifikasi: ["disetujui", "aktif"],
+  disetujui: ["aktif"],
+  dibekukan: ["aktif"],
+};
+
+/** Pilihan di menu status baris mitra, sesuai status sekarang dan peran. */
+export function partnerStatusActions(status: string, role: string): PartnerStatusAction[] {
+  const owner = role === "Owner";
+  const actions: PartnerStatusAction[] = [];
+  const activate = ACTIVATE_PATH[status as PartnerStatus];
+  if (activate) {
+    actions.push({
+      kind: "activate",
+      label: status === "dibekukan" ? "Aktifkan lagi" : "Aktifkan mitra",
+      path: activate,
+      ownerOnly: true,
+      effect: "Produk yang disetujui bisa dijual lagi di POS, waiter, menu digital & website. Mitra mengatur Buka/Jeda/Tutup dari HP.",
+    });
+  }
+  if (status === "aktif") {
+    actions.push({
+      kind: "freeze",
+      label: "Bekukan sementara",
+      path: ["dibekukan"],
+      ownerOnly: false,
+      effect: "Produk langsung berhenti dijual & hilang dari website. Mitra tetap bisa login untuk menyelesaikan pesanan berjalan dan melihat setoran.",
+    });
+  }
+  if (status === "aktif" || status === "dibekukan" || status === "draft" || status === "verifikasi" || status === "disetujui") {
+    actions.push({
+      kind: "deactivate",
+      label: "Nonaktifkan (akhiri kerja sama)",
+      path: ["nonaktif"],
+      ownerOnly: true,
+      effect: "Berhenti dijual dan login Portal Mitra ditolak. Riwayat transaksi, setoran & laporan tetap tersimpan. Untuk kembali harus lewat Draft lagi.",
+    });
+  }
+  if (status === "nonaktif") {
+    actions.push({
+      kind: "reopen",
+      label: "Buka ulang (Draft)",
+      path: ["draft"],
+      ownerOnly: false,
+      effect: "Mitra kembali ke Draft. Lengkapi syarat lalu aktifkan lagi.",
+    });
+  }
+  return actions.filter((a) => owner || !a.ownerOnly).filter((a) => a.path.every((to, i) => canChangePartnerStatus(i === 0 ? status : a.path[i - 1], to)));
+}
+
+export const PARTNER_STATUS_REASONS: Record<PartnerStatusActionKind, string[]> = {
+  activate: ["Kontrak & harga sudah disepakati", "Masalah sudah selesai", "Mitra kembali beroperasi"],
+  freeze: ["Masalah kualitas produk", "Keluhan pelanggan", "Setoran / administrasi bermasalah", "Mitra libur sementara"],
+  deactivate: ["Kerja sama selesai", "Mitra mengundurkan diri", "Pelanggaran kesepakatan"],
+  reopen: ["Kerja sama dibuka kembali"],
+};

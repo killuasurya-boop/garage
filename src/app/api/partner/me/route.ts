@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 // Ringkasan Portal Mitra — hanya data mitra yang sedang login (partner_id dari sesi).
 export async function GET(request: Request) {
-  const session = await requirePartnerSession(request);
+  const session = await requirePartnerSession(request, { allowPinChangePending: true });
   if (session.response) return session.response;
   return partnerRoute(async () => {
     const [overview, settings] = await Promise.all([partnerPortalOverview(session.data), getAppSettings(session.data.partner.outletId)]);

@@ -32,6 +32,7 @@ type Ticket = {
 type Overview = {
   partner: { id: string; name: string; code: string; status: string; operationalStatus: string };
   products: Array<{ linkId: string; name: string; category: string; imageUrl: string | null; active: boolean; available: boolean; variants: Array<{ variantId?: string; label: string; sellPrice: number; unitCost?: number }> }>;
+  mustChangePin?: boolean;
   activeTickets: Ticket[];
   cancelledTickets?: Array<Ticket & { cancelledAt: string | null }>;
   today: { qty: number; gross: number; liability: number; orders: number };
@@ -136,6 +137,17 @@ export function PartnerPortal() {
     );
   }
   if (needLogin || !overview) return <PartnerLogin onDone={() => void load()} />;
+  if (overview.mustChangePin) {
+    // PIN buatan staf: portal baru bisa dipakai setelah mitra membuat PIN sendiri (server juga menolak aksi lain).
+    return (
+      <main className="grid min-h-dvh place-items-center bg-[#0b0b0d] px-4 py-8 text-[#e4e4e8]">
+        <div className="w-full max-w-md">
+          <p className="mb-3 text-lg font-bold text-white">Halo, {overview.partner.name}</p>
+          <PartnerPinChange forced onDone={() => void load()} />
+        </div>
+      </main>
+    );
+  }
 
   const p = overview.partner;
   const op = p.operationalStatus;

@@ -15,6 +15,8 @@ const PRICE = 22_000;
 const COST = 19_000;
 const PARTNER_PHONE = "081299990001";
 const PARTNER_PIN = "246813";
+// PIN buatan staf: mitra wajib menggantinya sendiri saat pertama masuk (must_change_pin).
+const STAFF_PIN = "975310";
 const PARTNER2_PHONE = "081299990002";
 
 type Ctx = { page: Page; api: APIRequestContext; close: () => Promise<void> };
@@ -51,7 +53,17 @@ async function sell(api: APIRequestContext, items: Array<{ itemId: string; varia
 
 async function partnerApi(browser: Browser, phone: string) {
   const context = await browser.newContext();
-  const login = await context.request.post("/api/partner/auth/login", { data: { phone, pin: PARTNER_PIN } });
+  let login = await context.request.post("/api/partner/auth/login", { data: { phone, pin: PARTNER_PIN } });
+  if (login.status() !== 200) {
+    // Login pertama memakai PIN dari staf, lalu mitra membuat PIN sendiri (aksi lain ditolak sebelum itu).
+    login = await context.request.post("/api/partner/auth/login", { data: { phone, pin: STAFF_PIN } });
+    if (login.status() === 200) {
+      const blocked = await context.request.get("/api/partner/tickets");
+      expect(blocked.status(), "sebelum ganti PIN, aksi portal ditolak").toBe(403);
+      const changed = await context.request.post("/api/partner/auth/pin", { data: { oldPin: STAFF_PIN, newPin: PARTNER_PIN } });
+      expect(changed.status(), "ganti PIN pertama").toBe(200);
+    }
+  }
   return { api: context.request, status: login.status(), close: () => context.close() };
 }
 
@@ -83,7 +95,7 @@ test("UAT-A: Owner & Manajer menyiapkan mitra pilot; aktivasi tidak bisa dilompa
   await call(manager.api, "PATCH", `/api/partners/${state.partnerId}`, { terms: "Harga & serah-terima sesuai kesepakatan tertulis." });
   const bank = await call<{ id: string }>(manager.api, "POST", `/api/partners/${state.partnerId}/bank-accounts`, { bankName: "Mandiri", accountName: "Henry", accountNumber: "1234560148" }, 201);
   await call(owner.api, "POST", `/api/partners/bank-accounts/${bank.data.id}/verify`);
-  await call(manager.api, "POST", `/api/partners/${state.partnerId}/accounts`, { phone: PARTNER_PHONE, displayName: "Henry (mitra)", pin: PARTNER_PIN }, 201);
+  await call(manager.api, "POST", `/api/partners/${state.partnerId}/accounts`, { phone: PARTNER_PHONE, displayName: "Henry (mitra)", pin: STAFF_PIN }, 201);
   const product = await call<{ linkId: string; menuItemId: string }>(manager.api, "POST", `/api/partners/${state.partnerId}/products`, {
     code: "PAU-001",
     name: "Es Krim Pokat",
@@ -111,7 +123,7 @@ test("UAT-A: Owner & Manajer menyiapkan mitra pilot; aktivasi tidak bisa dilompa
   assertNoErrors();
 });
 
-test("UAT-B: kasir jual kopi + produk mitra; Habis/Tutup ditolak server (UAT-03/04/06/26)", async ({ browser }, info) => {
+test("UAT-B: kasir jual kopi + produk mitra; Habis ditolak server, Tutup/last order hanya keterangan (UAT-03/04/06/26)", async ({ browser }, info) => {
   test.skip(info.project.name !== "desktop-1366", "alur Partner Hub diuji di desktop");
   // Satu outlet = satu shift terbuka. Bila spec sebelumnya (mis. decision-center, Kasir 2) masih punya shift
   // terbuka — dan spec POS sesudahnya memakai shift itu — jual lewat kasir yang shift-nya sedang buka.
@@ -136,9 +148,15 @@ test("UAT-B: kasir jual kopi + produk mitra; Habis/Tutup ditolak server (UAT-03/
   state.garageItem = { itemId: coffee.id, variantId: coffee.variants[0].id };
   expect(items.some((item) => item.id === state.menuItemId), "produk mitra tampil di menu POS saat hub aktif").toBeTruthy();
 
-  // Mitra masih TUTUP (belum konfirmasi BUKA) → ditolak.
-  const closed = await sell(kasir.api, [partnerItem(1)], {}, 400);
-  expect(closed.error?.message ?? "").toMatch(/tutup|belum terkonfirmasi|jeda/i);
+  // Mitra masih TUTUP (belum konfirmasi BUKA): produk tetap bisa dipesan selama Tersedia — kartu hanya memberi keterangan.
+  const partnerCard = (list: unknown) =>
+    ((Array.isArray(list) ? list : ((list as { items?: unknown[] }).items ?? [])) as Array<{ id: string; stock?: string; partner?: { label: string | null; note?: string | null } }>).find(
+      (item) => item.id === state.menuItemId,
+    )!;
+  const closedCard = partnerCard(menu.data);
+  expect(closedCard.stock).not.toBe("sold_out");
+  expect(closedCard.partner?.label ?? null).toBeNull();
+  expect(closedCard.partner?.note ?? "").toMatch(/tutup|belum konfirmasi|jeda|tidak terhubung/i);
 
   const partner = await partnerApi(browser, PARTNER_PHONE);
   expect(partner.status).toBe(200);
@@ -160,11 +178,12 @@ test("UAT-B: kasir jual kopi + produk mitra; Habis/Tutup ditolak server (UAT-03/
   expect(soldOut.error?.message ?? "").toMatch(/habis|sold out/i);
   await call(partner.api, "PATCH", `/api/partner/products/${state.linkId}/availability`, { available: true });
 
-  // UAT-26: last order lewat (semua hari 00:00) → ditolak; dikembalikan.
+  // UAT-26: last order lewat (semua hari 00:00) → tetap bisa dipesan, kartu memberi keterangan; dikembalikan.
   const allDays = Object.fromEntries(["0", "1", "2", "3", "4", "5", "6"].map((d) => [d, "00:00"]));
   await call(owner.api, "PATCH", `/api/partners/${state.partnerId}`, { lastOrderByDay: allDays });
-  const late = await sell(kasir.api, [partnerItem(1)], {}, 400);
-  expect(late.error?.message ?? "").toMatch(/last order/i);
+  const lateCard = partnerCard((await call<unknown>(kasir.api, "GET", "/api/menu")).data);
+  expect(lateCard.stock).not.toBe("sold_out");
+  expect(lateCard.partner?.note ?? "").toMatch(/last order/i);
   await call(owner.api, "PATCH", `/api/partners/${state.partnerId}`, { lastOrderByDay: Object.fromEntries(Object.keys(allDays).map((d) => [d, null])) });
   await partner.close();
 });
@@ -350,7 +369,7 @@ test("UAT-E: settlement → approve → payout parsial & lunas; referensi ganda 
   await call(manager.api, "PATCH", `/api/partners/${state.partner2Id}`, { phone: "081234500002", terms: "Uji isolasi." });
   const bank = await call<{ id: string }>(manager.api, "POST", `/api/partners/${state.partner2Id}/bank-accounts`, { bankName: "BNI", accountName: "Dimsum", accountNumber: "9876543210" }, 201);
   await call(owner.api, "POST", `/api/partners/bank-accounts/${bank.data.id}/verify`);
-  await call(manager.api, "POST", `/api/partners/${state.partner2Id}/accounts`, { phone: PARTNER2_PHONE, displayName: "Dimsum", pin: PARTNER_PIN }, 201);
+  await call(manager.api, "POST", `/api/partners/${state.partner2Id}/accounts`, { phone: PARTNER2_PHONE, displayName: "Dimsum", pin: STAFF_PIN }, 201);
   const prod = await call<{ linkId: string }>(manager.api, "POST", `/api/partners/${state.partner2Id}/products`, {
     code: "DSM-001", name: "Dimsum Ayam", category: "Dimsum", variants: [{ variantId: "reg", label: "Regular", unitCost: 22_000, sellPrice: 25_000 }],
   }, 201);

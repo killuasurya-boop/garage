@@ -107,7 +107,7 @@ describe("Smart Partner Hub — registrasi & aktivasi", () => {
 
   it("nomor HP/WA mitra wajib angka: nama pengguna ditolak untuk akun login & profil", async () => {
     await expect(
-      svc.createPartnerAccount(partnerA.id, { phone: "dimsumcidut", displayName: "Salah isi", pin: "123456" }, manager()),
+      svc.createPartnerAccount(partnerA.id, { phone: "dimsumcidut", displayName: "Salah isi", pin: "246810" }, manager()),
     ).rejects.toThrow(/Nomor HP\/WhatsApp tidak valid/);
     await expect(svc.updatePartnerProfile(partnerA.id, { phone: "eskrimpokatau" }, manager())).rejects.toThrow(/tidak valid/);
     const row = await svc.updatePartnerProfile(partnerA.id, { phone: "+62 851-3964-9855", handoverPoint: "Meja pass" }, manager());
@@ -587,7 +587,7 @@ describe("Smart Partner Hub — kesiapan operasional (11 Nov 2026)", () => {
   });
 
   it("nomor HP tidak valid tetap ditolak saat membuat akun dari portal admin", async () => {
-    await expect(svc.createPartnerAccount(partnerA.id, { phone: "abc12345678", displayName: "x", pin: "123456" }, manager())).rejects.toThrow(/tidak valid/);
+    await expect(svc.createPartnerAccount(partnerA.id, { phone: "abc12345678", displayName: "x", pin: "246810" }, manager())).rejects.toThrow(/tidak valid/);
   });
 });
 
@@ -946,6 +946,30 @@ describe("Smart Partner Hub — pelanggan pesan sendiri dari QR meja (owner Nov 
       .where(and(eq(t.schema.partnerEvents.partnerId, partnerB.id), eq(t.schema.partnerEvents.kind, "ticket_cancelled_by_garage"), eq(t.schema.partnerEvents.subjectId, ticket.ticketNo)));
     expect(events).toHaveLength(1);
     await d.update(t.schema.orders).set({ status: "voided" }).where(eq(t.schema.orders.id, order.id));
+  });
+
+  it("PIN buatan staf: PIN lemah ditolak; mitra wajib ganti PIN sebelum aksi lain", async () => {
+    const d = t.getDb();
+    const { eq } = await import("drizzle-orm");
+    const auth = await import("@/lib/partner-auth");
+    await expect(svc.createPartnerAccount(partnerB.id, { phone: "081277700011", displayName: "PIN lemah", pin: "111111" }, manager())).rejects.toThrow(/mudah ditebak/);
+    const acc = await svc.createPartnerAccount(partnerB.id, { phone: "081277700012", displayName: "Baru", pin: "864209" }, manager());
+    const [row] = await d.select().from(t.schema.partnerAccounts).where(eq(t.schema.partnerAccounts.id, acc.id));
+    expect(row.mustChangePin).toBe(true);
+    const cookie = (version: number) => `${auth.PARTNER_COOKIE}=${auth.signPartnerSession({ id: acc.id, partnerId: partnerB.id, sessionVersion: version })}`;
+    const req = (version: number) => new Request("http://localhost/api/partner/tickets", { headers: { cookie: cookie(version) } });
+    const blocked = await auth.requirePartnerSession(req(row.sessionVersion));
+    expect(blocked.response?.status).toBe(403);
+    expect((await auth.requirePartnerSession(req(row.sessionVersion), { allowPinChangePending: true })).data?.account.mustChangePin).toBe(true);
+    const changed = await auth.changePartnerPin(acc.id, "864209", "975318");
+    expect(changed.ok).toBe(true);
+    const after = await auth.requirePartnerSession(req(row.sessionVersion + 1));
+    expect(after.data?.account.mustChangePin).toBe(false);
+    // Reset PIN oleh staf → wajib ganti lagi.
+    await expect(svc.updatePartnerAccount(acc.id, { pin: "123456" }, manager())).rejects.toThrow(/mudah ditebak/);
+    await svc.updatePartnerAccount(acc.id, { pin: "531864" }, manager());
+    const [reset] = await d.select().from(t.schema.partnerAccounts).where(eq(t.schema.partnerAccounts.id, acc.id));
+    expect(reset.mustChangePin).toBe(true);
   });
 
   it("meja terisi: tanpa kode gabung (bawaan) siapa saja boleh menambah pesanan; setting wajib kode → ditolak", async () => {

@@ -1345,6 +1345,13 @@
       "when": 1794393822208,
       "tag": "0191_partner_price_proposals",
       "breakpoints": true
+    },
+    {
+      "idx": 192,
+      "version": "7",
+      "when": 1794430638499,
+      "tag": "0192_partner_must_change_pin",
+      "breakpoints": true
     }
   ]
 }

@@ -241,8 +241,8 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 /** Ganti PIN sendiri (PIN lama wajib). HP lain otomatis keluar. */
-export function PartnerPinChange() {
-  const [open, setOpen] = useState(false);
+export function PartnerPinChange({ forced = false, onDone }: { forced?: boolean; onDone?: () => void } = {}) {
+  const [open, setOpen] = useState(forced);
   const [form, setForm] = useState({ oldPin: "", newPin: "", confirm: "" });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -256,6 +256,7 @@ export function PartnerPinChange() {
       await api("/api/partner/auth/pin", { method: "POST", body: JSON.stringify({ oldPin: form.oldPin, newPin: form.newPin }) });
       setForm({ oldPin: "", newPin: "", confirm: "" });
       setMsg({ ok: true, text: "PIN berhasil diganti. HP lain yang masih masuk otomatis keluar." });
+      onDone?.();
     } catch (err) {
       setMsg({ ok: false, text: (err as Error).message });
     } finally {
@@ -265,10 +266,15 @@ export function PartnerPinChange() {
   const input = "h-12 w-full rounded-lg border border-[#3a3a42] bg-black/30 px-3 text-base tracking-[0.3em] text-white";
   return (
     <section className={card}>
-      <button type="button" aria-expanded={open} onClick={() => setOpen((v) => !v)} className="flex min-h-11 w-full items-center gap-2 text-left text-base font-bold text-white">
-        <KeyRound className="size-4 text-[#ff5a66]" /> Ganti PIN
-        <span className="ml-auto text-sm font-normal text-[#b8b8bf]">{open ? "Tutup" : "Buka"}</span>
+      <button type="button" aria-expanded={open} disabled={forced} onClick={() => setOpen((v) => !v)} className="flex min-h-11 w-full items-center gap-2 text-left text-base font-bold text-white">
+        <KeyRound className="size-4 text-[#ff5a66]" /> {forced ? "Buat PIN pribadi Anda" : "Ganti PIN"}
+        {forced ? null : <span className="ml-auto text-sm font-normal text-[#b8b8bf]">{open ? "Tutup" : "Buka"}</span>}
       </button>
+      {forced ? (
+        <p className="mt-1 text-sm text-[#e4e4e8]">
+          PIN Anda dibuat oleh staf Garage. Demi keamanan, ganti dengan PIN yang hanya Anda tahu sebelum memakai Portal Mitra. Isi &quot;PIN lama&quot; dengan PIN dari staf.
+        </p>
+      ) : null}
       {open ? (
         <form onSubmit={submit} className="mt-2 grid gap-2">
           <label className="grid gap-1 text-sm text-[#e4e4e8]">

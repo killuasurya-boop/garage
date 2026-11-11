@@ -33,7 +33,7 @@ import {
 } from "@/db/schema";
 import type { GarageSession } from "@/lib/server-auth";
 import { hashPassword } from "@/lib/member-auth";
-import type { PartnerSession } from "@/lib/partner-auth";
+import { isWeakPartnerPin, type PartnerSession } from "@/lib/partner-auth";
 import {
   canChangePartnerStatus,
   effectiveOperationalStatus,
@@ -336,6 +336,7 @@ export async function verifyPartnerBankAccount(bankAccountId: string, garage: Ga
 export async function createPartnerAccount(partnerId: string, input: { phone: string; displayName: string; pin: string }, garage: GarageSession) {
   assertOwnerOrManager(garage, "Membuat akun mitra");
   if (!/^\d{6}$/.test(input.pin)) throw new PartnerHubError("INVALID_PIN", "PIN mitra harus 6 angka.");
+  if (isWeakPartnerPin(input.pin)) throw new PartnerHubError("WEAK_PIN", "PIN terlalu mudah ditebak. Pilih kombinasi lain.");
   const db = getDb();
   await loadPartner(db, partnerId, garage.profile.outlet.id);
   const phone = partnerPhoneOrThrow(input.phone);
@@ -344,7 +345,7 @@ export async function createPartnerAccount(partnerId: string, input: { phone: st
   return db.transaction(async (tx) => {
     const [row] = await tx
       .insert(partnerAccounts)
-      .values({ partnerId, phone, displayName: input.displayName.trim(), pinHash: await hashPassword(input.pin), createdBy: garage.user.id })
+      .values({ partnerId, phone, displayName: input.displayName.trim(), pinHash: await hashPassword(input.pin), mustChangePin: true, createdBy: garage.user.id })
       .returning({ id: partnerAccounts.id, phone: partnerAccounts.phone, displayName: partnerAccounts.displayName });
     await logEvent(tx, { partnerId, kind: "account_created", subjectId: row.id, actor: staffActor(garage) });
     return row;
@@ -358,12 +359,15 @@ export async function updatePartnerAccount(accountId: string, input: { pin?: str
   if (!account) throw new PartnerHubError("ACCOUNT_NOT_FOUND", "Akun mitra tidak ditemukan.", 404);
   await loadPartner(db, account.partnerId, garage.profile.outlet.id);
   if (input.pin !== undefined && !/^\d{6}$/.test(input.pin)) throw new PartnerHubError("INVALID_PIN", "PIN mitra harus 6 angka.");
+  if (input.pin !== undefined && isWeakPartnerPin(input.pin)) throw new PartnerHubError("WEAK_PIN", "PIN terlalu mudah ditebak. Pilih kombinasi lain.");
   return db.transaction(async (tx) => {
     await tx
       .update(partnerAccounts)
       .set({
         pinHash: input.pin ? await hashPassword(input.pin) : account.pinHash,
         status: input.status ?? account.status,
+        // PIN di-reset staf → mitra wajib menggantinya sendiri saat masuk.
+        mustChangePin: input.pin ? true : account.mustChangePin,
         // Ganti PIN / nonaktif → semua sesi lama berhenti berlaku.
         sessionVersion: account.sessionVersion + 1,
         updatedAt: new Date(),
@@ -1841,6 +1845,7 @@ export async function partnerPortalOverview(session: PartnerSession) {
     payouts,
     partner: session.partner,
     products,
+    mustChangePin: Boolean(session.account.mustChangePin),
     activeTickets: active,
     // Dibatalkan Garage dalam 10 menit terakhir: tetap ditampilkan agar mitra berhenti membuat (push bisa tidak sampai).
     cancelledTickets: await listRecentlyCancelledTickets(session.partner.id, now),

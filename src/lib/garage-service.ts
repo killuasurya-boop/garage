@@ -159,6 +159,7 @@ import {
   operationLocations,
   orders,
   outlets,
+  partnerOrderLines,
   partnerProductLinks,
   partners,
   diningTables,
@@ -7868,6 +7869,8 @@ async function moveTableImpl(
       .update(kitchenTickets)
       .set({ tableLabel: toLabel })
       .where(inArray(kitchenTickets.orderId, orderIds));
+    // Smart Partner Hub: snapshot meja di baris mitra (riwayat/laporan portal) ikut pindah.
+    await tx.update(partnerOrderLines).set({ tableLabel: toLabel }).where(inArray(partnerOrderLines.orderId, orderIds));
     // Porsi & alokasi batch menyimpan snapshot meja — ikut pindah supaya kartu
     // Smart Batch / alokasi tidak mengantar ke meja lama.
     await tx

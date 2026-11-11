@@ -561,6 +561,16 @@ describe("Smart Partner Hub — kesiapan operasional (11 Nov 2026)", () => {
     await expect(svc.partnerDashboardSummary(kasir())).rejects.toThrow();
   });
 
+  it("mitra dinonaktifkan: angka keuangan bulan ini di dashboard tidak berubah", async () => {
+    const before = await svc.partnerDashboardSummary(owner());
+    expect(before.monthSales).toBeGreaterThan(0);
+    await svc.changePartnerStatus(partnerA.id, "nonaktif", "kerja sama selesai", owner());
+    const after = await svc.partnerDashboardSummary(owner());
+    expect(after.monthSales).toBe(before.monthSales);
+    expect(after.monthProfit).toBe(before.monthProfit);
+    expect(after.partners.some((p) => p.partnerId === partnerA.id)).toBe(false);
+  });
+
   it("nomor HP tidak valid tetap ditolak saat membuat akun dari portal admin", async () => {
     await expect(svc.createPartnerAccount(partnerA.id, { phone: "abc12345678", displayName: "x", pin: "123456" }, manager())).rejects.toThrow(/tidak valid/);
   });

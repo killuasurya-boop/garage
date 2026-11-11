@@ -36,7 +36,7 @@ type Finance = { totalQty: number; grossSales: number; netSales: number; liabili
 type HistoryTicket = { ticketNo: string; orderNo: string; status: string; createdAt: string; items: Array<{ name: string; qty: number }> };
 
 /** Penghasilan & riwayat pesanan per periode (Hari ini / 7 hari / Bulan ini / pilih tanggal). */
-export function PartnerEarnings() {
+export function PartnerEarnings({ refreshKey = "" }: { refreshKey?: string }) {
   const [period, setPeriod] = useState<PeriodId>("today");
   const [custom, setCustom] = useState(() => ({ from: wibKey(new Date()), to: wibKey(new Date()) }));
   const range = useMemo(() => periodRange(period, custom), [period, custom]);
@@ -45,24 +45,36 @@ export function PartnerEarnings() {
   const [error, setError] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
 
-  const load = useCallback(async () => {
-    setError(null);
-    setFinance(null);
-    setHistory(null);
+  // silent = muat ulang di latar (pesanan berubah / tiap 30 dtk) tanpa mengosongkan angka di layar.
+  const load = useCallback(async (silent = false) => {
+    if (!silent) {
+      setError(null);
+      setFinance(null);
+      setHistory(null);
+    }
     const q = `from=${range.from}&to=${range.to}`;
     try {
       const [f, h] = await Promise.all([api<Finance>(`/api/partner/finance?${q}`), api<HistoryTicket[]>(`/api/partner/tickets?scope=history&${q}`)]);
       setFinance(f);
       setHistory(h);
     } catch (err) {
-      setError((err as Error).message);
+      if (!silent) setError((err as Error).message);
     }
   }, [range.from, range.to]);
   useEffect(() => {
     // Ambil data saat periode berubah (pola repo: fetch-on-mount).
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
+    const id = window.setInterval(() => void load(true), 30_000);
+    return () => window.clearInterval(id);
   }, [load]);
+  // Status pesanan berubah (terima/siap/antar) → angka & riwayat ikut diperbarui.
+  useEffect(() => {
+    // Muat ulang di latar saat status pesanan berubah (pola repo: fetch-on-change).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (refreshKey) void load(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey]);
 
   const dateTime = useMemo(() => new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }), []);
   const shown = showAll ? history ?? [] : (history ?? []).slice(0, 10);

@@ -368,7 +368,7 @@ export function PartnerPortal() {
           </ul>
         </section>
 
-        <PartnerEarnings />
+        <PartnerEarnings refreshKey={overview.activeTickets.map((t) => `${t.ticketNo}:${t.status}`).join("|") + `#${overview.today.liability}`} />
         <PartnerFinance settlements={overview.settlements} />
         <PartnerPayouts payouts={overview.payouts ?? []} />
         <PartnerInfo profile={overview.profile ?? null} />

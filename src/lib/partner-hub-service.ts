@@ -880,7 +880,8 @@ export async function partnerDashboardSummary(garage: GarageSession) {
   assertOwnerOrManager(garage, "Melihat ringkasan Partner Hub");
   const outletId = garage.profile.outlet.id;
   const everyone = await listPartners(garage);
-  const all = everyone.filter((p) => p.status === "aktif" || p.status === "dibekukan");
+  // Angka keuangan dari SEMUA mitra (termasuk yang sudah nonaktif); hitungan operasional hanya mitra aktif/dibekukan.
+  const all = everyone.filter((p) => p.status === "aktif" || p.status === "dibekukan" || p.status === "nonaktif");
   const draft = everyone.filter((p) => ["draft", "verifikasi", "disetujui"].includes(p.status)).length;
   const now = new Date();
   const todayKey = new Date(now.getTime() + 7 * 3_600_000).toISOString().slice(0, 10);
@@ -908,10 +909,11 @@ export async function partnerDashboardSummary(garage: GarageSession) {
     .from(partnerSettlements)
     .where(and(eq(partnerSettlements.outletId, outletId), inArray(partnerSettlements.status, ["approved", "partially_paid"])));
   const active = await listPartnerOrdersForOutlet(outletId);
+  const operational = rows.filter((r) => r.status !== "nonaktif");
   return {
-    partners: rows,
+    partners: operational,
     draftCount: draft,
-    openCount: rows.filter((r) => r.operationalStatus === "buka").length,
+    openCount: operational.filter((r) => r.operationalStatus === "buka").length,
     todaySales: rows.reduce((sum, r) => sum + r.todaySales, 0),
     monthSales: rows.reduce((sum, r) => sum + r.monthSales, 0),
     monthProfit: rows.reduce((sum, r) => sum + r.monthProfit, 0),

@@ -19,13 +19,15 @@ export async function GET(request: Request) {
   try {
     const outletId = session.data.profile.outlet.id;
     const all = await listPartners(session.data);
-    const targets = all.filter((p) => (partnerId ? p.id === partnerId : p.status === "aktif" || p.status === "dibekukan"));
-    const partners = await Promise.all(
+    // Angka historis tidak bergantung status mitra sekarang: mitra nonaktif tetap ikut bila punya transaksi di periode.
+    const targets = all.filter((p) => (partnerId ? p.id === partnerId : true));
+    const rows = await Promise.all(
       targets.map(async (p) => {
         const s = await partnerFinanceSummary(p.id, outletId, from, to);
         return { partnerName: p.name, partnerCode: p.code, orderCount: s.orderCount, netSales: s.netSales, totalCost: s.totalCost, garageProfit: s.garageProfit, liabilityTotal: s.liabilityTotal, paidAmount: s.paidAmount, outstanding: s.outstanding, lines: s.lines };
       }),
     );
+    const partners = partnerId ? rows : rows.filter((r) => r.lines.length > 0 || r.liabilityTotal !== 0 || r.paidAmount !== 0);
     const buffer = await partnerFinanceWorkbook({ from: fromKey, to: toKey, generatedBy: session.data.user.name ?? session.data.profile.role, partners });
     return new Response(new Uint8Array(buffer), {
       headers: {

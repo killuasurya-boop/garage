@@ -597,7 +597,23 @@ describe("Smart Partner Hub — media marketing website", () => {
     await setHub(false);
     expect((await svc.publicPartnerMarketingProducts()).some((p) => p.name === link.name)).toBe(false);
     await setHub(true);
+    // Edit menu biasa (Manajer) tidak bisa menghapus/menambah tag promosi.
+    const menuId = (await svc.listPartnerProducts(partnerB.id, { outletId, showCost: false })).find((p) => p.linkId === link.linkId)!.menuItemId;
+    await garageSvc.updateMenuProduct(menuId, { tags: ["Mitra"] } as never, manager());
+    expect((await svc.partnerMarketingStatus(link.linkId, manager())).promoted).toBe(true);
+    // Portal mitra offline → tetap tampil tetapi "Sedang tutup" (aturan sama dengan menu digital).
+    const d = t.getDb();
+    const { eq } = await import("drizzle-orm");
+    await d.update(t.schema.partners).set({ lastSeenAt: new Date(Date.now() - 60 * 60_000) }).where(eq(t.schema.partners.id, partnerB.id));
+    expect((await svc.publicPartnerMarketingProducts()).find((p) => p.name === link.name)?.availableNow).toBe(false);
+    // Diarsipkan → hilang dari website.
+    await d.update(t.schema.menuItems).set({ status: "archived" }).where(eq(t.schema.menuItems.id, menuId));
+    expect((await svc.publicPartnerMarketingProducts()).some((p) => p.name === link.name)).toBe(false);
+    await d.update(t.schema.menuItems).set({ status: "active" }).where(eq(t.schema.menuItems.id, menuId));
     await svc.setPartnerWebsitePromotion(link.linkId, false, owner());
     expect((await svc.publicPartnerMarketingProducts()).some((p) => p.name === link.name)).toBe(false);
+    // Manajer mencoba menambah tag lewat edit menu → diabaikan.
+    await garageSvc.updateMenuProduct(menuId, { tags: ["Mitra", "Promo Website"] } as never, manager());
+    expect((await svc.partnerMarketingStatus(link.linkId, manager())).promoted).toBe(false);
   });
 });

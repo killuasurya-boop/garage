@@ -350,6 +350,8 @@ export const PARTNER_WEBSITE_TAG = "Promo Website";
 
 export type PartnerMarketingInput = {
   partnerStatus: string;
+  /** menu_items.status — produk yang diarsipkan tidak boleh tampil. */
+  menuStatus?: string;
   linkActive: boolean;
   imageUrl: string | null;
   description: string | null;
@@ -367,6 +369,7 @@ export function partnerMarketingBlockers(input: PartnerMarketingInput): string[]
   if (input.partnerStatus !== "aktif") blockers.push("Mitra harus berstatus Aktif (bukan draft/dibekukan/nonaktif).");
   if (!input.hasVerifiedBank) blockers.push("Rekening mitra belum diverifikasi.");
   if (!input.linkActive) blockers.push("Produk belum disetujui Owner.");
+  if (input.menuStatus && input.menuStatus !== "active") blockers.push("Produk diarsipkan / tidak aktif di menu.");
   if (!input.imageUrl) blockers.push("Foto produk asli wajib ada.");
   if (!input.description || input.description.trim().length < 15) blockers.push("Deskripsi produk minimal 15 huruf.");
   if (!input.showInDigitalMenu) blockers.push("Produk harus tampil di menu digital.");

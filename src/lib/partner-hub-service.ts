@@ -42,6 +42,7 @@ import {
   OPERATIONAL_STATUSES,
   partnerActivationBlockers,
   partnerLineFinance,
+  partnerCardLabel,
   partnerMarketingBlockers,
   PARTNER_WEBSITE_TAG,
   partnerSettlementTotals,
@@ -606,6 +607,7 @@ async function marketingContext(db: DbLike, linkId: string) {
   const variants = await db.select().from(menuVariants).where(eq(menuVariants.itemId, row.item.id));
   const blockers = partnerMarketingBlockers({
     partnerStatus: row.partner.status,
+    menuStatus: row.item.status,
     linkActive: row.link.active,
     imageUrl: row.item.imageUrl,
     description: row.item.description,
@@ -657,20 +659,36 @@ export async function publicPartnerMarketingProducts() {
     .from(partnerProductLinks)
     .innerJoin(menuItems, eq(partnerProductLinks.menuItemId, menuItems.id))
     .innerJoin(partners, eq(partnerProductLinks.partnerId, partners.id))
-    .where(and(eq(partnerProductLinks.active, true), eq(partners.status, "aktif"), eq(menuItems.productType, "partner")));
+    .where(and(eq(partnerProductLinks.active, true), eq(partners.status, "aktif"), eq(menuItems.productType, "partner"), eq(menuItems.status, "active")));
   const promoted = rows.filter((r) => (r.item.tags ?? []).includes(PARTNER_WEBSITE_TAG));
   if (!promoted.length) return [];
   const { getAppSettings } = await import("@/lib/garage-service");
-  const hub = new Map<string, boolean>();
+  const { loadPartnerLinks } = await import("@/lib/partner-hub-orders");
+  const outletSettings = new Map<string, { hub: boolean; heartbeat: number }>();
   const out = [];
   for (const row of promoted) {
-    if (!hub.has(row.partner.outletId)) hub.set(row.partner.outletId, (await getAppSettings(row.partner.outletId)).partnerHubEnabled);
-    if (!hub.get(row.partner.outletId)) continue;
+    if (!outletSettings.has(row.partner.outletId)) {
+      const st = await getAppSettings(row.partner.outletId);
+      outletSettings.set(row.partner.outletId, { hub: st.partnerHubEnabled, heartbeat: st.partnerHeartbeatMinutes });
+    }
+    const cfg = outletSettings.get(row.partner.outletId)!;
+    if (!cfg.hub) continue;
     const ctx = await marketingContext(db, row.link.id);
     if (ctx.blockers.length) continue;
     const variants = await db.select().from(menuVariants).where(eq(menuVariants.itemId, row.item.id));
     const prices = variants.map((v) => v.price).filter((p) => p > 0);
-    const status = effectiveOperationalStatus({ operationalStatus: row.partner.operationalStatus, operationalStatusAt: row.partner.operationalStatusAt });
+    // Ketersediaan = aturan yang sama dengan menu digital & POS (Buka/Jeda/Tutup efektif, portal offline, last order, Habis).
+    const link = (await loadPartnerLinks(db, [row.item.id], { heartbeatMinutes: cfg.heartbeat })).get(row.item.id);
+    const label = link
+      ? partnerCardLabel({
+          hubEnabled: true,
+          partnerStatus: link.partnerStatus,
+          operationalStatus: link.operationalStatus,
+          linkActive: link.linkActive,
+          productStock: row.item.stock,
+          lastOrderByDay: link.lastOrderByDay,
+        })
+      : "Tidak tersedia";
     out.push({
       id: row.item.id,
       name: row.item.name,
@@ -680,7 +698,7 @@ export async function publicPartnerMarketingProducts() {
       partnerName: row.partner.name,
       priceFrom: prices.length ? Math.min(...prices) : 0,
       multiPrice: new Set(prices).size > 1,
-      availableNow: status === "buka" && row.item.stock !== "sold_out",
+      availableNow: label === null,
     });
   }
   return out.slice(0, 8);

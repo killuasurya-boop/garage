@@ -80,7 +80,7 @@ import {
   type ProductionMenuInfo,
 } from "@/lib/garage-production-tickets";
 import { assertPartnerItemsOrderable, createPartnerTicketsForOrder, loadPartnerLinks, movePartnerLineOnSplit, recordPartnerRefundAdjustment } from "@/lib/partner-hub-orders";
-import { effectiveOperationalStatus, partnerCardLabel } from "@/lib/partner-hub-rules";
+import { effectiveOperationalStatus, PARTNER_WEBSITE_TAG, partnerCardLabel } from "@/lib/partner-hub-rules";
 import {
   GarageOsThemeSaveError,
   isSavableGarageOsThemePreset,
@@ -2128,7 +2128,7 @@ export async function createMenuProduct(input: MenuProductInput, garage: GarageS
         stock: input.stock ?? "ready",
         status: input.status ?? "active",
         prep: input.prep?.trim() || "10m",
-        tags: input.tags ?? [],
+        tags: (input.tags ?? []).filter((tag) => tag !== PARTNER_WEBSITE_TAG),
         promoActive: promo.promoActive,
         promoPrice: promo.promoPrice,
         // Routing produksi: override produk, kalau tidak ikut kategori.
@@ -2344,7 +2344,12 @@ export async function updateMenuProduct(
   if (input.stock !== undefined) update.stock = input.stock;
   if (input.status !== undefined) update.status = input.status;
   if (input.prep !== undefined) update.prep = input.prep.trim() || "10m";
-  if (input.tags !== undefined) update.tags = input.tags;
+  // Tag "Promo Website" (media marketing mitra) hanya lewat setPartnerWebsitePromotion (Owner + syarat + log):
+  // edit menu biasa tidak bisa menambah atau menghapusnya.
+  if (input.tags !== undefined) {
+    const keep = (existing.tags ?? []).includes(PARTNER_WEBSITE_TAG);
+    update.tags = [...input.tags.filter((tag) => tag !== PARTNER_WEBSITE_TAG), ...(keep ? [PARTNER_WEBSITE_TAG] : [])];
+  }
   if (input.sortOrder !== undefined) update.sortOrder = input.sortOrder;
   if (input.imageUrl !== undefined) update.imageUrl = input.imageUrl?.trim() || null;
   if (input.station !== undefined) update.station = input.station ?? null;

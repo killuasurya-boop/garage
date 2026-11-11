@@ -95,6 +95,24 @@ HPP**, **profit Garage = penjualan − HPP**. Selisih harus **Rp0** antara layar
 | 20 | Login sebagai mitra kedua, buka tiket/PDF mitra pertama | Tidak ditemukan | |
 | 23 | (Opsional, teknis) logo resmi tidak ada | PDF FINAL ditolak, tidak terbit tanpa logo | |
 
+## Hasil UAT otomatis (11 Nov 2026)
+
+`e2e/partner-hub-uat.spec.ts` menjalankan skenario di atas di **server nyata dengan database baru** (bukan mock):
+login sungguhan per peran (Owner, Manajer, Kasir, 2 Waiter, 2 akun mitra), Portal Mitra lewat UI 390 px.
+Jalankan: `npm run test:e2e -- e2e/partner-hub-uat.spec.ts --project desktop-1366`. Hasil: **6/6 lulus**.
+
+| Blok | Isi | Hasil |
+|---|---|---|
+| A | Daftar mitra → rekening diverifikasi Owner → akun → produk disetujui → aktif; lompat status ditolak; login portal sebelum aktif ditolak (UAT-01) | ✅ |
+| B | Order kopi + 2 Es Krim Pokat Meja 12 = tiket Mitra benar (UAT-06); TUTUP / HABIS / lewat last order ditolak server (UAT-03/04/26) | ✅ |
+| C | Portal Mitra Terima → Mulai Proses → Siap Antar tanpa error/overflow (UAT-09); 2 waiter klaim bersamaan → tepat 1 berhasil, lalu diantar (UAT-10) | ✅ |
+| D | Refund **seluruh** qty item mitra berhasil; void setelah Siap Antar; batal sebelum diproses. Angka Portal Mitra = panel staf = hitungan manual: jual 66.000, bersih 44.000, kewajiban 76.000 (selisih Rp0) (UAT-13/16) | ✅ |
+| E | Rekap dobel ditolak; batal vs setujui bersamaan → tepat 1 menang; payout parsial → lunas; referensi ganda & lebih bayar ditolak; PDF DRAFT/FINAL; mitra lain 404 (UAT-18/19/20/22) | ✅ |
+| F | Hub dimatikan → produk mitra ditolak, produk Garage tetap terjual (UAT-24) | ✅ |
+
+Masih perlu dilihat langsung oleh manusia (tidak bisa diotomatisasi penuh): HP mitra kehilangan sinyal (UAT-05),
+pindah meja fisik (UAT-12), tampilan PDF 100+ baris di printer (UAT-21), dan rasa pakai kasir/waiter di jam ramai.
+
 ## 3. Setelah UAT
 
 1. Kirim hasil (tabel di atas + screenshot ❌) ke sesi Claude. Semua ❌ diperbaiki di PR #191 lalu di-deploy ulang ke staging.

@@ -79,6 +79,8 @@ import {
   syncProductionItemsForTicket,
   type ProductionMenuInfo,
 } from "@/lib/garage-production-tickets";
+import { assertPartnerItemsOrderable, createPartnerTicketsForOrder, loadPartnerLinks, recordPartnerRefundAdjustment } from "@/lib/partner-hub-orders";
+import { partnerOrderBlockReason } from "@/lib/partner-hub-rules";
 import {
   GarageOsThemeSaveError,
   isSavableGarageOsThemePreset,
@@ -1722,13 +1724,44 @@ export async function getMenuData(params?: {
     }
   }
 
+  // Smart Partner Hub: produk mitra mengikuti status mitra (aktif, BUKA/JEDA/TUTUP, last order). Hub mati di
+  // outlet mitra → produk disembunyikan (perilaku lama). Selain itu tampil HABIS bila tidak bisa dipesan.
+  const partnerRows = baseRows.filter((row) => (row.productType as string) === "partner");
+  const hiddenPartnerIds = new Set<string>();
+  if (partnerRows.length) {
+    const links = await loadPartnerLinks(db, partnerRows.map((row) => row.id));
+    const hubByOutlet = new Map<string, boolean>();
+    for (const row of partnerRows) {
+      const link = links.get(row.id);
+      if (!link) {
+        hiddenPartnerIds.add(row.id);
+        continue;
+      }
+      if (!hubByOutlet.has(link.outletId)) hubByOutlet.set(link.outletId, (await getAppSettings(link.outletId)).partnerHubEnabled);
+      if (!hubByOutlet.get(link.outletId) || !link.linkActive || !["aktif", "dibekukan"].includes(link.partnerStatus)) {
+        hiddenPartnerIds.add(row.id);
+        continue;
+      }
+      const reason = partnerOrderBlockReason({
+        hubEnabled: true,
+        partnerStatus: link.partnerStatus,
+        operationalStatus: link.operationalStatus,
+        linkActive: link.linkActive,
+        productStock: row.stock,
+        lastOrderByDay: link.lastOrderByDay,
+      });
+      if (reason) row.stock = "sold_out";
+    }
+  }
+  const visibleRows = hiddenPartnerIds.size && !params?.includeArchived ? baseRows.filter((row) => !hiddenPartnerIds.has(row.id)) : baseRows;
+
   if (params?.channel === "digital") {
     // Item tanpa varian tidak bisa dipesan (harga kosong) — jangan tampil ke pelanggan.
-    return baseRows.filter((row) => row.variants.length > 0);
+    return visibleRows.filter((row) => row.variants.length > 0);
   }
 
   if (!params?.includeCosting) {
-    return baseRows;
+    return visibleRows;
   }
 
   const recipeRows = await db
@@ -9682,6 +9715,7 @@ async function createCustomerOrderImpl(input: CustomerOrderInput) {
       itemName: menuItems.name,
       category: menuItems.category,
       stock: menuItems.stock,
+      productType: menuItems.productType,
       promoActive: menuItems.promoActive,
       promoPrice: menuItems.promoPrice,
       showInDigitalMenu: menuItems.showInDigitalMenu,
@@ -9730,6 +9764,13 @@ async function createCustomerOrderImpl(input: CustomerOrderInput) {
   const packageSubtotal = lines.reduce((sum, line) => sum + (line.eventSnapshot?.kind === "bundle" ? line.lineTotal : 0), 0);
   const regularSubtotal = subtotal - packageSubtotal;
   const settings = await getAppSettings(settingsOutlet?.id ?? null);
+  // Smart Partner Hub (DEC-14): produk mitra tidak bisa di-checkout pelanggan sendiri; order staf divalidasi ulang.
+  const partnerLinks = await loadPartnerLinks(db, itemIds);
+  assertPartnerItemsOrderable(
+    lines.map((line) => ({ itemId: line.itemId, itemName: line.itemName, productType: line.productType, stock: line.stock })),
+    partnerLinks,
+    { hubEnabled: settings.partnerHubEnabled, outletId: settingsOutlet?.id ?? "", customerSelfOrder: !input.staffOrder },
+  );
   const { service, tax, grossTotal, regularGrossTotal } = calculateOrderBilling({ regularSubtotal, packageSubtotal }, settings);
   // Promo QR dari Pengaturan (dulu tertanam: 10% maks Rp25.000).
   // Promo QR untuk pelanggan yang memesan sendiri — bukan pesanan yang dibuat staf (waiter).
@@ -10645,6 +10686,7 @@ async function updateCustomerOrderStatusImpl(
           station: menuItems.station,
           batchEligible: menuItems.batchEligible,
           prep: menuItems.prep,
+          unitPrice: orderItems.unitPrice,
         })
         .from(orderItems)
         .leftJoin(menuItems, eq(orderItems.menuItemId, menuItems.id))
@@ -10693,7 +10735,15 @@ async function updateCustomerOrderStatusImpl(
             ]),
         ),
       });
-      ticketNos = insertedTickets.map((ticket) => ticket.ticketNo);
+      // Smart Partner Hub: produk mitra → tiket station "Mitra" per mitra + snapshot HPP (idempoten).
+      const partnerLinks = await loadPartnerLinks(tx, menuRows.map((row) => row.menuItemId ?? ""));
+      const partnerTickets = await createPartnerTicketsForOrder(tx, {
+        order: { id: order.id, orderNo: order.orderNo, tableLabel: order.tableLabel, customerName: order.customerName, outletId: order.outletId ?? garage.profile.outlet.id, channel: order.channel },
+        lines: menuRows,
+        links: partnerLinks,
+        targetMinutes: outletSettings.partnerSlaEscalateMinutes + 10,
+      });
+      ticketNos = [...insertedTickets.map((ticket) => ticket.ticketNo), ...partnerTickets.map((ticket) => ticket.ticketNo)];
     }
 
     const existingStockAudit = await tx
@@ -11634,10 +11684,19 @@ async function createOrderOnce(
       batchEligible: menuItems.batchEligible,
       promoActive: menuItems.promoActive,
       promoPrice: menuItems.promoPrice,
+      stock: menuItems.stock,
     })
     .from(menuVariants)
     .innerJoin(menuItems, eq(menuVariants.itemId, menuItems.id))
     .where(and(inArray(menuVariants.itemId, itemIds), eq(menuItems.status, "active")));
+  // DEC-13 (Owner, 10 Nov 2026): status HABIS ditegakkan di server untuk POS juga (sebelumnya hanya order
+  // pelanggan). Order offline yang disinkronkan belakangan tidak ditolak: penjualannya sudah terjadi.
+  if (!options.offlineSync) {
+    const soldOut = variantRows.find((row) => row.stock === "sold_out" && input.items.some((line) => line.itemId === row.itemId));
+    if (soldOut) {
+      throw new Error(`${soldOut.itemName} sedang habis dan tidak bisa dijual. Ubah status stoknya dulu bila sebenarnya tersedia.`);
+    }
+  }
   if (quickRetail) {
     const notRetail = variantRows.find((row) => !isQuickRetailProduct(row));
     if (notRetail) {
@@ -11675,6 +11734,13 @@ async function createOrderOnce(
     ]),
   );
   const settings = await getAppSettings(garage.profile.outlet.id);
+  // Smart Partner Hub: produk mitra divalidasi ulang di server (aktif, BUKA, Tersedia, last order).
+  const partnerLinks = await loadPartnerLinks(db, itemIds);
+  assertPartnerItemsOrderable(
+    lines.map((line) => ({ itemId: line.itemId, itemName: line.itemName, productType: line.productType, stock: line.stock })),
+    partnerLinks,
+    { hubEnabled: settings.partnerHubEnabled, outletId: garage.profile.outlet.id },
+  );
   const subtotal = lines.reduce((sum, line) => sum + line.lineTotal, 0);
   const { service, tax, grossTotal } = calculateBillingTotals(subtotal, settings);
   const voucherValidation = input.voucherCode
@@ -12090,7 +12156,13 @@ async function createOrderOnce(
       lines: insertedItems,
       menuInfo: productionMenuInfo,
     });
-    const ticketNos = tickets.map((ticket) => ticket.ticketNo);
+    const partnerTickets = await createPartnerTicketsForOrder(tx, {
+      order: { id: order.id, orderNo: order.orderNo, tableLabel: order.tableLabel, customerName: order.customerName, outletId: garage.profile.outlet.id, channel },
+      lines: insertedItems,
+      links: partnerLinks,
+      targetMinutes: settings.partnerSlaEscalateMinutes + 10,
+    });
+    const ticketNos = [...tickets.map((ticket) => ticket.ticketNo), ...partnerTickets.map((ticket) => ticket.ticketNo)];
     const ticketNo = ticketNos[0] ?? makeTicketNo();
 
     const recipeRows = await tx
@@ -16447,6 +16519,16 @@ async function executeOrderRefund(payload: ApprovalPayload, reason: string, gara
       refundItems.map((item) => ({ orderItemId: item.orderItemId, qty: item.qty })),
     );
     assertPartialRefund(currentItems.filter((item) => item.qty > 0), lines);
+    // Smart Partner Hub: refund item mitra = penyesuaian (baris sumber tidak diubah, idempoten per event).
+    for (const line of lines) {
+      await recordPartnerRefundAdjustment(tx, {
+        orderItemId: line.orderItemId,
+        qty: line.qty,
+        sourceRef: `refund:${order.id}:${line.orderItemId}:${now.getTime()}`,
+        reason: `Refund ${order.orderNo}: ${reason}`,
+        actorId: garage.user.id,
+      });
+    }
     const refundSubtotal = lines.reduce((sum, line) => sum + line.unitPrice * line.qty, 0);
     const split = computeRefundSplit(order, refundSubtotal, packageRefundContext(currentItems, lines));
 

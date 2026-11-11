@@ -85,7 +85,8 @@ ClipboardList,
 HandCoins,
 Maximize2,
 Minimize2,
-X
+X,
+Handshake,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
@@ -4843,6 +4844,9 @@ export function PosView({
               <PosV6NavItem icon={FileText} label="Riwayat & Laporan Shift" onClick={() => openModulePath("/shift")} />
               <PosV6NavItem icon={Wallet} label="Petty Cash" testId="pos-menu-petty" onClick={() => openModulePath("/shift?tab=petty")} />
               <PosV6NavItem icon={ClipboardList} label="Catatan Kejadian" testId="pos-menu-incident" onClick={() => openModulePath("/shift?tab=incident")} />
+              {settings.partnerHubEnabled ? (
+                <PosV6NavItem icon={Handshake} label="Partner Hub (Mitra)" testId="pos-menu-partners" onClick={() => openModulePath("/partners", "Partner Hub")} />
+              ) : null}
             </PosV6NavGroup>
             <PosV6NavGroup label="Lainnya">
               <PosV6NavItem

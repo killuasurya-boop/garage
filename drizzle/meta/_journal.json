@@ -1317,6 +1317,13 @@
       "when": 1794295155704,
       "tag": "0187_member_whatsapp_otp",
       "breakpoints": true
+    },
+    {
+      "idx": 188,
+      "version": "7",
+      "when": 1794332914234,
+      "tag": "0188_partner_hub",
+      "breakpoints": true
     }
   ]
 }

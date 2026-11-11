@@ -84,6 +84,8 @@ export const KEEP_TABLES = [
   "master_imports", "master_crosswalk",
   // event & undangan Grand Opening — dibuat sebelum hari H, tidak boleh terhapus saat reset H-1
   "events", "event_guests", "event_invitations", "event_rsvps", "event_activity_logs",
+  // Smart Partner Hub — master mitra resmi, akun, rekening, produk & histori harga
+  "partners", "partner_bank_accounts", "partner_accounts", "partner_product_links", "partner_price_history",
 ] as const;
 
 /** Transaksi & log uji coba — dihapus. */
@@ -94,6 +96,9 @@ export const CLEAR_TABLES = [
   "table_sessions", "service_requests", "print_jobs", "customer_chat_threads", "customer_chat_messages",
   "order_push_subscriptions", "staff_notifications", "staff_notification_reads",
   "voucher_redemptions",
+  // Smart Partner Hub — transaksi mitra (baris order, event, penyesuaian, settlement, payout, PDF)
+  "partner_order_lines", "partner_events", "partner_adjustments", "partner_settlements",
+  "partner_settlement_lines", "partner_payouts", "partner_reports",
   // kas & finance transaksional
   "cash_sessions", "cash_session_counts", "cash_session_final_snapshots", "cash_movements", "cash_ledger_entries", "cash_opening_certifications", "petty_cash_entries", "shift_incidents", "expenses", "supplier_invoices", "supplier_receivings",
   "supplier_receiving_items", "finance_daily_closings", "finance_monthly_closings", "financial_snapshots",

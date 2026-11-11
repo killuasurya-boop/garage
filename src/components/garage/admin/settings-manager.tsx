@@ -17,6 +17,7 @@ import {
   Cpu,
   ExternalLink,
   Gauge,
+  Handshake,
   KeyRound,
   Loader2,
   Megaphone,
@@ -61,6 +62,7 @@ import { isThemePresetId } from "@/lib/garage-theme";
 const ICON_MAP: Record<string, typeof Building2> = {
   Wifi,
   Armchair,
+  Handshake,
   Bike,
   Building2,
   Cpu,

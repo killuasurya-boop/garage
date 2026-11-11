@@ -45,6 +45,7 @@ export const PUBLIC_API_ROUTES: Record<string, PublicRoute> = {
   "member/auth/otp/status": { reason: "Apakah OTP WhatsApp aktif (tanpa data)", abuseGuard: "rateLimit" },
   "member/auth/otp/request": { reason: "Kirim kode OTP WhatsApp pendaftar (batas per IP + per nomor)", abuseGuard: "rateLimit" },
   "member/auth/otp/verify": { reason: "Cek kode OTP (maks. 5 percobaan per kode)", abuseGuard: "rateLimit" },
+  "partner/auth/login": { reason: "Login Portal Mitra (nomor HP + PIN)", abuseGuard: "rateLimit" },
   "member/auth/claim/verify": { reason: "Cek kode klaim dari kasir (maks. 5 percobaan per kode, berlaku 15 menit)", abuseGuard: "rateLimit" },
   "member/auth/providers": { reason: "Metode login member yang aktif (tanpa data)", abuseGuard: "readonly" },
   "member/auth/google/start": { reason: "Mulai login Google member (redirect + state PKCE)", abuseGuard: "rateLimit" },
@@ -67,7 +68,7 @@ export const PUBLIC_API_ROUTES: Record<string, PublicRoute> = {
 
 /** Pola pemanggilan guard yang dikenali (sesi staf, terminal POS, job, webhook, wrapper modul). */
 export const KNOWN_ROUTE_GUARDS = [
-  /\brequire(?:Garage|Any|Owner|Mcp|Permission|Human|Cashier|Account|PosTerminal|Member|Customer|Staff)[A-Za-z]*\(/,
+  /\brequire(?:Garage|Any|Owner|Mcp|Permission|Human|Cashier|Account|PosTerminal|Member|Customer|Staff|Partner)[A-Za-z]*\(/,
   /\brequireGarageAiJobAuthorization\(/,
   /\bresolveAgent[A-Za-z]*\(/,
   /\bverifyMember[A-Za-z]*\(/,

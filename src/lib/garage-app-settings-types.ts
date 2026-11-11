@@ -85,6 +85,12 @@ export type AppSettings = {
   // Menu V5 (Owner, 4 Nov 2026): mode menu digital per outlet — "self_order" (pesan & bayar sendiri, bawaan)
   // atau "waiter_list" (Daftar Pilihan → Tunjukkan ke Waiter). Lihat src/lib/digital-menu-mode.ts.
   digitalMenuMode: "self_order" | "waiter_list";
+  // Smart Partner Hub (Owner, 10 Nov 2026, docs/partner-hub/): modul mitra resmi per outlet. OFF = perilaku lama 100%.
+  partnerHubEnabled: boolean;
+  // SLA tiket mitra (menit): peringatan belum diterima, eskalasi ke kasir, produk siap menunggu diambil.
+  partnerSlaAcceptWarnMinutes: number;
+  partnerSlaEscalateMinutes: number;
+  partnerReadyWaitWarnMinutes: number;
   // Nomor WhatsApp Garage (format 62…) — tombol bukti bayar & chat pelanggan.
   garageWhatsapp: string;
   // Rekening transfer untuk pelanggan, satu per baris: "BANK | NOMOR | ATAS NAMA".
@@ -266,6 +272,10 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   tableHoldMinutes: 5,
   tableIdleWarnHours: 3,
   digitalMenuMode: "self_order",
+  partnerHubEnabled: false,
+  partnerSlaAcceptWarnMinutes: 2,
+  partnerSlaEscalateMinutes: 5,
+  partnerReadyWaitWarnMinutes: 3,
   garageWhatsapp: "6285121552341",
   bankAccountsText: "BNI | 2114194027 | Suryadi\nBANK JAGO | 507300982382 | Suryadi\nDANA | 081396186251 | Suryadi",
   wifiEnabled: false,

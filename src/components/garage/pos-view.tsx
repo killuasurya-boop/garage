@@ -8413,8 +8413,8 @@ export function PosView({
                       subtitle={
                         item.partner
                           ? // Alasan ikut di subjudul: mode daftar / tanpa foto tidak menampilkan label di atas foto.
-                            item.partner.label
-                            ? `${partnerTag(item.partner.name)} · ${item.partner.label}`
+                            (item.partner.label ?? item.partner.note)
+                            ? `${partnerTag(item.partner.name)} · ${item.partner.label ?? `${item.partner.note}, menunggu mitra`}`
                             : partnerTag(item.partner.name)
                           : isSoldOut
                             ? "Tidak bisa dipesan"

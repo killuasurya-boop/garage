@@ -164,12 +164,15 @@ describe("Smart Partner Hub — order & tiket", () => {
     expect(JSON.stringify(board)).not.toContain(partnerTicket.ticketNo);
   });
 
-  it("server menolak produk mitra saat Habis / Tutup / hub mati (UAT-03/04/24)", async () => {
+  it("server menolak produk mitra saat Habis / hub mati; Tutup tidak menolak (keputusan di mitra)", async () => {
     await svc.setPartnerProductAvailability(linkA, false, { partner: partnerSession(partnerA) });
     await expect(sale([{ itemId: menuA, qty: 1 }])).rejects.toThrow(/habis/i);
     await svc.setPartnerProductAvailability(linkA, true, { partner: partnerSession(partnerA) });
+    // Tutup/Jeda: pesanan tetap masuk antrean mitra — mitra yang menerima atau menolak.
     await svc.setPartnerOperationalStatus(partnerA.id, "tutup", { partner: partnerSession(partnerA) });
-    await expect(sale([{ itemId: menuA, qty: 1 }])).rejects.toThrow(/tutup/);
+    const closed = (await garageSvc.getMenuData() as Array<{ id: string; stock: string; partner?: { label: string | null; note?: string | null } }>).find((item) => item.id === menuA)!;
+    expect(closed.stock).not.toBe("sold_out");
+    expect(closed.partner).toMatchObject({ label: null, note: "Mitra tutup" });
     await svc.setPartnerOperationalStatus(partnerA.id, "buka", { partner: partnerSession(partnerA) });
     await setHub(false);
     await expect(sale([{ itemId: menuA, qty: 1 }])).rejects.toThrow(/Partner Hub belum aktif/);
@@ -351,20 +354,21 @@ describe("Smart Partner Hub — settlement & payout", () => {
     expect(adjustments).toHaveLength(1);
   });
 
-  it("HP mitra mati / lupa tutup kemarin: produk tidak bisa dijual sampai portal terhubung lagi", async () => {
+  it("HP mitra mati / lupa tutup kemarin: produk tetap bisa dipesan, kartu memberi keterangan mitra", async () => {
     const d = t.getDb();
     const { eq } = await import("drizzle-orm");
     await d.update(t.schema.partners).set({ lastSeenAt: new Date(Date.now() - 10 * 60_000) }).where(eq(t.schema.partners.id, partnerA.id));
-    await expect(sale([{ itemId: menuA, qty: 1 }])).rejects.toThrow(/tidak terhubung/);
     const menu = await garageSvc.getMenuData();
-    const card = (menu as Array<{ id: string; stock: string; partner?: { label: string | null } }>).find((item) => item.id === menuA)!;
-    expect(card.stock).toBe("sold_out");
-    expect(card.partner?.label).toBe("Mitra tidak terhubung");
+    const card = (menu as Array<{ id: string; stock: string; partner?: { label: string | null; note?: string | null } }>).find((item) => item.id === menuA)!;
+    expect(card.stock).not.toBe("sold_out");
+    expect(card.partner).toMatchObject({ label: null, note: "Mitra tidak terhubung" });
     // Terhubung lagi tetapi status Buka berasal dari kemarin → dianggap Tutup.
     await d.update(t.schema.partners).set({ lastSeenAt: new Date(), operationalStatusAt: new Date(Date.now() - 30 * 3_600_000) }).where(eq(t.schema.partners.id, partnerA.id));
-    await expect(sale([{ itemId: menuA, qty: 1 }])).rejects.toThrow(/tutup/);
+    const stale = (await garageSvc.getMenuData() as Array<{ id: string; partner?: { note?: string | null } }>).find((item) => item.id === menuA)!;
+    expect(stale.partner?.note).toBe("Mitra tutup");
     await svc.setPartnerOperationalStatus(partnerA.id, "buka", { partner: partnerSession(partnerA) });
-    await expect(sale([{ itemId: menuA, qty: 1 }])).resolves.toBeTruthy();
+    const open = (await garageSvc.getMenuData() as Array<{ id: string; partner?: { note?: string | null } }>).find((item) => item.id === menuA)!;
+    expect(open.partner?.note ?? null).toBeNull();
   });
 
   it("mitra menolak pesanan lunas: masuk antrean refund kasir sampai item dikeluarkan dari bill", async () => {
@@ -807,7 +811,7 @@ describe("Smart Partner Hub — media marketing website", () => {
     const menuId = (await svc.listPartnerProducts(partnerB.id, { outletId, showCost: false })).find((p) => p.linkId === link.linkId)!.menuItemId;
     await garageSvc.updateMenuProduct(menuId, { tags: ["Mitra"] } as never, manager());
     expect((await svc.partnerMarketingStatus(link.linkId, manager())).promoted).toBe(true);
-    // Portal mitra offline → tetap tampil tetapi "Sedang tutup" (aturan sama dengan menu digital).
+    // Portal mitra offline → tetap tampil di website tetapi tidak ditandai "tersedia sekarang".
     const d = t.getDb();
     const { eq } = await import("drizzle-orm");
     await d.update(t.schema.partners).set({ lastSeenAt: new Date(Date.now() - 60 * 60_000) }).where(eq(t.schema.partners.id, partnerB.id));
@@ -857,14 +861,16 @@ describe("Smart Partner Hub — pelanggan pesan sendiri dari QR meja (owner Nov 
     // Belum ada tiket apa pun sebelum kasir menerima.
     expect(await d.select().from(t.schema.kitchenTickets).where(eq(t.schema.kitchenTickets.orderId, orderId))).toHaveLength(0);
 
-    // Mitra jeda sebelum kasir menerima → terima ditolak dengan pesan mitra, tidak ada tiket setengah jadi.
-    await svc.setPartnerOperationalStatus(partnerB.id, "jeda", { partner: session });
-    await expect(garageSvc.updateCustomerOrderStatus(orderId, { action: "accept" }, kasir())).rejects.toThrow(/jeda.*Tolak pesanan/);
+    // Produk ditandai Habis oleh mitra sebelum kasir menerima → terima ditolak, tidak ada tiket setengah jadi.
+    await svc.setPartnerProductAvailability(product.linkId, false, { partner: session });
+    await expect(garageSvc.updateCustomerOrderStatus(orderId, { action: "accept" }, kasir())).rejects.toThrow(/habis/i);
     expect(await d.select().from(t.schema.kitchenTickets).where(eq(t.schema.kitchenTickets.orderId, orderId))).toHaveLength(0);
+    await svc.setPartnerProductAvailability(product.linkId, true, { partner: session });
 
-    // Mitra buka lagi → kasir terima → tiket Bar + Mitra, baris mitra dengan snapshot HPP.
-    await svc.setPartnerOperationalStatus(partnerB.id, "buka", { partner: session });
+    // Mitra JEDA: kasir tetap bisa menerima → tiket Bar + Mitra masuk; mitra yang memutuskan.
+    await svc.setPartnerOperationalStatus(partnerB.id, "jeda", { partner: session });
     await garageSvc.updateCustomerOrderStatus(orderId, { action: "accept" }, kasir());
+    await svc.setPartnerOperationalStatus(partnerB.id, "buka", { partner: session });
     const tickets = await d.select().from(t.schema.kitchenTickets).where(eq(t.schema.kitchenTickets.orderId, orderId));
     const mitra = tickets.find((x: { station: string }) => x.station === "Mitra");
     expect(mitra?.partnerId).toBe(partnerB.id);
@@ -876,12 +882,16 @@ describe("Smart Partner Hub — pelanggan pesan sendiri dari QR meja (owner Nov 
     expect(queue.some((x: { ticketNo: string }) => x.ticketNo === mitra?.ticketNo)).toBe(true);
   });
 
-  it("produk mitra saat mitra TUTUP: pelanggan langsung diberi alasan mitra", async () => {
+  it("produk mitra saat mitra TUTUP/JEDA: pelanggan tetap bisa pesan selama produk Tersedia; Habis ditolak", async () => {
     const session = partnerSession(partnerB, "Dimsum");
     const [product] = await svc.listPartnerProducts(partnerB.id, { outletId, showCost: true });
     await svc.setPartnerOperationalStatus(partnerB.id, "tutup", { partner: session });
-    await expect(customerOrder([{ itemId: product.menuItemId, variantId: "reg", qty: 1 }], "Meja 10")).rejects.toThrow(/tutup/i);
+    const created = await customerOrder([{ itemId: product.menuItemId, variantId: "reg", qty: 1 }], "Meja 10");
+    expect((created as { order: { status: string } }).order.status).toBe("pending_cashier");
     await svc.setPartnerOperationalStatus(partnerB.id, "buka", { partner: session });
+    await svc.setPartnerProductAvailability(product.linkId, false, { partner: session });
+    await expect(customerOrder([{ itemId: product.menuItemId, variantId: "reg", qty: 1 }], "Meja 11")).rejects.toThrow(/habis/i);
+    await svc.setPartnerProductAvailability(product.linkId, true, { partner: session });
   });
 
   it("meja terisi: tanpa kode gabung (bawaan) siapa saja boleh menambah pesanan; setting wajib kode → ditolak", async () => {

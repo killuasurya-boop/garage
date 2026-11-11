@@ -3,7 +3,7 @@
 // terlihat setelah refresh manual. Hanya `stock` + `partner` produk mitra yang diperbarui: data lain di layar
 // (harga event, varian paket, keranjang) tidak disentuh. Murni (tanpa I/O) — diuji di partner-menu-refresh.test.ts.
 
-type PartnerAware = { id: string; stock?: string | null; partner?: { name: string; label: string | null } | null };
+type PartnerAware = { id: string; stock?: string | null; partner?: { name: string; label: string | null; note?: string | null } | null };
 
 /** Interval cek ulang status mitra di layar terbuka (ms). */
 export const PARTNER_MENU_REFRESH_MS = 30_000;
@@ -25,7 +25,7 @@ export function mergePartnerStatus<T extends PartnerAware>(current: T[], fresh: 
     const latest = byId.get(item.id);
     const stock = latest ? latest.stock : "sold_out";
     const partner = latest ? (latest.partner ?? null) : { name: item.partner.name, label: "Tidak tersedia" };
-    const samePartner = (partner?.name ?? null) === (item.partner?.name ?? null) && (partner?.label ?? null) === (item.partner?.label ?? null);
+    const samePartner = (partner?.name ?? null) === (item.partner?.name ?? null) && (partner?.label ?? null) === (item.partner?.label ?? null) && (partner?.note ?? null) === (item.partner?.note ?? null);
     if (stock === item.stock && samePartner) return item;
     changed = true;
     return { ...item, stock, partner: partner ?? undefined } as T;

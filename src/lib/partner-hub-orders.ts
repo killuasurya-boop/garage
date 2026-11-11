@@ -92,7 +92,7 @@ export async function loadPartnerLinks(db: DbLike, menuItemIds: string[], option
 export function assertPartnerItemsOrderable(
   lines: Array<{ itemId: string; itemName: string; productType?: string | null; stock?: string | null }>,
   links: Map<string, PartnerLinkInfo>,
-  options: { hubEnabled: boolean; outletId: string; customerSelfOrder?: boolean; now?: Date },
+  options: { hubEnabled: boolean; outletId: string; customerSelfOrder?: boolean },
 ) {
   for (const line of lines) {
     const link = links.get(line.itemId);
@@ -103,17 +103,14 @@ export function assertPartnerItemsOrderable(
     }
     if (!link) throw new PartnerOrderError(`${line.itemName} belum terhubung ke mitra resmi.`);
     if (link.outletId !== options.outletId) throw new PartnerOrderError(`${line.itemName} bukan produk mitra outlet ini.`);
-    const reason = partnerOrderBlockReason(
-      {
-        hubEnabled: options.hubEnabled,
-        partnerStatus: link.partnerStatus,
-        operationalStatus: link.operationalStatus,
-        linkActive: link.linkActive,
-        productStock: line.stock,
-        lastOrderByDay: link.lastOrderByDay,
-      },
-      options.now,
-    );
+    const reason = partnerOrderBlockReason({
+      hubEnabled: options.hubEnabled,
+      partnerStatus: link.partnerStatus,
+      operationalStatus: link.operationalStatus,
+      linkActive: link.linkActive,
+      productStock: line.stock,
+      lastOrderByDay: link.lastOrderByDay,
+    });
     if (reason) throw new PartnerOrderError(`${line.itemName}: ${reason}`);
   }
 }

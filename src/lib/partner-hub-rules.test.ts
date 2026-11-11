@@ -6,6 +6,7 @@ import {
   isPastLastOrder,
   partnerCardLabel,
   partnerOrdersNeedingAttention,
+  partnerServiceNote,
   maskAccountNumber,
   partnerActivationBlockers,
   partnerLineFinance,
@@ -20,14 +21,12 @@ import {
 const ok = { hubEnabled: true, partnerStatus: "aktif", operationalStatus: "buka", linkActive: true, productStock: "ready", lastOrderByDay: {} };
 
 describe("Partner Hub — ketersediaan", () => {
-  it("hanya boleh dipesan bila hub aktif, mitra aktif & BUKA, produk tersedia", () => {
+  it("boleh dipesan selama hub aktif, mitra aktif, produk disetujui & Tersedia; Jeda/Tutup tidak menolak", () => {
     expect(partnerOrderBlockReason(ok)).toBeNull();
     expect(partnerOrderBlockReason({ ...ok, hubEnabled: false })).toMatch(/belum aktif/);
     expect(partnerOrderBlockReason({ ...ok, partnerStatus: "dibekukan" })).toMatch(/dihentikan/);
     expect(partnerOrderBlockReason({ ...ok, linkActive: false })).toMatch(/belum disetujui/);
-    expect(partnerOrderBlockReason({ ...ok, operationalStatus: "jeda" })).toMatch(/jeda/);
-    expect(partnerOrderBlockReason({ ...ok, operationalStatus: "tutup" })).toMatch(/tutup/);
-    expect(partnerOrderBlockReason({ ...ok, operationalStatus: "?" })).toMatch(/belum terkonfirmasi/);
+    for (const operationalStatus of ["jeda", "tutup", "offline", "?"]) expect(partnerOrderBlockReason({ ...ok, operationalStatus })).toBeNull();
     expect(partnerOrderBlockReason({ ...ok, productStock: "sold_out" })).toMatch(/Sold Out/);
   });
 
@@ -39,19 +38,24 @@ describe("Partner Hub — ketersediaan", () => {
     // Sabtu 14 Nov 2026 22:00 WIB masih boleh.
     expect(isPastLastOrder(rules, new Date("2026-11-14T15:00:00Z"))).toBe(false);
     expect(isPastLastOrder({}, new Date())).toBe(false);
-    expect(partnerOrderBlockReason({ ...ok, lastOrderByDay: rules }, new Date("2026-11-10T15:00:00Z"))).toMatch(/last order/);
+    // Lewat last order: tetap bisa dipesan (keputusan mitra), hanya keterangan.
+    expect(partnerOrderBlockReason({ ...ok, lastOrderByDay: rules })).toBeNull();
+    expect(partnerServiceNote({ ...ok, lastOrderByDay: rules }, new Date("2026-11-10T15:00:00Z"))).toBe("Lewat last order");
   });
 });
 
 describe("Partner Hub — kenyamanan kasir", () => {
-  it("label kartu POS menyebut alasan, bukan sekadar Habis", () => {
+  it("label kartu hanya saat tidak bisa dipesan; status mitra jadi keterangan (note)", () => {
     expect(partnerCardLabel(ok)).toBeNull();
-    expect(partnerCardLabel({ ...ok, operationalStatus: "tutup" })).toBe("Mitra tutup");
-    expect(partnerCardLabel({ ...ok, operationalStatus: "jeda" })).toBe("Mitra jeda");
-    expect(partnerCardLabel({ ...ok, operationalStatus: "?" })).toBe("Mitra belum konfirmasi");
+    expect(partnerServiceNote(ok)).toBeNull();
+    expect(partnerCardLabel({ ...ok, operationalStatus: "tutup" })).toBeNull();
+    expect(partnerServiceNote({ ...ok, operationalStatus: "tutup" })).toBe("Mitra tutup");
+    expect(partnerServiceNote({ ...ok, operationalStatus: "jeda" })).toBe("Mitra jeda");
+    expect(partnerServiceNote({ ...ok, operationalStatus: "?" })).toBe("Mitra belum konfirmasi");
     expect(partnerCardLabel({ ...ok, productStock: "sold_out" })).toBe("Habis");
-    const rules = { "2": "21:45" };
-    expect(partnerCardLabel({ ...ok, lastOrderByDay: rules }, new Date("2026-11-10T15:00:00Z"))).toBe("Lewat last order");
+    expect(partnerCardLabel({ ...ok, partnerStatus: "dibekukan" })).toBe("Mitra nonaktif");
+    // Produk yang tidak bisa dipesan tidak membawa keterangan layanan.
+    expect(partnerServiceNote({ ...ok, productStock: "sold_out", operationalStatus: "jeda" })).toBeNull();
   });
 
   it("badge perhatian: belum diterima lewat SLA atau siap belum diambil", () => {
@@ -86,8 +90,8 @@ describe("Partner Hub — status layanan yang berlaku", () => {
     expect(effectiveOperationalStatus({ ...base, lastSeenAt: "2026-11-10T07:50:00Z", heartbeatMinutes: 5 }, now)).toBe("offline");
     expect(effectiveOperationalStatus({ ...base, lastSeenAt: null, heartbeatMinutes: 5 }, now)).toBe("offline");
     expect(effectiveOperationalStatus({ ...base, lastSeenAt: null, heartbeatMinutes: 0 }, now)).toBe("buka");
-    expect(partnerOrderBlockReason({ ...ok, operationalStatus: "offline" })).toMatch(/tidak terhubung/);
-    expect(partnerCardLabel({ ...ok, operationalStatus: "offline" })).toBe("Mitra tidak terhubung");
+    expect(partnerOrderBlockReason({ ...ok, operationalStatus: "offline" })).toBeNull();
+    expect(partnerServiceNote({ ...ok, operationalStatus: "offline" })).toBe("Mitra tidak terhubung");
     expect(partnerOrdersNeedingAttention([{ status: "rejected", createdAt: now, readyAt: null, needsRefund: true }], now.getTime(), 2, 3)).toBe(1);
   });
 });

@@ -84,10 +84,9 @@ import {
   createPartnerTicketsForOrder,
   loadPartnerLinks,
   movePartnerLineOnSplit,
-  PartnerOrderError,
   recordPartnerRefundAdjustment,
 } from "@/lib/partner-hub-orders";
-import { effectiveOperationalStatus, PARTNER_WEBSITE_TAG, partnerCardLabel } from "@/lib/partner-hub-rules";
+import { effectiveOperationalStatus, PARTNER_WEBSITE_TAG, partnerCardLabel, partnerServiceNote } from "@/lib/partner-hub-rules";
 import {
   GarageOsThemeSaveError,
   isSavableGarageOsThemePreset,
@@ -1772,7 +1771,8 @@ export async function getMenuData(params?: {
         lastOrderByDay: link.lastOrderByDay,
       };
       const label = partnerCardLabel(availability);
-      row.partner = { name: link.partnerName, label };
+      // `label` = alasan tidak bisa dipesan; `note` = keterangan layanan (Jeda/Tutup/offline) — pesanan tetap boleh masuk.
+      row.partner = { name: link.partnerName, label, note: partnerServiceNote(availability) };
       if (label) row.stock = "sold_out";
     }
   }
@@ -10843,7 +10843,7 @@ async function updateCustomerOrderStatusImpl(
         ),
       });
       // Smart Partner Hub: produk mitra → tiket station "Mitra" per mitra + snapshot HPP (idempoten).
-      // Cek ulang saat kasir menerima: mitra bisa sudah Jeda/Tutup/Habis sejak pelanggan memesan.
+      // Cek ulang saat kasir menerima: produk bisa sudah Habis / mitra dinonaktifkan sejak pelanggan memesan.
       const partnerLinks = await loadPartnerLinks(tx, menuRows.map((row) => row.menuItemId ?? ""), {
         heartbeatMinutes: outletSettings.partnerHeartbeatMinutes,
       });
@@ -10853,20 +10853,14 @@ async function updateCustomerOrderStatusImpl(
           ? await tx.select({ id: menuItems.id, stock: menuItems.stock }).from(menuItems).where(inArray(menuItems.id, partnerMenuIds))
           : [];
         const stockById = new Map(stockRows.map((row) => [row.id, row.stock]));
-        try {
-          assertPartnerItemsOrderable(
-            menuRows
-              .filter((row) => row.menuItemId && partnerLinks.has(row.menuItemId))
-              .map((row) => ({ itemId: row.menuItemId!, itemName: row.itemName, productType: "partner", stock: stockById.get(row.menuItemId!) ?? null })),
-            partnerLinks,
-            { hubEnabled: outletSettings.partnerHubEnabled, outletId: order.outletId ?? garage.profile.outlet.id },
-          );
-        } catch (error) {
-          if (error instanceof PartnerOrderError) {
-            throw new PartnerOrderError(`${error.message} Tolak pesanan ini atau minta pelanggan ganti menu.`);
-          }
-          throw error;
-        }
+        // Hanya blokir keras + Habis. Jeda/Tutup/offline tidak menolak: tiket tetap masuk Portal Mitra, mitra yang memutuskan.
+        assertPartnerItemsOrderable(
+          menuRows
+            .filter((row) => row.menuItemId && partnerLinks.has(row.menuItemId))
+            .map((row) => ({ itemId: row.menuItemId!, itemName: row.itemName, productType: "partner", stock: stockById.get(row.menuItemId!) ?? null })),
+          partnerLinks,
+          { hubEnabled: outletSettings.partnerHubEnabled, outletId: order.outletId ?? garage.profile.outlet.id },
+        );
       }
       const partnerTickets = await createPartnerTicketsForOrder(tx, {
         order: { id: order.id, orderNo: order.orderNo, tableLabel: order.tableLabel, customerName: order.customerName, outletId: order.outletId ?? garage.profile.outlet.id, channel: order.channel },

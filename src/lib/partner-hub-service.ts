@@ -45,6 +45,7 @@ import {
   partnerBestSellers,
   partnerLineFinance,
   partnerCardLabel,
+  partnerServiceNote,
   partnerMarketingBlockers,
   PARTNER_WEBSITE_TAG,
   partnerSettlementTotals,
@@ -805,16 +806,12 @@ export async function publicPartnerMarketingProducts() {
     const prices = variants.map((v) => v.price).filter((p) => p > 0);
     // Ketersediaan = aturan yang sama dengan menu digital & POS (Buka/Jeda/Tutup efektif, portal offline, last order, Habis).
     const link = (await loadPartnerLinks(db, [row.item.id], { heartbeatMinutes: cfg.heartbeat })).get(row.item.id);
-    const label = link
-      ? partnerCardLabel({
-          hubEnabled: true,
-          partnerStatus: link.partnerStatus,
-          operationalStatus: link.operationalStatus,
-          linkActive: link.linkActive,
-          productStock: row.item.stock,
-          lastOrderByDay: link.lastOrderByDay,
-        })
-      : "Tidak tersedia";
+    const availability = link
+      ? { hubEnabled: true, partnerStatus: link.partnerStatus, operationalStatus: link.operationalStatus, linkActive: link.linkActive, productStock: row.item.stock, lastOrderByDay: link.lastOrderByDay }
+      : null;
+    // "Tersedia sekarang" di website = bisa dipesan DAN mitra sedang buka normal (Jeda/Tutup/offline tetap bisa dipesan
+    // di outlet, tetapi tidak diiklankan sebagai tersedia sekarang).
+    const availableNow = availability ? partnerCardLabel(availability) === null && partnerServiceNote(availability) === null : false;
     out.push({
       id: row.item.id,
       name: row.item.name,
@@ -824,7 +821,7 @@ export async function publicPartnerMarketingProducts() {
       partnerName: row.partner.name,
       priceFrom: prices.length ? Math.min(...prices) : 0,
       multiPrice: new Set(prices).size > 1,
-      availableNow: label === null,
+      availableNow,
     });
   }
   return out.slice(0, 8);

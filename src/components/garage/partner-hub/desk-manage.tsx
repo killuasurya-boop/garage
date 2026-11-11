@@ -46,8 +46,8 @@ const NEXT: Record<string, Array<{ to: string; label: string; owner?: boolean }>
   draft: [{ to: "verifikasi", label: "Ajukan verifikasi" }],
   verifikasi: [{ to: "disetujui", label: "Setujui (Owner)", owner: true }, { to: "draft", label: "Kembalikan ke draft" }],
   disetujui: [{ to: "aktif", label: "Aktifkan (Owner)", owner: true }],
-  aktif: [{ to: "dibekukan", label: "Bekukan sementara" }],
-  dibekukan: [{ to: "aktif", label: "Aktifkan lagi (Owner)", owner: true }],
+  aktif: [{ to: "dibekukan", label: "Bekukan sementara" }, { to: "nonaktif", label: "Nonaktifkan mitra" }],
+  dibekukan: [{ to: "aktif", label: "Aktifkan lagi (Owner)", owner: true }, { to: "nonaktif", label: "Nonaktifkan mitra" }],
   nonaktif: [{ to: "draft", label: "Buka ulang (draft)" }],
 };
 const DAYS = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
@@ -191,6 +191,8 @@ function PartnerDetail({ partner, isOwner, busy, run }: { partner: Partner; isOw
   const [account, setAccount] = useState({ phone: partner.phone ?? "", displayName: partner.picName ?? "", pin: "" });
   const [product, setProduct] = useState({ code: "", name: "", category: partner.productKind ?? "", unitCost: "", sellPrice: "" });
   const [editing, setEditing] = useState<string | null>(null);
+  const [pinReset, setPinReset] = useState<{ id: string; pin: string } | null>(null);
+  const [hideInactive, setHideInactive] = useState(false);
 
   const loadProducts = useCallback(async () => setProducts(await api<Product[]>(`/api/partners/${partner.id}/products`)), [partner.id]);
   useEffect(() => {
@@ -323,19 +325,33 @@ function PartnerDetail({ partner, isOwner, busy, run }: { partner: Partner; isOw
             </span>
             <span className="flex gap-2">
               <Chip tone={a.status === "active" ? "green" : "red"}>{a.status === "active" ? "Aktif" : "Nonaktif"}</Chip>
-              <Btn
-                busy={busy === `acc-${a.id}`}
-                onClick={() => {
-                  const pin = window.prompt("PIN baru untuk mitra (6 angka). Sesi lama otomatis keluar.");
-                  if (pin && /^\d{6}$/.test(pin)) void run(`acc-${a.id}`, () => api(`/api/partners/accounts/${a.id}`, { method: "PATCH", body: JSON.stringify({ pin }) }), "PIN mitra diganti.");
-                }}
-              >
-                Ganti PIN
-              </Btn>
+              <Btn onClick={() => setPinReset(pinReset?.id === a.id ? null : { id: a.id, pin: "" })}>Reset PIN</Btn>
               <Btn tone="danger" busy={busy === `accs-${a.id}`} onClick={() => void run(`accs-${a.id}`, () => api(`/api/partners/accounts/${a.id}`, { method: "PATCH", body: JSON.stringify({ status: a.status === "active" ? "disabled" : "active" }) }), "Status akun diubah.")}>
                 {a.status === "active" ? "Nonaktifkan" : "Aktifkan"}
               </Btn>
             </span>
+            {pinReset?.id === a.id ? (
+              <form
+                className="flex w-full flex-wrap items-center gap-2"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void run(`acc-${a.id}`, () => api(`/api/partners/accounts/${a.id}`, { method: "PATCH", body: JSON.stringify({ pin: pinReset.pin }) }), "PIN mitra direset. Berikan PIN langsung ke mitra; HP lama otomatis keluar.").then(() => setPinReset(null));
+                }}
+              >
+                <input
+                  value={pinReset.pin}
+                  onChange={(e) => setPinReset({ id: a.id, pin: e.target.value.replace(/\D/g, "").slice(0, 6) })}
+                  inputMode="numeric"
+                  placeholder="PIN baru 6 angka"
+                  aria-label="PIN baru mitra"
+                  className={`${inputCls} max-w-[200px]`}
+                />
+                <Btn type="submit" tone="primary" busy={busy === `acc-${a.id}`} disabled={pinReset.pin.length !== 6}>
+                  Simpan PIN
+                </Btn>
+                <span className="text-xs text-[#b8b8bf]">Minta mitra mengganti PIN sendiri di Portal setelah masuk.</span>
+              </form>
+            ) : null}
           </div>
         ))}
         <form
@@ -355,14 +371,22 @@ function PartnerDetail({ partner, isOwner, busy, run }: { partner: Partner; isOw
       </div>
 
       <div className="grid content-start gap-3">
-        <h4 className="text-sm font-bold text-white">Produk mitra & harga</h4>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h4 className="text-sm font-bold text-white">Produk mitra & harga</h4>
+          {products?.some((p) => !p.active) && products.some((p) => p.active) ? (
+            <label className="flex min-h-11 items-center gap-2 text-xs text-[#d4d4d8]">
+              <input type="checkbox" checked={hideInactive} onChange={(e) => setHideInactive(e.target.checked)} className="size-4" />
+              Sembunyikan produk nonaktif ({products.filter((p) => !p.active).length})
+            </label>
+          ) : null}
+        </div>
         {products === null ? (
           <p className="text-sm text-[#b8b8bf]">Memuat…</p>
         ) : products.length === 0 ? (
           <p className="text-sm text-[#b8b8bf]">Belum ada produk.</p>
         ) : (
           <ul className="grid gap-2">
-            {products.map((p) => (
+            {products.filter((p) => !hideInactive || p.active).map((p) => (
               <li key={p.linkId} className="rounded-lg border border-[#2a2a30] p-3 text-sm">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="font-semibold text-white">
@@ -419,7 +443,117 @@ function PartnerDetail({ partner, isOwner, busy, run }: { partner: Partner; isOw
             <Plus className="size-4" /> Tambah produk
           </Btn>
         </form>
+        <PartnerAuditPanel partnerId={partner.id} />
       </div>
+    </div>
+  );
+}
+
+const EVENT_LABEL: Record<string, string> = {
+  partner_created: "Mitra didaftarkan",
+  partner_profile_updated: "Data mitra diubah",
+  partner_status: "Status mitra diubah",
+  operational_status: "Buka/Jeda/Tutup",
+  availability: "Tersedia/Habis",
+  account_updated: "Akun portal diubah",
+  adjustment_created: "Penyesuaian dicatat",
+  adjustment_decided: "Penyesuaian diputuskan",
+  settlement_created: "Settlement dibuat",
+  settlement_submitted: "Settlement diajukan",
+  payout_proof: "Bukti transfer diunggah",
+  report_generated: "Laporan PDF diterbitkan",
+  bank_added: "Rekening ditambahkan",
+  bank_verified: "Rekening diverifikasi",
+  account_created: "Akun portal dibuat",
+  account_pin_changed_by_partner: "Mitra mengganti PIN",
+  product_created: "Produk didaftarkan",
+  product_approved: "Produk disetujui",
+  product_deactivated: "Produk dinonaktifkan",
+  product_settings: "Pengaturan produk diubah",
+  price_changed: "Harga diubah",
+  variant_added: "Varian ditambah",
+  variant_removed: "Varian dihapus",
+  settlement_approved: "Settlement disetujui",
+  settlement_cancelled: "Settlement dibatalkan",
+  payout_recorded: "Pembayaran dicatat",
+  payout_verified: "Pembayaran diverifikasi",
+  payout_void: "Pembayaran dibatalkan",
+};
+
+/** Riwayat harga & log kejadian mitra (hanya baca, Owner/Manajer). Dimuat saat dibuka. */
+function PartnerAuditPanel({ partnerId }: { partnerId: string }) {
+  const [tab, setTab] = useState<"none" | "price" | "log">("none");
+  const [prices, setPrices] = useState<Array<{ id: string; code: string; productName: string; variantId: string; unitCost: number; sellPrice: number; reason: string; createdAt: string }> | null>(null);
+  const [events, setEvents] = useState<Array<{ id: string; kind: string; fromStatus: string | null; toStatus: string | null; reason: string | null; actorName: string | null; actorType: string; createdAt: string }> | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const fmt = new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", day: "2-digit", month: "short", year: "2-digit", hour: "2-digit", minute: "2-digit" });
+  const open = async (next: "price" | "log") => {
+    setTab(tab === next ? "none" : next);
+    setError(null);
+    try {
+      if (next === "price") setPrices(await api(`/api/partners/${partnerId}/price-history`));
+      else setEvents(await api(`/api/partners/${partnerId}/events`));
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+  return (
+    <div className="grid gap-2 rounded-lg border border-[#2a2a30] p-3">
+      <div className="flex flex-wrap gap-2">
+        <Btn onClick={() => void open("price")}>{tab === "price" ? "Tutup riwayat harga" : "Riwayat harga"}</Btn>
+        <Btn onClick={() => void open("log")}>{tab === "log" ? "Tutup log" : "Log kejadian"}</Btn>
+      </div>
+      {error ? <p className="text-sm text-[#ffb3b8]">{error}</p> : null}
+      {tab === "price" ? (
+        prices === null ? (
+          <p className="text-sm text-[#b8b8bf]">Memuat…</p>
+        ) : prices.length === 0 ? (
+          <p className="text-sm text-[#b8b8bf]">Belum ada riwayat harga.</p>
+        ) : (
+          <div className="max-h-80 overflow-auto">
+            <table className="w-full min-w-[520px] text-left text-sm">
+              <thead className="sticky top-0 bg-[#16161a] text-xs text-[#b8b8bf]">
+                <tr>
+                  <th className="py-1 pr-2">Waktu</th>
+                  <th className="py-1 pr-2">Produk</th>
+                  <th className="py-1 pr-2 text-right">HPP</th>
+                  <th className="py-1 pr-2 text-right">Jual</th>
+                  <th className="py-1">Alasan</th>
+                </tr>
+              </thead>
+              <tbody>
+                {prices.map((row) => (
+                  <tr key={row.id} className="border-t border-[#2a2a30] text-[#f4f4f5]">
+                    <td className="py-1 pr-2 whitespace-nowrap text-xs">{fmt.format(new Date(row.createdAt))}</td>
+                    <td className="py-1 pr-2">
+                      {row.productName} <span className="text-xs text-[#b8b8bf]">({row.variantId})</span>
+                    </td>
+                    <td className="py-1 pr-2 text-right font-mono">{rp(row.unitCost)}</td>
+                    <td className="py-1 pr-2 text-right font-mono">{rp(row.sellPrice)}</td>
+                    <td className="py-1 text-xs text-[#d4d4d8]">{row.reason}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      ) : null}
+      {tab === "log" ? (
+        events === null ? (
+          <p className="text-sm text-[#b8b8bf]">Memuat…</p>
+        ) : (
+          <ul className="grid max-h-80 gap-1 overflow-auto text-sm">
+            {events.map((e) => (
+              <li key={e.id} className="rounded border border-[#2a2a30] px-2 py-1 text-[#f4f4f5]">
+                <span className="text-xs text-[#b8b8bf]">{fmt.format(new Date(e.createdAt))}</span> · {EVENT_LABEL[e.kind] ?? e.kind}
+                {e.fromStatus || e.toStatus ? ` (${e.fromStatus ?? "-"} → ${e.toStatus ?? "-"})` : ""}
+                {e.reason ? ` · "${e.reason}"` : ""}
+                <span className="text-xs text-[#b8b8bf]"> · {e.actorName ?? e.actorType}</span>
+              </li>
+            ))}
+          </ul>
+        )
+      ) : null}
     </div>
   );
 }
@@ -479,8 +613,44 @@ function ProductSettings({ product, isOwner, busy, runP }: { product: Product; i
         <Field label="Kategori">
           <input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} required minLength={2} className={inputCls} />
         </Field>
-        <Field label="Foto produk (https:// atau /garage-uploads/…)">
-          <input value={form.imageUrl} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })} placeholder="kosongkan bila belum ada foto" className={inputCls} />
+        <Field label="Foto produk">
+          <div className="flex flex-wrap items-center gap-2">
+            {form.imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={form.imageUrl} alt={`Foto ${form.name}`} className="size-14 rounded-lg border border-[#3a3a42] object-cover" />
+            ) : null}
+            <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-[#3a3a42] px-3 text-sm font-semibold text-[#e4e4e8] hover:bg-white/10">
+              {busy === `pimg-${product.linkId}` ? "Mengunggah…" : form.imageUrl ? "Ganti foto" : "Unggah foto"}
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="sr-only"
+                aria-label={`Unggah foto ${product.name}`}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";
+                  if (!file) return;
+                  void runP(
+                    `pimg-${product.linkId}`,
+                    async () => {
+                      const body = new FormData();
+                      body.append("image", file);
+                      const res = await fetch(`/api/partners/products/${product.linkId}/image`, { method: "POST", body, credentials: "include" });
+                      const json = (await res.json().catch(() => null)) as { data?: { imageUrl: string }; error?: { message?: string } } | null;
+                      if (!res.ok || !json?.data) throw new Error(json?.error?.message ?? "Foto gagal diunggah.");
+                      setForm((f) => ({ ...f, imageUrl: json.data!.imageUrl }));
+                    },
+                    "Foto produk diperbarui.",
+                  );
+                }}
+              />
+            </label>
+            {form.imageUrl ? (
+              <button type="button" onClick={() => setForm({ ...form, imageUrl: "" })} className="min-h-11 px-2 text-sm text-[#ffb3b8] underline">
+                Hapus foto
+              </button>
+            ) : null}
+          </div>
         </Field>
         <Field label="Deskripsi singkat">
           <input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} maxLength={500} className={inputCls} />
@@ -543,6 +713,61 @@ function ProductSettings({ product, isOwner, busy, runP }: { product: Product; i
       ) : (
         <p className="text-xs text-[#b8b8bf]">Perubahan HPP &amp; harga jual hanya oleh Owner.</p>
       )}
+      {isOwner ? <VariantManager product={product} busy={busy} runP={runP} /> : null}
+    </div>
+  );
+}
+
+/** Tambah / hapus varian (mis. Small/Large) — Owner. Harga awal varian baru tercatat di riwayat harga. */
+function VariantManager({ product, busy, runP }: { product: Product; busy: string | null; runP: RunP }) {
+  const [draft, setDraft] = useState({ label: "", cost: "", sell: "" });
+  return (
+    <div className="grid gap-2 border-t border-[#2a2a30] pt-3">
+      <p className="text-sm font-semibold text-white">Varian</p>
+      <ul className="flex flex-wrap gap-2">
+        {product.variants.map((v) => (
+          <li key={v.variantId} className="inline-flex items-center gap-2 rounded-lg border border-[#3a3a42] px-2 py-1 text-sm text-[#f4f4f5]">
+            {v.label} · {rp(v.sellPrice)}
+            {product.variants.length > 1 ? (
+              <button
+                type="button"
+                aria-label={`Hapus varian ${v.label}`}
+                className="min-h-9 px-1 text-[#ffb3b8]"
+                onClick={() => {
+                  const reason = window.confirm(`Hapus varian ${v.label}? Transaksi lama tetap tersimpan.`) ? "Varian tidak dijual lagi" : "";
+                  if (reason) void runP(`pvar-del-${v.variantId}`, () => api(`/api/partners/products/${product.linkId}/variants`, { method: "DELETE", body: JSON.stringify({ variantId: v.variantId, reason }) }), `Varian ${v.label} dihapus.`);
+                }}
+              >
+                ✕
+              </button>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+      <form
+        className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:items-end"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void runP(
+            `pvar-${product.linkId}`,
+            () => api(`/api/partners/products/${product.linkId}/variants`, { method: "POST", body: JSON.stringify({ label: draft.label, unitCost: Number(draft.cost), sellPrice: Number(draft.sell), reason: "Varian baru" }) }),
+            `Varian ${draft.label} ditambahkan.`,
+          ).then(() => setDraft({ label: "", cost: "", sell: "" }));
+        }}
+      >
+        <Field label="Nama varian">
+          <input value={draft.label} onChange={(e) => setDraft({ ...draft, label: e.target.value })} placeholder="mis. Large" required className={inputCls} />
+        </Field>
+        <Field label="HPP mitra">
+          <input inputMode="numeric" value={draft.cost} onChange={(e) => setDraft({ ...draft, cost: e.target.value.replace(/\D/g, "") })} required className={inputCls} />
+        </Field>
+        <Field label="Harga jual">
+          <input inputMode="numeric" value={draft.sell} onChange={(e) => setDraft({ ...draft, sell: e.target.value.replace(/\D/g, "") })} required className={inputCls} />
+        </Field>
+        <Btn type="submit" busy={busy === `pvar-${product.linkId}`} disabled={!draft.label.trim() || !draft.sell}>
+          Tambah varian
+        </Btn>
+      </form>
     </div>
   );
 }

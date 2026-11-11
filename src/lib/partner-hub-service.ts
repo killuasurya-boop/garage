@@ -7,7 +7,7 @@
 
 import { createHash } from "node:crypto";
 
-import { and, asc, desc, eq, gte, inArray, lt, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lt, ne, notInArray, or, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
@@ -442,6 +442,88 @@ export async function setPartnerProductActive(linkId: string, active: boolean, g
   });
 }
 
+/** Tambah varian (mis. Large) ke produk mitra — Owner, harga awal tercatat di riwayat harga. */
+export async function addPartnerVariant(
+  linkId: string,
+  input: { label: string; unitCost: number; sellPrice: number; reason: string },
+  garage: GarageSession,
+) {
+  assertOwner(garage, "Menambah varian produk mitra");
+  const label = input.label.trim();
+  if (label.length < 1) throw new PartnerHubError("LABEL_REQUIRED", "Nama varian wajib diisi.");
+  assertPrices([{ variantId: "new", label, unitCost: input.unitCost, sellPrice: input.sellPrice }]);
+  const db = getDb();
+  const [link] = await db.select().from(partnerProductLinks).where(eq(partnerProductLinks.id, linkId)).limit(1);
+  if (!link) throw new PartnerHubError("PRODUCT_NOT_FOUND", "Produk mitra tidak ditemukan.", 404);
+  await loadPartner(db, link.partnerId, garage.profile.outlet.id);
+  const existing = await db.select().from(menuVariants).where(eq(menuVariants.itemId, link.menuItemId));
+  if (existing.some((v) => v.label.toLowerCase() === label.toLowerCase())) throw new PartnerHubError("VARIANT_EXISTS", `Varian "${label}" sudah ada.`, 409);
+  const base = label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 24) || "varian";
+  let variantId = base;
+  for (let i = 2; existing.some((v) => v.variantId === variantId); i += 1) variantId = `${base}-${i}`;
+  return db.transaction(async (tx) => {
+    await tx.insert(menuVariants).values({ itemId: link.menuItemId, variantId, label, price: input.sellPrice, baseCost: input.unitCost, sortOrder: existing.length });
+    await tx.insert(partnerPriceHistory).values({ linkId, variantId, unitCost: input.unitCost, sellPrice: input.sellPrice, reason: input.reason.trim() || "Varian baru", createdBy: garage.user.id });
+    await logEvent(tx, { partnerId: link.partnerId, kind: "variant_added", subjectId: linkId, actor: staffActor(garage), metadata: { variantId, label, unitCost: input.unitCost, sellPrice: input.sellPrice } });
+    return { linkId, variantId };
+  });
+}
+
+/** Hapus varian dari produk mitra (minimal tersisa satu). Transaksi lama aman: memakai snapshot baris pesanan. */
+export async function removePartnerVariant(linkId: string, variantId: string, reason: string, garage: GarageSession) {
+  assertOwner(garage, "Menghapus varian produk mitra");
+  if (!reason.trim()) throw new PartnerHubError("REASON_REQUIRED", "Alasan wajib diisi.");
+  const db = getDb();
+  const [link] = await db.select().from(partnerProductLinks).where(eq(partnerProductLinks.id, linkId)).limit(1);
+  if (!link) throw new PartnerHubError("PRODUCT_NOT_FOUND", "Produk mitra tidak ditemukan.", 404);
+  await loadPartner(db, link.partnerId, garage.profile.outlet.id);
+  const existing = await db.select().from(menuVariants).where(eq(menuVariants.itemId, link.menuItemId));
+  if (!existing.some((v) => v.variantId === variantId)) throw new PartnerHubError("VARIANT_NOT_FOUND", "Varian tidak ditemukan.", 404);
+  if (existing.length <= 1) throw new PartnerHubError("LAST_VARIANT", "Produk harus punya minimal satu varian.", 409);
+  return db.transaction(async (tx) => {
+    await tx.delete(menuVariants).where(and(eq(menuVariants.itemId, link.menuItemId), eq(menuVariants.variantId, variantId)));
+    await logEvent(tx, { partnerId: link.partnerId, kind: "variant_removed", subjectId: linkId, reason, actor: staffActor(garage), metadata: { variantId } });
+    return { linkId, variantId };
+  });
+}
+
+/** Riwayat harga per produk mitra (Owner/Manajer). */
+export async function listPartnerPriceHistory(partnerId: string, garage: GarageSession) {
+  assertOwnerOrManager(garage, "Melihat riwayat harga mitra");
+  const db = getDb();
+  await loadPartner(db, partnerId, garage.profile.outlet.id);
+  return db
+    .select({
+      id: partnerPriceHistory.id,
+      code: partnerProductLinks.code,
+      productName: menuItems.name,
+      variantId: partnerPriceHistory.variantId,
+      unitCost: partnerPriceHistory.unitCost,
+      sellPrice: partnerPriceHistory.sellPrice,
+      reason: partnerPriceHistory.reason,
+      createdAt: partnerPriceHistory.createdAt,
+    })
+    .from(partnerPriceHistory)
+    .innerJoin(partnerProductLinks, eq(partnerPriceHistory.linkId, partnerProductLinks.id))
+    .innerJoin(menuItems, eq(partnerProductLinks.menuItemId, menuItems.id))
+    .where(eq(partnerProductLinks.partnerId, partnerId))
+    .orderBy(desc(partnerPriceHistory.createdAt))
+    .limit(200);
+}
+
+/** Log kejadian mitra (append-only) untuk Owner/Manajer. */
+export async function listPartnerEvents(partnerId: string, garage: GarageSession) {
+  assertOwnerOrManager(garage, "Melihat log mitra");
+  const db = getDb();
+  await loadPartner(db, partnerId, garage.profile.outlet.id);
+  return db
+    .select({ id: partnerEvents.id, kind: partnerEvents.kind, subjectId: partnerEvents.subjectId, fromStatus: partnerEvents.fromStatus, toStatus: partnerEvents.toStatus, reason: partnerEvents.reason, actorType: partnerEvents.actorType, actorName: partnerEvents.actorName, createdAt: partnerEvents.createdAt })
+    .from(partnerEvents)
+    .where(eq(partnerEvents.partnerId, partnerId))
+    .orderBy(desc(partnerEvents.createdAt))
+    .limit(200);
+}
+
 /** Harga baru berlaku sejak sekarang; transaksi lama tetap memakai snapshot (PRD 05.3). */
 export async function setPartnerProductPrice(
   linkId: string,
@@ -570,7 +652,7 @@ function ticketView(ticket: typeof kitchenTickets.$inferSelect, lines: Array<typ
   };
 }
 
-export async function listTicketsForPartner(partnerId: string, scope: "active" | "history", options: { from?: Date; limit?: number } = {}) {
+export async function listTicketsForPartner(partnerId: string, scope: "active" | "history", options: { from?: Date; to?: Date; limit?: number } = {}) {
   const db = getDb();
   const active = ["queue", "cooking", "ready"];
   const rows = await db
@@ -581,6 +663,7 @@ export async function listTicketsForPartner(partnerId: string, scope: "active" |
         eq(kitchenTickets.partnerId, partnerId),
         scope === "active" ? inArray(kitchenTickets.status, active) : sql`${kitchenTickets.status} not in ('queue','cooking','ready')`,
         options.from ? gte(kitchenTickets.createdAt, options.from) : undefined,
+        options.to ? lt(kitchenTickets.createdAt, options.to) : undefined,
       ),
     )
     .orderBy(scope === "active" ? asc(kitchenTickets.createdAt) : desc(kitchenTickets.createdAt))
@@ -672,7 +755,6 @@ export async function listPartnerOrdersForOutlet(
 ) {
   const db = getDb();
   const since = new Date(Date.now() - 24 * 3_600_000);
-  const rejectedSince = new Date(Date.now() - 48 * 3_600_000);
   const rows = await db
     .select({ ticket: kitchenTickets, partner: partners, order: { id: orders.id, status: orders.status, total: orders.total } })
     .from(kitchenTickets)
@@ -687,7 +769,12 @@ export async function listPartnerOrdersForOutlet(
           : or(
               inArray(kitchenTickets.status, ["queue", "cooking", "ready"]),
               // Ditolak mitra: tetap tampil sampai kasir menyelesaikan uang pelanggan (refund / batal).
-              and(eq(kitchenTickets.status, "rejected"), gte(kitchenTickets.createdAt, rejectedSince)),
+              // Tanpa batas waktu: tiket tidak boleh hilang dari antrean refund sebelum item keluar dari bill.
+              and(
+                eq(kitchenTickets.status, "rejected"),
+                notInArray(orders.status, ["voided", "rejected", "cancelled", "failed", "void"]),
+                sql`exists (select 1 from partner_order_lines pol where pol.ticket_id = ${kitchenTickets.id} and pol.order_item_id is not null)`,
+              ),
             ),
       ),
     )
@@ -741,6 +828,98 @@ export async function listPartnerOrdersForOutlet(
     }
   }
   return result;
+}
+
+/**
+ * Sapuan server tiap menit (instrumentation-node): eskalasi SLA mitra tanpa bergantung layar POS terbuka.
+ * - Belum diterima ≥ partnerSlaEscalateMinutes → kasir & manajemen (sekali per tiket, via listPartnerOrdersForOutlet).
+ * - Siap Antar belum diambil waiter ≥ partnerReadyWaitWarnMinutes → waiter & manajemen (sekali per tiket).
+ */
+export async function sweepPartnerSla(now = new Date()) {
+  const db = getDb();
+  const outletRows = await db
+    .selectDistinct({ outletId: partners.outletId })
+    .from(kitchenTickets)
+    .innerJoin(partners, eq(kitchenTickets.partnerId, partners.id))
+    .where(inArray(kitchenTickets.status, ["queue", "cooking", "ready"]));
+  if (!outletRows.length) return { escalated: 0, readyWaiting: 0 };
+  const { getAppSettings } = await import("@/lib/garage-service");
+  const { notifyStaff } = await import("@/lib/staff-notifications");
+  let escalated = 0;
+  let readyWaiting = 0;
+  for (const { outletId } of outletRows) {
+    const settings = await getAppSettings(outletId);
+    if (!settings.partnerHubEnabled) continue;
+    const rows = await listPartnerOrdersForOutlet(outletId, { escalateMinutes: settings.partnerSlaEscalateMinutes });
+    escalated += rows.filter((row) => row.escalated).length;
+    const readyLimit = settings.partnerReadyWaitWarnMinutes;
+    for (const row of rows) {
+      if (row.status !== "ready" || !row.readyAt || row.claimedByName) continue;
+      const waited = Math.floor((now.getTime() - new Date(row.readyAt).getTime()) / 60_000);
+      if (waited < readyLimit) continue;
+      readyWaiting += 1;
+      for (const audience of ["waiter", "management"] as const) {
+        await notifyStaff({
+          outletId,
+          audience,
+          kind: "partner_ready_waiting",
+          severity: "urgent",
+          title: `Pesanan ${row.partnerName} menunggu diambil`,
+          body: `${row.orderNo} · ${row.tableLabel ?? "Take away"} · siap ${waited} menit lalu. Ambil di ${row.handoverPoint ?? "titik serah-terima mitra"}.`,
+          url: "/partners?tab=pickup",
+          dedupKey: `partner_ready_waiting:${audience}:${row.ticketNo}`,
+        }).catch(() => undefined);
+      }
+    }
+  }
+  return { escalated, readyWaiting };
+}
+
+/** Ringkasan Partner Hub untuk Dashboard Owner/Manajer: penjualan & kewajiban hari ini/bulan ini, status mitra. */
+export async function partnerDashboardSummary(garage: GarageSession) {
+  assertOwnerOrManager(garage, "Melihat ringkasan Partner Hub");
+  const outletId = garage.profile.outlet.id;
+  const everyone = await listPartners(garage);
+  const all = everyone.filter((p) => p.status === "aktif" || p.status === "dibekukan");
+  const draft = everyone.filter((p) => ["draft", "verifikasi", "disetujui"].includes(p.status)).length;
+  const now = new Date();
+  const todayKey = new Date(now.getTime() + 7 * 3_600_000).toISOString().slice(0, 10);
+  const dayStart = new Date(`${todayKey}T00:00:00+07:00`);
+  const monthStart = new Date(`${todayKey.slice(0, 8)}01T00:00:00+07:00`);
+  const end = new Date(now.getTime() + 60_000);
+  const rows = await Promise.all(
+    all.map(async (p) => {
+      const [today, month] = await Promise.all([partnerFinanceSummary(p.id, outletId, dayStart, end), partnerFinanceSummary(p.id, outletId, monthStart, end)]);
+      return {
+        partnerId: p.id,
+        name: p.name,
+        status: p.status,
+        operationalStatus: p.operationalStatus,
+        todaySales: today.netSales,
+        todayQty: today.totalQty,
+        monthSales: month.netSales,
+        monthProfit: month.garageProfit,
+        monthLiability: month.liabilityTotal,
+      };
+    }),
+  );
+  const [{ outstanding }] = await getDb()
+    .select({ outstanding: sql<number>`coalesce(sum(${partnerSettlements.liabilityTotal} - ${partnerSettlements.paidAmount}), 0)::int` })
+    .from(partnerSettlements)
+    .where(and(eq(partnerSettlements.outletId, outletId), inArray(partnerSettlements.status, ["approved", "partially_paid"])));
+  const active = await listPartnerOrdersForOutlet(outletId);
+  return {
+    partners: rows,
+    draftCount: draft,
+    openCount: rows.filter((r) => r.operationalStatus === "buka").length,
+    todaySales: rows.reduce((sum, r) => sum + r.todaySales, 0),
+    monthSales: rows.reduce((sum, r) => sum + r.monthSales, 0),
+    monthProfit: rows.reduce((sum, r) => sum + r.monthProfit, 0),
+    unsettledLiability: rows.reduce((sum, r) => sum + r.monthLiability, 0),
+    approvedUnpaid: Number(outstanding),
+    activeOrders: active.filter((row) => row.status !== "rejected").length,
+    needsRefund: active.filter((row) => row.needsRefund).length,
+  };
 }
 
 /** Tiket mitra yang ditolak + baris yang masih ada di bill (untuk antrean refund kasir). */
@@ -1056,13 +1235,25 @@ export async function submitPartnerSettlement(id: string, garage: GarageSession)
  * Owner menyetujui settlement (DEC-08). DEC-06: kewajiban HPP mitra diakui sebagai biaya "HPP Mitra"
  * (expenses status recorded, sourceDoc = nomor settlement, idempoten) — dibayar lewat payout terverifikasi.
  */
+/** Push ke HP mitra setelah transaksi selesai (pelengkap; kegagalan tidak membatalkan aksi). */
+async function pushToPartner(partnerId: string, payload: { title: string; body: string; tag: string }) {
+  try {
+    const { sendPartnerPush } = await import("@/lib/web-push-sender");
+    await sendPartnerPush(partnerId, { ...payload, url: "/partner" });
+  } catch {
+    /* push hanya pelengkap: portal tetap menampilkan status setoran */
+  }
+}
+
+const rupiahText = (n: number) => `Rp${n.toLocaleString("id-ID")}`;
+
 export async function approvePartnerSettlement(id: string, garage: GarageSession) {
   assertOwner(garage, "Menyetujui settlement mitra");
   const db = getDb();
   const row = await loadSettlement(db, id, garage.profile.outlet.id);
   if (!["draft", "submitted"].includes(row.status)) throw new PartnerHubError("INVALID_STATUS", "Settlement ini sudah diproses.", 409);
   const partner = await loadPartner(db, row.partnerId);
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     const [locked] = await tx.select().from(partnerSettlements).where(eq(partnerSettlements.id, id)).for("update").limit(1);
     if (!locked || !["draft", "submitted"].includes(locked.status)) throw new PartnerHubError("INVALID_STATUS", "Settlement ini sudah diproses.", 409);
     await tx.update(partnerSettlements).set({ status: "approved", approvedBy: garage.user.id, approvedAt: new Date(), updatedAt: new Date() }).where(eq(partnerSettlements.id, id));
@@ -1086,6 +1277,12 @@ export async function approvePartnerSettlement(id: string, garage: GarageSession
     await logEvent(tx, { partnerId: row.partnerId, kind: "settlement_approved", subjectId: row.settlementNo, fromStatus: locked.status, toStatus: "approved", actor: staffActor(garage) });
     return { id, status: "approved" };
   });
+  await pushToPartner(row.partnerId, {
+    title: "Setoran disetujui Garage",
+    body: `${row.settlementNo} · ${rupiahText(row.liabilityTotal)} akan ditransfer. Laporan PDF tersedia di Portal Mitra.`,
+    tag: `partner-settlement:${row.settlementNo}`,
+  });
+  return result;
 }
 
 /** Batalkan draft/ajuan: slot anti-dobel dilepas supaya baris bisa direkap ulang. */
@@ -1143,7 +1340,7 @@ export async function recordPartnerPayout(
   if (!bank) throw new PartnerHubError("BANK_NOT_VERIFIED", "Rekening mitra belum diverifikasi Owner.", 409);
   const owner = isOwner(garage);
   try {
-    return await db.transaction(async (tx) => {
+    const out = await db.transaction(async (tx) => {
       const [locked] = await tx.select().from(partnerSettlements).where(eq(partnerSettlements.id, settlementId)).for("update").limit(1);
       const [{ verified, pending }] = await tx
         .select({
@@ -1177,6 +1374,8 @@ export async function recordPartnerPayout(
       await logEvent(tx, { partnerId: settlement.partnerId, kind: "payout_recorded", subjectId: row.id, toStatus: row.status, actor: staffActor(garage), metadata: { amount: row.amount, reference, selfVerified: owner } });
       return { id: row.id, status: row.status, replay: false };
     });
+    if (out.status === "verified") await pushPayoutVerified(settlement.partnerId, settlement.settlementNo, input.amount);
+    return out;
   } catch (error) {
     if (/unique|duplicate|23505/i.test(String((error as { code?: string }).code ?? "") + String(error))) {
       throw new PartnerHubError("DUPLICATE_REFERENCE", "Referensi transfer ini sudah pernah dicatat.", 409);
@@ -1193,11 +1392,22 @@ export async function verifyPartnerPayout(payoutId: string, garage: GarageSessio
   await loadSettlement(db, payout.settlementId, garage.profile.outlet.id);
   if (payout.status !== "recorded") throw new PartnerHubError("INVALID_STATUS", "Pembayaran ini sudah diproses.", 409);
   if (payout.createdBy === garage.user.id) throw new PartnerHubError("SAME_PERSON", "Pemeriksa harus berbeda dari pencatat.", 409);
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     await tx.update(partnerPayouts).set({ status: "verified", verifiedBy: garage.user.id, verifiedAt: new Date() }).where(and(eq(partnerPayouts.id, payoutId), eq(partnerPayouts.status, "recorded")));
     const state = await refreshSettlementPaid(tx, payout.settlementId);
     await logEvent(tx, { partnerId: payout.partnerId, kind: "payout_verified", subjectId: payoutId, fromStatus: "recorded", toStatus: "verified", actor: staffActor(garage) });
     return state;
+  });
+  const [s] = await db.select({ no: partnerSettlements.settlementNo }).from(partnerSettlements).where(eq(partnerSettlements.id, payout.settlementId)).limit(1);
+  await pushPayoutVerified(payout.partnerId, s?.no ?? "", payout.amount);
+  return result;
+}
+
+async function pushPayoutVerified(partnerId: string, settlementNo: string, amount: number) {
+  await pushToPartner(partnerId, {
+    title: "Transfer dari Garage tercatat",
+    body: `${rupiahText(amount)} untuk ${settlementNo}. Cek rincian & bukti di Portal Mitra → Setoran.`,
+    tag: `partner-payout:${settlementNo}:${amount}`,
   });
 }
 
@@ -1323,7 +1533,39 @@ export async function partnerPortalOverview(session: PartnerSession) {
       .limit(20),
   ]);
   const unpaid = settlements.filter((s) => ["approved", "partially_paid"].includes(s.status)).reduce((sum, s) => sum + (s.liabilityTotal - s.paidAmount), 0);
+  // Profil & transfer milik mitra sendiri: jam last order, titik serah-terima, rekening (disamarkan), riwayat transfer.
+  const [profileRow] = await db.select().from(partners).where(eq(partners.id, session.partner.id)).limit(1);
+  const [bank] = await db
+    .select()
+    .from(partnerBankAccounts)
+    .where(and(eq(partnerBankAccounts.partnerId, session.partner.id), eq(partnerBankAccounts.status, "verified")))
+    .limit(1);
+  const payouts = await db
+    .select({
+      id: partnerPayouts.id,
+      amount: partnerPayouts.amount,
+      reference: partnerPayouts.reference,
+      status: partnerPayouts.status,
+      paidAt: partnerPayouts.paidAt,
+      hasProof: sql<boolean>`${partnerPayouts.proofUrl} is not null`,
+      settlementNo: partnerSettlements.settlementNo,
+    })
+    .from(partnerPayouts)
+    .innerJoin(partnerSettlements, eq(partnerPayouts.settlementId, partnerSettlements.id))
+    .where(and(eq(partnerPayouts.partnerId, session.partner.id), ne(partnerPayouts.status, "void")))
+    .orderBy(desc(partnerPayouts.paidAt))
+    .limit(20);
   return {
+    profile: profileRow
+      ? {
+          lastOrderByDay: profileRow.lastOrderByDay ?? {},
+          handoverPoint: profileRow.handoverPoint,
+          payoutSchedule: profileRow.payoutSchedule,
+          terms: profileRow.terms,
+          bank: bank ? { bankName: bank.bankName, accountName: bank.accountName, accountMasked: maskAccountNumber(bank.accountNumber) } : null,
+        }
+      : null,
+    payouts,
     partner: session.partner,
     products: products.map((p) => ({ ...p, variants: p.variants.map(({ unitCost: _unitCost, ...v }) => v) })),
     activeTickets: active,

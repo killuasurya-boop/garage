@@ -216,6 +216,10 @@ const InventoryView = dynamic(
   () => import("@/components/garage/inventory-view").then((m) => m.InventoryView),
   { loading: ModuleChunkFallback },
 );
+const PartnerDashboardWidget = dynamic(
+  () => import("@/components/garage/partner-hub/partner-dashboard-widget").then((m) => m.PartnerDashboardWidget),
+  { ssr: false },
+);
 const WmsAlertWidget = dynamic(
   () => import("@/components/garage/wms-alert-widget").then((m) => m.WmsAlertWidget),
   { ssr: false },
@@ -1317,6 +1321,7 @@ function GarageWorkspace({
               <DateFilterProvider>
                 <div className="space-y-3">
                   <WmsAlertWidget variant="card" />
+                  <PartnerDashboardWidget role={data.me.role} />
                   <DashboardView
                     data={data.dashboard}
                     me={data.me}

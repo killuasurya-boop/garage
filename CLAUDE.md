@@ -407,6 +407,16 @@ Scroll direction:
   PRD 05 catalog (Es Krim Pokat Au 4 SKU, Dimsum 20 SKU) lives only in `partner-hub-catalog.ts` (test pins the PRD numbers) and is
   imported by Owner via `POST /api/partners/import-catalog` (idempotent, draft/inactive). Product settings = `updatePartnerProductSettings`
   (display only); price rule HPP + margin = `applyPartnerMarginRule` (Owner, goes through `setPartnerProductPrice` history).
+  Operasional (11 Nov 2026, no migration): sidebar module `partners` (Owner/Manajer) → `/partners`; Kelola Mitra activation checklist +
+  "Aktifkan mitra sekarang" (path follows `PARTNER_STATUS_FLOW`); partner/account phones must be digits (`partnerPhoneOrThrow`).
+  Rejected-unrefunded partner tickets never age out of the cashier queue. SLA escalation + "siap belum diambil" run in the server
+  sweeper (`sweepPartnerSla`, instrumentation-node, dedup per ticket). Partner gets push on settlement approved / payout verified.
+  Portal: earnings + history by period (`/api/partner/finance`, `/api/partner/tickets?scope=history&from&to`), payouts list,
+  read-only Info kerja sama, self PIN change `POST /api/partner/auth/pin` (old PIN, weak PIN refused, sessionVersion+1), reject
+  reasons panel. Staff: product photo upload (`/api/partners/products/[linkId]/image` → `/garage-uploads/menu`), variants add/remove
+  (Owner), price history + event log, payout void button, Excel `GET /api/partners/finance-export` (Owner/Manajer; ringkasan,
+  terlaris = `partnerBestSellers`, transaksi), Owner dashboard widget `/api/partners/dashboard`, waiter card "Ambil dari Mitra".
+  Self-order digital menu shows partner items as "pesan lewat waiter atau kasir" (DEC-14).
 
 ## Product Management Rules
 

@@ -491,3 +491,77 @@ describe("Smart Partner Hub — settlement & payout", () => {
     expect(after.every((p) => p.variants.every((v) => v.sellPrice - (v.unitCost ?? 0) === 4_000))).toBe(true);
   });
 });
+
+describe("Smart Partner Hub — kesiapan operasional (11 Nov 2026)", () => {
+  it("tiket ditolak yang belum direfund tetap di antrean kasir walau sudah > 48 jam", async () => {
+    await svc.setPartnerOperationalStatus(partnerA.id, "buka", { partner: partnerSession(partnerA) });
+    const res = await sale([{ itemId: menuA, qty: 1 }]);
+    const ticket = (await svc.listTicketsForPartner(partnerA.id, "active")).find((row) => row.orderNo === res.orderNo)!;
+    await svc.actOnPartnerTicket(partnerSession(partnerA), ticket.ticketNo, "reject", "bahan habis");
+    const d = t.getDb();
+    const { eq } = await import("drizzle-orm");
+    await d.update(t.schema.kitchenTickets).set({ createdAt: new Date(Date.now() - 72 * 3_600_000) }).where(eq(t.schema.kitchenTickets.ticketNo, ticket.ticketNo));
+    const monitor = await svc.listPartnerOrdersForOutlet(outletId, {});
+    expect(monitor.find((row) => row.ticketNo === ticket.ticketNo)).toMatchObject({ needsRefund: true });
+  });
+
+  it("sapuan SLA server: siap belum diambil → notifikasi waiter sekali per tiket", async () => {
+    const res = await sale([{ itemId: menuA, qty: 1 }]);
+    const ticket = (await svc.listTicketsForPartner(partnerA.id, "active")).find((row) => row.orderNo === res.orderNo)!;
+    for (const action of ["accept", "ready"] as const) await svc.actOnPartnerTicket(partnerSession(partnerA), ticket.ticketNo, action);
+    const d = t.getDb();
+    const { eq, and, like } = await import("drizzle-orm");
+    await d.update(t.schema.kitchenTickets).set({ readyAt: new Date(Date.now() - 30 * 60_000) }).where(eq(t.schema.kitchenTickets.ticketNo, ticket.ticketNo));
+    const first = await svc.sweepPartnerSla();
+    expect(first.readyWaiting).toBeGreaterThanOrEqual(1);
+    await svc.sweepPartnerSla();
+    const notes = await d
+      .select()
+      .from(t.schema.staffNotifications)
+      .where(and(eq(t.schema.staffNotifications.kind, "partner_ready_waiting"), like(t.schema.staffNotifications.dedupKey, `%${ticket.ticketNo}`)));
+    expect(notes.length).toBe(2); // waiter + manajemen, tidak berulang
+  });
+
+  it("mitra ganti PIN sendiri: PIN lama wajib benar, PIN lemah ditolak, sesi lama tidak berlaku", async () => {
+    const { changePartnerPin, authenticatePartner } = await import("@/lib/partner-auth");
+    const acc = await svc.createPartnerAccount(partnerA.id, { phone: "081299887766", displayName: "Kasir Mitra", pin: "246810" }, manager());
+    expect((await changePartnerPin(acc.id, "000000", "135792")).ok).toBe(false);
+    expect(await changePartnerPin(acc.id, "246810", "111111")).toMatchObject({ ok: false, code: "WEAK_PIN" });
+    const done = await changePartnerPin(acc.id, "246810", "135792");
+    expect(done.ok).toBe(true);
+    if (done.ok) expect(done.account.sessionVersion).toBeGreaterThan(1);
+    expect(await authenticatePartner("081299887766", "246810")).toBeNull();
+    expect((await authenticatePartner("081299887766", "135792"))?.ok).toBe(true);
+  });
+
+  it("varian tambah/hapus (Owner), riwayat harga & log kejadian, Excel & dashboard", async () => {
+    await expect(svc.addPartnerVariant(linkA, { label: "Large", unitCost: 25_000, sellPrice: 30_000, reason: "ukuran besar" }, manager())).rejects.toThrow(/Owner/);
+    const added = await svc.addPartnerVariant(linkA, { label: "Large", unitCost: 25_000, sellPrice: 30_000, reason: "ukuran besar" }, owner());
+    await expect(svc.addPartnerVariant(linkA, { label: "large", unitCost: 25_000, sellPrice: 30_000, reason: "x" }, owner())).rejects.toThrow(/sudah ada/);
+    await expect(svc.addPartnerVariant(linkA, { label: "Rugi", unitCost: 30_000, sellPrice: 20_000, reason: "x" }, owner())).rejects.toThrow(/di bawah HPP/);
+    const history = await svc.listPartnerPriceHistory(partnerA.id, manager());
+    expect(history.some((row) => row.variantId === added.variantId && row.sellPrice === 30_000)).toBe(true);
+    await svc.removePartnerVariant(linkA, added.variantId, "tidak dijual", owner());
+    const events = await svc.listPartnerEvents(partnerA.id, manager());
+    expect(events.map((e) => e.kind)).toEqual(expect.arrayContaining(["variant_added", "variant_removed"]));
+    const products = await svc.listPartnerProducts(partnerA.id, { outletId, showCost: true });
+    const only = products.find((p) => p.linkId === linkA)!;
+    await expect(svc.removePartnerVariant(linkA, only.variants[0].variantId, "x", owner())).rejects.toThrow(/minimal satu/);
+
+    const from = new Date(Date.now() - 86_400_000);
+    const to = new Date(Date.now() + 86_400_000);
+    const s = await svc.partnerFinanceSummary(partnerA.id, outletId, from, to);
+    const { partnerFinanceWorkbook } = await import("@/lib/partner-finance-xlsx");
+    const buf = await partnerFinanceWorkbook({ from: "2026-11-10", to: "2026-11-12", generatedBy: "Owner Test", partners: [{ partnerName: "PAU", partnerCode: "PAU", orderCount: s.orderCount, netSales: s.netSales, totalCost: s.totalCost, garageProfit: s.garageProfit, liabilityTotal: s.liabilityTotal, paidAmount: s.paidAmount, outstanding: s.outstanding, lines: s.lines }] });
+    expect(buf.subarray(0, 2).toString()).toBe("PK"); // file xlsx (zip)
+
+    const dash = await svc.partnerDashboardSummary(owner());
+    expect(dash.partners.length).toBeGreaterThan(0);
+    expect(dash.monthSales).toBeGreaterThanOrEqual(dash.todaySales);
+    await expect(svc.partnerDashboardSummary(kasir())).rejects.toThrow();
+  });
+
+  it("nomor HP tidak valid tetap ditolak saat membuat akun dari portal admin", async () => {
+    await expect(svc.createPartnerAccount(partnerA.id, { phone: "abc12345678", displayName: "x", pin: "123456" }, manager())).rejects.toThrow(/tidak valid/);
+  });
+});

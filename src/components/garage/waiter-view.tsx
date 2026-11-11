@@ -1,6 +1,7 @@
 "use client";
 
 import { useProductionStream } from "@/lib/use-production-stream";
+import { WaiterPartnerPickup } from "@/components/garage/partner-hub/waiter-partner-pickup";
 import {
   useCallback,
   useEffect,
@@ -556,6 +557,7 @@ export function WaiterView({ me }: Props) {
   return (
     <div className="space-y-4 pb-28 pt-1 text-white">
       <WaiterOfflineBanner />
+      <WaiterPartnerPickup />
 
       {/* Header ringkas: nama + status sinkron + kontrol notifikasi. */}
       <div className="rounded-lg border border-garage-line bg-garage-bg-1 px-3 py-2.5 sm:px-4">

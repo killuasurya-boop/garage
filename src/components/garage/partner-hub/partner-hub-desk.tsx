@@ -35,7 +35,7 @@ export function PartnerHubDesk({ role, userId, userName, hubEnabled, sla }: { ro
     <main className="min-h-dvh bg-[#0b0b0d] pb-12 text-[#f4f4f5]">
       <header className="border-b border-[#2a2a30] bg-[#111114] px-4 py-3">
         <div className="mx-auto flex max-w-7xl items-center gap-4">
-          <a href={role === "Waiter" ? "/os" : "/pos"} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#3a3a42] px-3 text-sm text-[#e4e4e8] hover:bg-white/5">
+          <a href={role === "Kasir" ? "/pos" : "/os"} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#3a3a42] px-3 text-sm text-[#e4e4e8] hover:bg-white/5">
             <ArrowLeft className="size-4" /> Kembali
           </a>
           <div className="w-28 shrink-0">

@@ -4,11 +4,12 @@
 // Mitra: Buka/Jeda/Tutup, Tersedia/Habis per produk, Terima → Proses → Siap Antar, keuangan & PDF miliknya.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Bell, BellOff, BellRing, Check, CheckCircle2, ChefHat, CircleX, FileText, Loader2, LogOut, PackageCheck, RefreshCw, Store, Sun, Timer } from "lucide-react";
+import { Bell, BellOff, BellRing, Check, CheckCircle2, ChefHat, CircleX, FileText, Loader2, LogOut, PackageCheck, Store, Sun, Timer } from "lucide-react";
 
 import { GarageBrandLogo } from "@/components/garage/member-auth/garage-brand-logo";
 
 import { usePartnerAlerts } from "./partner-portal-alerts";
+import { PartnerEarnings, PartnerInfo, PartnerPayouts, PartnerPinChange, RejectPanel, type PartnerPayout, type PartnerProfile } from "./partner-portal-extras";
 
 type Ticket = {
   ticketNo: string;
@@ -17,6 +18,7 @@ type Ticket = {
   customerName: string | null;
   status: string;
   createdAt: string;
+  acceptedAt?: string | null;
   readyAt: string | null;
   notes: Record<string, string>;
   items: Array<{ name: string; variant: string; qty: number }>;
@@ -29,6 +31,8 @@ type Overview = {
   unpaid: number;
   settlements: Array<{ id: string; settlementNo: string; status: string; liabilityTotal: number; paidAmount: number; periodFrom: string; periodTo: string }>;
   slaWarnMinutes?: number;
+  profile?: PartnerProfile | null;
+  payouts?: PartnerPayout[];
 };
 
 const OP_STYLE: Record<string, string> = {
@@ -64,6 +68,7 @@ export function PartnerPortal() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<{ tone: "error" | "ok"; text: string } | null>(null);
+  const [rejecting, setRejecting] = useState<string | null>(null);
   const now = useNow();
   const queueNos = useMemo(() => (overview ? overview.activeTickets.filter((t) => t.status === "queue").map((t) => t.ticketNo) : null), [overview]);
   const alerts = usePartnerAlerts(queueNos);
@@ -265,6 +270,8 @@ export function PartnerPortal() {
             <ul className="mt-3 grid gap-3">
               {overview.activeTickets.map((ticket) => {
                 const waitMin = Math.max(0, Math.floor((now - new Date(ticket.createdAt).getTime()) / 60_000));
+                // Setelah diterima: hitung lama proses sejak diterima (target = jam masuk + SLA tidak berlaku lagi).
+                const sinceAccept = ticket.acceptedAt ? Math.max(0, Math.floor((now - new Date(ticket.acceptedAt).getTime()) / 60_000)) : null;
                 return (
                   <li key={ticket.ticketNo} className={`rounded-lg border bg-black/20 p-3 ${ticket.status === "queue" ? "border-[#ff5a66]/60" : "border-[#3a3a42]"}`}>
                     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -272,7 +279,7 @@ export function PartnerPortal() {
                         {ticket.orderNo} <span className="ml-1 rounded border border-[#4a4a54] px-1.5 py-0.5 text-xs text-[#e4e4e8]">{ticket.tableLabel ?? "Take away"}</span>
                       </p>
                       <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold ${waitMin >= (overview.slaWarnMinutes ?? 2) && ticket.status === "queue" ? "bg-[#7f1d1d] text-[#fecaca]" : "bg-white/10 text-[#e4e4e8]"}`}>
-                        <Timer className="size-3" /> {STATUS_LABEL[ticket.status] ?? ticket.status} · {waitMin} mnt
+                        <Timer className="size-3" /> {STATUS_LABEL[ticket.status] ?? ticket.status} · {sinceAccept !== null && ticket.status !== "queue" ? `diproses ${sinceAccept} mnt` : `${waitMin} mnt`}
                       </span>
                     </div>
                     <p className="mt-1 text-xs text-[#b8b8bf]">{ticket.customerName ?? "Tanpa nama"} · masuk {time(ticket.createdAt)}</p>
@@ -291,13 +298,7 @@ export function PartnerPortal() {
                           <ActionButton busy={busy === `${ticket.ticketNo}-accept`} onClick={() => void run(`${ticket.ticketNo}-accept`, () => api(`/api/partner/tickets/${ticket.ticketNo}/action`, { method: "POST", body: JSON.stringify({ action: "accept" }) }))} primary>
                             <CheckCircle2 className="size-4" /> Terima
                           </ActionButton>
-                          <ActionButton
-                            busy={busy === `${ticket.ticketNo}-reject`}
-                            onClick={() => {
-                              const reason = window.prompt("Alasan menolak pesanan ini? (mis. produk habis)");
-                              if (reason?.trim()) void run(`${ticket.ticketNo}-reject`, () => api(`/api/partner/tickets/${ticket.ticketNo}/action`, { method: "POST", body: JSON.stringify({ action: "reject", reason }) }), "Pesanan ditolak, kasir diberi tahu.");
-                            }}
-                          >
+                          <ActionButton busy={false} onClick={() => setRejecting(rejecting === ticket.ticketNo ? null : ticket.ticketNo)}>
                             <CircleX className="size-4" /> Tolak
                           </ActionButton>
                         </>
@@ -314,6 +315,15 @@ export function PartnerPortal() {
                       ) : null}
                       {ticket.status === "ready" ? <p className="text-sm text-[#bbf7d0]">Menunggu waiter mengambil.</p> : null}
                     </div>
+                    {rejecting === ticket.ticketNo && ticket.status === "queue" ? (
+                      <RejectPanel
+                        busy={busy === `${ticket.ticketNo}-reject`}
+                        onCancel={() => setRejecting(null)}
+                        onConfirm={(reason) =>
+                          void run(`${ticket.ticketNo}-reject`, () => api(`/api/partner/tickets/${ticket.ticketNo}/action`, { method: "POST", body: JSON.stringify({ action: "reject", reason }) }), "Pesanan ditolak, kasir diberi tahu.").then(() => setRejecting(null))
+                        }
+                      />
+                    ) : null}
                   </li>
                 );
               })}
@@ -358,7 +368,11 @@ export function PartnerPortal() {
           </ul>
         </section>
 
+        <PartnerEarnings />
         <PartnerFinance settlements={overview.settlements} />
+        <PartnerPayouts payouts={overview.payouts ?? []} />
+        <PartnerInfo profile={overview.profile ?? null} />
+        <PartnerPinChange />
       </div>
     </main>
   );
@@ -379,10 +393,6 @@ function ActionButton({ children, onClick, busy, primary }: { children: React.Re
 }
 
 function PartnerFinance({ settlements }: { settlements: Overview["settlements"] }) {
-  const [history, setHistory] = useState<Ticket[] | null>(null);
-  useEffect(() => {
-    void api<Ticket[]>("/api/partner/tickets?scope=history").then(setHistory).catch(() => setHistory([]));
-  }, []);
   const dateFmt = useMemo(() => new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", day: "2-digit", month: "short" }), []);
   return (
     <>
@@ -415,27 +425,6 @@ function PartnerFinance({ settlements }: { settlements: Overview["settlements"] 
                 </li>
               );
             })}
-          </ul>
-        )}
-      </section>
-      <section className="rounded-xl border border-[#34343c] bg-[#17171c] p-4">
-        <h2 className="flex items-center gap-2 text-base font-bold text-white">
-          <RefreshCw className="size-4 text-[#ff5a66]" /> Riwayat terbaru
-        </h2>
-        {history === null ? (
-          <p className="mt-3 text-sm text-[#b8b8bf]">Memuat…</p>
-        ) : history.length === 0 ? (
-          <p className="mt-3 text-sm text-[#b8b8bf]">Belum ada riwayat.</p>
-        ) : (
-          <ul className="mt-3 grid gap-2">
-            {history.slice(0, 10).map((ticket) => (
-              <li key={ticket.ticketNo} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#3a3a42] bg-black/20 px-3 py-2 text-sm">
-                <span className="text-white">
-                  {ticket.orderNo} · {ticket.items.map((i) => `${i.qty}× ${i.name}`).join(", ")}
-                </span>
-                <span className="text-xs text-[#b8b8bf]">{ticket.status === "delivered" ? "Diantar" : ticket.status === "rejected" ? "Ditolak" : ticket.status === "cancelled" ? "Dibatalkan" : ticket.status}</span>
-              </li>
-            ))}
           </ul>
         )}
       </section>
@@ -485,7 +474,7 @@ function PartnerLogin({ onDone }: { onDone: () => void }) {
         <button type="submit" disabled={busy || pin.length !== 6} className="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#d11a2a] text-base font-bold text-white hover:bg-[#e3263a] disabled:opacity-60">
           {busy ? <Loader2 className="size-4 animate-spin" /> : null} Masuk
         </button>
-        <p className="mt-4 text-center text-xs text-[#b8b8bf]">Lupa PIN? Hubungi Owner Garage Coffee untuk mengatur ulang.</p>
+        <p className="mt-4 text-center text-xs text-[#b8b8bf]">Lupa PIN? Hubungi Owner/Manajer Garage Coffee untuk mengatur ulang. Setelah masuk, ganti PIN Anda di menu Ganti PIN.</p>
       </form>
     </main>
   );

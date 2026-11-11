@@ -137,6 +137,14 @@ export function DeskFinance({ role, userId }: { role: string; userId: string }) 
               ))}
             </select>
           </Field>
+          {canPay ? (
+            <a
+              href={`/api/partners/finance-export?from=${from}&to=${to}${partnerFilter !== "all" ? `&partnerId=${partnerFilter}` : ""}`}
+              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#3a3a42] px-3 text-sm font-semibold text-[#e4e4e8] hover:bg-white/10"
+            >
+              Unduh Excel (ringkasan · terlaris · transaksi)
+            </a>
+          ) : null}
         </div>
       </Card>
 
@@ -390,6 +398,18 @@ function SettlementActions({
                 {isOwner && p.status === "recorded" && p.createdBy !== userId ? (
                   <Btn tone="success" busy={busy === `${p.id}-verify`} onClick={() => void run(`${p.id}-verify`, () => api(`/api/finance/partner-payouts/${p.id}`, { method: "POST", body: JSON.stringify({ action: "verify" }) }), "Pembayaran diverifikasi.")}>
                     Verifikasi
+                  </Btn>
+                ) : null}
+                {isOwner && p.status !== "void" ? (
+                  <Btn
+                    tone="danger"
+                    busy={busy === `${p.id}-void`}
+                    onClick={() => {
+                      const reason = window.prompt(`Batalkan pembayaran ${rp(p.amount)} (Ref ${p.reference})? Tulis alasannya:`);
+                      if (reason?.trim()) void run(`${p.id}-void`, () => api(`/api/finance/partner-payouts/${p.id}`, { method: "POST", body: JSON.stringify({ action: "void", reason }) }), "Pembayaran dibatalkan; sisa setoran dihitung ulang.");
+                    }}
+                  >
+                    Batalkan
                   </Btn>
                 ) : null}
               </span>

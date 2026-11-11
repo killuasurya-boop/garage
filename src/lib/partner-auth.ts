@@ -10,8 +10,8 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { partnerAccounts, partners } from "@/db/schema";
-import { memberAuthSecret, parseCookies, secureCookieAttribute, verifyPassword } from "@/lib/member-auth";
+import { partnerAccounts, partnerEvents, partners } from "@/db/schema";
+import { hashPassword, memberAuthSecret, parseCookies, secureCookieAttribute, verifyPassword } from "@/lib/member-auth";
 import { fail } from "@/lib/api-response";
 import { effectiveOperationalStatus } from "@/lib/partner-hub-rules";
 
@@ -124,4 +124,27 @@ export async function authenticatePartner(phone: string, pin: string) {
   }
   await getDb().update(partnerAccounts).set({ lastLoginAt: new Date() }).where(eq(partnerAccounts.id, row.account.id));
   return { ok: true as const, account: row.account, partner: row.partner };
+}
+
+/**
+ * Mitra mengganti PIN sendiri: PIN lama wajib benar; sesi lama (HP lain) otomatis keluar (sessionVersion naik).
+ * Mengembalikan akun terbaru agar pemanggil bisa menerbitkan cookie sesi baru untuk perangkat ini.
+ */
+export async function changePartnerPin(accountId: string, oldPin: string, newPin: string) {
+  if (!/^\d{6}$/.test(newPin)) return { ok: false as const, code: "INVALID_PIN", message: "PIN baru harus 6 angka." };
+  if (oldPin === newPin) return { ok: false as const, code: "SAME_PIN", message: "PIN baru harus berbeda dari PIN lama." };
+  if (/^(\d)\1{5}$/.test(newPin) || ["123456", "654321", "012345"].includes(newPin)) {
+    return { ok: false as const, code: "WEAK_PIN", message: "PIN terlalu mudah ditebak. Pilih kombinasi lain." };
+  }
+  const db = getDb();
+  const [account] = await db.select().from(partnerAccounts).where(eq(partnerAccounts.id, accountId)).limit(1);
+  if (!account || account.status !== "active") return { ok: false as const, code: "ACCOUNT_INACTIVE", message: "Akun tidak aktif." };
+  if (!(await verifyPassword(oldPin, account.pinHash))) return { ok: false as const, code: "WRONG_PIN", message: "PIN lama salah." };
+  const [updated] = await db
+    .update(partnerAccounts)
+    .set({ pinHash: await hashPassword(newPin), sessionVersion: account.sessionVersion + 1, updatedAt: new Date() })
+    .where(eq(partnerAccounts.id, accountId))
+    .returning();
+  await db.insert(partnerEvents).values({ partnerId: account.partnerId, kind: "account_pin_changed_by_partner", subjectId: account.id, actorType: "partner", actorId: account.id, actorName: account.displayName });
+  return { ok: true as const, account: updated };
 }

@@ -428,6 +428,30 @@ describe("Smart Partner Hub — settlement & payout", () => {
     await expect(svc.convertPartnerApplication(app.id, { code: "KLC", margin: 0, category: "Kue" }, owner())).rejects.toThrow(/sudah dijadikan/);
   });
 
+  it("konversi pendaftar atomik: kode produk bentrok di tengah → tidak ada mitra setengah jadi, ulang dengan kode lain berhasil", async () => {
+    const d = t.getDb();
+    const { eq } = await import("drizzle-orm");
+    // Produk lain sudah memakai SKU "QQQ-002" → produk kedua pendaftar bentrok setelah mitra & produk pertama dibuat.
+    await d.insert(t.schema.menuItems).values({ id: "itm-qqq-collide", sku: "QQQ-002", name: "Produk lain", category: "Lainnya", section: "Lainnya", prep: "1 mnt" });
+    const app = await svc.submitPartnerApplication({
+      businessName: "Martabak Pak Udin",
+      ownerName: "Udin",
+      whatsapp: "081277772222",
+      productKind: "Martabak",
+      products: [
+        { name: "Martabak Manis", offerPrice: 20_000 },
+        { name: "Martabak Telur", offerPrice: 25_000 },
+      ],
+    });
+    await expect(svc.convertPartnerApplication(app.id, { code: "QQQ", margin: 3_000, category: "Martabak" }, owner())).rejects.toThrow(/sudah dipakai/);
+    expect(await d.select().from(t.schema.partners).where(eq(t.schema.partners.code, "QQQ"))).toHaveLength(0);
+    expect(await d.select().from(t.schema.partnerProductLinks).where(eq(t.schema.partnerProductLinks.code, "QQQ-001"))).toHaveLength(0);
+    const [still] = await d.select().from(t.schema.partnerApplications).where(eq(t.schema.partnerApplications.id, app.id));
+    expect(still).toMatchObject({ partnerId: null, status: "baru" });
+    const ok = await svc.convertPartnerApplication(app.id, { code: "MPU", margin: 3_000, category: "Martabak" }, owner());
+    expect(ok.products).toBe(2);
+  });
+
   it("impor katalog PRD idempoten; pengaturan produk & aturan harga HPP + margin", async () => {
     const first = await svc.importPrdPartnerCatalog(owner());
     const pau = first.find((r) => r.partner.includes("Pokat"))!;

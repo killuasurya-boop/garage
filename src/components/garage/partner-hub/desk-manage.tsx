@@ -353,7 +353,11 @@ function PartnerDetail({ partner, isOwner, busy, run }: { partner: Partner; isOw
                   </Btn>
                   <Btn onClick={() => setEditing(editing === p.linkId ? null : p.linkId)}>{editing === p.linkId ? "Tutup pengaturan" : "Pengaturan"}</Btn>
                 </div>
-                {editing === p.linkId ? <ProductSettings product={p} isOwner={isOwner} busy={busy} runP={runP} /> : null}
+                {editing === p.linkId ? (
+                  // key ikut harga terkini: setelah aturan harga/perubahan lain, form dibuat ulang dari data server
+                  // (tidak menyimpan harga lama sebagai "perubahan" yang bisa membatalkan aturan).
+                  <ProductSettings key={`${p.linkId}:${p.variants.map((v) => `${v.variantId}=${v.unitCost ?? 0}/${v.sellPrice}`).join(",")}`} product={p} isOwner={isOwner} busy={busy} runP={runP} />
+                ) : null}
               </li>
             ))}
           </ul>

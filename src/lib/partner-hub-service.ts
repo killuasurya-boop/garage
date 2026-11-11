@@ -164,9 +164,10 @@ export async function listPartners(garage: GarageSession) {
   });
 }
 
-export async function createPartner(input: PartnerProfileInput & { code: string; name: string }, garage: GarageSession) {
+export async function createPartner(input: PartnerProfileInput & { code: string; name: string }, garage: GarageSession, outer?: DbLike) {
   assertOwnerOrManager(garage, "Mendaftarkan mitra");
-  const db = getDb();
+  // `outer` = transaksi pemanggil (mis. konversi pendaftar): semua atau tidak sama sekali (transaksi di bawah jadi savepoint).
+  const db = outer ?? getDb();
   const code = input.code.trim().toUpperCase();
   const [exists] = await db.select({ id: partners.id }).from(partners).where(eq(partners.code, code)).limit(1);
   if (exists) throw new PartnerHubError("PARTNER_CODE_TAKEN", `Kode mitra ${code} sudah dipakai.`, 409);
@@ -375,10 +376,10 @@ function assertPrices(variants: PartnerProductInput["variants"]) {
  * Daftarkan produk mitra sebagai menu POS (product_type "partner", station "none" → tidak masuk tiket
  * Bar/Dapur). Link dibuat NONAKTIF sampai disetujui Owner (approvePartnerProduct).
  */
-export async function createPartnerProduct(partnerId: string, input: PartnerProductInput, garage: GarageSession) {
+export async function createPartnerProduct(partnerId: string, input: PartnerProductInput, garage: GarageSession, outer?: DbLike) {
   assertOwnerOrManager(garage, "Mendaftarkan produk mitra");
   assertPrices(input.variants);
-  const db = getDb();
+  const db = outer ?? getDb();
   const partner = await loadPartner(db, partnerId, garage.profile.outlet.id);
   const code = input.code.trim().toUpperCase();
   const menuId = `ptn-${code.toLowerCase()}`;
@@ -1618,43 +1619,48 @@ export async function updatePartnerApplication(id: string, input: { status?: str
  */
 export async function convertPartnerApplication(id: string, input: { code: string; margin: number; category: string }, garage: GarageSession) {
   assertOwner(garage, "Menerima pendaftar sebagai mitra");
-  const db = getDb();
-  const [app] = await db.select().from(partnerApplications).where(eq(partnerApplications.id, id)).limit(1);
-  if (!app) throw new PartnerHubError("APPLICATION_NOT_FOUND", "Pendaftar tidak ditemukan.", 404);
-  if (app.partnerId) throw new PartnerHubError("ALREADY_CONVERTED", "Pendaftar ini sudah dijadikan mitra.", 409);
   const code = input.code.trim().toUpperCase();
   if (!/^[A-Z0-9]{2,8}$/.test(code)) throw new PartnerHubError("INVALID_CODE", "Kode mitra 2–8 huruf/angka (mis. DSM).");
-  const partner = await createPartner(
-    {
-      code,
-      name: app.businessName,
-      picName: app.ownerName,
-      phone: app.whatsapp,
-      address: [app.address, app.city].filter(Boolean).join(", ") || null,
-      productKind: app.productKind,
-      terms: `Dari pendaftaran ${app.applicationNo}. Harga awal = penawaran mitra; konfirmasi sebelum aktivasi.`,
-    },
-    garage,
-  );
-  let index = 0;
-  for (const product of app.products) {
-    index += 1;
-    const sellPrice = product.suggestedPrice && product.suggestedPrice >= product.offerPrice ? product.suggestedPrice : product.offerPrice + input.margin;
-    await createPartnerProduct(
-      partner.id,
+  // Satu transaksi: mitra, semua produk, dan status pendaftar — gagal di tengah (mis. kode produk bentrok) = tidak ada
+  // sisa mitra setengah jadi, jadi konversi bisa diulang dengan aman. Baris pendaftar dikunci (anti konversi ganda).
+  return getDb().transaction(async (tx) => {
+    const [app] = await tx.select().from(partnerApplications).where(eq(partnerApplications.id, id)).for("update").limit(1);
+    if (!app) throw new PartnerHubError("APPLICATION_NOT_FOUND", "Pendaftar tidak ditemukan.", 404);
+    if (app.partnerId) throw new PartnerHubError("ALREADY_CONVERTED", "Pendaftar ini sudah dijadikan mitra.", 409);
+    const partner = await createPartner(
       {
-        code: `${code}-${String(index).padStart(3, "0")}`,
-        name: product.name,
-        category: input.category.trim() || app.productKind,
-        description: product.note,
-        variants: [{ variantId: "reg", label: "Regular", unitCost: product.offerPrice, sellPrice }],
+        code,
+        name: app.businessName,
+        picName: app.ownerName,
+        phone: app.whatsapp,
+        address: [app.address, app.city].filter(Boolean).join(", ") || null,
+        productKind: app.productKind,
+        terms: `Dari pendaftaran ${app.applicationNo}. Harga awal = penawaran mitra; konfirmasi sebelum aktivasi.`,
       },
       garage,
+      tx,
     );
-  }
-  await db
-    .update(partnerApplications)
-    .set({ status: "diterima", partnerId: partner.id, reviewedBy: garage.user.id, reviewedAt: new Date(), updatedAt: new Date() })
-    .where(eq(partnerApplications.id, id));
-  return { partnerId: partner.id, code, products: app.products.length };
+    let index = 0;
+    for (const product of app.products) {
+      index += 1;
+      const sellPrice = product.suggestedPrice && product.suggestedPrice >= product.offerPrice ? product.suggestedPrice : product.offerPrice + input.margin;
+      await createPartnerProduct(
+        partner.id,
+        {
+          code: `${code}-${String(index).padStart(3, "0")}`,
+          name: product.name,
+          category: input.category.trim() || app.productKind,
+          description: product.note,
+          variants: [{ variantId: "reg", label: "Regular", unitCost: product.offerPrice, sellPrice }],
+        },
+        garage,
+        tx,
+      );
+    }
+    await tx
+      .update(partnerApplications)
+      .set({ status: "diterima", partnerId: partner.id, reviewedBy: garage.user.id, reviewedAt: new Date(), updatedAt: new Date() })
+      .where(eq(partnerApplications.id, id));
+    return { partnerId: partner.id, code, products: app.products.length };
+  });
 }

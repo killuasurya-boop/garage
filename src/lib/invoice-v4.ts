@@ -109,7 +109,7 @@ export type StationCard = {
   at: string | null;
 };
 
-const STATION_LABEL: Record<string, string> = { bar: "Bar", barista: "Bar", kitchen: "Dapur", dapur: "Dapur" };
+const STATION_LABEL: Record<string, string> = { bar: "Bar", barista: "Bar", kitchen: "Dapur", dapur: "Dapur", mitra: "Mitra" };
 
 /** Kartu Bar / Dapur / Waiter (atau Kasir / Kurir) dari tiket produksi nyata. */
 export function invoiceStationCards(input: {
@@ -123,15 +123,17 @@ export function invoiceStationCards(input: {
   const seen = new Map<string, StationCard>();
   for (const station of input.stations) {
     const label = STATION_LABEL[station.station.toLowerCase()] ?? station.station;
-    const tone: StationCard["tone"] = ["ready", "delivered", "completed"].includes(station.status)
+    const tone: StationCard["tone"] = ["ready", "delivered", "completed", "served"].includes(station.status)
       ? "done"
       : station.status === "cooking"
         ? "active"
         : "waiting";
+    // Tiket mitra ditolak (mis. bahan habis): tampil jujur, kasir menghubungi pelanggan untuk refund/ganti.
+    const rejected = station.status === "rejected";
     const card: StationCard = {
       key: label.toLowerCase(),
       label,
-      status: tone === "done" ? "Selesai" : tone === "active" ? "Sedang Dibuat" : "Antri",
+      status: rejected ? "Ditolak — hubungi kasir" : tone === "done" ? "Selesai" : tone === "active" ? "Sedang Dibuat" : "Antri",
       tone,
       at: tone === "done" ? station.readyAt ?? station.deliveredAt ?? null : null,
     };

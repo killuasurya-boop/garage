@@ -38,6 +38,8 @@ type PublicTable = {
   floor?: number | null;
   customerStatus: CustomerTableStatus;
   mine: boolean;
+  /** Meja terisi: false = boleh menambah pesanan tanpa kode gabung (setting outlet). */
+  joinCodeRequired?: boolean;
 };
 
 type HoldResponse = {
@@ -219,7 +221,8 @@ export function CustomerTablePicker({
   }
 
   async function join(table: PublicTable) {
-    if (!/^\d{4}$/.test(joinCode)) {
+    const needsCode = table.joinCodeRequired !== false;
+    if (needsCode && !/^\d{4}$/.test(joinCode)) {
       setActionError("Kode gabung 4 angka (lihat layar/struk teman semeja, atau tanya waiter/kasir).");
       return;
     }
@@ -227,7 +230,7 @@ export function CustomerTablePicker({
     setActionError("");
     try {
       if (current?.token) await releaseTableHold(current.token, outletId);
-      const hold = await requestTableHold({ table: table.tableNumber, outletId, joinCode });
+      const hold = await requestTableHold({ table: table.tableNumber, outletId, joinCode: needsCode ? joinCode : undefined });
       onPicked(hold);
     } catch (error) {
       setActionError(error instanceof Error ? error.message : "Kode gabung salah.");
@@ -275,7 +278,8 @@ export function CustomerTablePicker({
             </h2>
             <p className="mt-1 text-sm leading-5 text-[var(--gc-text-2)]">
               Pilih meja <strong className="text-[var(--gc-emerald)]">hijau (Kosong)</strong>. Teman semeja sudah pesan? Ketuk meja{" "}
-              <strong className="text-[var(--gc-laser-bright)]">Terisi</strong> lalu masukkan kode gabung.
+              <strong className="text-[var(--gc-laser-bright)]">Terisi</strong>
+              {tables?.some((row) => row.customerStatus === "occupied" && row.joinCodeRequired === false) ? " untuk menambah pesanan." : " lalu masukkan kode gabung."}
             </p>
           </div>
           {onClose ? (
@@ -496,7 +500,23 @@ export function CustomerTablePicker({
       </CrystalSheet>
 
       <CrystalSheet open={Boolean(joinTable)} onClose={() => setJoinTable(null)} title="Gabung meja">
-        {joinTable ? (
+        {joinTable && joinTable.joinCodeRequired === false ? (
+          <div>
+            <h3 id="join-table-title" className="text-[22px] font-extrabold text-white">
+              Pesan untuk {joinTable.tableLabel}?
+            </h3>
+            <p className="mt-1 text-sm text-[var(--gc-text-2)]">
+              Meja ini sudah ada pesanan. Pesananmu akan <strong className="text-white">ikut tagihan {joinTable.tableLabel}</strong> dan
+              dikonfirmasi kasir dulu sebelum dibuat.
+            </p>
+            <div className="mt-4 grid gap-2">
+              <CrystalButton tone="primary" loading={busy} onClick={() => void join(joinTable)}>
+                Ya, pesan untuk {joinTable.tableLabel}
+              </CrystalButton>
+              <CrystalButton onClick={() => setJoinTable(null)}>Pilih meja lain</CrystalButton>
+            </div>
+          </div>
+        ) : joinTable ? (
           <div>
             <h3 id="join-table-title" className="text-[22px] font-extrabold text-white">
               Gabung ke {joinTable.tableLabel}?

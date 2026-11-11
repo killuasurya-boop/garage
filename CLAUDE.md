@@ -384,7 +384,9 @@ Scroll direction:
   `partner-report-pdf.ts`. Partner products = `menu_items.product_type 'partner'` + station `none` (no Bar/Dapur ticket) +
   `partner_product_links` (one partner per item, inactive until Owner approves). Availability = `menu_items.stock` ready/sold_out
   (unlimited, no qty/WMS); partner BUKA/JEDA/TUTUP + last order per day (WIB) are re-validated server-side on every order
-  (`assertPartnerItemsOrderable`); customer self-order never sells partner items (DEC-14). Orders create one `kitchen_tickets`
+  (`assertPartnerItemsOrderable`); customer self-order of partner items follows setting `partnerCustomerSelfOrder` (default ON,
+  owner Nov 2026; OFF = old DEC-14). Customer orders wait for the cashier; partner tickets are created only at cashier accept, which
+  re-validates partner availability (Jeda/Tutup/Habis → accept refused with the partner reason). Orders create one `kitchen_tickets`
   row per partner (station `Mitra`, `partner_id`) + `partner_order_lines` with price/HPP snapshot (UNIQUE order_item). Production
   Hub excludes `partner_id` tickets. Partner portal `/partner` uses its own session (`partner-auth.ts`, cookie
   `garage_partner_session`, never staff_profiles); `partner_id` always from the session. Ready (mitra) sets `handoverAt` so the
@@ -434,7 +436,7 @@ Scroll direction:
   Wrong partner = Owner "Pindahkan ke mitra lain" (`movePartnerProduct`, `POST /api/partners/products/[linkId]/move`, reason
   required): only future orders follow the new partner, old lines/liabilities stay, pending price proposals are cancelled, events on
   both partners. Health alerts `NO_PORTAL_ACCOUNT` (products, no portal account) and `NO_ACTIVE_PRODUCT` (account, no products).
-  Self-order digital menu shows partner items with the partner status ("Tersedia di mitra" or the partner reason, never the Garage OS stock "Sold Out") and the note "Pesan ke kasir atau waiter" (DEC-14). POS search: Enter on an exact SKU/barcode (product or variant, partner items included) adds that variant (scanner).
+  Self-order digital menu shows partner items with the partner status ("Tersedia di mitra" or the partner reason, never the Garage OS stock "Sold Out") plus "Disiapkan mitra · <nama>"; with `partnerCustomerSelfOrder` OFF the stepper is replaced by "Pesan ke kasir atau waiter" (DEC-14). POS search: Enter on an exact SKU/barcode (product or variant, partner items included) adds that variant (scanner).
   Media marketing (11 Nov 2026, no migration): homepage section `#mitra` (`partner-showcase.tsx`, public `GET /api/site/partner-products`,
   no HPP/contact) + hero tab "Mitra" + mobile drawer links. A product shows only when Owner picks it (tag `PARTNER_WEBSITE_TAG`
   "Promo Website", max 8, `setPartnerWebsitePromotion`) AND it still passes `partnerMarketingBlockers` (partner aktif + verified bank,
@@ -602,7 +604,9 @@ Scroll direction:
   text label. Palette lives in `src/lib/garage-table-status.ts`.
 - Customer dine-in (`/order`): pick table first (QR meja = confirm "Kamu di Meja 07,
   benar?"), server hold `table_sessions.held_until` (`tableHoldMinutes`, FOR UPDATE
-  in tx). Occupied tables only via 4-digit `join_code` (cleared when emptied).
+  in tx). Occupied tables: setting `tableJoinCodeRequired` (default OFF, owner Nov 2026) — OFF = anyone scanning the table QR
+  may add orders to that table's bill (`assertTableClaimable` returns "join"; picker shows a confirm sheet; cashier still accepts
+  every order); ON = 4-digit `join_code` (cleared when emptied).
   `/api/customer/orders` sets `enforceTableClaim`; staff orders don't.
 - Digital menu mode (Menu V5, owner 4 Nov 2026) = setting `digitalMenuMode` per outlet (`src/lib/digital-menu-mode.ts`):
   `self_order` (default, flow above) or `waiter_list` (customer builds a Daftar Pilihan → "Tunjukkan ke Waiter" QR =

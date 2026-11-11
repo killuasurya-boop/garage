@@ -79,7 +79,14 @@ import {
   syncProductionItemsForTicket,
   type ProductionMenuInfo,
 } from "@/lib/garage-production-tickets";
-import { assertPartnerItemsOrderable, createPartnerTicketsForOrder, loadPartnerLinks, movePartnerLineOnSplit, recordPartnerRefundAdjustment } from "@/lib/partner-hub-orders";
+import {
+  assertPartnerItemsOrderable,
+  createPartnerTicketsForOrder,
+  loadPartnerLinks,
+  movePartnerLineOnSplit,
+  PartnerOrderError,
+  recordPartnerRefundAdjustment,
+} from "@/lib/partner-hub-orders";
 import { effectiveOperationalStatus, PARTNER_WEBSITE_TAG, partnerCardLabel } from "@/lib/partner-hub-rules";
 import {
   GarageOsThemeSaveError,
@@ -7441,6 +7448,8 @@ export async function getPublicTableLiveData(outletId?: string | null, holdToken
         )
     : [];
   const mine = new Set(mineRows.map((row) => row.tableNumber));
+  // Meja terisi: perlu kode gabung? (setting outlet; picker pelanggan memilih sheet konfirmasi vs input kode)
+  const joinCodeRequired = (await getAppSettings(resolvedOutlet ?? null)).tableJoinCodeRequired;
 
   return rows.flatMap((row) => {
     const customerStatus = customerTableStatusFor(row);
@@ -7464,6 +7473,7 @@ export async function getPublicTableLiveData(outletId?: string | null, holdToken
         available,
         needsCleaning,
         lastStatusAt: row.lastStatusAt,
+        joinCodeRequired: customerStatus === "occupied" ? joinCodeRequired : undefined,
       },
     ];
   });
@@ -7617,6 +7627,7 @@ function assertTableClaimable(
   state: Awaited<ReturnType<typeof lockTableSession>>,
   tableNumber: string,
   claim: { holdToken?: string | null; joinCode?: string | null },
+  options: { joinCodeRequired?: boolean } = {},
 ): "new" | "join" {
   const { session, occupied, now } = state;
   const label = tableLabelForNumber(tableNumber);
@@ -7625,6 +7636,9 @@ function assertTableClaimable(
   }
   if (occupied) {
     const code = claim.joinCode?.trim();
+    // Setting tableJoinCodeRequired mati (owner, Nov 2026): siapa saja yang scan QR meja boleh menambah pesanan
+    // ke tagihan meja ini tanpa kode; kasir tetap menerima tiap pesanan. Kode yang dikirim tetap harus benar.
+    if (!code && options.joinCodeRequired === false) return "join";
     if (!code) {
       throw new TableClaimError(
         "TABLE_OCCUPIED",
@@ -7668,7 +7682,7 @@ export async function holdCustomerTable(input: {
 
   const result = await getDb().transaction(async (tx) => {
     const state = await lockTableSession(tx, outlet.id, tableNumber);
-    const mode = assertTableClaimable(state, tableNumber, { holdToken: token, joinCode: input.joinCode });
+    const mode = assertTableClaimable(state, tableNumber, { holdToken: token, joinCode: input.joinCode }, { joinCodeRequired: settings.tableJoinCodeRequired });
     if (mode === "join") return { mode, expiresAt: null as Date | null };
     const tokenHash = hashTableHoldToken(token);
     // Satu pelanggan = satu meja terkunci: lepas kunci lama dari token yang sama.
@@ -9631,6 +9645,8 @@ export async function getCustomerOrderBillingSettings(outletId?: string) {
   const digitalMenuMode = parseDigitalMenuMode(settings.digitalMenuMode);
   return {
     digitalMenuMode,
+    // Produk mitra boleh dipesan pelanggan (masuk kasir dulu) — server tetap memvalidasi ulang.
+    partnerCustomerSelfOrder: settings.partnerCustomerSelfOrder,
     serviceChargePct: settings.serviceChargePct,
     taxPct: settings.taxPct,
     roundingMode: settings.roundingMode,
@@ -9838,12 +9854,17 @@ async function createCustomerOrderImpl(input: CustomerOrderInput) {
   const packageSubtotal = lines.reduce((sum, line) => sum + (line.eventSnapshot?.kind === "bundle" ? line.lineTotal : 0), 0);
   const regularSubtotal = subtotal - packageSubtotal;
   const settings = await getAppSettings(settingsOutlet?.id ?? null);
-  // Smart Partner Hub (DEC-14): produk mitra tidak bisa di-checkout pelanggan sendiri; order staf divalidasi ulang.
+  // Smart Partner Hub: pelanggan boleh memesan produk mitra (setting partnerCustomerSelfOrder, owner Nov 2026) —
+  // divalidasi sama seperti pesanan staf; tiket mitra baru dibuat saat kasir menerima. Setting mati = DEC-14 lama.
   const partnerLinks = await loadPartnerLinks(db, itemIds, { heartbeatMinutes: settings.partnerHeartbeatMinutes });
   assertPartnerItemsOrderable(
     lines.map((line) => ({ itemId: line.itemId, itemName: line.itemName, productType: line.productType, stock: line.stock })),
     partnerLinks,
-    { hubEnabled: settings.partnerHubEnabled, outletId: settingsOutlet?.id ?? "", customerSelfOrder: !input.staffOrder },
+    {
+      hubEnabled: settings.partnerHubEnabled,
+      outletId: settingsOutlet?.id ?? "",
+      customerSelfOrder: !input.staffOrder && !settings.partnerCustomerSelfOrder,
+    },
   );
   const { service, tax, grossTotal, regularGrossTotal } = calculateOrderBilling({ regularSubtotal, packageSubtotal }, settings);
   // Promo QR dari Pengaturan (dulu tertanam: 10% maks Rp25.000).
@@ -10033,10 +10054,12 @@ async function createCustomerOrderImpl(input: CustomerOrderInput) {
     if (dineInTableNumber) {
       const state = await lockTableSession(tx, outlet.id, dineInTableNumber);
       if (input.enforceTableClaim) {
-        assertTableClaimable(state, dineInTableNumber, {
-          holdToken: input.tableHoldToken,
-          joinCode: input.tableJoinCode,
-        });
+        assertTableClaimable(
+          state,
+          dineInTableNumber,
+          { holdToken: input.tableHoldToken, joinCode: input.tableJoinCode },
+          { joinCodeRequired: settings.tableJoinCodeRequired },
+        );
       }
       joinCode = state.session?.joinCode ?? newJoinCode();
       await tx
@@ -10820,7 +10843,31 @@ async function updateCustomerOrderStatusImpl(
         ),
       });
       // Smart Partner Hub: produk mitra → tiket station "Mitra" per mitra + snapshot HPP (idempoten).
-      const partnerLinks = await loadPartnerLinks(tx, menuRows.map((row) => row.menuItemId ?? ""));
+      // Cek ulang saat kasir menerima: mitra bisa sudah Jeda/Tutup/Habis sejak pelanggan memesan.
+      const partnerLinks = await loadPartnerLinks(tx, menuRows.map((row) => row.menuItemId ?? ""), {
+        heartbeatMinutes: outletSettings.partnerHeartbeatMinutes,
+      });
+      if (partnerLinks.size) {
+        const partnerMenuIds = menuRows.map((row) => row.menuItemId).filter((id): id is string => Boolean(id && partnerLinks.has(id)));
+        const stockRows = partnerMenuIds.length
+          ? await tx.select({ id: menuItems.id, stock: menuItems.stock }).from(menuItems).where(inArray(menuItems.id, partnerMenuIds))
+          : [];
+        const stockById = new Map(stockRows.map((row) => [row.id, row.stock]));
+        try {
+          assertPartnerItemsOrderable(
+            menuRows
+              .filter((row) => row.menuItemId && partnerLinks.has(row.menuItemId))
+              .map((row) => ({ itemId: row.menuItemId!, itemName: row.itemName, productType: "partner", stock: stockById.get(row.menuItemId!) ?? null })),
+            partnerLinks,
+            { hubEnabled: outletSettings.partnerHubEnabled, outletId: order.outletId ?? garage.profile.outlet.id },
+          );
+        } catch (error) {
+          if (error instanceof PartnerOrderError) {
+            throw new PartnerOrderError(`${error.message} Tolak pesanan ini atau minta pelanggan ganti menu.`);
+          }
+          throw error;
+        }
+      }
       const partnerTickets = await createPartnerTicketsForOrder(tx, {
         order: { id: order.id, orderNo: order.orderNo, tableLabel: order.tableLabel, customerName: order.customerName, outletId: order.outletId ?? garage.profile.outlet.id, channel: order.channel },
         lines: menuRows,

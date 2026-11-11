@@ -734,7 +734,7 @@ function ProductSettings({ product, isOwner, busy, runP }: { product: Product; i
         </Field>
         <label className="flex min-h-11 items-center gap-2 text-sm text-[#e4e4e8] sm:col-span-2">
           <input type="checkbox" checked={form.showInDigitalMenu} onChange={(e) => setForm({ ...form, showInDigitalMenu: e.target.checked })} className="size-4" />
-          Tampil di menu digital pelanggan (lihat saja — pelanggan tetap pesan lewat waiter/kasir)
+          Tampil di menu digital pelanggan (pelanggan bisa pesan bila Pengaturan → Partner Hub mengizinkan; pesanan masuk kasir dulu)
         </label>
         <div className="sm:col-span-2">
           <Btn type="submit" tone="primary" busy={busy === `pset-${product.linkId}`}>

@@ -645,6 +645,8 @@ function OrderTracker({ status }: { status: PublicOrderStatus | null }) {
   );
 }
 
+const PARTNER_VIA_STAFF = "Produk mitra: pesan lewat waiter atau kasir.";
+
 /** Kartu Menu V5 dengan aksi berbasis id (aksi tidak dibungkus closure saat render induk). */
 function V5CardSlot({
   item,
@@ -656,6 +658,7 @@ function V5CardSlot({
   onToggleFavorite,
   onAdd,
   onOpen,
+  staffOnlyNote,
 }: {
   item: MenuItem;
   index: number;
@@ -663,6 +666,7 @@ function V5CardSlot({
   cartQty: number;
   popular: boolean;
   favorite: boolean;
+  staffOnlyNote?: string | null;
   onToggleFavorite: (itemId: string) => void;
   onAdd: (itemId: string, variantId: string, delta: number) => void;
   onOpen: (item: MenuItem) => void;
@@ -678,6 +682,7 @@ function V5CardSlot({
       onToggleFavorite={() => onToggleFavorite(item.id)}
       onAdd={(variantId, delta) => onAdd(item.id, variantId, delta)}
       onOpen={() => onOpen(item)}
+      staffOnlyNote={staffOnlyNote}
     />
   );
 }
@@ -1164,6 +1169,8 @@ export function MemberOrderPage({
   // Mode menu outlet (Menu V5): "waiter_list" = pelanggan hanya menyusun Daftar Pilihan → Tunjukkan ke Waiter.
   // Mode Pesankan waiter (staffOrder) selalu bisa mengirim pesanan.
   const waiterList = !staffOrder && billingSettings.digitalMenuMode === "waiter_list";
+  // Produk mitra: pelanggan pesan sendiri = tidak boleh (DEC-14); Daftar Pilihan → waiter & Pesankan staf boleh.
+  const partnerSelfOrderBlocked = !staffOrder && !waiterList;
   /** Mode Daftar Pilihan: meja info dari pemilih (tanpa kunci meja) bila QR tidak membawa nomor meja. */
   const infoTableLabel = waiterList && qrContext.orderType === "dine-in" ? (tableInfo?.tableLabel ?? (/\d/.test(qrContext.tableLabel) ? qrContext.tableLabel : null)) : null;
   // Rekening transfer dari Pengaturan → Pembayaran (bukan lagi hardcode).
@@ -1537,6 +1544,11 @@ export function MemberOrderPage({
       setMessage(`${item.name} sedang habis.`);
       return;
     }
+    // DEC-14: produk mitra tidak bisa dipesan sendiri oleh pelanggan (server juga menolak).
+    if (delta > 0 && item?.partner && partnerSelfOrderBlocked) {
+      showToast({ tone: "warning", title: item.name, detail: PARTNER_VIA_STAFF });
+      return;
+    }
 
     if (delta > 0 && item) {
       if (mainEventMenu && displayVariant?.eventPrice) setMenuItems(current => current.map(row => row.id === item.id ? item : row));
@@ -1866,6 +1878,7 @@ export function MemberOrderPage({
       onToggleFavorite={toggleFavorite}
       onAdd={add}
       onOpen={openMenuItem}
+      staffOnlyNote={partnerSelfOrderBlocked && item.partner ? PARTNER_VIA_STAFF : null}
     />
   );
 

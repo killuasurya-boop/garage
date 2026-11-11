@@ -29,6 +29,7 @@ import {
   Wallet,
   WalletCards,
   PartyPopper,
+  Handshake,
 } from "lucide-react";
 
 export type Role = "Owner" | "Manajer" | "Kasir" | "Waiter";
@@ -43,6 +44,7 @@ export type ModuleId =
   | "kitchen"
   | "waiter"
   | "produk"
+  | "partners"
   | "inventory"
   | "finance"
   | "crm"
@@ -179,6 +181,7 @@ export const modules = [
     icon: BellRing,
   },
   { id: "produk", label: "Produk", description: "Menu & harga jual", icon: Coffee },
+  { id: "partners", label: "Partner Hub", description: "Mitra titip jual", icon: Handshake },
   { id: "inventory", label: "Warehouse", description: "Gudang bahan baku (WMS)", icon: Boxes },
   { id: "finance", label: "Finance", description: "Cash closing", icon: CreditCard },
   { id: "crm", label: "CRM", description: "Members", icon: Users },

@@ -61,6 +61,15 @@ export class PartnerHubError extends Error {
   }
 }
 
+/** Nomor WA/HP mitra: dinormalisasi ke 08…, wajib angka 9–15 digit (bukan nama pengguna). */
+function partnerPhoneOrThrow(raw: string) {
+  const phone = normalizePhone(raw);
+  if (!/^0\d{8,14}$/.test(phone)) {
+    throw new PartnerHubError("INVALID_PHONE", "Nomor HP/WhatsApp tidak valid. Isi dengan angka, mis. 0812xxxxxxx (bukan nama pengguna).");
+  }
+  return phone;
+}
+
 type Db = ReturnType<typeof getDb>;
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 type DbLike = Db | Tx;
@@ -179,7 +188,7 @@ export async function createPartner(input: PartnerProfileInput & { code: string;
         code,
         name: input.name.trim(),
         picName: input.picName ?? null,
-        phone: input.phone ? normalizePhone(input.phone) : null,
+        phone: input.phone ? partnerPhoneOrThrow(input.phone) : null,
         address: input.address ?? null,
         productKind: input.productKind ?? null,
         handoverPoint: input.handoverPoint ?? null,
@@ -204,7 +213,7 @@ export async function updatePartnerProfile(partnerId: string, input: PartnerProf
       .set({
         name: input.name?.trim() || before.name,
         picName: input.picName === undefined ? before.picName : input.picName,
-        phone: input.phone === undefined ? before.phone : input.phone ? normalizePhone(input.phone) : null,
+        phone: input.phone === undefined ? before.phone : input.phone ? partnerPhoneOrThrow(input.phone) : null,
         address: input.address === undefined ? before.address : input.address,
         productKind: input.productKind === undefined ? before.productKind : input.productKind,
         handoverPoint: input.handoverPoint === undefined ? before.handoverPoint : input.handoverPoint,
@@ -315,7 +324,7 @@ export async function createPartnerAccount(partnerId: string, input: { phone: st
   if (!/^\d{6}$/.test(input.pin)) throw new PartnerHubError("INVALID_PIN", "PIN mitra harus 6 angka.");
   const db = getDb();
   await loadPartner(db, partnerId, garage.profile.outlet.id);
-  const phone = normalizePhone(input.phone);
+  const phone = partnerPhoneOrThrow(input.phone);
   const [exists] = await db.select({ id: partnerAccounts.id }).from(partnerAccounts).where(eq(partnerAccounts.phone, phone)).limit(1);
   if (exists) throw new PartnerHubError("PHONE_TAKEN", "Nomor ini sudah dipakai akun mitra lain.", 409);
   return db.transaction(async (tx) => {

@@ -18,3 +18,19 @@ export function WarehouseRedirect() {
     </div>
   );
 }
+
+// Partner Hub punya halaman sendiri (/partners). Dibuka dari sidebar Garage OS.
+export function PartnerHubRedirect() {
+  useEffect(() => {
+    window.location.assign("/partners?tab=manage");
+  }, []);
+  return (
+    <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 text-center">
+      <span className="size-8 animate-spin rounded-full border-2 border-[#d11a2a] border-t-transparent" />
+      <p className="text-sm text-[#b8b8bf]">Membuka Partner Hub (Mitra)…</p>
+      <a href="/partners?tab=manage" className="text-xs font-semibold text-[#f5a742] underline">
+        Klik di sini bila tidak otomatis
+      </a>
+    </div>
+  );
+}

@@ -179,6 +179,13 @@ function CreatePartner({ onCreate, busy }: { onCreate: (body: Record<string, unk
 function PartnerDetail({ partner, isOwner, busy, run }: { partner: Partner; isOwner: boolean; busy: string | null; run: (key: string, fn: () => Promise<unknown>, ok: string) => Promise<void> }) {
   const [products, setProducts] = useState<Product[] | null>(null);
   const [terms, setTerms] = useState(partner.terms ?? "");
+  const [profile, setProfile] = useState({
+    name: partner.name,
+    picName: partner.picName ?? "",
+    phone: partner.phone ?? "",
+    handoverPoint: partner.handoverPoint ?? "",
+    address: partner.address ?? "",
+  });
   const [lastOrder, setLastOrder] = useState<Record<string, string>>(() => Object.fromEntries(DAYS.map((_, i) => [String(i), partner.lastOrderByDay?.[String(i)] ?? ""])));
   const [bank, setBank] = useState({ bankName: "", accountName: "", accountNumber: "" });
   const [account, setAccount] = useState({ phone: partner.phone ?? "", displayName: partner.picName ?? "", pin: "" });
@@ -199,6 +206,7 @@ function PartnerDetail({ partner, isOwner, busy, run }: { partner: Partner; isOw
   return (
     <div className="mt-4 grid items-start gap-4 border-t border-[#2a2a30] pt-4 lg:grid-cols-2">
       <div className="grid content-start gap-3">
+        <ActivationChecklist partner={partner} products={products} isOwner={isOwner} busy={busy} run={runP} />
         <h4 className="text-sm font-bold text-white">Status & kesepakatan</h4>
         <div className="flex flex-wrap gap-2">
           {(NEXT[partner.status] ?? [])
@@ -222,16 +230,37 @@ function PartnerDetail({ partner, isOwner, busy, run }: { partner: Partner; isOw
             </Btn>
           ))}
         </div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <Field label="Nama mitra">
+            <input value={profile.name} onChange={(e) => setProfile({ ...profile, name: e.target.value })} className={inputCls} />
+          </Field>
+          <Field label="Nama PIC">
+            <input value={profile.picName} onChange={(e) => setProfile({ ...profile, picName: e.target.value })} className={inputCls} />
+          </Field>
+          <Field label="WhatsApp mitra (wajib sebelum aktif)">
+            <input value={profile.phone} onChange={(e) => setProfile({ ...profile, phone: e.target.value })} inputMode="tel" placeholder="0812xxxxxxx" className={inputCls} />
+          </Field>
+          <Field label="Titik serah-terima">
+            <input value={profile.handoverPoint} onChange={(e) => setProfile({ ...profile, handoverPoint: e.target.value })} placeholder="mis. meja pass dekat kasir" className={inputCls} />
+          </Field>
+        </div>
+        <Field label="Alamat mitra">
+          <input value={profile.address} onChange={(e) => setProfile({ ...profile, address: e.target.value })} className={inputCls} />
+        </Field>
         <Field label="Kesepakatan harga, pembatalan & serah-terima (wajib sebelum aktif)">
           <textarea value={terms} onChange={(e) => setTerms(e.target.value)} rows={3} className={`${inputCls} h-auto py-2`} />
         </Field>
         <div>
           <p className="text-sm font-semibold text-[#e4e4e8]">Last order (WIB, kosong = tanpa batas)</p>
+          <p className="text-xs text-[#b8b8bf]">
+            Jam terakhir pesanan diterima. Malam hari pilih PM: 21:45 = 09:45 PM. 11:00 AM = jam 11 siang, 12:00 AM = tengah malam (pesanan hari itu ditolak).
+          </p>
           <div className="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-4">
             {DAYS.map((day, i) => (
               <label key={day} className="grid min-w-0 gap-1 text-xs text-[#b8b8bf]">
                 {day}
                 <input type="time" value={lastOrder[String(i)]} onChange={(e) => setLastOrder({ ...lastOrder, [String(i)]: e.target.value })} className={`${inputCls} h-10 min-w-0 px-2`} />
+                <span className={lastOrderWarn(lastOrder[String(i)]) ? "font-semibold text-amber-300" : ""}>{lastOrderText(lastOrder[String(i)])}</span>
               </label>
             ))}
           </div>
@@ -243,12 +272,12 @@ function PartnerDetail({ partner, isOwner, busy, run }: { partner: Partner; isOw
             onClick={() =>
               void run(
                 `profile-${partner.id}`,
-                () => api(`/api/partners/${partner.id}`, { method: "PATCH", body: JSON.stringify({ terms, lastOrderByDay: Object.fromEntries(Object.entries(lastOrder).map(([k, v]) => [k, v || null])) }) }),
+                () => api(`/api/partners/${partner.id}`, { method: "PATCH", body: JSON.stringify({ ...profile, picName: profile.picName || null, phone: profile.phone || null, handoverPoint: profile.handoverPoint || null, address: profile.address || null, terms, lastOrderByDay: Object.fromEntries(Object.entries(lastOrder).map(([k, v]) => [k, v || null])) }) }),
                 "Data mitra disimpan.",
               )
             }
           >
-            Simpan kesepakatan & jam
+            Simpan data mitra, kesepakatan & jam
           </Btn>
         </div>
 
@@ -286,8 +315,11 @@ function PartnerDetail({ partner, isOwner, busy, run }: { partner: Partner; isOw
         <h4 className="mt-2 text-sm font-bold text-white">Akun Portal Mitra</h4>
         {partner.accounts.map((a) => (
           <div key={a.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#2a2a30] px-3 py-2 text-sm">
-            <span className="text-[#f4f4f5]">
-              {a.displayName} · {a.phone}
+            <span className="min-w-0 text-[#f4f4f5]">
+              {a.displayName} · {a.phone || "tanpa nomor HP"}
+              {!/^0\d{8,14}$/.test(a.phone) ? (
+                <span className="block text-xs font-semibold text-amber-300">Nomor login tidak valid: mitra tidak bisa login. Nonaktifkan akun ini lalu buat ulang dengan nomor HP.</span>
+              ) : null}
             </span>
             <span className="flex gap-2">
               <Chip tone={a.status === "active" ? "green" : "red"}>{a.status === "active" ? "Aktif" : "Nonaktif"}</Chip>
@@ -313,7 +345,7 @@ function PartnerDetail({ partner, isOwner, busy, run }: { partner: Partner; isOw
             void run(`addacc-${partner.id}`, () => api(`/api/partners/${partner.id}/accounts`, { method: "POST", body: JSON.stringify(account) }), "Akun mitra dibuat. Berikan PIN langsung ke mitra.").then(() => setAccount({ ...account, pin: "" }));
           }}
         >
-          <input required placeholder="No. HP login" inputMode="tel" value={account.phone} onChange={(e) => setAccount({ ...account, phone: e.target.value })} className={inputCls} aria-label="Nomor HP login" />
+          <input required placeholder="No. HP login (0812…)" inputMode="tel" value={account.phone} onChange={(e) => setAccount({ ...account, phone: e.target.value })} className={inputCls} aria-label="Nomor HP login" />
           <input required placeholder="Nama" value={account.displayName} onChange={(e) => setAccount({ ...account, displayName: e.target.value })} className={inputCls} aria-label="Nama akun" />
           <input required placeholder="PIN 6 angka" inputMode="numeric" type="password" value={account.pin} onChange={(e) => setAccount({ ...account, pin: e.target.value.replace(/\D/g, "").slice(0, 6) })} className={inputCls} aria-label="PIN" />
           <Btn type="submit" busy={busy === `addacc-${partner.id}`} disabled={account.pin.length !== 6}>
@@ -537,5 +569,113 @@ function MarginRule({ partnerId, busy, runP }: { partnerId: string; busy: string
         Terapkan ke semua produk
       </Btn>
     </form>
+  );
+}
+
+function lastOrderText(value: string) {
+  if (!value) return "tanpa batas";
+  return `berhenti ${value} WIB`;
+}
+
+/** Jam yang hampir pasti salah ketik AM/PM: sebelum 15:00 (tengah malam/pagi/siang). */
+function lastOrderWarn(value: string) {
+  if (!value) return false;
+  const hour = Number(value.slice(0, 2));
+  return hour < 15;
+}
+
+/** Syarat aktivasi (sama dengan partnerActivationBlockers di server) agar Owner tahu apa yang kurang. */
+function ActivationChecklist({
+  partner,
+  products,
+  isOwner,
+  busy,
+  run,
+}: {
+  partner: Partner;
+  products: Product[] | null;
+  isOwner: boolean;
+  busy: string | null;
+  run: (key: string, fn: () => Promise<unknown>, ok: string) => Promise<void>;
+}) {
+  if (partner.status === "aktif") return null;
+  const approvedProducts = products?.filter((p) => p.active).length ?? 0;
+  const pendingProducts = products?.filter((p) => !p.active) ?? [];
+  const prereqOk = (ok: boolean[]) => ok.every(Boolean);
+  const statusStep =
+    partner.status === "disetujui" || partner.status === "dibekukan"
+      ? "Status sudah Disetujui Owner"
+      : partner.status === "verifikasi"
+        ? "Status: tekan \"Setujui (Owner)\""
+        : partner.status === "nonaktif"
+          ? "Status Nonaktif: dibuka ulang otomatis saat \"Aktifkan mitra sekarang\""
+          : "Status: tekan \"Ajukan verifikasi\", lalu \"Setujui (Owner)\"";
+  const items: Array<{ ok: boolean; label: string }> = [
+    { ok: Boolean(partner.phone?.trim()), label: "WhatsApp mitra diisi lalu disimpan" },
+    { ok: Boolean(partner.terms?.trim()), label: "Kesepakatan harga, pembatalan & serah-terima disimpan" },
+    { ok: partner.bank.some((b) => b.status === "verified"), label: "Rekening penerima ditambah dan diverifikasi Owner" },
+    { ok: partner.accounts.some((a) => a.status === "active" && /^0\d{8,14}$/.test(a.phone)), label: "Akun Portal Mitra aktif dengan nomor HP" },
+    { ok: approvedProducts > 0, label: "Minimal satu produk disetujui" },
+    { ok: partner.status === "disetujui" || partner.status === "dibekukan", label: statusStep },
+  ];
+  const dataReady = prereqOk(items.slice(0, 5).map((i) => i.ok));
+  // Urutan transisi sah (PARTNER_STATUS_FLOW): nonaktif harus dibuka ulang ke draft dulu.
+  const STATUS_PATH: Record<string, string[]> = {
+    nonaktif: ["draft", "verifikasi", "disetujui", "aktif"],
+    draft: ["verifikasi", "disetujui", "aktif"],
+    verifikasi: ["disetujui", "aktif"],
+    disetujui: ["aktif"],
+    dibekukan: ["aktif"],
+  };
+  const statusPath = STATUS_PATH[partner.status] ?? [];
+  const activateNow = () => {
+    const reason = window.prompt("Alasan aktivasi (tercatat di riwayat), mis. kontrak & harga sudah disepakati");
+    if (!reason?.trim()) return;
+    void run(
+      `quick-${partner.id}`,
+      async () => {
+        for (const to of statusPath) await api(`/api/partners/${partner.id}/status`, { method: "POST", body: JSON.stringify({ to, reason }) });
+      },
+      "Mitra AKTIF. Minta mitra login di garagecoffee.id/partner lalu tekan BUKA.",
+    );
+  };
+  const approveAll = () =>
+    void run(
+      `approve-all-${partner.id}`,
+      async () => {
+        for (const p of pendingProducts) await api(`/api/partners/products/${p.linkId}`, { method: "PATCH", body: JSON.stringify({ active: true }) });
+      },
+      `${pendingProducts.length} produk disetujui.`,
+    );
+  return (
+    <div className="rounded-lg border border-[#3a3a42] bg-[#16161a] p-3">
+      <p className="text-sm font-bold text-white">Syarat aktivasi</p>
+      <ul className="mt-2 grid gap-1 text-sm">
+        {items.map((item) => (
+          <li key={item.label} className={item.ok ? "text-emerald-300" : "text-amber-300"}>
+            {item.ok ? "✓" : "✗"} {item.label}
+          </li>
+        ))}
+      </ul>
+      <p className="mt-2 text-xs text-[#b8b8bf]">
+        {dataReady
+          ? isOwner
+            ? "Data lengkap. Tekan \"Aktifkan mitra sekarang\" (status otomatis: verifikasi → disetujui → aktif)."
+            : "Data lengkap. Owner tinggal menekan \"Aktifkan mitra sekarang\"."
+          : "Lengkapi yang bertanda ✗ (isi lalu simpan di bawah)."}
+      </p>
+      {isOwner ? (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {pendingProducts.length > 0 ? (
+            <Btn tone="success" busy={busy === `approve-all-${partner.id}`} onClick={approveAll}>
+              Setujui semua produk ({pendingProducts.length})
+            </Btn>
+          ) : null}
+          <Btn tone="primary" disabled={!dataReady || statusPath.length === 0} busy={busy === `quick-${partner.id}`} onClick={activateNow}>
+            <ShieldCheck className="size-4" /> Aktifkan mitra sekarang
+          </Btn>
+        </div>
+      ) : null}
+    </div>
   );
 }

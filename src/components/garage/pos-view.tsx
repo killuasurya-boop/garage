@@ -3120,10 +3120,11 @@ export function PosView({
   }
 
   async function clearAllSoldOut() {
-    const ids = Array.from(soldOutIds);
+    // Produk mitra tidak ikut di-reset: Tersedia/Habis-nya milik mitra (Partner Hub), server juga menolak.
+    const ids = Array.from(soldOutIds).filter((id) => !menuItemsById.get(id)?.partner);
     if (!ids.length) return;
     setSoldOutPendingIds(new Set(ids));
-    setSoldOutIds(new Set());
+    setSoldOutIds((current) => new Set([...current].filter((id) => !ids.includes(id))));
     try {
       await Promise.all(
         ids.map((id) =>
@@ -3133,7 +3134,7 @@ export function PosView({
       setPosNotice("Semua tanda HABIS menu digital dihapus.");
       void onOrderCreated();
     } catch (error) {
-      setSoldOutIds(new Set(ids));
+      setSoldOutIds((current) => new Set([...current, ...ids]));
       setCustomerOrderError(
         error instanceof Error ? error.message : "Gagal reset stok habis menu digital.",
       );

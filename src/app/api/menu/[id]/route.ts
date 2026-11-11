@@ -6,6 +6,7 @@ import {
   deleteMenuProduct,
   getMenuProductAuditHistory,
   getMenuProductOrderCount,
+  PartnerProductStockError,
   updateMenuProduct,
   updateMenuProductStock,
 } from "@/lib/garage-service";
@@ -146,7 +147,13 @@ export async function PATCH(
       return fail(400, "MENU_PRODUCT_PATCH_INVALID", "Payload update stok tidak valid.");
     }
 
-    const product = await updateMenuProductStock(id, body.data.stock, session.data);
+    let product: Awaited<ReturnType<typeof updateMenuProductStock>>;
+    try {
+      product = await updateMenuProductStock(id, body.data.stock, session.data);
+    } catch (error) {
+      if (error instanceof PartnerProductStockError) return fail(409, error.code, error.message);
+      throw error;
+    }
     if (!product) {
       return fail(404, "MENU_PRODUCT_NOT_FOUND", "Produk tidak ditemukan.");
     }

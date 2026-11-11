@@ -641,6 +641,22 @@ describe("Smart Partner Hub — pengajuan harga, rapor kinerja & kesehatan (back
     expect(products[0].variants[0].unitCost).toBe(startCost + 2_000);
   });
 
+  it("status Tersedia/Habis produk mitra tidak bisa diubah dari POS/menu (hanya mitra / Partner Hub)", async () => {
+    const products = await svc.listPartnerProducts(partnerB.id, { outletId, showCost: true });
+    const menuId = products[0].menuItemId;
+    await svc.setPartnerProductAvailability(products[0].linkId, false, { partner: partnerSession(partnerB, "Dimsum") });
+    await expect(garageSvc.updateMenuProductStock(menuId, "ready", kasir())).rejects.toThrow(/produk mitra/);
+    await expect(garageSvc.updateMenuProduct(menuId, { stock: "ready" } as never, owner())).rejects.toThrow(/produk mitra/);
+    const { bulkProductAction } = await import("@/lib/product-management");
+    const bulk = await bulkProductAction({ ids: [menuId], action: "stock", value: "ready" }, owner());
+    expect(bulk.updated).toBe(0);
+    const d = t.getDb();
+    const { eq } = await import("drizzle-orm");
+    const [item] = await d.select().from(t.schema.menuItems).where(eq(t.schema.menuItems.id, menuId));
+    expect(item.stock).toBe("sold_out");
+    await svc.setPartnerProductAvailability(products[0].linkId, true, { partner: partnerSession(partnerB, "Dimsum") });
+  });
+
   it("rapor kinerja & kesehatan mitra dari tiket nyata", async () => {
     const from = new Date(Date.now() - 30 * 86_400_000);
     const to = new Date(Date.now() + 86_400_000);

@@ -524,6 +524,9 @@ export function PosSoldOutDialog({
   cashierTheme: CashierThemeMode;
   menuItems: MenuItem[];
 }) {
+  // Tanda HABIS manual kasir saja (produk mitra diatur mitra, tidak ikut Reset).
+  const partnerIds = new Set(menuItems.filter((item) => item.partner).map((item) => item.id));
+  const manualSoldOutCount = [...soldOutIds].filter((id) => !partnerIds.has(id)).length;
   return (
     <Dialog open={soldOutDialogOpen} onOpenChange={setSoldOutDialogOpen}>
       <DialogContent
@@ -549,16 +552,17 @@ export function PosSoldOutDialog({
             variant="outline"
             className="garage-press h-10 border-[#4a4a54] bg-white/[0.055] px-3 text-xs"
             onClick={() => void clearAllSoldOut()}
-            disabled={!soldOutIds.size || soldOutPendingIds.size > 0}
+            disabled={!manualSoldOutCount || soldOutPendingIds.size > 0}
           >
-            Reset ({soldOutIds.size})
+            Reset ({manualSoldOutCount})
           </Button>
         </div>
         <div className="garage-scroll min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
           {(() => {
             const q = soldOutQuery.trim().toLowerCase();
+            // Produk mitra tidak diatur di sini (status dari Portal Mitra / Partner Hub).
             const filtered = menuItems.filter((item) =>
-              q ? item.name.toLowerCase().includes(q) : true,
+              !item.partner && (q ? item.name.toLowerCase().includes(q) : true),
             );
             if (!filtered.length) {
               return (

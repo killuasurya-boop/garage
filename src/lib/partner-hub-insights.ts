@@ -281,3 +281,33 @@ export function partnerHealthAlerts(input: HealthInput, options: { now?: Date; s
   const order = { critical: 0, warning: 1, info: 2 } as const;
   return alerts.sort((a, b) => order[a.level] - order[b.level]);
 }
+
+// ─── 4. Klaim grup per meja (P1, papan 02) ───────────────────────────────────
+
+export type PickupTicket = { ticketNo: string; tableLabel: string | null; status: string; claimedByName: string | null; readyAt?: string | Date | null; partnerName?: string };
+
+/**
+ * Kelompokkan pesanan mitra yang Siap Antar per meja (take away per tiket sendiri), urut paling lama siap.
+ * `claimable` = belum diklaim siapa pun; `deliverable` = sudah diklaim (server tetap memastikan hanya pengklaim
+ * yang boleh menandai diantar). Klaim/antar tetap per tiket di server — grup hanya menghemat ketukan waiter.
+ */
+export function groupPickupByTable(tickets: PickupTicket[]) {
+  const groups = new Map<string, { key: string; tableLabel: string | null; tickets: PickupTicket[]; oldestReadyAt: number }>();
+  for (const ticket of tickets) {
+    if (ticket.status !== "ready") continue;
+    const key = ticket.tableLabel ? `table:${ticket.tableLabel}` : `takeaway:${ticket.ticketNo}`;
+    const readyAt = ticket.readyAt ? new Date(ticket.readyAt).getTime() : Number.MAX_SAFE_INTEGER;
+    const group = groups.get(key) ?? { key, tableLabel: ticket.tableLabel, tickets: [], oldestReadyAt: readyAt };
+    group.tickets.push(ticket);
+    group.oldestReadyAt = Math.min(group.oldestReadyAt, readyAt);
+    groups.set(key, group);
+  }
+  return [...groups.values()]
+    .map((group) => ({
+      ...group,
+      claimable: group.tickets.filter((t) => !t.claimedByName).map((t) => t.ticketNo),
+      deliverable: group.tickets.filter((t) => t.claimedByName).map((t) => t.ticketNo),
+      partners: [...new Set(group.tickets.map((t) => t.partnerName).filter(Boolean))] as string[],
+    }))
+    .sort((a, b) => a.oldestReadyAt - b.oldestReadyAt);
+}

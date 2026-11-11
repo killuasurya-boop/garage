@@ -4,7 +4,9 @@
 // endpoint waiter yang sudah ada (/api/waiter/tickets/[no]/claim|deliver): satu klaim sah, anti dobel.
 
 import { useCallback, useEffect, useState } from "react";
-import { Bike, CheckCircle2, MessageCircle, RefreshCw, TriangleAlert, Undo2 } from "lucide-react";
+import { Bike, CheckCircle2, MessageCircle, RefreshCw, TriangleAlert, Undo2, Users } from "lucide-react";
+
+import { groupPickupByTable } from "@/lib/partner-hub-insights";
 
 import { api, Btn, Card, Chip, Notice, TICKET_LABEL, TICKET_TONE, timeWib } from "./desk-shared";
 
@@ -85,6 +87,30 @@ export function DeskOrders({ mode, slaWarnMinutes = 2, readyWarnMinutes = 3 }: {
     }
   }
 
+  // Klaim / antar semua pesanan satu meja: tetap satu permintaan per tiket ke endpoint yang sama (server menjaga
+  // klaim tunggal & hanya pengklaim yang boleh menandai diantar). Gagal sebagian dilaporkan, sisanya tetap jalan.
+  async function actGroup(key: string, ticketNos: string[], action: "claim" | "deliver") {
+    setBusy(`${key}-${action}`);
+    setMessage(null);
+    const failed: string[] = [];
+    for (const ticketNo of ticketNos) {
+      try {
+        await api(`/api/waiter/tickets/${ticketNo}/${action}`, { method: "POST" });
+      } catch (error) {
+        failed.push(`${ticketNo}: ${(error as Error).message}`);
+      }
+    }
+    const done = ticketNos.length - failed.length;
+    const verb = action === "claim" ? "diklaim" : "ditandai diantar";
+    setMessage(
+      failed.length
+        ? { tone: "error", text: `${done} dari ${ticketNos.length} pesanan ${verb}. Gagal — ${failed.join(" · ")}` }
+        : { tone: "ok", text: action === "claim" ? `${done} pesanan diklaim — ambil semuanya di titik serah-terima mitra.` : `${done} pesanan ditandai sudah diantar.` },
+    );
+    await load();
+    setBusy(null);
+  }
+
   async function refundRejected(ticketNo: string) {
     setBusy(`${ticketNo}-refund`);
     setMessage(null);
@@ -102,6 +128,7 @@ export function DeskOrders({ mode, slaWarnMinutes = 2, readyWarnMinutes = 3 }: {
 
   const list = (orders ?? []).filter((order) => (mode === "pickup" ? order.status === "ready" : true));
   const needRefund = (orders ?? []).filter((order) => order.needsRefund);
+  const tableGroups = mode === "pickup" ? groupPickupByTable(orders ?? []).filter((group) => group.tableLabel && group.tickets.length > 1) : [];
   const lateReady = (orders ?? []).filter((o) => o.status === "ready" && o.readyAt && now - new Date(o.readyAt).getTime() > readyWarnMinutes * 60_000);
 
   return (
@@ -123,6 +150,35 @@ export function DeskOrders({ mode, slaWarnMinutes = 2, readyWarnMinutes = 3 }: {
           <RefreshCw className="size-4" /> Muat ulang
         </Btn>
       </div>
+      {tableGroups.length ? (
+        <Card>
+          <h3 className="flex items-center gap-2 text-sm font-bold text-white">
+            <Users className="size-4 text-[#ff5a66]" aria-hidden /> Ambil sekaligus per meja
+          </h3>
+          <ul className="mt-2 grid gap-2">
+            {tableGroups.map((group) => (
+              <li key={group.key} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#3a3a42] bg-black/20 p-3">
+                <p className="min-w-0 text-sm text-[#f4f4f5]">
+                  <b>{group.tableLabel}</b> · {group.tickets.length} pesanan
+                  {group.partners.length ? <span className="text-[#b8b8bf]"> ({group.partners.join(", ")})</span> : null}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {group.claimable.length ? (
+                    <Btn tone="primary" busy={busy === `${group.key}-claim`} disabled={busy !== null} onClick={() => void actGroup(group.key, group.claimable, "claim")}>
+                      <Bike className="size-4" /> Klaim semua ({group.claimable.length})
+                    </Btn>
+                  ) : null}
+                  {group.deliverable.length ? (
+                    <Btn tone="success" busy={busy === `${group.key}-deliver`} disabled={busy !== null} onClick={() => void actGroup(group.key, group.deliverable, "deliver")}>
+                      <CheckCircle2 className="size-4" /> Antar semua ({group.deliverable.length})
+                    </Btn>
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
       {orders === null ? (
         <Card>
           <p className="text-sm text-[#b8b8bf]">Memuat pesanan mitra…</p>

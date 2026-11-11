@@ -138,3 +138,21 @@ describe("kesehatan mitra", () => {
     for (const alert of alerts) expect(alert.text).not.toMatch(/curang|bohong|lalai|salah mitra|menipu/i);
   });
 });
+
+describe("klaim grup per meja", () => {
+  it("mengelompokkan Siap Antar per meja, take away terpisah, urut paling lama siap", async () => {
+    const { groupPickupByTable } = await import("@/lib/partner-hub-insights");
+    const groups = groupPickupByTable([
+      { ticketNo: "M-1", tableLabel: "Meja 06", status: "ready", claimedByName: null, readyAt: "2026-11-11T05:05:00Z", partnerName: "Pokat Au" },
+      { ticketNo: "M-2", tableLabel: "Meja 06", status: "ready", claimedByName: "Dewi", readyAt: "2026-11-11T05:02:00Z", partnerName: "Dimsum" },
+      { ticketNo: "M-3", tableLabel: null, status: "ready", claimedByName: null, readyAt: "2026-11-11T05:01:00Z" },
+      { ticketNo: "M-4", tableLabel: null, status: "ready", claimedByName: null, readyAt: "2026-11-11T05:03:00Z" },
+      { ticketNo: "M-5", tableLabel: "Meja 06", status: "cooking", claimedByName: null },
+    ]);
+    expect(groups.map((g) => g.key)).toEqual(["takeaway:M-3", "table:Meja 06", "takeaway:M-4"]);
+    const table = groups[1];
+    expect(table.claimable).toEqual(["M-1"]);
+    expect(table.deliverable).toEqual(["M-2"]);
+    expect(table.partners).toEqual(["Pokat Au", "Dimsum"]);
+  });
+});

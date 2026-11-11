@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { readJson } from "@/lib/api-response";
-import { setPartnerProductActive, setPartnerProductAvailability, setPartnerProductPrice } from "@/lib/partner-hub-service";
+import { setPartnerProductActive, setPartnerProductAvailability, setPartnerProductPrice, updatePartnerProductSettings } from "@/lib/partner-hub-service";
 import { partnerRoute } from "@/lib/partner-hub-route";
 import { requireOwnerOrManager } from "@/lib/server-auth";
 
@@ -18,6 +18,15 @@ const schema = z.object({
       reason: z.string().trim().min(3, "Alasan perubahan harga wajib diisi.").max(300),
     })
     .optional(),
+  settings: z
+    .object({
+      name: z.string().trim().min(2).max(120).optional(),
+      category: z.string().trim().min(2).max(60).optional(),
+      imageUrl: z.string().trim().max(500).nullable().optional(),
+      description: z.string().trim().max(500).nullable().optional(),
+      showInDigitalMenu: z.boolean().optional(),
+    })
+    .optional(),
 });
 
 // Satu aksi per permintaan: setujui/nonaktifkan produk (Owner), Tersedia/Habis, atau harga baru (Owner).
@@ -29,6 +38,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ linkI
   if (body.error) return body.error;
   const input = body.data;
   return partnerRoute(async () => {
+    if (input.settings) return updatePartnerProductSettings(linkId, input.settings, session.data);
     if (input.price) return setPartnerProductPrice(linkId, input.price, session.data);
     if (input.active !== undefined) return setPartnerProductActive(linkId, input.active, session.data);
     if (input.available !== undefined) return setPartnerProductAvailability(linkId, input.available, { garage: session.data });

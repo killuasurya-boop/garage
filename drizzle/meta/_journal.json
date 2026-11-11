@@ -1331,6 +1331,13 @@
       "when": 1794361831957,
       "tag": "0189_partner_hub_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 190,
+      "version": "7",
+      "when": 1794369737416,
+      "tag": "0190_partner_applications",
+      "breakpoints": true
     }
   ]
 }

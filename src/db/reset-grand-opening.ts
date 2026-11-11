@@ -85,7 +85,7 @@ export const KEEP_TABLES = [
   // event & undangan Grand Opening — dibuat sebelum hari H, tidak boleh terhapus saat reset H-1
   "events", "event_guests", "event_invitations", "event_rsvps", "event_activity_logs",
   // Smart Partner Hub — master mitra resmi, akun, rekening, produk & histori harga
-  "partners", "partner_bank_accounts", "partner_accounts", "partner_push_subscriptions", "partner_product_links", "partner_price_history",
+  "partners", "partner_bank_accounts", "partner_accounts", "partner_push_subscriptions", "partner_applications", "partner_product_links", "partner_price_history",
 ] as const;
 
 /** Transaksi & log uji coba — dihapus. */

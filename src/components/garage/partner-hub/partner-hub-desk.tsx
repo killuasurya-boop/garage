@@ -8,18 +8,19 @@ import { ArrowLeft } from "lucide-react";
 
 import { GarageBrandLogo } from "@/components/garage/member-auth/garage-brand-logo";
 
+import { DeskApplications } from "./desk-applications";
 import { DeskFinance } from "./desk-finance";
 import { DeskManage } from "./desk-manage";
 import { DeskOrders } from "./desk-orders";
 
-type TabId = "orders" | "pickup" | "finance" | "manage";
+type TabId = "orders" | "pickup" | "finance" | "manage" | "applications";
 
 export function PartnerHubDesk({ role, userId, userName, hubEnabled, sla }: { role: string; userId: string; userName: string; hubEnabled: boolean; sla: { accept: number; ready: number } }) {
   const tabs: Array<{ id: TabId; label: string }> = [
     { id: "orders", label: "Pesanan Mitra" },
     { id: "pickup", label: "Ambil dari Mitra" },
     ...(role !== "Waiter" ? [{ id: "finance" as const, label: "Keuangan Mitra" }] : []),
-    ...(role === "Owner" || role === "Manajer" ? [{ id: "manage" as const, label: "Kelola Mitra" }] : []),
+    ...(role === "Owner" || role === "Manajer" ? [{ id: "manage" as const, label: "Kelola Mitra" }, { id: "applications" as const, label: "Pendaftar Mitra" }] : []),
   ];
   const [tab, setTab] = useState<TabId>(role === "Waiter" ? "pickup" : "orders");
   useEffect(() => {
@@ -77,6 +78,7 @@ export function PartnerHubDesk({ role, userId, userName, hubEnabled, sla }: { ro
           {tab === "pickup" ? <DeskOrders mode="pickup" slaWarnMinutes={sla.accept} readyWarnMinutes={sla.ready} /> : null}
           {tab === "finance" ? <DeskFinance role={role} userId={userId} /> : null}
           {tab === "manage" ? <DeskManage role={role} /> : null}
+          {tab === "applications" ? <DeskApplications role={role} /> : null}
         </div>
       </div>
     </main>

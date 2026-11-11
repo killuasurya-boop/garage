@@ -401,6 +401,12 @@ Scroll direction:
   = one urgent notify per ticket (cashier + management). Partner Web Push = `partner_push_subscriptions` (`sendPartnerPush`, sent
   after commit). Owner with 2FA must pass `totpCode` to approve a settlement. Payout proof photos reuse `storage/cash-receipts`.
   Split bill moves/splits `partner_order_lines` (`movePartnerLineOnSplit`). Kasir never receives partner HPP/profit; session 7 days.
+  Public partner portal (11 Nov 2026, migration 0190): `/mitra` (Crystal V5, `partner-public/partner-landing.tsx`) → public
+  `POST /api/partner-applications` (rate limit + honeypot, one active application per WhatsApp) → `partner_applications`; staff tab
+  "Pendaftar Mitra" (`desk-applications.tsx`); Owner "Jadikan mitra" (`convertPartnerApplication`) = partner DRAFT + products INACTIVE.
+  PRD 05 catalog (Es Krim Pokat Au 4 SKU, Dimsum 20 SKU) lives only in `partner-hub-catalog.ts` (test pins the PRD numbers) and is
+  imported by Owner via `POST /api/partners/import-catalog` (idempotent, draft/inactive). Product settings = `updatePartnerProductSettings`
+  (display only); price rule HPP + margin = `applyPartnerMarginRule` (Owner, goes through `setPartnerProductPrice` history).
 
 ## Product Management Rules
 

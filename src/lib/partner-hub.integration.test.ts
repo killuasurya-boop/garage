@@ -267,6 +267,11 @@ describe("Smart Partner Hub — settlement & payout", () => {
     ).rejects.toThrow(/melebihi sisa/);
     const first = await svc.recordPartnerPayout(draft.id, { amount: 20_000, fundSource: "bank_jago", reference: "TRF-1001", paidAt: new Date(), idempotencyKey: "pay-1001-key" }, manager());
     expect(first.status).toBe("recorded");
+    // Buku kas: catatan Manajer yang belum diverifikasi belum mengurangi saldo bank.
+    const ledgerOf = (payoutId: string) => d.select().from(t.schema.cashLedgerEntries).where(eq(t.schema.cashLedgerEntries.sourceId, payoutId));
+    const { accountBalance } = await import("@/lib/cash-ledger");
+    const jagoBefore = await accountBalance("bank_jago", outletId);
+    expect(await ledgerOf(first.id)).toHaveLength(0);
     // Retry dengan kunci sama = hasil sama, bukan pembayaran kedua.
     const replay = await svc.recordPartnerPayout(draft.id, { amount: 20_000, fundSource: "bank_jago", reference: "TRF-1001", paidAt: new Date(), idempotencyKey: "pay-1001-key" }, manager());
     expect(replay).toMatchObject({ id: first.id, replay: true });
@@ -276,8 +281,26 @@ describe("Smart Partner Hub — settlement & payout", () => {
     await expect(svc.verifyPartnerPayout(first.id, manager())).rejects.toThrow(/Owner/);
     const afterFirst = await svc.verifyPartnerPayout(first.id, owner());
     expect(afterFirst).toMatchObject({ paidAmount: 20_000, status: "partially_paid" });
+    // Terverifikasi → satu baris Rekening Jago → luar usaha; saldo Jago di buku kas turun 20.000.
+    const jagoRows = await ledgerOf(first.id);
+    expect(jagoRows).toHaveLength(1);
+    expect(jagoRows[0]).toMatchObject({ fromAccount: "bank_jago", toAccount: "external", amount: 20_000, sourceType: "partner_payout" });
+    expect(await accountBalance("bank_jago", outletId)).toBe(jagoBefore - 20_000);
+    await expect(svc.verifyPartnerPayout(first.id, owner())).rejects.toThrow(/sudah diproses/);
+    expect(await ledgerOf(first.id)).toHaveLength(1);
     // Owner mencatat sisa → langsung terverifikasi (tanpa pemeriksa kedua) → lunas.
-    await svc.recordPartnerPayout(draft.id, { amount: 18_000, fundSource: "bank_bni", reference: "TRF-1002", paidAt: new Date(), idempotencyKey: "pay-1002-key" }, owner());
+    const bniBefore = await accountBalance("bank_bni", outletId);
+    const second = await svc.recordPartnerPayout(draft.id, { amount: 18_000, fundSource: "bank_bni", reference: "TRF-1002", paidAt: new Date(), idempotencyKey: "pay-1002-key" }, owner());
+    expect(await accountBalance("bank_bni", outletId)).toBe(bniBefore - 18_000);
+    // Batal → baris pembalik (riwayat tetap), saldo BNI kembali; batal dua kali tidak menggandakan pembalik.
+    await svc.voidPartnerPayout(second.id, "salah nominal transfer", owner());
+    const bniRows = await ledgerOf(second.id);
+    expect(bniRows.map((row: { sourceType: string }) => row.sourceType).sort()).toEqual(["partner_payout", "partner_payout_void"]);
+    expect(bniRows.find((row: { sourceType: string }) => row.sourceType === "partner_payout_void")).toMatchObject({ fromAccount: "external", toAccount: "bank_bni", amount: 18_000, reversesId: bniRows.find((row: { sourceType: string }) => row.sourceType === "partner_payout")!.id });
+    expect(await accountBalance("bank_bni", outletId)).toBe(bniBefore);
+    // Uang pribadi Owner (external) tidak lewat rekening usaha → tidak ada baris buku kas.
+    const personal = await svc.recordPartnerPayout(draft.id, { amount: 18_000, fundSource: "external", reference: "TRF-1003", paidAt: new Date(), idempotencyKey: "pay-1003-key" }, owner());
+    expect(await ledgerOf(personal.id)).toHaveLength(0);
     const detail = await svc.getPartnerSettlement(draft.id, { outletId });
     expect(detail.settlement).toMatchObject({ status: "paid", paidAmount: 38_000 });
     const [paidExpense] = await d.select().from(t.schema.expenses).where(eq(t.schema.expenses.sourceDoc, `PSET:${draft.settlementNo}`));

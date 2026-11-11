@@ -445,8 +445,10 @@ Scroll direction:
   (`cancelProductionForOrder` / `cancelProductionQuantities`) calls `schedulePartnerCancelNotice` (push + event
   `ticket_cancelled_by_garage`), portal shows "Dibatalkan Garage" for 10 min (`listRecentlyCancelledTickets`). Staff-set PINs: weak PIN
   refused (`isWeakPartnerPin`), `partner_accounts.must_change_pin` → `requirePartnerSession` returns 403 `PIN_CHANGE_REQUIRED` except
-  with `allowPinChangePending` (me, pin, logout). `moveTable` updates `partner_order_lines.table_label`. Partner payouts are NOT posted
-  to `cash_ledger_entries` (same as supplier payments) — open decision for the Owner.
+  with `allowPinChangePending` (me, pin, logout). `moveTable` updates `partner_order_lines.table_label`. Partner payouts ARE posted to the cash book
+  (owner 12 Nov 2026): a VERIFIED payout from bank_jago/bank_bni = one `partner_payout` row bank → external (`postPayoutToLedger`,
+  one per payout); void = `partner_payout_void` reversal row; `external` and unverified (`recorded`) payouts are never posted; payouts
+  verified before this change are not backfilled (Owner corrects the bank balance via opening-balance certification).
   Self-order digital menu shows partner items with the partner status ("Tersedia di mitra" or the partner reason, never the Garage OS stock "Sold Out") plus "Disiapkan mitra · <nama>"; with `partnerCustomerSelfOrder` OFF the stepper is replaced by "Pesan ke kasir atau waiter" (DEC-14). POS search: Enter on an exact SKU/barcode (product or variant, partner items included) adds that variant (scanner).
   Media marketing (11 Nov 2026, no migration): homepage section `#mitra` (`partner-showcase.tsx`, public `GET /api/site/partner-products`,
   no HPP/contact) + hero tab "Mitra" + mobile drawer links. A product shows only when Owner picks it (tag `PARTNER_WEBSITE_TAG`

@@ -11,6 +11,7 @@ import { and, asc, desc, eq, gte, inArray, lt, ne, or, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
+  cashLedgerEntries,
   expenses,
   kitchenTickets,
   menuItems,
@@ -31,6 +32,7 @@ import {
   partnerSettlements,
   partners,
 } from "@/db/schema";
+import { postAccountCash, type CashAccount } from "@/lib/cash-ledger";
 import type { GarageSession } from "@/lib/server-auth";
 import { hashPassword } from "@/lib/member-auth";
 import { isWeakPartnerPin, type PartnerSession } from "@/lib/partner-auth";
@@ -1648,7 +1650,10 @@ export async function recordPartnerPayout(
           selfVerified: owner,
         })
         .returning();
-      if (owner) await refreshSettlementPaid(tx, settlementId);
+      if (owner) {
+        await postPayoutToLedger(tx, row, { settlementNo: settlement.settlementNo, outletId: settlement.outletId }, garage.user.id);
+        await refreshSettlementPaid(tx, settlementId);
+      }
       await logEvent(tx, { partnerId: settlement.partnerId, kind: "payout_recorded", subjectId: row.id, toStatus: row.status, actor: staffActor(garage), metadata: { amount: row.amount, reference, selfVerified: owner } });
       return { id: row.id, status: row.status, replay: false };
     });
@@ -1662,16 +1667,55 @@ export async function recordPartnerPayout(
   }
 }
 
+/**
+ * Buku kas: pembayaran mitra yang SUDAH terverifikasi dari Rekening Jago/BNI = uang usaha keluar dari rekening itu.
+ * Satu baris per payout (dicek lebih dulu → verifikasi ulang tidak menggandakan). `external` (uang pribadi Owner)
+ * tidak lewat akun usaha → tidak diposting, sama dengan aturan biaya Finance.
+ */
+async function postPayoutToLedger(
+  tx: Tx,
+  payout: { id: string; amount: number; fundSource: string; reference: string; paidAt: Date; createdBy: string | null },
+  settlement: { settlementNo: string; outletId: string },
+  approverUserId: string,
+) {
+  if (payout.fundSource !== "bank_jago" && payout.fundSource !== "bank_bni") return null;
+  const [existing] = await tx
+    .select({ id: cashLedgerEntries.id })
+    .from(cashLedgerEntries)
+    .where(and(eq(cashLedgerEntries.sourceType, "partner_payout"), eq(cashLedgerEntries.sourceId, payout.id)))
+    .limit(1);
+  if (existing) return existing;
+  return postAccountCash(tx, {
+    from: payout.fundSource as CashAccount,
+    to: "external",
+    amount: payout.amount,
+    outletId: settlement.outletId,
+    sourceType: "partner_payout",
+    sourceId: payout.id,
+    sourceRef: `${settlement.settlementNo} · Ref ${payout.reference}`,
+    actorUserId: payout.createdBy,
+    approverUserId,
+    occurredAt: payout.paidAt,
+    idempotencyKey: `partner_payout:${payout.id}`,
+  });
+}
+
 export async function verifyPartnerPayout(payoutId: string, garage: GarageSession) {
   assertOwner(garage, "Verifikasi pembayaran mitra");
   const db = getDb();
   const [payout] = await db.select().from(partnerPayouts).where(eq(partnerPayouts.id, payoutId)).limit(1);
   if (!payout) throw new PartnerHubError("PAYOUT_NOT_FOUND", "Pembayaran tidak ditemukan.", 404);
-  await loadSettlement(db, payout.settlementId, garage.profile.outlet.id);
+  const settlement = await loadSettlement(db, payout.settlementId, garage.profile.outlet.id);
   if (payout.status !== "recorded") throw new PartnerHubError("INVALID_STATUS", "Pembayaran ini sudah diproses.", 409);
   if (payout.createdBy === garage.user.id) throw new PartnerHubError("SAME_PERSON", "Pemeriksa harus berbeda dari pencatat.", 409);
   const result = await db.transaction(async (tx) => {
-    await tx.update(partnerPayouts).set({ status: "verified", verifiedBy: garage.user.id, verifiedAt: new Date() }).where(and(eq(partnerPayouts.id, payoutId), eq(partnerPayouts.status, "recorded")));
+    const changed = await tx
+      .update(partnerPayouts)
+      .set({ status: "verified", verifiedBy: garage.user.id, verifiedAt: new Date() })
+      .where(and(eq(partnerPayouts.id, payoutId), eq(partnerPayouts.status, "recorded")))
+      .returning({ id: partnerPayouts.id });
+    if (!changed.length) throw new PartnerHubError("INVALID_STATUS", "Pembayaran ini sudah diproses.", 409);
+    await postPayoutToLedger(tx, payout, { settlementNo: settlement.settlementNo, outletId: settlement.outletId }, garage.user.id);
     const state = await refreshSettlementPaid(tx, payout.settlementId);
     await logEvent(tx, { partnerId: payout.partnerId, kind: "payout_verified", subjectId: payoutId, fromStatus: "recorded", toStatus: "verified", actor: staffActor(garage) });
     return state;
@@ -1698,6 +1742,30 @@ export async function voidPartnerPayout(payoutId: string, reason: string, garage
   await loadSettlement(db, payout.settlementId, garage.profile.outlet.id);
   return db.transaction(async (tx) => {
     await tx.update(partnerPayouts).set({ status: "void", voidReason: reason.trim() }).where(eq(partnerPayouts.id, payoutId));
+    // Buku kas: uang yang sudah tercatat keluar dari rekening dikembalikan dengan baris pembalik (riwayat tidak diubah).
+    const [posted] = await tx
+      .select()
+      .from(cashLedgerEntries)
+      .where(and(eq(cashLedgerEntries.sourceType, "partner_payout"), eq(cashLedgerEntries.sourceId, payoutId)))
+      .limit(1);
+    if (posted) {
+      const [already] = await tx.select({ id: cashLedgerEntries.id }).from(cashLedgerEntries).where(eq(cashLedgerEntries.reversesId, posted.id)).limit(1);
+      if (!already) {
+        await postAccountCash(tx, {
+          from: "external",
+          to: posted.fromAccount as CashAccount,
+          amount: posted.amount,
+          outletId: posted.outletId,
+          sourceType: "partner_payout_void",
+          sourceId: payoutId,
+          sourceRef: posted.sourceRef,
+          reversesId: posted.id,
+          actorUserId: garage.user.id,
+          note: reason.trim(),
+          idempotencyKey: `partner_payout_void:${payoutId}`,
+        });
+      }
+    }
     const state = await refreshSettlementPaid(tx, payout.settlementId);
     if (state.status !== "paid") {
       const [s] = await tx.select({ no: partnerSettlements.settlementNo }).from(partnerSettlements).where(eq(partnerSettlements.id, payout.settlementId)).limit(1);

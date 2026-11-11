@@ -108,4 +108,7 @@ Kolom **Bukti otomatis** merujuk ke tes PGlite/vitest; staging = UAT manual oleh
   - Garage membatalkan pesanan → mitra mendapat push + kartu **Dibatalkan Garage — jangan dibuat** di portal (10 menit).
   - PIN mitra buatan staf: PIN lemah ditolak; mitra wajib membuat PIN sendiri saat pertama masuk / setelah di-reset.
   - Pindah meja ikut memperbarui meja di riwayat mitra.
-  - Belum dikerjakan (perlu keputusan Owner): pembayaran ke mitra dari Bank Jago/BNI belum tercatat di buku kas bank.
+  - **Pembayaran mitra masuk buku kas** (keputusan Owner 12 Nov 2026): pembayaran yang sudah diverifikasi dari Rekening
+    Jago/BNI tercatat sebagai "Pembayaran ke mitra" (saldo bank turun); dibatalkan = baris pembalik. Uang pribadi Owner
+    dan catatan yang belum diverifikasi tidak dicatat. Pembayaran yang diverifikasi sebelum fitur ini tidak diisi mundur —
+    saldo bank dikoreksi lewat "Saldo pembuka disahkan Owner" di Kontrol Kas.

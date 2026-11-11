@@ -91,6 +91,8 @@ export type AppSettings = {
   partnerSlaAcceptWarnMinutes: number;
   partnerSlaEscalateMinutes: number;
   partnerReadyWaitWarnMinutes: number;
+  // Portal Mitra tidak terhubung lebih dari N menit → produk mitra tidak bisa dijual. 0 = tidak dicek.
+  partnerHeartbeatMinutes: number;
   // Nomor WhatsApp Garage (format 62…) — tombol bukti bayar & chat pelanggan.
   garageWhatsapp: string;
   // Rekening transfer untuk pelanggan, satu per baris: "BANK | NOMOR | ATAS NAMA".
@@ -276,6 +278,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   partnerSlaAcceptWarnMinutes: 2,
   partnerSlaEscalateMinutes: 5,
   partnerReadyWaitWarnMinutes: 3,
+  partnerHeartbeatMinutes: 5,
   garageWhatsapp: "6285121552341",
   bankAccountsText: "BNI | 2114194027 | Suryadi\nBANK JAGO | 507300982382 | Suryadi\nDANA | 081396186251 | Suryadi",
   wifiEnabled: false,

@@ -4,9 +4,11 @@
 // Mitra: Buka/Jeda/Tutup, Tersedia/Habis per produk, Terima → Proses → Siap Antar, keuangan & PDF miliknya.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CheckCircle2, ChefHat, CircleX, FileText, Loader2, LogOut, PackageCheck, RefreshCw, Store, Timer } from "lucide-react";
+import { Bell, BellOff, BellRing, Check, CheckCircle2, ChefHat, CircleX, FileText, Loader2, LogOut, PackageCheck, RefreshCw, Store, Sun, Timer } from "lucide-react";
 
 import { GarageBrandLogo } from "@/components/garage/member-auth/garage-brand-logo";
+
+import { usePartnerAlerts } from "./partner-portal-alerts";
 
 type Ticket = {
   ticketNo: string;
@@ -26,6 +28,13 @@ type Overview = {
   today: { qty: number; gross: number; liability: number; orders: number };
   unpaid: number;
   settlements: Array<{ id: string; settlementNo: string; status: string; liabilityTotal: number; paidAmount: number; periodFrom: string; periodTo: string }>;
+  slaWarnMinutes?: number;
+};
+
+const OP_STYLE: Record<string, string> = {
+  buka: "border-[#22c55e] bg-[#15803d] text-white",
+  jeda: "border-[#f59e0b] bg-[#b45309] text-white",
+  tutup: "border-[#ff5a66] bg-[#b91c1c] text-white",
 };
 
 const rp = (n: number) => `Rp ${new Intl.NumberFormat("id-ID").format(Math.round(n))}`;
@@ -56,6 +65,20 @@ export function PartnerPortal() {
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<{ tone: "error" | "ok"; text: string } | null>(null);
   const now = useNow();
+  const queueNos = useMemo(() => (overview ? overview.activeTickets.filter((t) => t.status === "queue").map((t) => t.ticketNo) : null), [overview]);
+  const alerts = usePartnerAlerts(queueNos);
+  // Ringkasan yang harus dibuat (belum Siap Antar), dijumlah per produk — enak untuk membuat sekaligus.
+  const toMake = useMemo(() => {
+    const totals = new Map<string, number>();
+    for (const ticket of overview?.activeTickets ?? []) {
+      if (ticket.status === "ready") continue;
+      for (const item of ticket.items) {
+        const key = item.variant && item.variant !== "Regular" ? `${item.name} (${item.variant})` : item.name;
+        totals.set(key, (totals.get(key) ?? 0) + item.qty);
+      }
+    }
+    return [...totals.entries()];
+  }, [overview]);
 
   const load = useCallback(async () => {
     try {
@@ -114,7 +137,7 @@ export function PartnerPortal() {
           </div>
           <button
             type="button"
-            onClick={() => void run("logout", () => api("/api/partner/auth/logout", { method: "POST" }).then(() => setNeedLogin(true)))}
+            onClick={() => void run("logout", () => alerts.releasePush().then(() => api("/api/partner/auth/logout", { method: "POST" })).then(() => setNeedLogin(true)))}
             className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#3a3a42] px-3 text-sm text-[#d4d4d8] hover:bg-white/5"
           >
             <LogOut className="size-4" /> Keluar
@@ -145,18 +168,71 @@ export function PartnerPortal() {
             </span>
           </div>
           {p.status !== "aktif" ? <p className="mt-2 text-sm text-[#fde68a]">Mitra sedang dihentikan sementara oleh Owner. Tiket lama tetap bisa diselesaikan.</p> : null}
-          <div className="mt-3 grid grid-cols-3 gap-2">
-            {(["buka", "jeda", "tutup"] as const).map((status) => (
+          <div className="mt-3 grid grid-cols-3 gap-2" role="group" aria-label="Status layanan">
+            {(["buka", "jeda", "tutup"] as const).map((status) => {
+              const selected = op === status;
+              return (
+                <button
+                  key={status}
+                  type="button"
+                  aria-pressed={selected}
+                  disabled={busy !== null || (status === "buka" && p.status !== "aktif")}
+                  onClick={() => {
+                    if (selected) return;
+                    void run(`op-${status}`, () => api("/api/partner/status", { method: "POST", body: JSON.stringify({ status }) }), `Status layanan: ${status.toUpperCase()}`);
+                  }}
+                  className={`inline-flex min-h-12 items-center justify-center gap-1.5 rounded-lg border text-sm font-bold transition-colors disabled:opacity-50 ${selected ? OP_STYLE[status] : "border-[#3a3a42] bg-white/[0.04] text-[#e4e4e8] hover:bg-white/10"}`}
+                >
+                  {selected ? <Check className="size-4" aria-hidden /> : null}
+                  {status === "buka" ? "Buka" : status === "jeda" ? "Jeda" : "Tutup"}
+                </button>
+              );
+            })}
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              aria-pressed={alerts.soundOn}
+              onClick={alerts.toggleSound}
+              className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border px-2 text-sm font-semibold ${alerts.soundOn ? "border-[#22c55e]/60 bg-[#0f2a1a] text-[#bbf7d0]" : "border-[#ffd08a]/50 bg-[#2a1d0a] text-[#ffe2b0]"}`}
+            >
+              {alerts.soundOn ? <Bell className="size-4" aria-hidden /> : <BellOff className="size-4" aria-hidden />}
+              {alerts.soundOn ? "Bunyi pesanan: nyala" : alerts.soundPending ? "Ketuk untuk aktifkan bunyi" : "Nyalakan bunyi pesanan"}
+            </button>
+            {alerts.awakeSupported ? (
               <button
-                key={status}
                 type="button"
-                disabled={busy !== null || op === status || (status === "buka" && p.status !== "aktif")}
-                onClick={() => void run(`op-${status}`, () => api("/api/partner/status", { method: "POST", body: JSON.stringify({ status }) }), `Status layanan: ${status.toUpperCase()}`)}
-                className={`min-h-12 rounded-lg border text-sm font-bold transition-colors disabled:opacity-50 ${op === status ? "border-[#ff5a66] bg-[#d11a2a] text-white" : "border-[#3a3a42] bg-white/[0.04] text-[#e4e4e8] hover:bg-white/10"}`}
+                aria-pressed={alerts.awakeOn}
+                onClick={alerts.toggleAwake}
+                className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border px-2 text-sm font-semibold ${alerts.awakeOn ? "border-[#22c55e]/60 bg-[#0f2a1a] text-[#bbf7d0]" : "border-[#3a3a42] bg-white/[0.04] text-[#e4e4e8]"}`}
               >
-                {status === "buka" ? "Buka" : status === "jeda" ? "Jeda" : "Tutup"}
+                <Sun className="size-4" aria-hidden />
+                {alerts.awakeOn ? "Layar tetap nyala" : "Jaga layar menyala"}
               </button>
-            ))}
+            ) : (
+              <p className="self-center text-xs text-[#b8b8bf]">Atur layar HP agar tidak cepat mati saat jualan.</p>
+            )}
+            {alerts.pushState === "on" ? (
+              <p className="col-span-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#22c55e]/60 bg-[#0f2a1a] px-2 text-sm font-semibold text-[#bbf7d0]">
+                <BellRing className="size-4" aria-hidden /> Notifikasi HP aktif (juga saat layar terkunci)
+              </p>
+            ) : alerts.pushState === "off" ? (
+              <button
+                type="button"
+                onClick={() => void alerts.enablePush()}
+                className="col-span-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#ffd08a]/50 bg-[#2a1d0a] px-2 text-sm font-semibold text-[#ffe2b0]"
+              >
+                <BellRing className="size-4" aria-hidden /> Aktifkan notifikasi saat layar terkunci
+              </button>
+            ) : (
+              <p className="col-span-2 text-xs text-[#b8b8bf]">
+                {alerts.pushState === "ios-needs-install"
+                  ? "iPhone: buka menu Bagikan → \"Tambahkan ke Layar Utama\", lalu buka Portal Mitra dari ikon itu untuk mengaktifkan notifikasi."
+                  : alerts.pushState === "denied"
+                    ? "Notifikasi diblokir di browser ini. Izinkan notifikasi untuk situs ini di pengaturan browser."
+                    : "Browser ini tidak mendukung notifikasi saat layar terkunci — biarkan Portal Mitra terbuka."}
+              </p>
+            )}
           </div>
         </section>
 
@@ -178,6 +254,11 @@ export function PartnerPortal() {
             <ChefHat className="size-4 text-[#ff5a66]" /> Pesanan masuk
             <span className="ml-auto rounded-full bg-[#d11a2a] px-2 py-0.5 text-xs">{overview.activeTickets.length}</span>
           </h2>
+          {toMake.length ? (
+            <p className="mt-2 rounded-lg bg-white/[0.06] px-3 py-2 text-sm text-[#f4f4f5]">
+              <span className="font-semibold text-[#ffd08a]">Perlu dibuat:</span> {toMake.map(([name, qty]) => `${qty}× ${name}`).join(" · ")}
+            </p>
+          ) : null}
           {overview.activeTickets.length === 0 ? (
             <p className="mt-3 rounded-lg border border-dashed border-[#3a3a42] p-4 text-center text-sm text-[#b8b8bf]">Belum ada pesanan aktif.</p>
           ) : (
@@ -185,12 +266,12 @@ export function PartnerPortal() {
               {overview.activeTickets.map((ticket) => {
                 const waitMin = Math.max(0, Math.floor((now - new Date(ticket.createdAt).getTime()) / 60_000));
                 return (
-                  <li key={ticket.ticketNo} className="rounded-lg border border-[#3a3a42] bg-black/20 p-3">
+                  <li key={ticket.ticketNo} className={`rounded-lg border bg-black/20 p-3 ${ticket.status === "queue" ? "border-[#ff5a66]/60" : "border-[#3a3a42]"}`}>
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="font-bold text-white">
                         {ticket.orderNo} <span className="ml-1 rounded border border-[#4a4a54] px-1.5 py-0.5 text-xs text-[#e4e4e8]">{ticket.tableLabel ?? "Take away"}</span>
                       </p>
-                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold ${waitMin >= 5 && ticket.status === "queue" ? "bg-[#7f1d1d] text-[#fecaca]" : "bg-white/10 text-[#e4e4e8]"}`}>
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold ${waitMin >= (overview.slaWarnMinutes ?? 2) && ticket.status === "queue" ? "bg-[#7f1d1d] text-[#fecaca]" : "bg-white/10 text-[#e4e4e8]"}`}>
                         <Timer className="size-3" /> {STATUS_LABEL[ticket.status] ?? ticket.status} · {waitMin} mnt
                       </span>
                     </div>

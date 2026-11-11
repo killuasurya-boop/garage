@@ -176,12 +176,16 @@ test("UAT-C: Portal Mitra terima → proses → siap; 2 waiter klaim bersamaan, 
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(1);
   assertNoErrors();
-  await context.close();
 
   const kasir = await as(browser, "kasir@garage.id");
-  const orders = await call<Array<{ ticketNo: string; orderNo: string; status: string }>>(kasir.api, "GET", "/api/pos/partner-orders");
-  const ticket = orders.data.find((row) => row.orderNo === state.orders[0])!;
-  expect(ticket.status).toBe("ready");
+  const readTicket = async () => {
+    const orders = await call<Array<{ ticketNo: string; orderNo: string; status: string }>>(kasir.api, "GET", "/api/pos/partner-orders");
+    return orders.data.find((row) => row.orderNo === state.orders[0])!;
+  };
+  // Klik terakhir di portal tersimpan secara async — tunggu status server, bukan teks layar.
+  await expect.poll(async () => (await readTicket()).status, { timeout: 30_000 }).toBe("ready");
+  const ticket = await readTicket();
+  await context.close();
 
   const w1 = await as(browser, "waiter@garage.id");
   const w2 = await as(browser, "waiter2@garage.id");
@@ -234,7 +238,26 @@ test("UAT-D: keuangan Rp0 selisih — refund penuh item mitra & void setelah sia
   const void4 = await manager.api.post(`/api/orders/${o4.orderNo}/void`, { data: { reason: "Pelanggan batal UAT" } });
   expect(void4.ok(), `void: ${void4.status()} ${await void4.text()}`).toBeTruthy();
 
-  // Hitungan manual dari master: O1 2×, O2 1× (direfund), O3 1× (void setelah siap), O4 batal.
+  // Order 5: kopi + 1 mitra, mitra MENOLAK setelah pelanggan bayar → antrean refund kasir → refund lewat approval.
+  const o5 = await sell(kasir.api, [{ ...state.garageItem, qty: 1 }, partnerItem(1)]);
+  const tickets5 = await call<Array<{ ticketNo: string; orderNo: string }>>(partner.api, "GET", "/api/partner/tickets");
+  const t5 = tickets5.data.find((row) => row.orderNo === o5.orderNo)!;
+  await call(partner.api, "POST", `/api/partner/tickets/${t5.ticketNo}/action`, { action: "reject", reason: "bahan habis" });
+  const queue = await call<Array<{ ticketNo: string; needsRefund?: boolean }>>(kasir.api, "GET", "/api/pos/partner-orders");
+  expect(queue.data.find((row) => row.ticketNo === t5.ticketNo)?.needsRefund).toBe(true);
+  const refund5 = await call<{ kind: string; approvalId: string; status: string }>(kasir.api, "POST", `/api/pos/partner-orders/${t5.ticketNo}/refund`, undefined, 201);
+  expect(refund5.data.kind).toBe("refund");
+  if (refund5.data.status === "pending") await call(manager.api, "PATCH", `/api/approvals/${refund5.data.approvalId}`, { status: "approved" });
+  const queueAfter = await call<Array<{ ticketNo: string }>>(kasir.api, "GET", "/api/pos/partner-orders");
+  expect(queueAfter.data.find((row) => row.ticketNo === t5.ticketNo)).toBeUndefined();
+
+  // Kasir tidak menerima HPP / profit mitra dari server.
+  const kasirView = await call<{ costHidden: boolean; partners: Array<{ garageProfit: number | null; totalCost: number | null; lines: Array<{ unitCost: number | null }> }> }>(kasir.api, "GET", `/api/pos/partner-finance?partnerId=${state.partnerId}`);
+  expect(kasirView.data.costHidden).toBe(true);
+  expect(kasirView.data.partners[0]).toMatchObject({ garageProfit: null, totalCost: null });
+  expect(kasirView.data.partners[0].lines.every((line) => line.unitCost === null)).toBe(true);
+
+  // Hitungan manual dari master: O1 2×, O2 1× (direfund), O3 1× (void setelah siap), O4 batal, O5 ditolak (0).
   const expected = {
     grossSales: 2 * PRICE + 1 * PRICE, // O1 + O2 (O3 void = 0, O4 batal = 0)
     netSales: 2 * PRICE, // refund O2 mengurangi penjualan

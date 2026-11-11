@@ -9,8 +9,8 @@ export const todayKey = () => new Date(Date.now() + 7 * 3_600_000).toISOString()
 
 export async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, { credentials: "include", cache: "no-store", headers: { "Content-Type": "application/json" }, ...init });
-  const json = (await res.json().catch(() => null)) as { data?: T; error?: { message?: string } } | null;
-  if (!res.ok) throw new Error(json?.error?.message ?? "Permintaan gagal.");
+  const json = (await res.json().catch(() => null)) as { data?: T; error?: { code?: string; message?: string } } | null;
+  if (!res.ok) throw Object.assign(new Error(json?.error?.message ?? "Permintaan gagal."), { code: json?.error?.code });
   return json?.data as T;
 }
 

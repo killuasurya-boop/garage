@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   canChangePartnerStatus,
+  effectiveOperationalStatus,
   isPastLastOrder,
+  partnerCardLabel,
+  partnerOrdersNeedingAttention,
   maskAccountNumber,
   partnerActivationBlockers,
   partnerLineFinance,
@@ -37,6 +40,55 @@ describe("Partner Hub — ketersediaan", () => {
     expect(isPastLastOrder(rules, new Date("2026-11-14T15:00:00Z"))).toBe(false);
     expect(isPastLastOrder({}, new Date())).toBe(false);
     expect(partnerOrderBlockReason({ ...ok, lastOrderByDay: rules }, new Date("2026-11-10T15:00:00Z"))).toMatch(/last order/);
+  });
+});
+
+describe("Partner Hub — kenyamanan kasir", () => {
+  it("label kartu POS menyebut alasan, bukan sekadar Habis", () => {
+    expect(partnerCardLabel(ok)).toBeNull();
+    expect(partnerCardLabel({ ...ok, operationalStatus: "tutup" })).toBe("Mitra tutup");
+    expect(partnerCardLabel({ ...ok, operationalStatus: "jeda" })).toBe("Mitra jeda");
+    expect(partnerCardLabel({ ...ok, operationalStatus: "?" })).toBe("Mitra belum konfirmasi");
+    expect(partnerCardLabel({ ...ok, productStock: "sold_out" })).toBe("Habis");
+    const rules = { "2": "21:45" };
+    expect(partnerCardLabel({ ...ok, lastOrderByDay: rules }, new Date("2026-11-10T15:00:00Z"))).toBe("Lewat last order");
+  });
+
+  it("badge perhatian: belum diterima lewat SLA atau siap belum diambil", () => {
+    const now = new Date("2026-11-10T10:10:00Z").getTime();
+    const at = (min: number) => new Date(now - min * 60_000).toISOString();
+    const orders = [
+      { status: "queue", createdAt: at(1), readyAt: null },
+      { status: "queue", createdAt: at(3), readyAt: null },
+      { status: "cooking", createdAt: at(9), readyAt: null },
+      { status: "ready", createdAt: at(9), readyAt: at(4), claimedByName: null },
+      { status: "ready", createdAt: at(9), readyAt: at(4), claimedByName: "Waiter A" },
+      { status: "ready", createdAt: at(9), readyAt: at(1), claimedByName: null },
+    ];
+    expect(partnerOrdersNeedingAttention(orders, now, 2, 3)).toBe(2);
+  });
+});
+
+describe("Partner Hub — status layanan yang berlaku", () => {
+  const now = new Date("2026-11-10T08:00:00Z"); // Selasa 15:00 WIB
+  it("Buka kemarin tidak terbawa ke hari ini (batas 05:00 WIB)", () => {
+    expect(effectiveOperationalStatus({ operationalStatus: "buka", operationalStatusAt: "2026-11-09T12:00:00Z" }, now)).toBe("tutup");
+    expect(effectiveOperationalStatus({ operationalStatus: "jeda", operationalStatusAt: "2026-11-09T12:00:00Z" }, now)).toBe("tutup");
+    // Dibuka 06:00 WIB hari ini (= 23:00 UTC kemarin) tetap berlaku.
+    expect(effectiveOperationalStatus({ operationalStatus: "buka", operationalStatusAt: "2026-11-09T23:00:00Z" }, now)).toBe("buka");
+    // Lewat tengah malam (01:00 WIB) masih hari operasional yang sama dengan pembukaan kemarin sore.
+    expect(effectiveOperationalStatus({ operationalStatus: "buka", operationalStatusAt: "2026-11-10T08:00:00Z" }, new Date("2026-11-10T18:00:00Z"))).toBe("buka");
+  });
+
+  it("portal mitra tidak terhubung → offline; 0 menit = tidak dicek", () => {
+    const base = { operationalStatus: "buka", operationalStatusAt: "2026-11-10T02:00:00Z" };
+    expect(effectiveOperationalStatus({ ...base, lastSeenAt: "2026-11-10T07:58:00Z", heartbeatMinutes: 5 }, now)).toBe("buka");
+    expect(effectiveOperationalStatus({ ...base, lastSeenAt: "2026-11-10T07:50:00Z", heartbeatMinutes: 5 }, now)).toBe("offline");
+    expect(effectiveOperationalStatus({ ...base, lastSeenAt: null, heartbeatMinutes: 5 }, now)).toBe("offline");
+    expect(effectiveOperationalStatus({ ...base, lastSeenAt: null, heartbeatMinutes: 0 }, now)).toBe("buka");
+    expect(partnerOrderBlockReason({ ...ok, operationalStatus: "offline" })).toMatch(/tidak terhubung/);
+    expect(partnerCardLabel({ ...ok, operationalStatus: "offline" })).toBe("Mitra tidak terhubung");
+    expect(partnerOrdersNeedingAttention([{ status: "rejected", createdAt: now, readyAt: null, needsRefund: true }], now.getTime(), 2, 3)).toBe(1);
   });
 });
 

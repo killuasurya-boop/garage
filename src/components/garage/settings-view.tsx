@@ -13,6 +13,7 @@ import {
   Palette,
   Printer,
   Table2,
+  Handshake,
   PlugZap,
   RefreshCw,
   Search,
@@ -93,7 +94,8 @@ type SettingsTab =
   | "printer"
   | "loyalty"
   | "marketing"
-  | "tables";
+  | "tables"
+  | "partners";
 
 export function SettingsView({ me }: { me: GarageMe }) {
   const { theme: activeOsTheme, setPreset: setOsThemePreset } = useGarageTheme();
@@ -397,6 +399,7 @@ export function SettingsView({ me }: { me: GarageMe }) {
     { id: "loyalty", label: "Loyalty", icon: Users, group: "Transaksi", keywords: "loyalty poin member reward point" },
     { id: "notif", label: "Notifikasi", icon: Bell, group: "Operasional", keywords: "notifikasi alert suara sound bell pemberitahuan" },
     { id: "tables", label: "Meja & QR", icon: Table2, group: "Operasional", keywords: "meja table jumlah meja area kapasitas kursi qr cetak qr nonaktif" },
+    { id: "partners", label: "Partner Hub", icon: Handshake, group: "Operasional", keywords: "partner hub mitra titip jual es krim dimsum portal mitra settlement sla" },
     { id: "printer", label: "Printer", icon: Printer, group: "Operasional", keywords: "printer cetak struk auto-print kertas" },
     { id: "ai", label: "GARAGE AI", icon: Sparkles, group: "Operasional", keywords: "garage ai autopilot whatsapp agent kecerdasan" },
     { id: "theme", label: "Tema OS", icon: Palette, group: "Brand & Tampilan", keywords: "tema warna preset tampilan os palette" },
@@ -426,6 +429,7 @@ export function SettingsView({ me }: { me: GarageMe }) {
     ],
     branding: ["brandName", "brandTagline", "outletAddress", "outletPhone", "npwp", "receiptFooter"],
     notif: ["approvalPollIntervalSec", "qrSoundOn", "autoPrintReceipt"],
+    partners: ["partnerHubEnabled", "partnerSlaAcceptWarnMinutes", "partnerSlaEscalateMinutes", "partnerReadyWaitWarnMinutes", "partnerHeartbeatMinutes"],
     ai: [
       "aiAutopilotEnabled", "aiAutopilotStartHour", "aiAutopilotEndHour", "aiWhatsappHighAlerts",
       "aiWhatsappAlertTemplate", "aiWhatsappPhonesCashier", "aiWhatsappPhonesKitchen",
@@ -1243,6 +1247,97 @@ export function SettingsView({ me }: { me: GarageMe }) {
                     {settingsAction === "sound" ? "Testing..." : "Test Sound"}
                   </Button>
                 </div>
+              </div>
+            </>
+          ) : null}
+
+          {activeTab === "partners" ? (
+            <>
+              <SettingsToggle
+                label="Partner Hub aktif di outlet ini"
+                description="Mati = POS, Bar/Dapur & laporan berjalan persis seperti sebelumnya. Nyalakan setelah mitra & produknya disetujui Owner."
+                checked={merged.partnerHubEnabled}
+                onChange={(v) => setField("partnerHubEnabled", v)}
+                disabled={!canWrite}
+              />
+                <SettingsField
+                  label="Peringatan belum diterima mitra (menit)"
+                  description="Kartu pesanan jadi merah di kasir & Portal Mitra."
+                  defaultValue={defaults.partnerSlaAcceptWarnMinutes}
+                  currentValue={merged.partnerSlaAcceptWarnMinutes}
+                  onReset={() => resetField("partnerSlaAcceptWarnMinutes")}
+                  disabled={!canWrite}
+                >
+                  <Input
+                    type="number"
+                    min={1}
+                    max={30}
+                    value={merged.partnerSlaAcceptWarnMinutes}
+                    onChange={(e) => setField("partnerSlaAcceptWarnMinutes", Number(e.target.value))}
+                    disabled={!canWrite}
+                    className="h-10 border-[#34343c] bg-white/[0.06]"
+                  />
+                </SettingsField>
+                <SettingsField
+                  label="Eskalasi ke kasir (menit)"
+                  description="Kasir & Manajer mendapat pemberitahuan mendesak untuk menghubungi mitra."
+                  defaultValue={defaults.partnerSlaEscalateMinutes}
+                  currentValue={merged.partnerSlaEscalateMinutes}
+                  onReset={() => resetField("partnerSlaEscalateMinutes")}
+                  disabled={!canWrite}
+                >
+                  <Input
+                    type="number"
+                    min={1}
+                    max={60}
+                    value={merged.partnerSlaEscalateMinutes}
+                    onChange={(e) => setField("partnerSlaEscalateMinutes", Number(e.target.value))}
+                    disabled={!canWrite}
+                    className="h-10 border-[#34343c] bg-white/[0.06]"
+                  />
+                </SettingsField>
+                <SettingsField
+                  label="Siap belum diambil (menit)"
+                  description="Peringatan untuk waiter & kasir."
+                  defaultValue={defaults.partnerReadyWaitWarnMinutes}
+                  currentValue={merged.partnerReadyWaitWarnMinutes}
+                  onReset={() => resetField("partnerReadyWaitWarnMinutes")}
+                  disabled={!canWrite}
+                >
+                  <Input
+                    type="number"
+                    min={1}
+                    max={30}
+                    value={merged.partnerReadyWaitWarnMinutes}
+                    onChange={(e) => setField("partnerReadyWaitWarnMinutes", Number(e.target.value))}
+                    disabled={!canWrite}
+                    className="h-10 border-[#34343c] bg-white/[0.06]"
+                  />
+                </SettingsField>
+                <SettingsField
+                  label="Portal Mitra tidak terhubung (menit)"
+                  description="Produk mitra otomatis tidak bisa dijual bila Portal Mitra tidak terbuka selama ini (HP mati / tanpa sinyal). 0 = tidak dicek."
+                  defaultValue={defaults.partnerHeartbeatMinutes}
+                  currentValue={merged.partnerHeartbeatMinutes}
+                  onReset={() => resetField("partnerHeartbeatMinutes")}
+                  disabled={!canWrite}
+                >
+                  <Input
+                    type="number"
+                    min={0}
+                    max={120}
+                    value={merged.partnerHeartbeatMinutes}
+                    onChange={(e) => setField("partnerHeartbeatMinutes", Number(e.target.value))}
+                    disabled={!canWrite}
+                    className="h-10 border-[#34343c] bg-white/[0.06]"
+                  />
+                </SettingsField>
+              <div className="rounded-md border border-[#34343c] bg-white/[0.04] p-4">
+                <p className="text-sm font-semibold text-white">Kelola mitra, produk & setoran</p>
+                <p className="mt-1 text-xs text-[#b8b8bf]">Daftarkan mitra, verifikasi rekening, buat akun Portal Mitra, setujui produk & harga di halaman Partner Hub.</p>
+                <a href="/partners?tab=manage" className="garage-press mt-3 inline-flex h-10 items-center gap-2 rounded-md border border-[#4a4a54] bg-white/[0.055] px-3 text-sm font-semibold text-white">
+                  <Handshake className="size-4" /> Buka Partner Hub
+                </a>
               </div>
             </>
           ) : null}

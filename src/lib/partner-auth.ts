@@ -13,9 +13,11 @@ import { getDb } from "@/db";
 import { partnerAccounts, partners } from "@/db/schema";
 import { memberAuthSecret, parseCookies, secureCookieAttribute, verifyPassword } from "@/lib/member-auth";
 import { fail } from "@/lib/api-response";
+import { effectiveOperationalStatus } from "@/lib/partner-hub-rules";
 
 export const PARTNER_COOKIE = "garage_partner_session";
-const SESSION_TTL_SECONDS = 12 * 60 * 60;
+// 7 hari: mitra tidak perlu login tiap pagi. Akses tetap bisa dicabut seketika (akun nonaktif / PIN diganti → sessionVersion).
+const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
 
 type PartnerJwt = { sub: string; pid: string; sv: number; typ: "partner"; iat: number; exp: number };
 
@@ -85,6 +87,11 @@ export async function requirePartnerSession(request: Request): Promise<{ data: P
   ) {
     return { data: null, response: fail(401, "PARTNER_SESSION_INVALID", "Sesi Portal Mitra tidak berlaku. Masuk lagi.") };
   }
+  // Tanda "portal masih terbuka": diperbarui paling sering tiap 30 detik (portal polling tiap 10 detik).
+  const now = new Date();
+  if (!row.partner.lastSeenAt || now.getTime() - row.partner.lastSeenAt.getTime() > 30_000) {
+    await getDb().update(partners).set({ lastSeenAt: now }).where(eq(partners.id, row.partner.id));
+  }
   return {
     data: {
       account: { id: row.account.id, displayName: row.account.displayName, phone: row.account.phone },
@@ -94,7 +101,8 @@ export async function requirePartnerSession(request: Request): Promise<{ data: P
         name: row.partner.name,
         outletId: row.partner.outletId,
         status: row.partner.status,
-        operationalStatus: row.partner.operationalStatus,
+        // Buka/Jeda kemarin tidak terbawa: mitra menekan Buka lagi saat mulai jualan.
+        operationalStatus: effectiveOperationalStatus({ operationalStatus: row.partner.operationalStatus, operationalStatusAt: row.partner.operationalStatusAt }, now),
       },
     },
     response: null,

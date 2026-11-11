@@ -837,6 +837,17 @@ export const SETTINGS_CATEGORIES: SettingCategory[] = [
         step: 1,
         unit: "menit",
       },
+      {
+        key: "partnerHeartbeatMinutes",
+        label: "Portal Mitra tidak terhubung",
+        type: "number",
+        defaultValue: DEFAULT_APP_SETTINGS.partnerHeartbeatMinutes,
+        min: 0,
+        max: 120,
+        step: 1,
+        unit: "menit",
+        hint: "Produk mitra otomatis tidak bisa dijual bila Portal Mitra tidak terbuka selama ini (HP mati / tanpa sinyal). 0 = tidak dicek.",
+      },
     ],
   },
   {

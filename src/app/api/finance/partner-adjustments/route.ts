@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { readJson } from "@/lib/api-response";
-import { createPartnerAdjustment } from "@/lib/partner-hub-service";
+import { createPartnerAdjustment, listPartnerAdjustments } from "@/lib/partner-hub-service";
 import { partnerRoute } from "@/lib/partner-hub-route";
 import { requireOwnerOrManager } from "@/lib/server-auth";
 
@@ -16,6 +16,13 @@ const schema = z.object({
   reason: z.string().trim().min(3).max(300),
   orderLineId: z.string().uuid().nullable().optional(),
 });
+
+export async function GET(request: Request) {
+  const session = await requireOwnerOrManager();
+  if (session.response) return session.response;
+  const partnerId = new URL(request.url).searchParams.get("partnerId") || undefined;
+  return partnerRoute(() => listPartnerAdjustments(session.data, partnerId));
+}
 
 export async function POST(request: Request) {
   const session = await requireOwnerOrManager();

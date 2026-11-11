@@ -5348,6 +5348,8 @@ export const partners = pgTable(
     operationalStatus: text("operational_status").notNull().default("tutup"),
     operationalStatusAt: timestamp("operational_status_at", { withTimezone: true }),
     operationalStatusBy: text("operational_status_by"),
+    // Tanda Portal Mitra masih terbuka (diperbarui tiap permintaan portal). Basi = produk tidak bisa dijual.
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     // Last order per hari JS (0 = Minggu … 6 = Sabtu), "HH:MM" WIB; null = tanpa batas.
     lastOrderByDay: jsonb("last_order_by_day").$type<Record<string, string | null>>().notNull().default({}),
     payoutSchedule: text("payout_schedule"),
@@ -5361,6 +5363,24 @@ export const partners = pgTable(
   (table) => ({
     codeIdx: uniqueIndex("partners_code_idx").on(table.code),
     outletIdx: index("partners_outlet_idx").on(table.outletId),
+  }),
+);
+
+// Web Push untuk HP mitra (pesanan baru saat layar terkunci). Terikat akun portal; hilang saat akun dihapus.
+export const partnerPushSubscriptions = pgTable(
+  "partner_push_subscriptions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    partnerId: uuid("partner_id").notNull().references(() => partners.id, { onDelete: "cascade" }),
+    accountId: uuid("account_id").notNull(),
+    endpoint: text("endpoint").notNull(),
+    keyP256dh: text("key_p256dh").notNull(),
+    keyAuth: text("key_auth").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    endpointIdx: uniqueIndex("partner_push_subscriptions_endpoint_idx").on(table.endpoint),
+    partnerIdx: index("partner_push_subscriptions_partner_idx").on(table.partnerId),
   }),
 );
 

@@ -21,7 +21,7 @@ import {
   partners,
   productionTicketItems,
 } from "@/db/schema";
-import { PARTNER_STATION, partnerOrderBlockReason } from "@/lib/partner-hub-rules";
+import { PARTNER_STATION, effectiveOperationalStatus, partnerOrderBlockReason } from "@/lib/partner-hub-rules";
 
 type GarageDb = ReturnType<typeof getDb>;
 type GarageTx = Parameters<Parameters<GarageDb["transaction"]>[0]>[0];
@@ -34,6 +34,10 @@ export type PartnerLinkInfo = {
   partnerName: string;
   partnerStatus: string;
   operationalStatus: string;
+  /** Data mentah untuk pemanggil yang menghitung ulang status dengan setelan outlet (menu). */
+  rawOperationalStatus: string;
+  operationalStatusAt: Date | null;
+  lastSeenAt: Date | null;
   outletId: string;
   linkActive: boolean;
   lastOrderByDay: Record<string, string | null>;
@@ -48,7 +52,7 @@ export class PartnerOrderError extends Error {
 }
 
 /** Link mitra untuk menu item yang dipesan (kosong bila tidak ada produk mitra). */
-export async function loadPartnerLinks(db: DbLike, menuItemIds: string[]) {
+export async function loadPartnerLinks(db: DbLike, menuItemIds: string[], options: { heartbeatMinutes?: number; now?: Date } = {}) {
   const ids = [...new Set(menuItemIds.filter(Boolean))];
   const map = new Map<string, PartnerLinkInfo>();
   if (!ids.length) return map;
@@ -64,7 +68,14 @@ export async function loadPartnerLinks(db: DbLike, menuItemIds: string[]) {
       partnerId: partner.id,
       partnerName: partner.name,
       partnerStatus: partner.status,
-      operationalStatus: partner.operationalStatus,
+      // Status yang berlaku: tutup otomatis saat ganti hari, "offline" bila portal mitra tidak terhubung.
+      operationalStatus: effectiveOperationalStatus(
+        { operationalStatus: partner.operationalStatus, operationalStatusAt: partner.operationalStatusAt, lastSeenAt: partner.lastSeenAt, heartbeatMinutes: options.heartbeatMinutes },
+        options.now,
+      ),
+      rawOperationalStatus: partner.operationalStatus,
+      operationalStatusAt: partner.operationalStatusAt,
+      lastSeenAt: partner.lastSeenAt,
       outletId: partner.outletId,
       linkActive: link.active,
       lastOrderByDay: partner.lastOrderByDay ?? {},
@@ -238,6 +249,7 @@ export async function createPartnerTicketsForOrder(
       .onConflictDoNothing({ target: partnerOrderLines.orderItemId });
     created.push({ ticketNo: ticket.ticketNo, partnerId });
   }
+  if (created.length) schedulePartnerPush(created, input.order);
   return created;
 }
 
@@ -252,6 +264,9 @@ export async function recordPartnerRefundAdjustment(
   const [line] = await db.select().from(partnerOrderLines).where(eq(partnerOrderLines.orderItemId, input.orderItemId)).limit(1);
   if (!line || input.qty <= 0) return null;
   const qty = Math.min(input.qty, line.qty);
+  // Baris yang sudah ditolak/dibatalkan mitra tidak pernah dihitung sebagai penjualan → refund-nya tidak
+  // boleh mengurangi penjualan lagi (dobel). Jejak penyesuaian tetap dicatat dengan nilai 0.
+  const soldQty = Math.max(0, Math.min(qty, line.qty - line.cancelledQty));
   await db
     .insert(partnerAdjustments)
     .values({
@@ -260,7 +275,7 @@ export async function recordPartnerRefundAdjustment(
       orderLineId: line.id,
       kind: "refund",
       qty: -qty,
-      salesDelta: -qty * line.unitPrice,
+      salesDelta: -soldQty * line.unitPrice,
       // DEC-04/05: barang yang sudah dibuat & diserahkan tetap dibayar ke mitra kecuali Owner memutuskan lain
       // (penyesuaian kewajiban terpisah). Refund default hanya mengurangi penjualan.
       liabilityDelta: 0,
@@ -273,3 +288,75 @@ export async function recordPartnerRefundAdjustment(
   return { partnerId: line.partnerId };
 }
 
+
+/**
+ * Push "pesanan baru" ke HP mitra. Dijadwalkan sesaat setelah transaksi (bukan di dalamnya) dan hanya dikirim
+ * bila tiketnya benar-benar tersimpan — order yang gagal/rollback tidak memicu push. Gagal kirim diabaikan.
+ */
+function schedulePartnerPush(tickets: Array<{ ticketNo: string; partnerId: string }>, order: { orderNo: string; tableLabel: string | null }) {
+  const timer = setTimeout(() => {
+    void (async () => {
+      try {
+        const db = getDb();
+        const saved = await db
+          .select({ ticketNo: kitchenTickets.ticketNo, partnerId: kitchenTickets.partnerId })
+          .from(kitchenTickets)
+          .where(inArray(kitchenTickets.ticketNo, tickets.map((ticket) => ticket.ticketNo)));
+        if (!saved.length) return;
+        const { sendPartnerPush } = await import("@/lib/web-push-sender");
+        for (const ticket of saved) {
+          if (!ticket.partnerId) continue;
+          await sendPartnerPush(ticket.partnerId, {
+            title: "Pesanan baru Garage Coffee",
+            body: `${order.orderNo} · ${order.tableLabel ?? "Take away"} — buka Portal Mitra untuk menerima.`,
+            url: "/partner",
+            tag: `partner-ticket:${ticket.ticketNo}`,
+            requireInteraction: true,
+          });
+        }
+      } catch {
+        /* push hanya pelengkap: portal tetap menampilkan pesanan lewat polling */
+      }
+    })();
+  }, 1500);
+  timer.unref?.();
+}
+
+/**
+ * Pisah bill: baris mitra mengikuti item-nya ke bill pisahan.
+ * - Seluruh qty pindah → baris mitra pindah order (order_id / order_no).
+ * - Sebagian qty pindah → baris mitra dibagi dua (snapshot harga/HPP & tiket sama; qty siap/batal ikut terbagi).
+ * Bukan produk mitra → tidak melakukan apa-apa.
+ */
+export async function movePartnerLineOnSplit(
+  db: DbLike,
+  input: { orderItemId: string; child: { id: string; orderNo: string }; movedQty?: number; newOrderItemId?: string },
+) {
+  const [line] = await db.select().from(partnerOrderLines).where(eq(partnerOrderLines.orderItemId, input.orderItemId)).limit(1);
+  if (!line) return;
+  const now = new Date();
+  if (input.movedQty === undefined || !input.newOrderItemId || input.movedQty >= line.qty) {
+    await db.update(partnerOrderLines).set({ orderId: input.child.id, orderNo: input.child.orderNo, updatedAt: now }).where(eq(partnerOrderLines.id, line.id));
+    return;
+  }
+  const moved = input.movedQty;
+  const keep = line.qty - moved;
+  // Bagian yang pindah mengambil qty siap/batal lebih dulu sebanyak yang ada; sisanya tetap di bill asal.
+  const movedFulfilled = Math.min(moved, line.fulfilledQty);
+  const movedCancelled = Math.min(moved, line.cancelledQty);
+  await db
+    .update(partnerOrderLines)
+    .set({ qty: keep, fulfilledQty: Math.min(keep, line.fulfilledQty - movedFulfilled), cancelledQty: Math.min(keep, line.cancelledQty - movedCancelled), updatedAt: now })
+    .where(eq(partnerOrderLines.id, line.id));
+  const { id: _id, ...rest } = line;
+  await db.insert(partnerOrderLines).values({
+    ...rest,
+    orderItemId: input.newOrderItemId,
+    orderId: input.child.id,
+    orderNo: input.child.orderNo,
+    qty: moved,
+    fulfilledQty: movedFulfilled,
+    cancelledQty: movedCancelled,
+    updatedAt: now,
+  });
+}

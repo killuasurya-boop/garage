@@ -9,7 +9,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import webpush from "web-push";
 
 import { getDb } from "@/db";
-import { orderPushSubscriptions, pushSubscriptions, systemKeys } from "@/db/schema";
+import { orderPushSubscriptions, partnerPushSubscriptions, pushSubscriptions, systemKeys } from "@/db/schema";
 
 export type PushPayload = {
   title: string;
@@ -156,5 +156,41 @@ export async function unsubscribeOrderPush(orderId: string, endpoint: string) {
   await getDb()
     .delete(orderPushSubscriptions)
     .where(and(eq(orderPushSubscriptions.orderId, orderId), eq(orderPushSubscriptions.endpoint, endpoint)));
+  return { ok: true };
+}
+
+/** Kirim ke HP mitra (Portal Mitra) — pesanan baru saat layar terkunci. Tanpa langganan = tidak melakukan apa-apa. */
+export async function sendPartnerPush(partnerId: string, payload: PushPayload) {
+  const db = getDb();
+  const targets = await db
+    .select({
+      id: partnerPushSubscriptions.id,
+      endpoint: partnerPushSubscriptions.endpoint,
+      keyP256dh: partnerPushSubscriptions.keyP256dh,
+      keyAuth: partnerPushSubscriptions.keyAuth,
+    })
+    .from(partnerPushSubscriptions)
+    .where(eq(partnerPushSubscriptions.partnerId, partnerId));
+  return deliver(targets, payload, async (gone) => {
+    await db.delete(partnerPushSubscriptions).where(inArray(partnerPushSubscriptions.id, gone));
+  });
+}
+
+export async function subscribePartnerPush(input: { partnerId: string; accountId: string; endpoint: string; keys: { p256dh: string; auth: string } }) {
+  await getDb()
+    .insert(partnerPushSubscriptions)
+    .values({ partnerId: input.partnerId, accountId: input.accountId, endpoint: input.endpoint, keyP256dh: input.keys.p256dh, keyAuth: input.keys.auth })
+    .onConflictDoUpdate({
+      target: partnerPushSubscriptions.endpoint,
+      // Perangkat yang sama dipakai akun/mitra lain → langganan pindah (tidak ada push silang antar mitra).
+      set: { partnerId: input.partnerId, accountId: input.accountId, keyP256dh: input.keys.p256dh, keyAuth: input.keys.auth },
+    });
+  return { ok: true };
+}
+
+export async function unsubscribePartnerPush(partnerId: string, endpoint: string) {
+  await getDb()
+    .delete(partnerPushSubscriptions)
+    .where(and(eq(partnerPushSubscriptions.partnerId, partnerId), eq(partnerPushSubscriptions.endpoint, endpoint)));
   return { ok: true };
 }

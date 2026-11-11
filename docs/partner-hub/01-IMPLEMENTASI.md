@@ -59,9 +59,22 @@ Kolom **Bukti otomatis** merujuk ke tes PGlite/vitest; staging = UAT manual oleh
 | 25 WA gagal | Notifikasi in-app sumber utama; tautan wa.me hanya tambahan | |
 | 26 Last order | `partner-hub-rules.test` "last order per hari WIB" | |
 
-## Belum termasuk (P1/P2)
+## Tambahan Nov 2026 (backlog P1/P2)
+- **Pengajuan harga dari mitra** (migrasi 0191, `partner_price_proposals`, rollback `0191-down.sql`): Portal Mitra →
+  "Ajukan harga setor" per varian (+ usulan harga jual opsional, alasan wajib). Satu pengajuan pending per varian (index
+  unik parsial). Harga master TIDAK berubah sampai Owner menyetujui di Kelola Mitra → "Pengajuan harga dari mitra"
+  (dampak margin Garage ditampilkan; Owner boleh mengubah HPP/harga jual final). Setuju menulis lewat jalur yang sama
+  dengan ubah harga manual (`applyPartnerPrice` → `partner_price_history` + event); tolak wajib alasan; mitra boleh
+  membatalkan selama pending. Notifikasi manajemen saat diajukan, push ke mitra saat diputuskan.
+- **Rapor kinerja mitra** (`partner-hub-insights.ts`, pure): waktu terima & siap (rata-rata, p90, tepat waktu), tingkat
+  tolak + alasan, jam ramai, terlaris, skor layanan 0–100 (null bila belum ada data). Portal Mitra "Kinerja layanan"
+  (7/30 hari) dan Kelola → detail mitra "Rapor kinerja" (7/30/90 hari, plus waktu tunggu diambil waiter = kinerja tim
+  Garage). Target siap = Pengaturan `partnerPrepTargetMinutes` (default 15).
+- **Kesehatan mitra** (`GET /api/partners/health`, hanya baca): tiket belum diterima > SLA, tiket diproses > 45 mnt,
+  pesanan aktif saat tidak BUKA, ketersediaan "Tersedia" tidak dikonfirmasi ulang > 3 hari, semua produk habis,
+  pengajuan/penyesuaian menunggu, setoran belum dibayar, rekening belum terverifikasi. Bahasa netral, tidak menuduh.
+- Penyesuaian manual via UI sudah ada (Keuangan → Penyesuaian). Alarm SLA otomatis sudah jalan di server sweeper.
+
+## Belum termasuk
 - Klaim grup per meja dan rute/trip pengantaran.
-- Alarm SLA otomatis berbasis job. SLA sudah ditampilkan di layar.
-- Template WhatsApp API.
-- Pengajuan harga dari mitra.
-- Penyesuaian manual via UI. API `POST /api/finance/partner-adjustments` sudah ada.
+- Template WhatsApp API resmi (perlu penyedia + persetujuan Owner).

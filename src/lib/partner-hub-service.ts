@@ -5,7 +5,7 @@
 // tiket (status pemenuhan), penyesuaian yang disetujui, dan pembayaran terverifikasi.
 // =============================================================================
 
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import { and, asc, desc, eq, gte, inArray, lt, ne, notInArray, or, sql } from "drizzle-orm";
 
@@ -24,6 +24,7 @@ import {
   partnerOrderLines,
   partnerPayouts,
   partnerPriceHistory,
+  partnerPriceProposals,
   partnerProductLinks,
   partnerReports,
   partnerSettlementLines,
@@ -41,6 +42,7 @@ import {
   maskAccountNumber,
   OPERATIONAL_STATUSES,
   partnerActivationBlockers,
+  partnerBestSellers,
   partnerLineFinance,
   partnerSettlementTotals,
   partnerTicketNextStatus,
@@ -48,6 +50,14 @@ import {
   settlementStatusAfterPayment,
   type PartnerTicketAction,
 } from "@/lib/partner-hub-rules";
+import {
+  defaultApprovedSellPrice,
+  partnerHealthAlerts,
+  partnerPerformance,
+  priceProposalBlockReason,
+  priceProposalImpact,
+  PRICE_PROPOSAL_STATUS_LABEL,
+} from "@/lib/partner-hub-insights";
 import { normalizePhone } from "@/lib/member-types";
 import { PAYMENT_STATUS_LABEL, paymentStatusOf } from "@/lib/payment-status";
 
@@ -537,20 +547,29 @@ export async function setPartnerProductPrice(
   const [link] = await db.select().from(partnerProductLinks).where(eq(partnerProductLinks.id, linkId)).limit(1);
   if (!link) throw new PartnerHubError("PRODUCT_NOT_FOUND", "Produk mitra tidak ditemukan.", 404);
   await loadPartner(db, link.partnerId, garage.profile.outlet.id);
-  return db.transaction(async (tx) => {
-    const [variant] = await tx
-      .update(menuVariants)
-      .set({ price: input.sellPrice, baseCost: input.unitCost, updatedAt: new Date() })
-      .where(and(eq(menuVariants.itemId, link.menuItemId), eq(menuVariants.variantId, input.variantId)))
-      .returning({ id: menuVariants.id });
-    if (!variant) throw new PartnerHubError("VARIANT_NOT_FOUND", "Varian tidak ditemukan.", 404);
-    const [row] = await tx
-      .insert(partnerPriceHistory)
-      .values({ linkId, variantId: input.variantId, unitCost: input.unitCost, sellPrice: input.sellPrice, reason: input.reason.trim(), createdBy: garage.user.id })
-      .returning();
-    await logEvent(tx, { partnerId: link.partnerId, kind: "price_changed", subjectId: linkId, reason: input.reason, actor: staffActor(garage), metadata: input });
-    return row;
-  });
+  return db.transaction((tx) => applyPartnerPrice(tx, link, input, garage));
+}
+
+/** Satu-satunya jalur menulis harga mitra: varian menu + histori harga + event (dalam transaksi pemanggil). */
+async function applyPartnerPrice(
+  tx: Tx,
+  link: { id: string; partnerId: string; menuItemId: string },
+  input: { variantId: string; unitCost: number; sellPrice: number; reason: string; metadata?: Record<string, unknown> },
+  garage: GarageSession,
+) {
+  const [variant] = await tx
+    .update(menuVariants)
+    .set({ price: input.sellPrice, baseCost: input.unitCost, updatedAt: new Date() })
+    .where(and(eq(menuVariants.itemId, link.menuItemId), eq(menuVariants.variantId, input.variantId)))
+    .returning({ id: menuVariants.id });
+  if (!variant) throw new PartnerHubError("VARIANT_NOT_FOUND", "Varian tidak ditemukan.", 404);
+  const [row] = await tx
+    .insert(partnerPriceHistory)
+    .values({ linkId: link.id, variantId: input.variantId, unitCost: input.unitCost, sellPrice: input.sellPrice, reason: input.reason.trim(), createdBy: garage.user.id })
+    .returning();
+  const { metadata, ...rest } = input;
+  await logEvent(tx, { partnerId: link.partnerId, kind: "price_changed", subjectId: link.id, reason: input.reason, actor: staffActor(garage), metadata: { ...rest, ...(metadata ?? {}) } });
+  return row;
 }
 
 export async function listPartnerProducts(partnerId: string, viewer: { outletId: string; showCost: boolean }) {
@@ -1524,7 +1543,8 @@ export async function partnerPortalOverview(session: PartnerSession) {
   const now = new Date();
   const dayStart = new Date(Math.floor((now.getTime() + 7 * 3_600_000) / 86_400_000) * 86_400_000 - 7 * 3_600_000);
   const [products, active, today, settlements] = await Promise.all([
-    listPartnerProducts(session.partner.id, { outletId: session.partner.outletId, showCost: false }),
+    // Harga setor (HPP) varian milik mitra sendiri: sama dengan yang tampil di Keuangan mitra; dipakai formulir pengajuan harga.
+    listPartnerProducts(session.partner.id, { outletId: session.partner.outletId, showCost: true }),
     listTicketsForPartner(session.partner.id, "active"),
     partnerFinanceSummary(session.partner.id, session.partner.outletId, dayStart, new Date(now.getTime() + 60_000)),
     db
@@ -1569,7 +1589,7 @@ export async function partnerPortalOverview(session: PartnerSession) {
       : null,
     payouts,
     partner: session.partner,
-    products: products.map((p) => ({ ...p, variants: p.variants.map(({ unitCost: _unitCost, ...v }) => v) })),
+    products,
     activeTickets: active,
     today: { qty: today.totalQty, gross: today.grossSales, liability: today.liabilityTotal, orders: today.orderCount },
     unpaid,
@@ -1915,5 +1935,338 @@ export async function convertPartnerApplication(id: string, input: { code: strin
       .set({ status: "diterima", partnerId: partner.id, reviewedBy: garage.user.id, reviewedAt: new Date(), updatedAt: new Date() })
       .where(eq(partnerApplications.id, id));
     return { partnerId: partner.id, code, products: app.products.length };
+  });
+}
+
+// ─── Pengajuan harga dari mitra (P2) ─────────────────────────────────────────
+// Mitra mengusulkan harga setor (HPP) baru per varian; harga master tidak berubah sampai Owner menyetujui.
+// Persetujuan menulis lewat applyPartnerPrice (histori harga yang sama dengan ubah harga manual Owner).
+
+function proposalNo(now = new Date()) {
+  const ymd = new Date(now.getTime() + 7 * 3_600_000).toISOString().slice(2, 10).replace(/-/g, "");
+  return `PRC-${ymd}-${randomUUID().replace(/-/g, "").slice(0, 6).toUpperCase()}`;
+}
+
+export async function submitPartnerPriceProposal(
+  session: PartnerSession,
+  input: { linkId: string; variantId: string; proposedUnitCost: number; suggestedSellPrice?: number | null; reason: string },
+) {
+  const db = getDb();
+  const [row] = await db
+    .select({ link: partnerProductLinks, variant: menuVariants, itemName: menuItems.name })
+    .from(partnerProductLinks)
+    .innerJoin(menuItems, eq(partnerProductLinks.menuItemId, menuItems.id))
+    .innerJoin(menuVariants, and(eq(menuVariants.itemId, menuItems.id), eq(menuVariants.variantId, input.variantId)))
+    .where(and(eq(partnerProductLinks.id, input.linkId), eq(partnerProductLinks.partnerId, session.partner.id)))
+    .limit(1);
+  // 404 juga untuk produk mitra lain: tidak membocorkan keberadaannya.
+  if (!row) throw new PartnerHubError("PRODUCT_NOT_FOUND", "Produk tidak ditemukan.", 404);
+  const blocked = priceProposalBlockReason({
+    currentUnitCost: row.variant.baseCost,
+    currentSellPrice: row.variant.price,
+    proposedUnitCost: input.proposedUnitCost,
+    suggestedSellPrice: input.suggestedSellPrice ?? null,
+    reason: input.reason,
+  });
+  if (blocked) throw new PartnerHubError("INVALID_PROPOSAL", blocked);
+  const created = await db.transaction(async (tx) => {
+    const [pending] = await tx
+      .select({ id: partnerPriceProposals.id })
+      .from(partnerPriceProposals)
+      .where(and(eq(partnerPriceProposals.linkId, input.linkId), eq(partnerPriceProposals.variantId, input.variantId), eq(partnerPriceProposals.status, "pending")))
+      .limit(1);
+    if (pending) throw new PartnerHubError("PROPOSAL_PENDING", "Masih ada pengajuan harga untuk varian ini yang menunggu Owner. Batalkan dulu bila ingin mengubah.", 409);
+    const [proposal] = await tx
+      .insert(partnerPriceProposals)
+      .values({
+        proposalNo: proposalNo(),
+        partnerId: session.partner.id,
+        linkId: input.linkId,
+        variantId: input.variantId,
+        currentUnitCost: row.variant.baseCost,
+        currentSellPrice: row.variant.price,
+        proposedUnitCost: input.proposedUnitCost,
+        suggestedSellPrice: input.suggestedSellPrice ?? null,
+        reason: input.reason.trim(),
+        createdBy: session.account.id,
+      })
+      .returning();
+    await logEvent(tx, {
+      partnerId: session.partner.id,
+      kind: "price_proposal_submitted",
+      subjectId: proposal.proposalNo,
+      toStatus: "pending",
+      reason: proposal.reason,
+      actor: partnerActor(session),
+      metadata: { linkId: input.linkId, variantId: input.variantId, from: row.variant.baseCost, to: input.proposedUnitCost },
+    });
+    return proposal;
+  });
+  try {
+    const { notifyStaff } = await import("@/lib/staff-notifications");
+    await notifyStaff({
+      outletId: session.partner.outletId,
+      audience: "management",
+      kind: "partner_price_proposal",
+      severity: "info",
+      title: `${session.partner.name} mengajukan harga baru`,
+      body: `${row.itemName} (${row.variant.label}): ${rupiahText(row.variant.baseCost)} → ${rupiahText(input.proposedUnitCost)}`,
+      url: "/partners?tab=manage",
+      dedupKey: `partner_price_proposal:${created.id}`,
+    });
+  } catch {
+    /* notifikasi tidak boleh menggagalkan pengajuan */
+  }
+  return created;
+}
+
+export async function cancelPartnerPriceProposal(session: PartnerSession, id: string) {
+  const db = getDb();
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(partnerPriceProposals)
+      .where(and(eq(partnerPriceProposals.id, id), eq(partnerPriceProposals.partnerId, session.partner.id)))
+      .for("update")
+      .limit(1);
+    if (!row) throw new PartnerHubError("PROPOSAL_NOT_FOUND", "Pengajuan tidak ditemukan.", 404);
+    if (row.status !== "pending") throw new PartnerHubError("INVALID_STATUS", "Pengajuan sudah diputuskan.", 409);
+    await tx.update(partnerPriceProposals).set({ status: "cancelled", updatedAt: new Date() }).where(eq(partnerPriceProposals.id, id));
+    await logEvent(tx, { partnerId: row.partnerId, kind: "price_proposal_cancelled", subjectId: row.proposalNo, fromStatus: "pending", toStatus: "cancelled", actor: partnerActor(session) });
+    return { id, status: "cancelled" as const };
+  });
+}
+
+/**
+ * Daftar pengajuan. Mitra (partnerId dari sesi) melihat miliknya sendiri; staf Owner/Manajer per outlet.
+ * Dampak margin Garage hanya dihitung untuk staf (`withImpact`).
+ */
+export async function listPartnerPriceProposals(viewer: { outletId: string; partnerId?: string; status?: string; withImpact: boolean; limit?: number }) {
+  const db = getDb();
+  const conditions = [eq(partners.outletId, viewer.outletId)];
+  if (viewer.partnerId) conditions.push(eq(partnerPriceProposals.partnerId, viewer.partnerId));
+  if (viewer.status) conditions.push(eq(partnerPriceProposals.status, viewer.status));
+  const rows = await db
+    .select({ proposal: partnerPriceProposals, partnerName: partners.name, itemName: menuItems.name, variantLabel: menuVariants.label, variantPrice: menuVariants.price, variantCost: menuVariants.baseCost })
+    .from(partnerPriceProposals)
+    .innerJoin(partners, eq(partnerPriceProposals.partnerId, partners.id))
+    .innerJoin(partnerProductLinks, eq(partnerPriceProposals.linkId, partnerProductLinks.id))
+    .innerJoin(menuItems, eq(partnerProductLinks.menuItemId, menuItems.id))
+    .leftJoin(menuVariants, and(eq(menuVariants.itemId, menuItems.id), eq(menuVariants.variantId, partnerPriceProposals.variantId)))
+    .where(and(...conditions))
+    .orderBy(sql`case when ${partnerPriceProposals.status} = 'pending' then 0 else 1 end`, desc(partnerPriceProposals.createdAt))
+    .limit(viewer.limit ?? 100);
+  return rows.map(({ proposal: p, partnerName, itemName, variantLabel, variantPrice, variantCost }) => {
+    const defaultSell = defaultApprovedSellPrice({
+      currentUnitCost: variantCost ?? p.currentUnitCost,
+      currentSellPrice: variantPrice ?? p.currentSellPrice,
+      proposedUnitCost: p.proposedUnitCost,
+      suggestedSellPrice: p.suggestedSellPrice,
+    });
+    return {
+      id: p.id,
+      proposalNo: p.proposalNo,
+      partnerId: p.partnerId,
+      partnerName,
+      linkId: p.linkId,
+      variantId: p.variantId,
+      itemName,
+      variantLabel: variantLabel ?? p.variantId,
+      currentUnitCost: p.currentUnitCost,
+      currentSellPrice: p.currentSellPrice,
+      proposedUnitCost: p.proposedUnitCost,
+      suggestedSellPrice: p.suggestedSellPrice,
+      reason: p.reason,
+      status: p.status,
+      statusLabel: PRICE_PROPOSAL_STATUS_LABEL[p.status] ?? p.status,
+      decidedUnitCost: p.decidedUnitCost,
+      decidedSellPrice: p.decidedSellPrice,
+      decisionNote: p.decisionNote,
+      decidedAt: p.decidedAt,
+      createdAt: p.createdAt,
+      // Harga master berubah sejak diajukan (mis. Owner sudah mengubah manual) → Owner perlu cek ulang.
+      masterChanged: variantCost != null && (variantCost !== p.currentUnitCost || variantPrice !== p.currentSellPrice),
+      ...(viewer.withImpact && p.status === "pending"
+        ? {
+            defaultSellPrice: defaultSell,
+            impact: priceProposalImpact({ currentUnitCost: variantCost ?? p.currentUnitCost, currentSellPrice: variantPrice ?? p.currentSellPrice, proposedUnitCost: p.proposedUnitCost, sellPrice: defaultSell }),
+          }
+        : {}),
+    };
+  });
+}
+
+/**
+ * Owner memutuskan pengajuan harga. Setuju = harga master berubah (histori harga + event) dalam transaksi yang sama;
+ * Owner boleh menyesuaikan HPP & harga jual final. Tolak wajib alasan. Order lama tidak berubah (snapshot).
+ */
+export async function decidePartnerPriceProposal(
+  id: string,
+  input: { approve: boolean; unitCost?: number | null; sellPrice?: number | null; note?: string | null },
+  garage: GarageSession,
+) {
+  assertOwner(garage, "Memutuskan pengajuan harga mitra");
+  const note = input.note?.trim() || null;
+  if (!input.approve && !note) throw new PartnerHubError("REASON_REQUIRED", "Alasan penolakan wajib diisi agar mitra tahu.");
+  const db = getDb();
+  const result = await db.transaction(async (tx) => {
+    const [row] = await tx.select().from(partnerPriceProposals).where(eq(partnerPriceProposals.id, id)).for("update").limit(1);
+    if (!row) throw new PartnerHubError("PROPOSAL_NOT_FOUND", "Pengajuan tidak ditemukan.", 404);
+    const partner = await loadPartner(tx, row.partnerId, garage.profile.outlet.id);
+    if (row.status !== "pending") throw new PartnerHubError("INVALID_STATUS", "Pengajuan sudah diputuskan.", 409);
+    const now = new Date();
+    if (!input.approve) {
+      await tx
+        .update(partnerPriceProposals)
+        .set({ status: "rejected", decisionNote: note, decidedBy: garage.user.id, decidedAt: now, updatedAt: now })
+        .where(eq(partnerPriceProposals.id, id));
+      await logEvent(tx, { partnerId: row.partnerId, kind: "price_proposal_rejected", subjectId: row.proposalNo, fromStatus: "pending", toStatus: "rejected", reason: note, actor: staffActor(garage) });
+      return { row, partner, status: "rejected" as const, unitCost: null, sellPrice: null };
+    }
+    const [link] = await tx.select().from(partnerProductLinks).where(eq(partnerProductLinks.id, row.linkId)).limit(1);
+    const [variant] = link
+      ? await tx.select().from(menuVariants).where(and(eq(menuVariants.itemId, link.menuItemId), eq(menuVariants.variantId, row.variantId))).limit(1)
+      : [];
+    if (!link || !variant) throw new PartnerHubError("VARIANT_NOT_FOUND", "Varian produk sudah tidak ada.", 404);
+    const unitCost = input.unitCost ?? row.proposedUnitCost;
+    const sellPrice =
+      input.sellPrice ??
+      defaultApprovedSellPrice({ currentUnitCost: variant.baseCost, currentSellPrice: variant.price, proposedUnitCost: unitCost, suggestedSellPrice: row.suggestedSellPrice });
+    assertPrices([{ variantId: row.variantId, label: variant.label, unitCost, sellPrice }]);
+    const history = await applyPartnerPrice(
+      tx,
+      link,
+      { variantId: row.variantId, unitCost, sellPrice, reason: `Pengajuan ${row.proposalNo}: ${note ?? row.reason}`, metadata: { proposalNo: row.proposalNo } },
+      garage,
+    );
+    await tx
+      .update(partnerPriceProposals)
+      .set({ status: "approved", decidedUnitCost: unitCost, decidedSellPrice: sellPrice, decisionNote: note, decidedBy: garage.user.id, decidedAt: now, priceHistoryId: history.id, updatedAt: now })
+      .where(eq(partnerPriceProposals.id, id));
+    await logEvent(tx, {
+      partnerId: row.partnerId,
+      kind: "price_proposal_approved",
+      subjectId: row.proposalNo,
+      fromStatus: "pending",
+      toStatus: "approved",
+      reason: note,
+      actor: staffActor(garage),
+      metadata: { unitCost, sellPrice, proposedUnitCost: row.proposedUnitCost },
+    });
+    return { row, partner, status: "approved" as const, unitCost, sellPrice };
+  });
+  await pushToPartner(result.row.partnerId, {
+    title: result.status === "approved" ? "Pengajuan harga disetujui" : "Pengajuan harga ditolak",
+    body:
+      result.status === "approved"
+        ? `${result.row.proposalNo}: harga setor baru ${rupiahText(result.unitCost!)} berlaku mulai sekarang.`
+        : `${result.row.proposalNo}: ${note ?? ""}`.slice(0, 180),
+    tag: `price-proposal-${result.row.id}`,
+  });
+  return { id, status: result.status, unitCost: result.unitCost, sellPrice: result.sellPrice };
+}
+
+// ─── Rapor kinerja & kesehatan mitra (P1 monitoring / P2 analitik) ───────────
+
+type PerformanceSettings = { acceptSlaMinutes: number; prepTargetMinutes: number; pickupSlaMinutes?: number };
+
+async function partnerTicketsInPeriod(db: DbLike, partnerId: string, from: Date, to: Date) {
+  return db
+    .select({
+      status: kitchenTickets.status,
+      createdAt: kitchenTickets.createdAt,
+      acceptedAt: kitchenTickets.acceptedAt,
+      readyAt: kitchenTickets.readyAt,
+      handoverAt: kitchenTickets.handoverAt,
+      deliveredAt: kitchenTickets.deliveredAt,
+      claimedAt: kitchenTickets.claimedAt,
+      rejectReason: kitchenTickets.issueReason,
+    })
+    .from(kitchenTickets)
+    .where(and(eq(kitchenTickets.partnerId, partnerId), gte(kitchenTickets.createdAt, from), lt(kitchenTickets.createdAt, to)))
+    .limit(20_000);
+}
+
+/** Rapor kinerja satu mitra pada periode. `outletId` membatasi akses staf; mitra memanggil dengan outlet sesinya. */
+export async function partnerPerformanceReport(partnerId: string, outletId: string, from: Date, to: Date, settings: PerformanceSettings) {
+  const db = getDb();
+  const partner = await loadPartner(db, partnerId, outletId);
+  const [tickets, finance] = await Promise.all([partnerTicketsInPeriod(db, partner.id, from, to), partnerFinanceLines(partner.id, outletId, from, to)]);
+  const performance = partnerPerformance(tickets, settings);
+  const bestSellers = partnerBestSellers(finance).slice(0, 5).map(({ itemName, variantLabel, qty, gross }) => ({ itemName, variantLabel, qty, gross }));
+  return {
+    partner: { id: partner.id, name: partner.name, code: partner.code },
+    period: { from, to },
+    settings,
+    ...performance,
+    bestSellers,
+  };
+}
+
+/** Peringatan kesehatan semua mitra outlet (Owner/Manajer) — hanya baca, setiap butir bisa ditindaklanjuti. */
+export async function partnerHealthForOutlet(garage: GarageSession, options: { acceptSlaMinutes: number; heartbeatMinutes?: number }) {
+  assertOwnerOrManager(garage, "Melihat kesehatan mitra");
+  const db = getDb();
+  const outletId = garage.profile.outlet.id;
+  const list = await db
+    .select()
+    .from(partners)
+    .where(and(eq(partners.outletId, outletId), inArray(partners.status, ["aktif", "dibekukan"])))
+    .orderBy(asc(partners.name));
+  if (!list.length) return [];
+  const ids = list.map((p) => p.id);
+  const [products, tickets, proposals, adjustments, settlements, banks] = await Promise.all([
+    db
+      .select({ partnerId: partnerProductLinks.partnerId, name: menuItems.name, active: partnerProductLinks.active, stock: menuItems.stock, availabilityUpdatedAt: partnerProductLinks.availabilityUpdatedAt })
+      .from(partnerProductLinks)
+      .innerJoin(menuItems, eq(partnerProductLinks.menuItemId, menuItems.id))
+      .where(inArray(partnerProductLinks.partnerId, ids)),
+    db
+      .select({ partnerId: kitchenTickets.partnerId, ticketNo: kitchenTickets.ticketNo, status: kitchenTickets.status, createdAt: kitchenTickets.createdAt, acceptedAt: kitchenTickets.acceptedAt, readyAt: kitchenTickets.readyAt })
+      .from(kitchenTickets)
+      .where(and(inArray(kitchenTickets.partnerId, ids), inArray(kitchenTickets.status, ["queue", "cooking", "ready"]), gte(kitchenTickets.createdAt, new Date(Date.now() - 24 * 3_600_000)))),
+    db
+      .select({ partnerId: partnerPriceProposals.partnerId, n: sql<number>`count(*)::int` })
+      .from(partnerPriceProposals)
+      .where(and(inArray(partnerPriceProposals.partnerId, ids), eq(partnerPriceProposals.status, "pending")))
+      .groupBy(partnerPriceProposals.partnerId),
+    db
+      .select({ partnerId: partnerAdjustments.partnerId, n: sql<number>`count(*)::int` })
+      .from(partnerAdjustments)
+      .where(and(inArray(partnerAdjustments.partnerId, ids), eq(partnerAdjustments.status, "pending")))
+      .groupBy(partnerAdjustments.partnerId),
+    db
+      .select({ partnerId: partnerSettlements.partnerId, unpaid: sql<number>`coalesce(sum(${partnerSettlements.liabilityTotal} - ${partnerSettlements.paidAmount}), 0)::int` })
+      .from(partnerSettlements)
+      .where(and(inArray(partnerSettlements.partnerId, ids), inArray(partnerSettlements.status, ["approved", "partially_paid"])))
+      .groupBy(partnerSettlements.partnerId),
+    db
+      .select({ partnerId: partnerBankAccounts.partnerId })
+      .from(partnerBankAccounts)
+      .where(and(inArray(partnerBankAccounts.partnerId, ids), eq(partnerBankAccounts.status, "verified"))),
+  ]);
+  const count = (rows: Array<{ partnerId: string; n: number }>, id: string) => rows.find((r) => r.partnerId === id)?.n ?? 0;
+  return list.map((partner) => {
+    const operationalStatus = effectiveOperationalStatus({
+      operationalStatus: partner.operationalStatus,
+      operationalStatusAt: partner.operationalStatusAt,
+      lastSeenAt: partner.lastSeenAt,
+      heartbeatMinutes: options.heartbeatMinutes,
+    });
+    const alerts = partnerHealthAlerts(
+      {
+        partnerName: partner.name,
+        partnerStatus: partner.status,
+        operationalStatus,
+        products: products.filter((p) => p.partnerId === partner.id).map((p) => ({ name: p.name, active: p.active, available: p.stock !== "sold_out", availabilityUpdatedAt: p.availabilityUpdatedAt })),
+        activeTickets: tickets.filter((t) => t.partnerId === partner.id).map(({ partnerId: _p, ...t }) => t),
+        pendingProposals: count(proposals, partner.id),
+        pendingAdjustments: count(adjustments, partner.id),
+        unpaidApproved: settlements.find((s) => s.partnerId === partner.id)?.unpaid ?? 0,
+        hasVerifiedBank: banks.some((b) => b.partnerId === partner.id),
+      },
+      { acceptSlaMinutes: options.acceptSlaMinutes },
+    );
+    return { partnerId: partner.id, name: partner.name, code: partner.code, status: partner.status, operationalStatus, alerts };
   });
 }

@@ -575,3 +575,83 @@ describe("Smart Partner Hub — kesiapan operasional (11 Nov 2026)", () => {
     await expect(svc.createPartnerAccount(partnerA.id, { phone: "abc12345678", displayName: "x", pin: "123456" }, manager())).rejects.toThrow(/tidak valid/);
   });
 });
+
+describe("Smart Partner Hub — pengajuan harga, rapor kinerja & kesehatan (backlog P1/P2)", () => {
+  let linkB = "";
+  let startCost = 0;
+  let startSell = 0;
+
+  it("mitra mengajukan harga setor baru; harga master tidak berubah sampai Owner setuju", async () => {
+    const products = await svc.listPartnerProducts(partnerB.id, { outletId, showCost: true });
+    linkB = products[0].linkId;
+    // Harga awal dibaca dari master (tes sebelumnya sudah memakai aturan margin).
+    startCost = products[0].variants[0].unitCost!;
+    startSell = products[0].variants[0].sellPrice;
+    expect(startSell).toBeGreaterThanOrEqual(startCost + 2_000);
+    const session = partnerSession(partnerB, "Dimsum");
+    const proposal = await svc.submitPartnerPriceProposal(session, { linkId: linkB, variantId: "reg", proposedUnitCost: startCost + 2_000, reason: "Harga daging ayam naik" });
+    expect(proposal.status).toBe("pending");
+    expect(proposal.proposalNo).toMatch(/^PRC-\d{6}-[0-9A-F]{6}$/);
+    // satu pengajuan pending per varian
+    await expect(svc.submitPartnerPriceProposal(session, { linkId: linkB, variantId: "reg", proposedUnitCost: 25_000, reason: "Revisi harga" })).rejects.toThrow(/Masih ada pengajuan/);
+    // mitra lain tidak bisa mengajukan untuk produk ini (404, tidak bocor)
+    await expect(svc.submitPartnerPriceProposal(partnerSession(partnerA), { linkId: linkB, variantId: "reg", proposedUnitCost: 23_000, reason: "Coba-coba" })).rejects.toThrow(/tidak ditemukan/);
+    const unchanged = await svc.listPartnerProducts(partnerB.id, { outletId, showCost: true });
+    expect(unchanged[0].variants[0]).toMatchObject({ unitCost: startCost, sellPrice: startSell });
+
+    // Staf melihat dampak margin; mitra tidak.
+    const staffView = await svc.listPartnerPriceProposals({ outletId, status: "pending", withImpact: true });
+    const row = staffView.find((p) => p.id === proposal.id)!;
+    expect(row.defaultSellPrice).toBe(startSell);
+    expect(row.impact).toMatchObject({ costDelta: 2_000, marginBefore: startSell - startCost, marginAfter: startSell - startCost - 2_000 });
+    const partnerView = await svc.listPartnerPriceProposals({ outletId, partnerId: partnerB.id, withImpact: false });
+    expect(partnerView[0]).not.toHaveProperty("impact");
+  });
+
+  it("hanya Owner yang memutuskan; tolak wajib alasan; setuju menulis harga + histori, order lama tidak berubah", async () => {
+    const [pending] = await svc.listPartnerPriceProposals({ outletId, partnerId: partnerB.id, status: "pending", withImpact: true });
+    await expect(svc.decidePartnerPriceProposal(pending.id, { approve: true }, manager())).rejects.toThrow(/Owner/);
+    await expect(svc.decidePartnerPriceProposal(pending.id, { approve: false, note: " " }, owner())).rejects.toThrow(/Alasan/);
+    const decided = await svc.decidePartnerPriceProposal(pending.id, { approve: true, sellPrice: startSell + 2_000, note: "Disetujui mulai hari ini" }, owner());
+    expect(decided).toMatchObject({ status: "approved", unitCost: startCost + 2_000, sellPrice: startSell + 2_000 });
+    const products = await svc.listPartnerProducts(partnerB.id, { outletId, showCost: true });
+    expect(products[0].variants[0]).toMatchObject({ unitCost: startCost + 2_000, sellPrice: startSell + 2_000 });
+    const history = await svc.listPartnerPriceHistory(partnerB.id, owner());
+    expect(JSON.stringify(history)).toContain(pending.proposalNo);
+    // keputusan ganda ditolak
+    await expect(svc.decidePartnerPriceProposal(pending.id, { approve: false, note: "x" }, owner())).rejects.toThrow(/sudah diputuskan/);
+    // snapshot order lama tetap harga lama
+    const d = t.getDb();
+    const { eq } = await import("drizzle-orm");
+    const old = await d.select().from(t.schema.partnerOrderLines).where(eq(t.schema.partnerOrderLines.partnerId, partnerB.id));
+    for (const line of old) expect(line.unitCost).toBeLessThanOrEqual(startCost);
+  });
+
+  it("mitra membatalkan pengajuan sendiri; ditolak Owner tercatat dengan alasan", async () => {
+    const session = partnerSession(partnerB, "Dimsum");
+    const a = await svc.submitPartnerPriceProposal(session, { linkId: linkB, variantId: "reg", proposedUnitCost: startCost + 3_000, reason: "Ongkos gas naik" });
+    await expect(svc.cancelPartnerPriceProposal(partnerSession(partnerA), a.id)).rejects.toThrow(/tidak ditemukan/);
+    await svc.cancelPartnerPriceProposal(session, a.id);
+    const b = await svc.submitPartnerPriceProposal(session, { linkId: linkB, variantId: "reg", proposedUnitCost: startCost + 4_000, reason: "Ongkos gas naik lagi" });
+    await svc.decidePartnerPriceProposal(b.id, { approve: false, note: "Belum bisa, tunggu evaluasi bulan depan" }, owner());
+    const list = await svc.listPartnerPriceProposals({ outletId, partnerId: partnerB.id, withImpact: false });
+    expect(list.find((p) => p.id === a.id)?.status).toBe("cancelled");
+    expect(list.find((p) => p.id === b.id)).toMatchObject({ status: "rejected", decisionNote: "Belum bisa, tunggu evaluasi bulan depan" });
+    const products = await svc.listPartnerProducts(partnerB.id, { outletId, showCost: true });
+    expect(products[0].variants[0].unitCost).toBe(startCost + 2_000);
+  });
+
+  it("rapor kinerja & kesehatan mitra dari tiket nyata", async () => {
+    const from = new Date(Date.now() - 30 * 86_400_000);
+    const to = new Date(Date.now() + 86_400_000);
+    const report = await svc.partnerPerformanceReport(partnerA.id, outletId, from, to, { acceptSlaMinutes: 5, prepTargetMinutes: 15, pickupSlaMinutes: 3 });
+    expect(report.totalTickets).toBeGreaterThan(0);
+    expect(report.partner.id).toBe(partnerA.id);
+    expect(Array.isArray(report.bestSellers)).toBe(true);
+    // akses lintas outlet ditolak
+    await expect(svc.partnerPerformanceReport(partnerA.id, "00000000-0000-0000-0000-000000000000", from, to, { acceptSlaMinutes: 5, prepTargetMinutes: 15 })).rejects.toThrow(/tidak ditemukan/);
+    const health = await svc.partnerHealthForOutlet(owner(), { acceptSlaMinutes: 5 });
+    expect(health.some((h) => h.partnerId === partnerB.id)).toBe(true);
+    await expect(svc.partnerHealthForOutlet(kasir(), { acceptSlaMinutes: 5 })).rejects.toThrow(/Owner\/Manajer/);
+  });
+});

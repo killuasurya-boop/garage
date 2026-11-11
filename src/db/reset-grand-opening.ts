@@ -86,6 +86,7 @@ export const KEEP_TABLES = [
   "events", "event_guests", "event_invitations", "event_rsvps", "event_activity_logs",
   // Smart Partner Hub — master mitra resmi, akun, rekening, produk & histori harga
   "partners", "partner_bank_accounts", "partner_accounts", "partner_push_subscriptions", "partner_applications", "partner_product_links", "partner_price_history",
+  "partner_price_proposals",
 ] as const;
 
 /** Transaksi & log uji coba — dihapus. */

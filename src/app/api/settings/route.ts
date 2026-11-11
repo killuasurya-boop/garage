@@ -68,6 +68,7 @@ const patchSchema = z.object({
   partnerSlaAcceptWarnMinutes: z.number().int().min(1).max(30).optional(),
   partnerSlaEscalateMinutes: z.number().int().min(1).max(60).optional(),
   partnerReadyWaitWarnMinutes: z.number().int().min(1).max(30).optional(),
+  partnerPrepTargetMinutes: z.number().int().min(1).max(120).optional(),
   partnerHeartbeatMinutes: z.number().int().min(0).max(120).optional(),
   garageWhatsapp: z.string().trim().regex(/^(\+?62|0)8\d{7,12}$/, "Nomor WhatsApp tidak valid").optional(),
   bankAccountsText: z.string().max(1000).optional(),

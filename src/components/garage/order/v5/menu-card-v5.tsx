@@ -120,7 +120,10 @@ export function MenuCardV5({
   // tetap bisa dibuka detailnya; pemesanan lewat kasir atau waiter (staffOnlyNote).
   const partnerItem = Boolean(item.partner);
   const partnerStatusText = item.partner ? item.partner.label ?? "Tersedia di mitra" : null;
-  const soldOut = item.stock === "sold_out" && !partnerItem;
+  // Tidak bisa ditambah (stok Habis, atau mitra tutup/jeda/offline/lewat last order). Produk mitra tetap bisa
+  // dibuka detailnya dan memakai lencana status mitra, bukan "Sold Out".
+  const unavailable = item.stock === "sold_out";
+  const soldOut = unavailable && !partnerItem;
   const multi = item.variants.length > 1;
   const single = item.variants[0]?.id;
   const summary = variantSummary(item);
@@ -150,7 +153,7 @@ export function MenuCardV5({
 
   if (layout === "list") {
     return (
-      <article className="gm5-card gm5-rise flex-row gap-3 p-2.5" style={style} data-selected={cartQty > 0} data-sold-out={soldOut}>
+      <article className="gm5-card gm5-rise flex-row gap-3 p-2.5" style={style} data-selected={cartQty > 0} data-sold-out={unavailable}>
         <div className="gm5-card-photo relative size-[104px] shrink-0 rounded-xl sm:size-[120px]">
           {photo}
           {soldOut ? <span className="gm5-badge gm5-badge-soldout absolute bottom-1.5 left-1.5">Sold Out</span> : null}
@@ -163,7 +166,7 @@ export function MenuCardV5({
           {item.description ? <p className="line-clamp-2 text-sm leading-5 text-[#b8b8be]">{item.description}</p> : null}
           <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-1">
             <Price item={item} size="md" />
-            {staffOnlyNote ? <StaffOnly note={staffOnlyNote} /> : <Stepper label={item.name} qty={cartQty} soldOut={soldOut} onMinus={minus} onPlus={plus} minusOpens={multi} />}
+            {staffOnlyNote ? <StaffOnly note={staffOnlyNote} /> : <Stepper label={item.name} qty={cartQty} soldOut={unavailable} onMinus={minus} onPlus={plus} minusOpens={multi} />}
           </div>
         </div>
         {heart}
@@ -172,7 +175,7 @@ export function MenuCardV5({
   }
 
   return (
-    <article className="gm5-card gm5-rise flex-col" style={style} data-selected={cartQty > 0} data-sold-out={soldOut}>
+    <article className="gm5-card gm5-rise flex-col" style={style} data-selected={cartQty > 0} data-sold-out={unavailable}>
       <div className="gm5-card-photo relative aspect-[4/3] w-full">
         {photo}
         <span className="pointer-events-none absolute left-2 top-2 z-10 flex max-w-[calc(100%-3.5rem)]">
@@ -186,7 +189,7 @@ export function MenuCardV5({
         <span className="mt-auto flex flex-col gap-2 pt-1.5">
           <Price item={item} size="md" />
           <span className="flex justify-center">
-            {staffOnlyNote ? <StaffOnly note={staffOnlyNote} /> : <Stepper label={item.name} qty={cartQty} soldOut={soldOut} onMinus={minus} onPlus={plus} minusOpens={multi} />}
+            {staffOnlyNote ? <StaffOnly note={staffOnlyNote} /> : <Stepper label={item.name} qty={cartQty} soldOut={unavailable} onMinus={minus} onPlus={plus} minusOpens={multi} />}
           </span>
         </span>
       </div>

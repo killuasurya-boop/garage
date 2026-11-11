@@ -223,7 +223,7 @@ export function DeskOrders({ mode, slaWarnMinutes = 2, readyWarnMinutes = 3 }: {
                 <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-[#e4e4e8]">
                   <span className="min-w-0 break-words font-semibold">{order.partnerName}</span>
                   {OP_CHIP[order.partnerOperationalStatus ?? ""] ? <Chip tone={OP_CHIP[order.partnerOperationalStatus!].tone}>{OP_CHIP[order.partnerOperationalStatus!].label}</Chip> : null}
-                  {mode === "monitor" ? <Chip tone={order.paymentLabel === "Lunas" ? "green" : "amber"}>{order.paymentLabel === "Lunas" ? "Lunas" : `Bill ${order.paymentLabel.toLowerCase()}`}</Chip> : null}
+                  {mode === "monitor" ? <Chip tone={order.paymentLabel === "Lunas" ? "green" : "amber"}>{order.paymentLabel === "Lunas" ? "Lunas" : "Belum dibayar"}</Chip> : null}
                 </p>
                 <p className="mt-1 text-xs text-[#b8b8bf]">
                   {order.customerName ?? "Tanpa nama"} · masuk {timeWib(order.createdAt)} · <span className="tabular-nums">{waitMin} mnt</span>

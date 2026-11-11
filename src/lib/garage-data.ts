@@ -82,6 +82,8 @@ export type GarageMenuItem = {
   menuGroup?: MenuGroupName;
   categorySortOrder?: number;
   productType?: "menu" | "retail" | "bundle";
+  /** Smart Partner Hub: produk mitra (station Mitra). `partnerLabel` = alasan tidak bisa dijual, null = bisa. */
+  partner?: { name: string; label: string | null };
   brand?: string;
   barcode?: string;
   section: string;

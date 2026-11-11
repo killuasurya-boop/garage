@@ -101,6 +101,32 @@ export function partnerOrderBlockReason(input: PartnerAvailabilityInput, at = ne
   return null;
 }
 
+/** Label pendek untuk kartu produk POS (kasir langsung tahu kenapa tidak bisa dijual). Null = bisa dipesan. */
+export function partnerCardLabel(input: PartnerAvailabilityInput, at = new Date()): string | null {
+  if (!partnerOrderBlockReason(input, at)) return null;
+  if (input.partnerStatus !== "aktif") return "Mitra nonaktif";
+  if (input.operationalStatus === "tutup") return "Mitra tutup";
+  if (input.operationalStatus === "jeda") return "Mitra jeda";
+  if (input.operationalStatus !== "buka") return "Mitra belum konfirmasi";
+  if (input.productStock === "sold_out") return "Habis";
+  if (isPastLastOrder(input.lastOrderByDay, at)) return "Lewat last order";
+  return "Tidak tersedia";
+}
+
+/** Pesanan mitra yang perlu perhatian kasir: belum diterima lewat SLA, atau sudah siap tapi belum diambil. */
+export function partnerOrdersNeedingAttention(
+  orders: Array<{ status: string; createdAt: string | Date; readyAt: string | Date | null; claimedByName?: string | null }>,
+  now: number,
+  slaWarnMinutes: number,
+  readyWarnMinutes: number,
+) {
+  return orders.filter((order) => {
+    if (order.status === "queue") return now - new Date(order.createdAt).getTime() >= slaWarnMinutes * 60_000;
+    if (order.status === "ready" && !order.claimedByName) return Boolean(order.readyAt) && now - new Date(order.readyAt as string | Date).getTime() >= readyWarnMinutes * 60_000;
+    return false;
+  }).length;
+}
+
 // ─── Tiket mitra (PRD 07.5) ──────────────────────────────────────────────────
 // Disimpan di kitchen_tickets (station "Mitra"): queue → accepted → cooking(=diproses) → ready → (waiter) served.
 

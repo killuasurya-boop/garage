@@ -228,6 +228,7 @@ export function PosV6ProductCard({
   imageUrl,
   fallbackIcon: FallbackIcon,
   soldOut,
+  soldOutLabel = "Habis",
   shortcode,
   badge,
   favorite,
@@ -242,6 +243,8 @@ export function PosV6ProductCard({
   imageUrl?: string | null;
   fallbackIcon: IconType;
   soldOut: boolean;
+  /** Label kartu saat tidak bisa dijual (mis. "Mitra tutup"); default "Habis". */
+  soldOutLabel?: string;
   shortcode?: string | null;
   badge: PosV6CardBadge;
   favorite?: boolean;
@@ -260,7 +263,7 @@ export function PosV6ProductCard({
           <ImageOff className="sr-only" aria-hidden />
         </span>
       )}
-      {soldOut ? <span className="pos-v6-card-soldout">Habis</span> : null}
+      {soldOut ? <span className="pos-v6-card-soldout">{soldOutLabel}</span> : null}
     </span>
   ) : null;
 
@@ -273,7 +276,7 @@ export function PosV6ProductCard({
       data-photo={showPhoto}
       onClick={onTap}
       aria-disabled={soldOut}
-      aria-label={soldOut ? `${name} sedang habis` : `Pesan ${name}`}
+      aria-label={soldOut ? `${name}: ${soldOutLabel}` : `Pesan ${name}`}
     >
       {photo}
       {badge ? (

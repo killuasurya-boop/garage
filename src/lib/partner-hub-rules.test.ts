@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   canChangePartnerStatus,
   isPastLastOrder,
+  partnerCardLabel,
+  partnerOrdersNeedingAttention,
   maskAccountNumber,
   partnerActivationBlockers,
   partnerLineFinance,
@@ -37,6 +39,32 @@ describe("Partner Hub — ketersediaan", () => {
     expect(isPastLastOrder(rules, new Date("2026-11-14T15:00:00Z"))).toBe(false);
     expect(isPastLastOrder({}, new Date())).toBe(false);
     expect(partnerOrderBlockReason({ ...ok, lastOrderByDay: rules }, new Date("2026-11-10T15:00:00Z"))).toMatch(/last order/);
+  });
+});
+
+describe("Partner Hub — kenyamanan kasir", () => {
+  it("label kartu POS menyebut alasan, bukan sekadar Habis", () => {
+    expect(partnerCardLabel(ok)).toBeNull();
+    expect(partnerCardLabel({ ...ok, operationalStatus: "tutup" })).toBe("Mitra tutup");
+    expect(partnerCardLabel({ ...ok, operationalStatus: "jeda" })).toBe("Mitra jeda");
+    expect(partnerCardLabel({ ...ok, operationalStatus: "?" })).toBe("Mitra belum konfirmasi");
+    expect(partnerCardLabel({ ...ok, productStock: "sold_out" })).toBe("Habis");
+    const rules = { "2": "21:45" };
+    expect(partnerCardLabel({ ...ok, lastOrderByDay: rules }, new Date("2026-11-10T15:00:00Z"))).toBe("Lewat last order");
+  });
+
+  it("badge perhatian: belum diterima lewat SLA atau siap belum diambil", () => {
+    const now = new Date("2026-11-10T10:10:00Z").getTime();
+    const at = (min: number) => new Date(now - min * 60_000).toISOString();
+    const orders = [
+      { status: "queue", createdAt: at(1), readyAt: null },
+      { status: "queue", createdAt: at(3), readyAt: null },
+      { status: "cooking", createdAt: at(9), readyAt: null },
+      { status: "ready", createdAt: at(9), readyAt: at(4), claimedByName: null },
+      { status: "ready", createdAt: at(9), readyAt: at(4), claimedByName: "Waiter A" },
+      { status: "ready", createdAt: at(9), readyAt: at(1), claimedByName: null },
+    ];
+    expect(partnerOrdersNeedingAttention(orders, now, 2, 3)).toBe(2);
   });
 });
 

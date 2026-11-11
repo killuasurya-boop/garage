@@ -176,12 +176,16 @@ test("UAT-C: Portal Mitra terima → proses → siap; 2 waiter klaim bersamaan, 
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(1);
   assertNoErrors();
-  await context.close();
 
   const kasir = await as(browser, "kasir@garage.id");
-  const orders = await call<Array<{ ticketNo: string; orderNo: string; status: string }>>(kasir.api, "GET", "/api/pos/partner-orders");
-  const ticket = orders.data.find((row) => row.orderNo === state.orders[0])!;
-  expect(ticket.status).toBe("ready");
+  const readTicket = async () => {
+    const orders = await call<Array<{ ticketNo: string; orderNo: string; status: string }>>(kasir.api, "GET", "/api/pos/partner-orders");
+    return orders.data.find((row) => row.orderNo === state.orders[0])!;
+  };
+  // Klik terakhir di portal tersimpan secara async — tunggu status server, bukan teks layar.
+  await expect.poll(async () => (await readTicket()).status, { timeout: 30_000 }).toBe("ready");
+  const ticket = await readTicket();
+  await context.close();
 
   const w1 = await as(browser, "waiter@garage.id");
   const w2 = await as(browser, "waiter2@garage.id");

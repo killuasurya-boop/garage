@@ -42,6 +42,9 @@ type PartnerFinance = {
   unsettledLines: number;
   lines: FinanceLine[];
 };
+/** Untung hijau, rugi merah — angka negatif tidak boleh tampil seperti untung. */
+const profitTone = (value: number) => (value < 0 ? "text-[#ff8a94]" : "text-[#86efac]");
+
 type SettlementRow = { settlement: { id: string; settlementNo: string; status: string; liabilityTotal: number; paidAmount: number; grossSales: number; garageProfit: number; periodFrom: string; periodTo: string; lineCount: number }; partnerName: string; partnerCode: string };
 type SettlementDetail = {
   settlement: SettlementRow["settlement"] & { totalCost: number; salesAdjustments: number; liabilityAdjustments: number };
@@ -138,7 +141,7 @@ export function DeskFinance({ role, userId }: { role: string; userId: string }) 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
         <Kpi label="Penjualan mitra (bersih)" value={rp(totals.gross)} />
         <Kpi label="Total HPP mitra" value={rp(totals.cost)} hint="semua item terjual" />
-        <Kpi label="Profit kotor Garage" value={rp(totals.profit)} tone="green" />
+        <Kpi label="Profit kotor Garage" value={rp(totals.profit)} tone={totals.profit < 0 ? "red" : "green"} hint={totals.profit < 0 ? "rugi: cek refund/void setelah siap" : undefined} />
         <Kpi label="Kewajiban setoran" value={rp(totals.liability)} tone="amber" hint="item Siap Antar" />
         <Kpi label="Sudah dibayar" value={rp(paid)} hint="semua settlement" />
         <Kpi label="Sisa setoran" value={rp(unpaid)} tone="red" hint="settlement disetujui" />
@@ -199,7 +202,7 @@ export function DeskFinance({ role, userId }: { role: string; userId: string }) 
                       <td className="px-2 py-2 tabular-nums">{rp(line.unitPrice)}</td>
                       <td className="px-2 py-2 tabular-nums">{rp(line.gross)}</td>
                       <td className="px-2 py-2 tabular-nums">{rp(line.cost)}</td>
-                      <td className="px-2 py-2 tabular-nums text-[#86efac]">{rp(line.profit)}</td>
+                      <td className={`px-2 py-2 tabular-nums ${profitTone(line.profit)}`}>{rp(line.profit)}</td>
                       <td className="px-2 py-2 tabular-nums text-[#ffd08a]">{rp(line.liability)}</td>
                       <td className="px-2 py-2">{LINE_STATUS[line.status] ?? line.status}</td>
                       <td className="px-2 py-2 text-xs text-[#b8b8bf]">{line.settlementNo ?? "-"}</td>
@@ -282,7 +285,7 @@ function SettlementActions({
           HPP <b className="block text-white">{rp(s.totalCost)}</b>
         </p>
         <p className="text-[#b8b8bf]">
-          Profit Garage <b className="block text-[#86efac]">{rp(s.garageProfit)}</b>
+          Profit Garage <b className={`block ${profitTone(s.garageProfit)}`}>{rp(s.garageProfit)}</b>
         </p>
         <p className="text-[#b8b8bf]">
           Setoran ke mitra <b className="block text-[#ffd08a]">{rp(s.liabilityTotal)}</b>

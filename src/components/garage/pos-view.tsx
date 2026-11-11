@@ -1,5 +1,6 @@
 "use client";
 
+import { usePartnerAttention } from "@/components/garage/partner-hub/use-partner-attention";
 import { statusClass, type QrWorkTab } from "@/components/garage/pos/pos-status";
 import { PosTableDetailDialog } from "@/components/garage/pos/pos-table-detail-dialog";
 import {
@@ -725,6 +726,15 @@ export function PosView({
   const [shiftPending, setShiftPending] = useState(false);
   const [shiftError, setShiftError] = useState<string | null>(null);
   const [posNotice, setPosNotice] = useState<string | null>(null);
+  // Smart Partner Hub: badge + pemberitahuan sekali saat jumlah pesanan mitra yang perlu perhatian bertambah.
+  const partnerAttention = usePartnerAttention(settings.partnerHubEnabled, settings.partnerSlaAcceptWarnMinutes, settings.partnerReadyWaitWarnMinutes);
+  const [partnerAttentionSeen, setPartnerAttentionSeen] = useState(0);
+  if (partnerAttention !== partnerAttentionSeen) {
+    setPartnerAttentionSeen(partnerAttention);
+    if (partnerAttention > partnerAttentionSeen) {
+      setPosNotice(`${partnerAttention} pesanan mitra perlu perhatian — buka Partner Hub (Mitra).`);
+    }
+  }
   // Kunci POS bertahan saat halaman di-refresh (dulu refresh = terbuka).
   const lockStorageKey = `garage:pos-locked:${me.user.id}`;
   const [locked, setLockedState] = useState(() => {
@@ -4845,7 +4855,7 @@ export function PosView({
               <PosV6NavItem icon={Wallet} label="Petty Cash" testId="pos-menu-petty" onClick={() => openModulePath("/shift?tab=petty")} />
               <PosV6NavItem icon={ClipboardList} label="Catatan Kejadian" testId="pos-menu-incident" onClick={() => openModulePath("/shift?tab=incident")} />
               {settings.partnerHubEnabled ? (
-                <PosV6NavItem icon={Handshake} label="Partner Hub (Mitra)" testId="pos-menu-partners" onClick={() => openModulePath("/partners", "Partner Hub")} />
+                <PosV6NavItem icon={Handshake} label="Partner Hub (Mitra)" testId="pos-menu-partners" count={partnerAttention} dot={partnerAttention ? "danger" : undefined} onClick={() => openModulePath("/partners", "Partner Hub")} />
               ) : null}
             </PosV6NavGroup>
             <PosV6NavGroup label="Lainnya">
@@ -8369,7 +8379,16 @@ export function PosView({
                     <PosV6ProductCard
                       key={item.id}
                       name={item.name}
-                      subtitle={isSoldOut ? "Tidak bisa dipesan" : variantText ? `${item.category} (${variantText})` : item.category}
+                      subtitle={
+                        item.partner
+                          ? `Mitra ${item.partner.name}`
+                          : isSoldOut
+                            ? "Tidak bisa dipesan"
+                            : variantText
+                              ? `${item.category} (${variantText})`
+                              : item.category
+                      }
+                      soldOutLabel={item.partner?.label ?? undefined}
                       price={hasPromo ? currency.format(item.promoPrice as number) : priceRange}
                       strikePrice={hasPromo ? priceRange : null}
                       imageUrl={item.imageUrl}

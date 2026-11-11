@@ -80,7 +80,7 @@ import {
   type ProductionMenuInfo,
 } from "@/lib/garage-production-tickets";
 import { assertPartnerItemsOrderable, createPartnerTicketsForOrder, loadPartnerLinks, recordPartnerRefundAdjustment } from "@/lib/partner-hub-orders";
-import { partnerOrderBlockReason } from "@/lib/partner-hub-rules";
+import { partnerCardLabel } from "@/lib/partner-hub-rules";
 import {
   GarageOsThemeSaveError,
   isSavableGarageOsThemePreset,
@@ -188,6 +188,7 @@ import {
   type MenuCategory,
   type MenuGroupName,
   type Role,
+  type GarageMenuItem,
 } from "@/lib/garage-data";
 import {
   enqueueFailedEarning,
@@ -1674,6 +1675,7 @@ export async function getMenuData(params?: {
     batchEligible: item.batchEligible ?? true,
     showInDigitalMenu: item.showInDigitalMenu ?? true,
     featured: item.featured ?? false,
+    partner: undefined as GarageMenuItem["partner"],
   }));
 
   // Auto-habis (opsional, setting autoSoldOutFromStock): menu yang tidak bisa
@@ -1742,15 +1744,17 @@ export async function getMenuData(params?: {
         hiddenPartnerIds.add(row.id);
         continue;
       }
-      const reason = partnerOrderBlockReason({
+      const availability = {
         hubEnabled: true,
         partnerStatus: link.partnerStatus,
         operationalStatus: link.operationalStatus,
         linkActive: link.linkActive,
         productStock: row.stock,
         lastOrderByDay: link.lastOrderByDay,
-      });
-      if (reason) row.stock = "sold_out";
+      };
+      const label = partnerCardLabel(availability);
+      row.partner = { name: link.partnerName, label };
+      if (label) row.stock = "sold_out";
     }
   }
   const visibleRows = hiddenPartnerIds.size && !params?.includeArchived ? baseRows.filter((row) => !hiddenPartnerIds.has(row.id)) : baseRows;

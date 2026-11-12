@@ -113,8 +113,19 @@ export function DeskManage({ role }: { role: string }) {
                 <h3 className="text-base font-bold text-white">
                   {partner.name} <span className="text-xs text-[#b8b8bf]">#{partner.code}</span>
                 </h3>
-                <p className="text-xs text-[#b8b8bf]">
-                  {partner.productKind ?? "-"} · {partner.phone ?? "tanpa WA"} · {partner.productCount} produk ({partner.availableCount} tersedia, {partner.soldOutCount} habis)
+                <p className="break-words text-xs text-[#b8b8bf]">
+                  {partner.productKind ?? "-"} · {partner.phone ?? "tanpa WA"}
+                </p>
+                <p className="mt-1.5 flex flex-wrap gap-1.5" aria-label="Kesiapan mitra">
+                  <Chip tone={partner.productCount ? "default" : "amber"}>
+                    {partner.productCount ? `${partner.productCount} produk · ${partner.availableCount} tersedia · ${partner.soldOutCount} habis` : "Belum ada produk"}
+                  </Chip>
+                  <Chip tone={partner.bank.some((b) => b.status === "verified") ? "green" : "amber"}>
+                    {partner.bank.some((b) => b.status === "verified") ? "Rekening terverifikasi" : partner.bank.length ? "Rekening belum diverifikasi" : "Belum ada rekening"}
+                  </Chip>
+                  <Chip tone={partner.accounts.some((a) => a.status === "active") ? "green" : "amber"}>
+                    {partner.accounts.some((a) => a.status === "active") ? `Akun portal ${partner.accounts.filter((a) => a.status === "active").length}` : "Belum ada akun portal"}
+                  </Chip>
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -210,6 +221,9 @@ function PartnerDetail({
   const [editing, setEditing] = useState<string | null>(null);
   const [pinReset, setPinReset] = useState<{ id: string; pin: string } | null>(null);
   const [hideInactive, setHideInactive] = useState(false);
+  const [statusTarget, setStatusTarget] = useState<{ to: string; label: string } | null>(null);
+  const [statusReason, setStatusReason] = useState("");
+  const [productQuery, setProductQuery] = useState("");
 
   const loadProducts = useCallback(async () => setProducts(await api<Product[]>(`/api/partners/${partner.id}/products`)), [partner.id]);
   useEffect(() => {
@@ -221,6 +235,8 @@ function PartnerDetail({
     await run(key, fn, ok);
     await loadProducts();
   };
+  const query = productQuery.trim().toLowerCase();
+  const shownProducts = (products ?? []).filter((p) => (!hideInactive || p.active) && (!query || `${p.code} ${p.name}`.toLowerCase().includes(query)));
   const moveTargets = allPartners.filter((x) => x.id !== partner.id && x.status !== "nonaktif");
 
   return (
@@ -237,8 +253,8 @@ function PartnerDetail({
                 tone={n.owner ? "success" : "ghost"}
                 busy={busy === `status-${partner.id}-${n.to}`}
                 onClick={() => {
-                  const reason = window.prompt(`Alasan: ${n.label}`);
-                  if (reason?.trim()) void run(`status-${partner.id}-${n.to}`, () => api(`/api/partners/${partner.id}/status`, { method: "POST", body: JSON.stringify({ to: n.to, reason }) }), `Status mitra: ${STATUS_LABEL[n.to]}`);
+                  setStatusReason("");
+                  setStatusTarget(statusTarget?.to === n.to ? null : n);
                 }}
               >
                 {n.label}
@@ -250,6 +266,26 @@ function PartnerDetail({
             </Btn>
           ))}
         </div>
+        {statusTarget ? (
+          <form
+            className="grid gap-2 rounded-lg border border-[#f5a742]/40 bg-[#2a1d0a]/40 p-3 sm:grid-cols-[1fr_auto_auto] sm:items-end"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const target = statusTarget;
+              const reason = statusReason.trim();
+              if (!reason) return;
+              void run(`status-${partner.id}-${target.to}`, () => api(`/api/partners/${partner.id}/status`, { method: "POST", body: JSON.stringify({ to: target.to, reason }) }), `Status mitra: ${STATUS_LABEL[target.to]}`).then(() => setStatusTarget(null));
+            }}
+          >
+            <Field label={`Alasan: ${statusTarget.label}`}>
+              <input value={statusReason} onChange={(e) => setStatusReason(e.target.value)} required maxLength={300} placeholder="mis. data sudah lengkap…" className={inputCls} />
+            </Field>
+            <Btn type="submit" tone="primary" busy={busy === `status-${partner.id}-${statusTarget.to}`} disabled={!statusReason.trim()}>
+              Simpan status
+            </Btn>
+            <Btn onClick={() => setStatusTarget(null)}>Batal</Btn>
+          </form>
+        ) : null}
         <div className="grid gap-2 sm:grid-cols-2">
           <Field label="Nama mitra">
             <input value={profile.name} onChange={(e) => setProfile({ ...profile, name: e.target.value })} className={inputCls} />
@@ -379,12 +415,21 @@ function PartnerDetail({
             void run(`addacc-${partner.id}`, () => api(`/api/partners/${partner.id}/accounts`, { method: "POST", body: JSON.stringify(account) }), "Akun mitra dibuat. Berikan PIN langsung ke mitra.").then(() => setAccount({ ...account, pin: "" }));
           }}
         >
-          <input required placeholder="No. HP login (0812…)" inputMode="tel" value={account.phone} onChange={(e) => setAccount({ ...account, phone: e.target.value })} className={inputCls} aria-label="Nomor HP login" />
-          <input required placeholder="Nama" value={account.displayName} onChange={(e) => setAccount({ ...account, displayName: e.target.value })} className={inputCls} aria-label="Nama akun" />
-          <input required placeholder="PIN 6 angka" inputMode="numeric" type="password" value={account.pin} onChange={(e) => setAccount({ ...account, pin: e.target.value.replace(/\D/g, "").slice(0, 6) })} className={inputCls} aria-label="PIN" />
-          <Btn type="submit" busy={busy === `addacc-${partner.id}`} disabled={account.pin.length !== 6}>
-            <UserPlus className="size-4" /> Buat akun
-          </Btn>
+          <Field label="No. HP login">
+            <input required placeholder="0812…" inputMode="tel" autoComplete="off" value={account.phone} onChange={(e) => setAccount({ ...account, phone: e.target.value })} className={inputCls} />
+          </Field>
+          <Field label="Nama akun">
+            <input required placeholder="mis. Bu Cidut…" autoComplete="off" value={account.displayName} onChange={(e) => setAccount({ ...account, displayName: e.target.value })} className={inputCls} />
+          </Field>
+          <Field label="PIN awal (6 angka)">
+            <input required placeholder="6 angka…" inputMode="numeric" type="password" autoComplete="new-password" value={account.pin} onChange={(e) => setAccount({ ...account, pin: e.target.value.replace(/\D/g, "").slice(0, 6) })} className={inputCls} />
+          </Field>
+          <div className="flex items-end">
+            <Btn type="submit" busy={busy === `addacc-${partner.id}`} disabled={account.pin.length !== 6}>
+              <UserPlus className="size-4" aria-hidden /> Buat akun
+            </Btn>
+          </div>
+          <p className="text-xs text-[#b8b8bf] sm:col-span-4">Mitra akan diminta membuat PIN sendiri saat pertama masuk.</p>
         </form>
       </div>
 
@@ -398,6 +443,11 @@ function PartnerDetail({
             </label>
           ) : null}
         </div>
+        {products && products.length > 6 ? (
+          <Field label="Cari produk">
+            <input type="search" value={productQuery} onChange={(e) => setProductQuery(e.target.value)} placeholder="nama atau kode…" autoComplete="off" className={inputCls} />
+          </Field>
+        ) : null}
         {isOwner && products !== null ? <MoveAllProducts partner={partner} products={products} targets={moveTargets} busy={busy} runP={runP} /> : null}
         {products === null ? (
           <p className="text-sm text-[#b8b8bf]">Memuat…</p>
@@ -405,7 +455,8 @@ function PartnerDetail({
           <p className="text-sm text-[#b8b8bf]">Belum ada produk.</p>
         ) : (
           <ul className="grid gap-2">
-            {products.filter((p) => !hideInactive || p.active).map((p) => (
+            {shownProducts.length === 0 ? <li className="text-sm text-[#b8b8bf]">Tidak ada produk yang cocok dengan pencarian.</li> : null}
+            {shownProducts.map((p) => (
               <li key={p.linkId} className="rounded-lg border border-[#2a2a30] p-3 text-sm">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="font-semibold text-white">
@@ -416,7 +467,31 @@ function PartnerDetail({
                     <Chip tone={p.available ? "green" : "red"}>{p.available ? "Tersedia" : "Habis"}</Chip>
                   </span>
                 </div>
-                <p className="mt-1 text-xs text-[#b8b8bf]">{p.variants.map((v) => `${v.label}: HPP ${rp(v.unitCost ?? 0)} · jual ${rp(v.sellPrice)} · laba ${rp(v.sellPrice - (v.unitCost ?? 0))}`).join(" | ")}</p>
+                <div className="mt-2 overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="text-[#b8b8bf]">
+                      <tr>
+                        <th className="py-1 pr-2 font-semibold">Varian</th>
+                        <th className="py-1 pr-2 text-right font-semibold">HPP mitra</th>
+                        <th className="py-1 pr-2 text-right font-semibold">Harga jual</th>
+                        <th className="py-1 text-right font-semibold">Laba Garage</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {p.variants.map((v) => {
+                        const margin = v.sellPrice - (v.unitCost ?? 0);
+                        return (
+                          <tr key={v.variantId} className="border-t border-[#2a2a30] text-[#f4f4f5]">
+                            <td className="py-1 pr-2 break-words">{v.label}</td>
+                            <td className="py-1 pr-2 text-right tabular-nums">{rp(v.unitCost ?? 0)}</td>
+                            <td className="py-1 pr-2 text-right tabular-nums">{rp(v.sellPrice)}</td>
+                            <td className={`py-1 text-right font-semibold tabular-nums ${margin < 0 ? "text-[#ff8a94]" : "text-[#86efac]"}`}>{rp(margin)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {isOwner ? (
                     <Btn tone={p.active ? "danger" : "success"} busy={busy === `pact-${p.linkId}`} onClick={() => void runP(`pact-${p.linkId}`, () => api(`/api/partners/products/${p.linkId}`, { method: "PATCH", body: JSON.stringify({ active: !p.active }) }), p.active ? "Produk dinonaktifkan." : "Produk disetujui.")}>
@@ -458,14 +533,27 @@ function PartnerDetail({
             ).then(() => setProduct({ ...product, code: "", name: "", unitCost: "", sellPrice: "" }));
           }}
         >
-          <input required placeholder="Kode (PAU-001)" value={product.code} onChange={(e) => setProduct({ ...product, code: e.target.value })} className={inputCls} aria-label="Kode produk" />
-          <input required placeholder="Nama produk" value={product.name} onChange={(e) => setProduct({ ...product, name: e.target.value })} className={inputCls} aria-label="Nama produk" />
-          <input required placeholder="Kategori" value={product.category} onChange={(e) => setProduct({ ...product, category: e.target.value })} className={inputCls} aria-label="Kategori" />
-          <input required placeholder="HPP mitra" inputMode="numeric" value={product.unitCost} onChange={(e) => setProduct({ ...product, unitCost: e.target.value.replace(/\D/g, "") })} className={inputCls} aria-label="HPP mitra" />
-          <input required placeholder="Harga jual" inputMode="numeric" value={product.sellPrice} onChange={(e) => setProduct({ ...product, sellPrice: e.target.value.replace(/\D/g, "") })} className={inputCls} aria-label="Harga jual" />
-          <Btn type="submit" tone="primary" busy={busy === `addprod-${partner.id}`}>
-            <Plus className="size-4" /> Tambah produk
-          </Btn>
+          <p className="text-sm font-bold text-white sm:col-span-2">Tambah produk</p>
+          <Field label="Kode produk">
+            <input required placeholder="PAU-001…" autoComplete="off" value={product.code} onChange={(e) => setProduct({ ...product, code: e.target.value })} className={inputCls} />
+          </Field>
+          <Field label="Nama produk">
+            <input required placeholder="mis. Dimsum Ayam…" autoComplete="off" value={product.name} onChange={(e) => setProduct({ ...product, name: e.target.value })} className={inputCls} />
+          </Field>
+          <Field label="Kategori">
+            <input required placeholder="mis. Dimsum…" autoComplete="off" value={product.category} onChange={(e) => setProduct({ ...product, category: e.target.value })} className={inputCls} />
+          </Field>
+          <Field label="HPP mitra (Rp)">
+            <input required placeholder="22000…" inputMode="numeric" autoComplete="off" value={product.unitCost} onChange={(e) => setProduct({ ...product, unitCost: e.target.value.replace(/\D/g, "") })} className={inputCls} />
+          </Field>
+          <Field label="Harga jual (Rp)">
+            <input required placeholder="25000…" inputMode="numeric" autoComplete="off" value={product.sellPrice} onChange={(e) => setProduct({ ...product, sellPrice: e.target.value.replace(/\D/g, "") })} className={inputCls} />
+          </Field>
+          <div className="flex items-end">
+            <Btn type="submit" tone="primary" busy={busy === `addprod-${partner.id}`}>
+              <Plus className="size-4" aria-hidden /> Tambah produk
+            </Btn>
+          </div>
         </form>
         <PartnerPerformanceStaff partnerId={partner.id} />
         <PartnerAuditPanel partnerId={partner.id} />

@@ -54,6 +54,8 @@ import { notifyingProduction, publishProductionChange } from "@/lib/production-e
 import type { GarageSession } from "@/lib/server-auth";
 
 const ACTIVE_TICKET_STATUSES = ["queue", "cooking", "ready"];
+// Pengaman muatan papan (bukan aturan tampil): tiket terlama selalu dimuat lebih dulu.
+export const ACTIVE_TICKET_LOAD_LIMIT = 600;
 // Tiket batal (order di-void) tetap tampil sebentar sebagai tanda "hentikan".
 const CANCELLED_VISIBLE_MS = 15 * 60 * 1000;
 
@@ -102,32 +104,32 @@ export async function getProductionBoard(garage: GarageSession): Promise<Product
   const db = getDb();
   const now = new Date();
 
-  // Tiket SIAP yang tak pernah diambil (takeaway/tanpa waiter) jangan menumpuk
-  // sampai menutupi pesanan baru: ambil yang terbaru, SIAP > 8 jam disembunyikan,
-  // dan hanya tiket outlet akun ini.
-  const staleReadyBefore = new Date(now.getTime() - 8 * 60 * 60_000);
-  const ticketRows = (
-    await db
-      .select()
-      .from(kitchenTickets)
-      .where(
-        and(
-          inArray(kitchenTickets.status, ACTIVE_TICKET_STATUSES),
-          // Tiket station "Mitra" (Smart Partner Hub) dikerjakan mitra di Portal Mitra, bukan Bar/Dapur.
-          isNull(kitchenTickets.partnerId),
-          or(ne(kitchenTickets.status, "ready"), gte(kitchenTickets.updatedAt, staleReadyBefore)),
-          or(
-            isNull(kitchenTickets.orderId),
-            inArray(
-              kitchenTickets.orderId,
-              db.select({ id: orders.id }).from(orders).where(eq(orders.outletId, garage.profile.outlet.id)),
-            ),
-          ),
-        ),
-      )
-      .orderBy(desc(kitchenTickets.createdAt))
-      .limit(300)
-  ).reverse();
+  // Production V7: tiket aktif TIDAK disembunyikan berdasarkan waktu (dulu SIAP > 8 jam hilang) dan tidak dipotong
+  // dari sisi terlama (dulu 300 terbaru → tiket terlama justru yang terbuang). Urut FIFO server: waktu masuk + nomor tiket.
+  // Batas muat hanya pengaman; bila terlampaui, yang tampil tetap yang TERLAMA dan papan diberi tanda `truncated`.
+  const activeWhere = and(
+    inArray(kitchenTickets.status, ACTIVE_TICKET_STATUSES),
+    // Tiket station "Mitra" (Smart Partner Hub) dikerjakan mitra di Portal Mitra, bukan Bar/Dapur.
+    isNull(kitchenTickets.partnerId),
+    or(
+      isNull(kitchenTickets.orderId),
+      inArray(
+        kitchenTickets.orderId,
+        db.select({ id: orders.id }).from(orders).where(eq(orders.outletId, garage.profile.outlet.id)),
+      ),
+    ),
+  );
+  const ticketRows = await db
+    .select()
+    .from(kitchenTickets)
+    .where(activeWhere)
+    .orderBy(asc(kitchenTickets.createdAt), asc(kitchenTickets.ticketNo))
+    .limit(ACTIVE_TICKET_LOAD_LIMIT);
+  let truncated: { shown: number; total: number } | null = null;
+  if (ticketRows.length >= ACTIVE_TICKET_LOAD_LIMIT) {
+    const [{ total }] = await db.select({ total: sql<number>`count(*)::int` }).from(kitchenTickets).where(activeWhere);
+    if (Number(total) > ticketRows.length) truncated = { shown: ticketRows.length, total: Number(total) };
+  }
   const ticketIds = ticketRows.map((row) => row.id);
 
   const itemRows = ticketIds.length
@@ -290,6 +292,9 @@ export async function getProductionBoard(garage: GarageSession): Promise<Product
       pendingCancel: ticket.orderId ? pendingCancelByOrder.get(ticket.orderId) ?? null : null,
       legacy,
       pendingBatchNos,
+      fifoOverride: ticket.fifoOverrideAt
+        ? { at: ticket.fifoOverrideAt.toISOString(), byName: ticket.fifoOverrideByName ?? null, reason: ticket.fifoOverrideReason ?? "" }
+        : null,
       items: legacy
         ? ticket.items.map((raw, index) => {
             const parts = legacyItemParts(raw);
@@ -465,8 +470,91 @@ export async function getProductionBoard(garage: GarageSession): Promise<Product
       busyThreshold: settings.productionBusyThreshold,
       busyExtraMinutes: settings.productionBusyExtraMinutes,
     }),
+    truncated,
+    canOverrideFifo: canOverrideFifo(garage),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Production V7 — dahulukan tiket dari FIFO (Owner/Manajer, alasan wajib, audit)
+// ---------------------------------------------------------------------------
+
+export class FifoOverrideError extends Error {
+  constructor(
+    public readonly code: "FORBIDDEN" | "REASON_REQUIRED" | "NOT_ACTIVE",
+    message: string,
+  ) {
+    super(message);
+    this.name = "FifoOverrideError";
+  }
+}
+
+function canOverrideFifo(garage: GarageSession) {
+  return garage.profile.role === "Owner" || garage.profile.role === "Manajer";
+}
+
+/**
+ * Mendahulukan (atau mengembalikan ke FIFO) satu tiket yang masih diproduksi. Tidak mengubah status produksi,
+ * nomor antrean, maupun waktu masuk — hanya posisi tampil. Setiap perubahan tercatat: pelaku, waktu, alasan,
+ * keadaan sebelum & sesudah.
+ */
+async function setFifoOverrideImpl(ticketNo: string, input: { prioritize: boolean; reason?: string }, garage: GarageSession) {
+  if (!canOverrideFifo(garage)) throw new FifoOverrideError("FORBIDDEN", "Hanya Owner/Manajer yang boleh mendahulukan pesanan dari urutan FIFO.");
+  const reason = (input.reason ?? "").trim();
+  if (reason.length < 3) throw new FifoOverrideError("REASON_REQUIRED", "Alasan wajib diisi (minimal 3 huruf).");
+  const db = getDb();
+  const result = await db.transaction(async (tx) => {
+    const [ticket] = await tx
+      .select()
+      .from(kitchenTickets)
+      .where(
+        and(
+          eq(kitchenTickets.ticketNo, ticketNo),
+          isNull(kitchenTickets.partnerId),
+          or(
+            isNull(kitchenTickets.orderId),
+            inArray(kitchenTickets.orderId, tx.select({ id: orders.id }).from(orders).where(eq(orders.outletId, garage.profile.outlet.id))),
+          ),
+        ),
+      )
+      .for("update")
+      .limit(1);
+    if (!ticket) return null;
+    if (ticket.status !== "queue" && ticket.status !== "cooking") {
+      throw new FifoOverrideError("NOT_ACTIVE", "Hanya pesanan yang masih menunggu/diproses yang bisa diubah urutannya.");
+    }
+    const now = new Date();
+    const before = ticket.fifoOverrideAt ? { at: ticket.fifoOverrideAt.toISOString(), byName: ticket.fifoOverrideByName, reason: ticket.fifoOverrideReason } : null;
+    await tx
+      .update(kitchenTickets)
+      .set(
+        input.prioritize
+          ? { fifoOverrideAt: now, fifoOverrideBy: garage.user.id, fifoOverrideByName: actorLabel(garage), fifoOverrideReason: reason, updatedAt: now }
+          : { fifoOverrideAt: null, fifoOverrideBy: null, fifoOverrideByName: null, fifoOverrideReason: null, updatedAt: now },
+      )
+      .where(eq(kitchenTickets.id, ticket.id));
+    return { ticket, before, at: now };
+  });
+  if (!result) return null;
+  await createAuditLog({
+    actor: actorLabel(garage),
+    action: input.prioritize ? "Production FIFO override" : "Production FIFO override removed",
+    object: result.ticket.orderNo ?? ticketNo,
+    device: garage.profile.deviceLabel,
+    status: input.prioritize ? "prioritized" : "fifo",
+    metadata: {
+      ticketNo,
+      orderNo: result.ticket.orderNo,
+      station: result.ticket.station,
+      table: result.ticket.tableLabel,
+      reason,
+      before: result.before,
+      after: input.prioritize ? { at: result.at.toISOString(), byName: actorLabel(garage), reason } : null,
+    },
+  });
+  return { ticketNo, prioritized: input.prioritize };
+}
+export const setFifoOverride = notifyingProduction(setFifoOverrideImpl);
 
 /**
  * Satu tombol "Siap · Panggil": tandai READY (QC) lalu langsung panggil semua waiter.

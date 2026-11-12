@@ -174,6 +174,8 @@ export type ProductionTicketView = {
   // Tiket lama tanpa porsi terstruktur (dibuat sebelum Production Hub).
   legacy: boolean;
   pendingBatchNos: string[];
+  // V7: didahulukan dari FIFO oleh Owner/Manajer (null = ikut FIFO).
+  fifoOverride?: { at: string; byName: string | null; reason: string } | null;
 };
 
 export type ProductionAllocationView = {
@@ -261,6 +263,11 @@ export type ProductionBoard = {
   completionPrints: CompletionPrintView[];
   // SLA v2: batas tahap, peringatan dini, mode ramai (dari Pengaturan outlet).
   sla: SlaConfig;
+  // V7: tiket aktif tidak pernah dipotong diam-diam. Terisi hanya bila jumlah tiket aktif melebihi batas muat
+  // (yang tampil = tiket TERLAMA lebih dulu; sisanya muncul setelah antrean berkurang).
+  truncated?: { shown: number; total: number } | null;
+  // V7: boleh mendahulukan tiket dari FIFO (Owner/Manajer).
+  canOverrideFifo?: boolean;
 };
 
 export type KitchenPerformanceRow = {

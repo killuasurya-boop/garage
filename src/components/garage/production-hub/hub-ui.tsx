@@ -17,6 +17,8 @@ export function HubSheet({
   width = "md:w-[min(560px,100vw)]",
   footer,
   variant = "drawer",
+  modal = true,
+  tall = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -27,6 +29,13 @@ export function HubSheet({
   footer?: ReactNode;
   /** "modal" = di tengah layar pada tablet/desktop (popup detail); HP tetap lembar bawah. */
   variant?: "drawer" | "modal";
+  /**
+   * V7 panel detail: false = di tablet/desktop laci TIDAK menutup antrean (tanpa latar gelap, kartu lain tetap bisa
+   * diketuk untuk mengganti isi panel). Di HP tetap lembar penuh dengan latar.
+   */
+  modal?: boolean;
+  /** Lembar HP hampir setinggi layar (detail pesanan). */
+  tall?: boolean;
 }) {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const onCloseRef = useRef(onClose);
@@ -51,7 +60,7 @@ export function HubSheet({
   if (!open) return null;
   return (
     <div
-      className={`fixed inset-0 z-[48] flex items-end ${variant === "modal" ? "justify-center md:items-center md:p-6" : "justify-end md:items-stretch"}`}
+      className={`fixed inset-0 z-[48] flex items-end ${variant === "modal" ? "justify-center md:items-center md:p-6" : "justify-end md:items-stretch"} ${modal ? "" : "md:pointer-events-none"}`}
       role="presentation"
     >
       <button
@@ -59,15 +68,15 @@ export function HubSheet({
         aria-label="Tutup"
         tabIndex={-1}
         onClick={onClose}
-        className="absolute inset-0 bg-black/60"
+        className={`absolute inset-0 bg-black/60 ${modal ? "" : "md:hidden"}`}
       />
       <div
         ref={panelRef}
         role="dialog"
-        aria-modal="true"
+        aria-modal={modal ? "true" : undefined}
         aria-label={title}
         tabIndex={-1}
-        className={`phv4-sheet-in relative flex max-h-[88svh] w-full flex-col rounded-t-[10px] border border-[var(--phv4-border)] bg-[var(--phv4-bg2)] shadow-2xl outline-none ${
+        className={`phv4-sheet-in ${variant === "drawer" ? "phv7-drawer" : ""} pointer-events-auto relative flex w-full flex-col rounded-t-[10px] border border-[var(--phv4-border)] bg-[var(--phv4-bg2)] pb-[env(safe-area-inset-bottom)] shadow-2xl outline-none ${tall ? "h-[94svh] max-h-[94svh] md:h-auto" : "max-h-[88svh]"} ${
           variant === "modal" ? "md:max-h-[86svh] md:rounded-[10px]" : "md:max-h-none md:rounded-none md:border-y-0 md:border-r-0"
         } ${width}`}
       >
@@ -78,12 +87,12 @@ export function HubSheet({
             type="button"
             onClick={onClose}
             aria-label="Tutup"
-            className="grid size-9 place-items-center rounded-md text-[var(--phv4-muted)] hover:bg-white/5 hover:text-white"
+            className="grid size-11 place-items-center rounded-md text-[var(--phv4-muted)] hover:bg-white/5 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
           >
             <X className="size-4" />
           </button>
         </header>
-        <div className="garage-scroll min-h-0 flex-1 overflow-y-auto p-3">{children}</div>
+        <div className="garage-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain p-3">{children}</div>
         {footer ? <div className="shrink-0 border-t border-[var(--phv4-border)] p-3">{footer}</div> : null}
       </div>
     </div>
@@ -92,7 +101,7 @@ export function HubSheet({
 
 export const STATUS_TONE: Record<HubStatus, { text: string; bg: string; bar: string }> = {
   waiting: { text: "text-[#1a1203]", bg: "bg-[var(--phv4-wait)]", bar: "border-l-[var(--phv4-wait)]" },
-  processing: { text: "text-white", bg: "bg-[var(--phv4-process)]", bar: "border-l-[var(--phv4-process)]" },
+  processing: { text: "text-[#04222f]", bg: "bg-[var(--phv4-process)]", bar: "border-l-[var(--phv4-process)]" },
   ready: { text: "text-[#052e16]", bg: "bg-[var(--phv4-success)]", bar: "border-l-[var(--phv4-success)]" },
   delivering: { text: "text-[#052e16]", bg: "bg-[#86efac]", bar: "border-l-[#86efac]" },
   done: { text: "text-white", bg: "bg-[#4b5563]", bar: "border-l-[#4b5563]" },

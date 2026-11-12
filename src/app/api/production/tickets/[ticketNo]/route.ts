@@ -7,6 +7,7 @@ import {
   productionReadyAndCall,
   productionServeDirect,
   productionTicketAction,
+  setFifoOverride,
 } from "@/lib/garage-production";
 import { productionErrorResponse } from "@/lib/garage-production-http";
 import { requirePermission } from "@/lib/server-auth";
@@ -36,6 +37,11 @@ const actionSchema = z.discriminatedUnion("action", [
     action: z.literal("serve_direct"),
   }),
   z.object({
+    // V7: Owner/Manajer mendahulukan tiket dari FIFO / mengembalikannya (alasan wajib, tercatat di audit).
+    action: z.enum(["prioritize", "unprioritize"]),
+    reason: z.string().trim().min(3, "Alasan wajib diisi.").max(200),
+  }),
+  z.object({
     // Helper tap nama waiter yang mengambil di meja saji → tiket delivered.
     action: z.literal("pickup"),
     waiterUserId: z.string().trim().min(1).max(80),
@@ -59,19 +65,21 @@ export async function POST(
   const { ticketNo } = await context.params;
   try {
     const data = body.data;
-    const ticket =
-      data.action === "handover"
-        ? await productionHandover(ticketNo, data.waiterUserId, session.data)
-        : data.action === "ready_call"
-          ? await productionReadyAndCall(ticketNo, session.data, { qcConfirmed: data.qcConfirmed })
-          : data.action === "serve_direct"
-            ? await productionServeDirect(ticketNo, session.data)
-          : data.action === "pickup"
-            ? await productionPickup(ticketNo, data.waiterUserId, session.data)
-            : await productionTicketAction(ticketNo, data.action, session.data, {
-                qcConfirmed: data.qcConfirmed,
-                reason: data.reason,
-              });
+    let ticket: unknown;
+    if (data.action === "prioritize" || data.action === "unprioritize") {
+      ticket = await setFifoOverride(ticketNo, { prioritize: data.action === "prioritize", reason: data.reason }, session.data);
+    } else if (data.action === "handover") {
+      ticket = await productionHandover(ticketNo, data.waiterUserId, session.data);
+    } else if (data.action === "ready_call") {
+      ticket = await productionReadyAndCall(ticketNo, session.data, { qcConfirmed: data.qcConfirmed });
+    } else if (data.action === "serve_direct") {
+      ticket = await productionServeDirect(ticketNo, session.data);
+    } else if (data.action === "pickup") {
+      ticket = await productionPickup(ticketNo, data.waiterUserId, session.data);
+    } else {
+      const basic = data as { action: "start" | "ready" | "reopen"; qcConfirmed?: boolean; reason?: string };
+      ticket = await productionTicketAction(ticketNo, basic.action, session.data, { qcConfirmed: basic.qcConfirmed, reason: basic.reason });
+    }
     if (!ticket) {
       return fail(404, "TICKET_NOT_FOUND", "Tiket produksi tidak ditemukan.");
     }

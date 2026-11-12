@@ -1352,6 +1352,13 @@
       "when": 1794430638499,
       "tag": "0192_partner_must_change_pin",
       "breakpoints": true
+    },
+    {
+      "idx": 193,
+      "version": "7",
+      "when": 1794506040771,
+      "tag": "0193_production_fifo_override",
+      "breakpoints": true
     }
   ]
 }

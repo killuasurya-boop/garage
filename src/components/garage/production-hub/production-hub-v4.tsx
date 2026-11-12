@@ -8,9 +8,11 @@ import {
   AlertTriangle,
   BarChart3,
   Bike,
-  ChevronLeft,
-  ChevronRight,
+  ChefHat,
+  Clock,
+  Gauge,
   History,
+  Lightbulb,
   LayoutGrid,
   Layers,
   LogOut,
@@ -18,8 +20,6 @@ import {
   Minimize2,
   MessageCircle,
   MoreHorizontal,
-  PanelRightClose,
-  PanelRightOpen,
   Printer,
   RefreshCw,
   Search,
@@ -27,6 +27,7 @@ import {
   Sparkles,
   Volume2,
   VolumeX,
+  WifiOff,
   X,
 } from "lucide-react";
 
@@ -68,18 +69,17 @@ import {
 } from "@/lib/garage-production-rules";
 import type { CompletionPrintView } from "@/lib/production-completion-print-rules";
 import type { ProductionHistoryOrder } from "@/lib/production-hub-history";
+import { hubStatusOf, slaLevelOf, sortHubTickets, type HubAction } from "@/lib/production-hub-v4";
 import {
-  DENSITY_PRESETS,
-  groupSiblings,
-  hubStatusOf,
-  resolveGrid,
-  slaLevelOf,
-  sortHubTickets,
-  stabilizeOrder,
-  type DensityId,
-  type HubAction,
-  type HubSortMode,
-} from "@/lib/production-hub-v4";
+  boardColumns,
+  fifoPositions,
+  orderProgress,
+  productionIndicators,
+  productionKpis,
+  stationName,
+  syncHealth,
+  type ProductionIndicator,
+} from "@/lib/production-v7";
 import { busyExtraByStation, DEFAULT_SLA_CONFIG } from "@/lib/production-sla";
 import { soundAreaFor } from "@/lib/hub-sound-rules";
 import { useProductionStream } from "@/lib/use-production-stream";
@@ -87,7 +87,7 @@ import { useProductionStream } from "@/lib/use-production-stream";
 import { BatchView, type BatchActions } from "./batch-view";
 import { HistoryPanel } from "./history-panel";
 import { HubSheet, Segmented, SelectBox } from "./hub-ui";
-import { OrderDetail } from "./order-detail";
+import { OrderDetail, OrderDetailFooter } from "./order-detail";
 import { OrderCard, tableText, type SiblingInfo } from "./order-card";
 import { AutoPrintSwitch, PrinterPanel } from "./printer-panel";
 import { ReadyQueue, type ReadyTab } from "./ready-queue";
@@ -102,38 +102,50 @@ const VoiceSettingsDialog = dynamic(
 const POLL_MS = 4000;
 const POLL_LIVE_MS = 15_000;
 const READY_STALE_MS = 2 * 60_000;
-const GAP = 8;
-const PREFS_KEY = "garage:phv4:prefs";
+// V7: kunci baru supaya preferensi lama (filter "Produksi" + urut "Prioritas" + halaman) tidak terbawa —
+// papan kini selalu tiga kolom, urut FIFO, tanpa halaman.
+const PREFS_KEY = "garage:phv7:prefs";
 
 type Area = "all" | "Bar" | "Food";
-type GridFilter = "production" | "waiting" | "processing" | "ready" | "all";
-type Sheet = null | "batch" | "ready" | "history" | "printer" | "more" | "waiter";
+type Sheet = null | "batch" | "history" | "printer" | "more" | "waiter" | "insight";
 type MobileTab = "produksi" | "batch" | "ready" | "history" | "more";
+type MobileColumn = "waiting" | "processing";
 
 // zoom = Layar LCD/TV yang dibaca dari 1–3 m (fitur layar lama, audit P3).
 type HubZoom = "100" | "125" | "150";
-type Prefs = { density: DensityId; sort: HubSortMode; filter: GridFilter; zoom: HubZoom };
-const DEFAULT_PREFS: Prefs = { density: "auto", sort: "priority", filter: "production", zoom: "100" };
+type Prefs = { zoom: HubZoom };
+const DEFAULT_PREFS: Prefs = { zoom: "100" };
 
 function loadPrefs(): Prefs {
   try {
     const raw = JSON.parse(localStorage.getItem(PREFS_KEY) ?? "null") as Partial<Prefs> | null;
-    return {
-      density: (["auto", "8", "12", "15", "18", "24"] as const).includes(raw?.density as DensityId)
-        ? (raw?.density as DensityId)
-        : DEFAULT_PREFS.density,
-      sort: (["priority", "oldest", "newest"] as const).includes(raw?.sort as HubSortMode)
-        ? (raw?.sort as HubSortMode)
-        : DEFAULT_PREFS.sort,
-      filter: (["production", "waiting", "processing", "ready", "all"] as const).includes(raw?.filter as GridFilter)
-        ? (raw?.filter as GridFilter)
-        : DEFAULT_PREFS.filter,
-      zoom: (["100", "125", "150"] as const).includes(raw?.zoom as HubZoom) ? (raw?.zoom as HubZoom) : DEFAULT_PREFS.zoom,
-    };
+    return { zoom: (["100", "125", "150"] as const).includes(raw?.zoom as HubZoom) ? (raw?.zoom as HubZoom) : DEFAULT_PREFS.zoom };
   } catch {
     return DEFAULT_PREFS;
   }
 }
+
+function useOnline() {
+  return useSyncExternalStore(
+    (cb) => {
+      window.addEventListener("online", cb);
+      window.addEventListener("offline", cb);
+      return () => {
+        window.removeEventListener("online", cb);
+        window.removeEventListener("offline", cb);
+      };
+    },
+    () => navigator.onLine,
+    () => true,
+  );
+}
+
+const INDICATOR_TONE: Record<ProductionIndicator["level"], string> = {
+  critical: "border-[var(--phv4-critical)] bg-[var(--phv4-critical)]/12",
+  warn: "border-[var(--phv4-wait)]/70 bg-[var(--phv4-wait)]/10",
+  info: "border-[var(--phv4-border)] bg-[var(--phv4-card)]",
+};
+const INDICATOR_KIND: Record<ProductionIndicator["kind"], string> = { fakta: "Fakta", hitungan: "Hitungan", saran: "Saran" };
 
 function useMedia(query: string) {
   return useSyncExternalStore(
@@ -145,10 +157,6 @@ function useMedia(query: string) {
     () => window.matchMedia(query).matches,
     () => true,
   );
-}
-
-function sameKeys(a: string[], b: string[]) {
-  return a.length === b.length && a.every((key, i) => key === b[i]);
 }
 
 export function ProductionHubV4({
@@ -184,7 +192,6 @@ export function ProductionHubV4({
 
   const isDesktop = useMedia("(min-width: 768px)");
   const isLarge = useMedia("(min-width: 1280px)");
-  const isWide = useMedia("(min-width: 1600px)");
   const lcd = useLcdMode();
 
   const [board, setBoard] = useState<ProductionBoard | null>(null);
@@ -196,21 +203,23 @@ export function ProductionHubV4({
   const [area, setArea] = useState<Area>(stationOfDevice);
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
   const [query, setQuery] = useState("");
-  const [page, setPage] = useState(0);
+  const [mobileColumn, setMobileColumn] = useState<MobileColumn>("waiting");
+  const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
+  const online = useOnline();
   const [sheet, setSheet] = useState<Sheet>(null);
   // Desktop/tablet: tampilan utama Produksi (grid order) atau Batch Produksi (tabel batch).
   const [view, setView] = useState<"produksi" | "batch">("produksi");
   const [mobileTab, setMobileTab] = useState<MobileTab>("produksi");
-  const [readyPanel, setReadyPanel] = useState<boolean | null>(null);
   const [readyTab, setReadyTab] = useState<ReadyTab>("ready");
   const [detail, setDetail] = useState<string | null>(null);
   const [waiterFor, setWaiterFor] = useState<string | null>(null);
   const [batchStation, setBatchStation] = useState<"Bar" | "Food">(stationOfDevice === "Food" ? "Food" : "Bar");
-  const [locked, setLocked] = useState<Set<string>>(new Set());
-  // Kartu yang baru ditekan tetap di tempat 5 detik (layar sentuh tidak punya hover).
-  const [recent, setRecent] = useState<string[]>([]);
-  const [lastOrder, setLastOrder] = useState<string[]>([]);
-  const [box, setBox] = useState({ w: 0, h: 0 });
+  // V7: tiket terakhir yang dibuka — bila tiket hilang dari papan (diantar/dibatalkan) panel detail TIDAK
+  // menutup diam-diam atau berganti ke pesanan lain; ia menampilkan pemberitahuan dengan data terakhir.
+  const lastDetailRef = useRef<ProductionTicketView | null>(null);
+  // V7: tiket yang sudah pernah tampil per kolom → kartu baru/baru pindah kolom disorot singkat sekali.
+  const seenRef = useRef<Map<string, string>>(new Map());
+  const [freshSet, setFreshSet] = useState<ReadonlySet<string>>(() => new Set());
   const [done, setDone] = useState<ProductionHistoryOrder[]>([]);
   const [doneLoading, setDoneLoading] = useState(false);
   const [historyKey, setHistoryKey] = useState(0);
@@ -218,8 +227,6 @@ export function ProductionHubV4({
   const [reportOpen, setReportOpen] = useState(false);
   const [shiftReport, setShiftReport] = useState<KitchenShiftReport | null>(null);
   const [voiceOpen, setVoiceOpen] = useState(false);
-  const gridHostRef = useRef<HTMLDivElement | null>(null);
-  const hasBoard = board !== null;
   const portalTarget = useSyncExternalStore(
     () => () => undefined,
     () => document.body,
@@ -233,6 +240,7 @@ export function ProductionHubV4({
       const data = await garageApi.get<ProductionBoard>("/api/production", { cache: "no-store" });
       setBoard(data);
       setLoadError(null);
+      setLastSyncAt(Date.now());
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "Gagal memuat papan produksi.");
     } finally {
@@ -290,19 +298,6 @@ export function ProductionHubV4({
     else delete document.documentElement.dataset.phv4Aya;
   }, [ayaOn]);
 
-  useEffect(() => {
-    const host = gridHostRef.current;
-    if (!host) return;
-    const observer = new ResizeObserver(([entry]) => {
-      const { width, height } = entry.contentRect;
-      setBox((current) =>
-        Math.abs(current.w - width) < 1 && Math.abs(current.h - height) < 1 ? current : { w: width, h: height },
-      );
-    });
-    observer.observe(host);
-    return () => observer.disconnect();
-  }, [isDesktop, hasBoard]);
-
   function savePrefs(next: Partial<Prefs>) {
     setPrefs((current) => {
       const value = { ...current, ...next };
@@ -313,7 +308,6 @@ export function ProductionHubV4({
       }
       return value;
     });
-    setPage(0);
   }
 
   // ---------------------------------------------------------------- derived
@@ -373,63 +367,24 @@ export function ProductionHubV4({
   );
 
   const q = query.trim().toLowerCase();
-  const gridTickets = useMemo(() => {
-    return areaTickets.filter((t) => {
-      const s = hubStatusOf(t);
-      const okStatus =
-        prefs.filter === "all"
-          ? true
-          : prefs.filter === "production"
-            ? s === "waiting" || s === "processing"
-            : prefs.filter === "ready"
-              ? s === "ready" || s === "delivering"
-              : s === prefs.filter;
-      if (!okStatus) return false;
-      if (!q) return true;
-      return [t.orderNo ?? "", t.ticketNo, t.table, tableText(t.table), t.identity, ...t.items.map((i) => i.label)]
+  // Pencarian hanya menyaring TAMPILAN (dengan tanda jelas); tanpa pencarian semua tiket aktif selalu tampil.
+  const shownTickets = useMemo(() => {
+    if (!q) return areaTickets;
+    return areaTickets.filter((t) =>
+      [t.orderNo ?? "", t.ticketNo, t.table, tableText(t.table), t.identity, t.queueNo ? `#${t.queueNo}` : "", ...t.items.map((i) => i.label)]
         .join(" ")
         .toLowerCase()
-        .includes(q);
-    });
-  }, [areaTickets, prefs.filter, q]);
-
-  const sortedKeys = useMemo(
-    () => {
-      const sorted = sortHubTickets(gridTickets, now, prefs.sort, {
-        cfg: slaCfg,
-        busyExtra: (t) => busyExtra[t.station],
-      });
-      return (area === "all" ? groupSiblings(sorted, (t) => t.orderId) : sorted).map((t) => t.ticketNo);
-    },
-    [gridTickets, now, prefs.sort, area, slaCfg, busyExtra],
+        .includes(q),
+    );
+  }, [areaTickets, q]);
+  // Kolom & posisi FIFO: murni dari waktu masuk server (lihat production-v7.ts). `dayKey` berganti saat ganti hari WIB.
+  const dayKey = Math.floor((now + 7 * 3_600_000) / 86_400_000);
+  const columns = useMemo(
+    () => boardColumns(shownTickets, dayKey * 86_400_000 - 7 * 3_600_000 + 1),
+    [shownTickets, dayKey],
   );
-  const sortedSig = sortedKeys.join("|");
-  const order = useMemo(
-    () =>
-      stabilizeOrder(lastOrder, sortedSig ? sortedSig.split("|") : [], [
-        ...locked,
-        ...recent,
-        ...(busyKey ? [busyKey.split(":")[1]] : []),
-      ]),
-    [lastOrder, sortedSig, locked, recent, busyKey],
-  );
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- simpan urutan tampil untuk penstabil berikutnya
-    if (!sameKeys(order, lastOrder)) setLastOrder(order);
-  }, [order, lastOrder]);
+  const positions = useMemo(() => fifoPositions(tickets), [tickets]);
   const byNo = useMemo(() => new Map(tickets.map((t) => [t.ticketNo, t])), [tickets]);
-  const ordered = useMemo(
-    () => order.map((key) => byNo.get(key)).filter((t): t is ProductionTicketView => Boolean(t)),
-    [order, byNo],
-  );
-
-  const grid = resolveGrid(prefs.density, box.w, box.h, GAP);
-  const pageSize = Math.max(1, grid.cols * grid.rows);
-  const pages = Math.max(1, Math.ceil(ordered.length / pageSize));
-  const safePage = Math.min(page, pages - 1);
-  const visible = isDesktop ? ordered.slice(safePage * pageSize, safePage * pageSize + pageSize) : ordered;
-  const cardHeight = grid.rows ? (box.h - GAP * (grid.rows - 1)) / grid.rows : 240;
-  const maxLines = isDesktop ? Math.max(1, Math.floor((cardHeight - 128) / 20)) : 8;
 
   const readyTickets = useMemo(
     () =>
@@ -440,14 +395,12 @@ export function ProductionHubV4({
       ),
     [areaTickets, now],
   );
-  // Antrean siap = panel kanan di layar ≥1280px; tablet = overlay (grid tetap 4×2).
-  // Audit P1: di 1280–1599 (laptop 1366) panel dulu tertutup sehingga pesanan SIAP hanya
-  // tampak sebagai angka → kini terbuka otomatis selama ada pesanan siap (tetap bisa ditutup).
-  const showReadyPanel = isLarge && (readyPanel ?? (isWide || readyTickets.length > 0));
+  // V7: kolom SIAP selalu tampil di tablet/desktop (tidak lagi disembunyikan di balik tombol).
+  const showReadyPanel = isDesktop;
   // Pesanan siap > 2 menit belum diantar → tanda mencolok di header (waiter lupa dipanggil).
   const readyStale = readyTickets.filter((t) => t.readyAt && now - Date.parse(t.readyAt) > READY_STALE_MS).length;
-  const suggestions = board?.suggestions ?? [];
-  const batches = board?.batches ?? [];
+  const suggestions = useMemo(() => board?.suggestions ?? [], [board?.suggestions]);
+  const batches = useMemo(() => board?.batches ?? [], [board?.batches]);
   const batchCount = suggestions.filter((s) => inArea(s.station)).length + batches.filter((b) => inArea(b.station)).length;
   const cancelled = (board?.cancelled ?? []).filter((c) => inArea(c.station));
   const canOperate = board?.canOperate ?? { Bar: false, Food: false };
@@ -457,7 +410,43 @@ export function ProductionHubV4({
   const failedJobs = jobs.filter((j) => j.status === "failed").length;
   const queuedJobs = jobs.filter((j) => j.status === "pending" || j.status === "printing").length;
   const printerTone = failedJobs ? "bg-[var(--phv4-critical)]" : printer.enabled ? "bg-[var(--phv4-success)]" : "bg-[var(--phv4-wait)]";
-  const detailTicket = detail ? byNo.get(detail) ?? null : null;
+  // V7: KPI, indikator dan status sinkron — semuanya dari data papan yang sebenarnya.
+  const coarseNow = Math.floor(now / 5000) * 5000;
+  const kpi = useMemo(
+    () =>
+      productionKpis({
+        tickets: areaTickets,
+        batches: batches.filter((b) => inArea(b.station)),
+        suggestions: suggestions.filter((s) => inArea(s.station)),
+        now: coarseNow,
+        sla: slaCfg,
+        busyExtra,
+      }),
+    [areaTickets, batches, suggestions, inArea, coarseNow, slaCfg, busyExtra],
+  );
+  const indicators = useMemo(
+    () =>
+      productionIndicators({
+        tickets: areaTickets,
+        suggestions: suggestions.filter((s) => inArea(s.station)),
+        load: (board?.load ?? []).filter((l) => inArea(l.station)),
+        now: coarseNow,
+        sla: slaCfg,
+        busyExtra,
+        truncated: board?.truncated ?? null,
+      }),
+    [areaTickets, suggestions, board?.load, board?.truncated, inArea, coarseNow, slaCfg, busyExtra],
+  );
+  const urgentIndicators = indicators.filter((i) => i.level !== "info").length;
+  const sync = syncHealth({ online, streamConnected: live, lastError: loadError, lastSyncAt, now });
+  const liveDetail = detail ? byNo.get(detail) ?? null : null;
+  useEffect(() => {
+    if (liveDetail) lastDetailRef.current = liveDetail;
+    else if (!detail) lastDetailRef.current = null;
+  }, [liveDetail, detail]);
+  // eslint-disable-next-line react-hooks/refs -- snapshot terakhir hanya dipakai saat tiket sudah keluar dari papan
+  const detailTicket = liveDetail ?? (detail && lastDetailRef.current?.ticketNo === detail ? lastDetailRef.current : null);
+  const detailGone = Boolean(detail && !liveDetail && detailTicket);
   const waiterTicket = waiterFor ? byNo.get(waiterFor) ?? null : null;
 
   const loadDone = useCallback(async () => {
@@ -478,23 +467,29 @@ export function ProductionHubV4({
     }
   }, [area]);
   useEffect(() => {
-    const readyVisible = showReadyPanel || sheet === "ready" || mobileTab === "ready";
+    const readyVisible = showReadyPanel || mobileTab === "ready";
     if (readyTab !== "done" || !readyVisible) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch saat tab Selesai dibuka
     void loadDone();
-  }, [readyTab, showReadyPanel, sheet, mobileTab, loadDone, board?.generatedAt]);
+  }, [readyTab, showReadyPanel, mobileTab, loadDone, board?.generatedAt]);
+
+  // Catat kolom tiap tiket SETELAH render, supaya sorotan "baru" hanya muncul sekali per perpindahan.
+  useEffect(() => {
+    const next = new Map<string, string>();
+    for (const t of columns.waiting) next.set(t.ticketNo, "waiting");
+    for (const t of columns.processing) next.set(t.ticketNo, "processing");
+    for (const t of [...columns.ready, ...columns.readyEarlier]) next.set(t.ticketNo, "ready");
+    const prev = seenRef.current;
+    const moved = new Set<string>();
+    // Muat pertama (prev kosong) tidak disorot: semua kartu "baru" sekaligus hanya jadi kebisingan.
+    if (prev.size) for (const [no, column] of next) if (prev.get(no) !== column) moved.add(no);
+    if (!next.size) next.set("__init", "init");
+    seenRef.current = next;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sorotan sekali per perpindahan kolom
+    setFreshSet((current) => (moved.size || current.size ? moved : current));
+  }, [columns]);
 
   // ---------------------------------------------------------------- actions
-  const onInteract = useCallback((ticketNo: string, active: boolean) => {
-    setLocked((current) => {
-      if (active === current.has(ticketNo)) return current;
-      const next = new Set(current);
-      if (active) next.add(ticketNo);
-      else next.delete(ticketNo);
-      return next;
-    });
-  }, []);
-
   async function runAction(key: string, fn: () => Promise<unknown>, success?: string) {
     if (busyKey) return false;
     setBusyKey(key);
@@ -522,8 +517,6 @@ export function ProductionHubV4({
   const onAction = useCallback(
     (ticket: ProductionTicketView, action: HubAction) => {
       const key = `${action}:${ticket.ticketNo}`;
-      setRecent((current) => [...current.filter((no) => no !== ticket.ticketNo), ticket.ticketNo]);
-      window.setTimeout(() => setRecent((current) => current.filter((no) => no !== ticket.ticketNo)), 5000);
       if (action === "start") void runAction(key, () => ticketPost(ticket, { action: "start" }));
       else if (action === "finish") void runAction(key, () => ticketPost(ticket, { action: "ready", qcConfirmed: true }));
       else if (action === "call") void runAction(key, () => ticketPost(ticket, { action: "ready_call" }), "Waiter dipanggil.");
@@ -588,25 +581,20 @@ export function ProductionHubV4({
     onNavigateModule?.("dashboard");
   }
 
-  function openPanel(next: "batch" | "ready" | "history" | "printer") {
-    if (next === "printer") return setSheet("printer");
-    if (!isDesktop) return setMobileTab(next);
-    if (next === "ready") return isLarge ? setReadyPanel(!showReadyPanel) : setSheet("ready");
-    if (next === "batch") return setView("batch");
-    setSheet(next);
+  function setOverride(ticket: ProductionTicketView, prioritize: boolean, reason: string) {
+    return runAction(
+      `fifo:${ticket.ticketNo}`,
+      () => ticketPost(ticket, { action: prioritize ? "prioritize" : "unprioritize", reason }),
+      prioritize ? "Pesanan didahulukan (tercatat di audit)." : "Pesanan kembali ke urutan FIFO.",
+    );
   }
-
-
   // ---------------------------------------------------------------- pieces
   const clock = new Date(now).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   const areaSelect = (
     <SelectBox
       label="Area"
       value={area}
-      onChange={(v) => {
-        setArea(v);
-        setPage(0);
-      }}
+      onChange={(v) => setArea(v)}
       options={[
         { value: "all", label: "Semua" },
         { value: "Bar", label: "Bar" },
@@ -614,55 +602,100 @@ export function ProductionHubV4({
       ]}
     />
   );
-  const countPills = (
-    <>
-      {(
-        [
-          ["WAIT", counts.waiting, "text-[var(--phv4-wait)]", "waiting"],
-          ["PROCESS", counts.processing, "text-[#60a5fa]", "processing"],
-          ["READY", counts.ready, "text-[var(--phv4-success)]", "ready"],
-        ] as const
-      ).map(([label, value, tone, filter]) => (
-        <button
-          key={label}
-          type="button"
-          onClick={() => {
-            if (filter === "ready") return openPanel("ready");
-            setView("produksi");
-            savePrefs({ filter });
-          }}
-          className="flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-[var(--phv4-border)] bg-[var(--phv4-bg)] px-2 text-[12px] font-bold tracking-wide text-[var(--phv4-muted)] hover:text-white"
-        >
-          {label}
-          <span className={`phv4-mono text-[15px] ${tone}`}>{String(value).padStart(2, "0")}</span>
-        </button>
-      ))}
-      {counts.critical ? (
-        <span className="flex h-8 shrink-0 items-center gap-1 rounded-md bg-[var(--phv4-critical)]/15 px-2 text-[12px] font-bold text-[#fecaca]">
-          <AlertTriangle className="size-3.5" /> SLA <span className="phv4-mono text-[14px]">{counts.critical}</span>
-        </span>
-      ) : null}
-      {readyStale ? (
-        <button
-          type="button"
-          onClick={() => openPanel("ready")}
-          className="flex h-8 shrink-0 animate-pulse items-center gap-1 rounded-md bg-[var(--phv4-critical)] px-2 text-[12px] font-bold text-white"
-        >
-          <Bike className="size-3.5" /> SIAP &gt;2 MNT <span className="phv4-mono text-[14px]">{readyStale}</span>
-        </button>
-      ) : null}
-      {(["Bar", "Food"] as const)
-        .filter((st) => inArea(st) && busyExtra[st] > 0)
-        .map((st) => (
-          <span
-            key={st}
-            title={`Antrean ${st === "Bar" ? "Bar" : "Dapur"} ≥ ${slaCfg.busyThreshold} tiket: target tampilan +${busyExtra[st]} menit`}
-            className="flex h-8 shrink-0 items-center gap-1 rounded-md border border-[var(--phv4-wait)]/60 bg-[var(--phv4-wait)]/12 px-2 text-[12px] font-bold text-[var(--phv4-wait)]"
-          >
-            RAMAI {st === "Bar" ? "BAR" : "DAPUR"} +{busyExtra[st]} mnt
-          </span>
-        ))}
-    </>
+  // V7 header: status sinkron berlabel (bukan hanya warna).
+  const syncTone =
+    sync.state === "connected" ? "border-[var(--phv4-success)]/60 text-[var(--phv4-success)]" : sync.state === "offline" ? "border-[var(--phv4-critical)] bg-[var(--phv4-critical)]/15 text-[#fecaca]" : "border-[var(--phv4-sync)] bg-[var(--phv4-sync)]/12 text-[var(--phv4-sync)]";
+  const syncChip = (
+    <span role="status" aria-live="polite" className={`flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-2 text-[12px] font-bold ${syncTone}`}>
+      {sync.state === "offline" ? <WifiOff className="size-3.5" aria-hidden /> : <span className={`size-2 rounded-full ${sync.state === "connected" ? "bg-[var(--phv4-success)]" : "bg-[var(--phv4-sync)]"}`} aria-hidden />}
+      {sync.label}
+      <span className="phv4-mono hidden text-[12px] font-semibold text-[var(--phv4-muted)] sm:inline">{clock}</span>
+    </span>
+  );
+  const stationLoads = (board?.load ?? []).filter((l) => inArea(l.station));
+  const stationLoadText = stationLoads.map((l) => String(l.waiting + l.processing)).join(" · ");
+  const stationLoadLabel = `Beban ${stationLoads.map((l) => stationName(l.station)).join(" · ") || "stasiun"}`;
+  const kpiCells: Array<{ key: string; label: string; value: string; hint?: string; tone: string; icon: typeof Clock; onClick?: () => void }> = [
+    { key: "waiting", label: "Menunggu", value: String(kpi.waiting), tone: "text-[var(--phv4-wait)]", icon: Clock, onClick: () => setMobileColumn("waiting") },
+    { key: "processing", label: "Diproses", value: String(kpi.processing), tone: "text-[var(--phv4-process)]", icon: ChefHat, onClick: () => setMobileColumn("processing") },
+    { key: "ready", label: "Siap", value: String(kpi.ready), tone: "text-[var(--phv4-success)]", icon: Bike, onClick: () => (!isDesktop ? setMobileTab("ready") : undefined) },
+    { key: "overdue", label: "Lewat target", value: String(kpi.overdue), tone: kpi.overdue ? "text-[var(--phv4-overdue)]" : "text-white", icon: AlertTriangle, onClick: () => setSheet("insight") },
+    {
+      key: "oldest",
+      label: "Tunggu terlama",
+      value: kpi.oldestWaitingMinutes === null ? "—" : `${kpi.oldestWaitingMinutes} mnt`,
+      hint: kpi.oldestWaitingMinutes === null ? "tidak ada antrean" : undefined,
+      tone: "text-white",
+      icon: Clock,
+    },
+    {
+      key: "batch",
+      label: "Batch aktif",
+      value: String(kpi.activeBatches),
+      hint: kpi.batchSuggestions ? `${kpi.batchSuggestions} peluang` : undefined,
+      tone: "text-[var(--phv4-batch)]",
+      icon: Layers,
+      onClick: () => (isDesktop ? setView("batch") : setMobileTab("batch")),
+    },
+    { key: "load", label: stationLoadLabel, value: stationLoadText || "—", hint: "tiket aktif", tone: "text-white", icon: Gauge },
+    {
+      key: "sync",
+      label: "Sinkron",
+      value: sync.state === "connected" ? "Baik" : sync.state === "offline" ? "Terputus" : "Tertunda",
+      hint: sync.ageSeconds === null ? "belum pernah" : `${sync.ageSeconds} dtk lalu`,
+      tone: sync.state === "connected" ? "text-[var(--phv4-success)]" : sync.state === "offline" ? "text-[var(--phv4-critical)]" : "text-[var(--phv4-sync)]",
+      icon: RefreshCw,
+      onClick: () => void load(),
+    },
+  ];
+  const kpiStrip = (
+    <ul aria-label="Ringkasan produksi" className="garage-scroll-x flex shrink-0 gap-1.5 overflow-x-auto px-2 py-1.5 md:px-3 [scrollbar-width:none]">
+      {kpiCells.map((cell) => {
+        const body = (
+          <>
+            <span className="flex items-center gap-1 text-[12px] font-semibold leading-4 text-[var(--phv4-muted)]">
+              <cell.icon className="hidden size-3.5 shrink-0 md:block" aria-hidden /> {cell.label}
+            </span>
+            <span className={`phv4-mono block truncate text-[18px] font-bold leading-6 ${cell.tone}`}>{cell.value}</span>
+            {cell.hint ? <span className="block truncate text-[12px] text-[var(--phv4-muted)]">{cell.hint}</span> : null}
+          </>
+        );
+        const cls = "min-w-[86px] flex-1 rounded-[8px] border border-[var(--phv4-border)] bg-[var(--phv4-bg2)] px-2 py-1.5 text-left md:min-w-[112px] md:px-2.5";
+        return (
+          <li key={cell.key} className="flex min-w-[86px] flex-1 md:min-w-[112px]">
+            {cell.onClick ? (
+              <button type="button" onClick={cell.onClick} className={`${cls} hover:border-white/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white`}>
+                {body}
+              </button>
+            ) : (
+              <div className={cls}>{body}</div>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+  const busyPills = (["Bar", "Food"] as const)
+    .filter((st) => inArea(st) && busyExtra[st] > 0)
+    .map((st) => (
+      <span
+        key={st}
+        title={`Antrean ${st === "Bar" ? "Bar" : "Dapur"} ≥ ${slaCfg.busyThreshold} tiket: target tampilan +${busyExtra[st]} menit`}
+        className="flex h-8 shrink-0 items-center gap-1 rounded-md border border-[var(--phv4-wait)]/60 bg-[var(--phv4-wait)]/12 px-2 text-[12px] font-bold text-[var(--phv4-wait)]"
+      >
+        RAMAI {st === "Bar" ? "BAR" : "DAPUR"} +{busyExtra[st]} mnt
+      </span>
+    ));
+  const indicatorButton = (
+    <button
+      type="button"
+      onClick={() => setSheet("insight")}
+      className={`flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-[13px] font-semibold hover:bg-white/5 ${urgentIndicators ? "border-[var(--phv4-wait)] text-[var(--phv4-wait)]" : "border-[var(--phv4-border)]"}`}
+      aria-label={`Indikator produksi, ${indicators.length} catatan, ${urgentIndicators} perlu perhatian`}
+    >
+      <Lightbulb className="size-4" aria-hidden /> <span className="hidden sm:inline">Indikator</span>
+      <span className="phv4-mono rounded bg-white/10 px-1 text-[12px]">{urgentIndicators || indicators.length}</span>
+    </button>
   );
   const toolButton =
     "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-[var(--phv4-border)] bg-[var(--phv4-bg)] px-2.5 text-[12px] font-semibold text-[#e5e7eb] hover:bg-white/5";
@@ -824,39 +857,44 @@ export function ProductionHubV4({
     </div>
   ) : null;
 
-  const emptyGrid = (
-    <div className="grid h-full place-items-center rounded-[8px] border border-dashed border-[var(--phv4-border)] text-center">
-      <div>
-        <LayoutGrid className="mx-auto size-6 text-[var(--phv4-muted)]" />
-        <p className="mt-2 text-[14px] font-semibold">Tidak ada pesanan {prefs.filter === "production" ? "diproduksi" : "di filter ini"}</p>
-        <p className="text-[12px] text-[var(--phv4-muted)]">
-          {counts.ready ? `${counts.ready} pesanan siap di antrean Siap Antar.` : "Pesanan baru muncul otomatis."}
-        </p>
-      </div>
-    </div>
-  );
-
   // Kartu memakai waktu kasar (5 dtk) untuk SLA; timer detik berdetak sendiri di kartu (audit P2).
-  const cardNow = Math.floor(now / 5000) * 5000;
-  const cards = visible.map((ticket) => (
-    <OrderCard
-      key={ticket.ticketNo}
-      ticket={ticket}
-      now={cardNow}
-      maxLines={maxLines}
-      busy={busyKey?.endsWith(`:${ticket.ticketNo}`) ?? false}
-      canOperate={canOperate[ticket.station]}
-      canHandover={canHandover[ticket.station]}
-      sibling={siblingOf(ticket)}
-      slaCfg={slaCfg}
-      busyExtraMinutes={busyExtra[ticket.station]}
-      fixedHeight={isDesktop}
-      onAction={onAction}
-      onOpen={onOpen}
-      onInteract={onInteract}
-    />
-  ));
-
+  const cardNow = coarseNow;
+  const renderCard = (ticket: ProductionTicketView) => {
+    return (
+      <OrderCard
+        key={ticket.ticketNo}
+        ticket={ticket}
+        now={cardNow}
+        maxLines={6}
+        busy={busyKey?.endsWith(`:${ticket.ticketNo}`) ?? false}
+        canOperate={canOperate[ticket.station]}
+        canHandover={canHandover[ticket.station]}
+        sibling={siblingOf(ticket)}
+        slaCfg={slaCfg}
+        busyExtraMinutes={busyExtra[ticket.station]}
+        position={ticket.status === "queue" ? positions.get(ticket.ticketNo) ?? null : null}
+        positionLabel={area === "all" ? (ticket.station === "Bar" ? "BAR" : "DAPUR") : "URUTAN"}
+        selected={detail === ticket.ticketNo}
+        fresh={freshSet.has(ticket.ticketNo)}
+        onAction={onAction}
+        onOpen={onOpen}
+      />
+    );
+  };
+  const columnDefs = [
+    { id: "waiting" as const, label: "MENUNGGU", hint: "urut FIFO — yang masuk dulu, dikerjakan dulu", list: columns.waiting, accent: "bg-[var(--phv4-wait)]", empty: "Tidak ada pesanan menunggu." },
+    { id: "processing" as const, label: "DIPROSES", hint: "sedang dibuat", list: columns.processing, accent: "bg-[var(--phv4-process)]", empty: "Belum ada pesanan yang diproses." },
+  ];
+  const columnBody = (def: (typeof columnDefs)[number]) =>
+    def.list.length ? (
+      <div className="phv7-col-grid grid content-start gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 250px), 1fr))" }}>
+        {def.list.map((ticket) => renderCard(ticket))}
+      </div>
+    ) : (
+      <p className="grid h-full min-h-[120px] place-items-center rounded-[8px] border border-dashed border-[var(--phv4-border)] px-3 text-center text-[13px] text-[var(--phv4-muted)]">
+        {q ? `Tidak ada yang cocok dengan "${query.trim()}".` : loadError && !board ? "Data belum bisa dimuat." : def.empty}
+      </p>
+    );
   // ---------------------------------------------------------------- render
   // Portal ke <body>: hub menutupi shell (chat FAB, widget SOP) tanpa terjebak stacking context induk.
   if (!portalTarget) return null;
@@ -880,18 +918,15 @@ export function ProductionHubV4({
             className="h-5 w-auto object-contain md:h-6"
           />
         </div>
-        <span className="hidden text-[12px] font-semibold text-[var(--phv4-muted)] lg:inline">
-          {view === "batch" && isDesktop ? "Batch Produksi" : "Production Hub"}
-        </span>
-        <span className="flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-[var(--phv4-border)] px-2 text-[12px] font-bold">
-          <span className={`size-2 rounded-full ${live ? "bg-[var(--phv4-success)] motion-safe:animate-pulse" : "bg-[var(--phv4-wait)]"}`} />
-          {live ? "LIVE" : "POLL"}
-          <span className="phv4-mono hidden text-[12px] font-semibold text-[#d1d5db] sm:inline">{clock}</span>
-        </span>
+        <h1 className="hidden text-[13px] font-bold tracking-wide text-white lg:block">
+          {view === "batch" && isDesktop ? "BATCH PRODUKSI" : "PRODUCTION"}
+          <span className="ml-1.5 font-semibold text-[var(--phv4-muted)]">· {area === "all" ? "BAR + DAPUR" : area === "Bar" ? "BAR" : "DAPUR"}</span>
+        </h1>
+        {syncChip}
         {isDesktop ? (
           <>
             {areaSelect}
-            <div className="flex min-w-0 items-center gap-1.5 overflow-hidden">{countPills}</div>
+            <div className="flex min-w-0 items-center gap-1.5 overflow-hidden">{busyPills}</div>
             <div className="ml-auto flex shrink-0 items-center gap-1.5">
               <button
                 type="button"
@@ -932,210 +967,201 @@ export function ProductionHubV4({
         )}
       </header>
 
+      {/* Data basi / gagal sinkron: selalu diberi tahu — antrean lama tidak pernah tampil seolah-olah baru. */}
+      {sync.stale && board ? (
+        <p role="alert" className={`flex shrink-0 items-center gap-2 border-b px-3 py-1.5 text-[13px] font-bold ${sync.state === "offline" ? "border-[var(--phv4-critical)] bg-[var(--phv4-critical)]/20 text-[#fecaca]" : "border-[var(--phv4-sync)] bg-[var(--phv4-sync)]/15 text-[var(--phv4-sync)]"}`}>
+          <WifiOff className="size-4 shrink-0" aria-hidden />
+          <span className="min-w-0 flex-1">
+            {sync.state === "offline" ? "KONEKSI TERPUTUS" : "MENYAMBUNG ULANG"} — data terakhir pukul{" "}
+            <span className="phv4-mono">{new Date(board.generatedAt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>, bisa sudah berubah. Pesanan di layar tetap
+            ditampilkan; aksi baru belum bisa disimpan sampai tersambung lagi.
+          </span>
+          <button type="button" onClick={() => void load()} className="h-9 shrink-0 rounded-md border border-current px-2.5 text-[12px] font-bold">
+            Coba lagi
+          </button>
+        </p>
+      ) : null}
+      {board?.truncated ? (
+        <p role="alert" className="shrink-0 border-b border-[var(--phv4-critical)] bg-[var(--phv4-critical)]/15 px-3 py-1.5 text-[13px] font-bold text-[#fecaca]">
+          Hanya {board.truncated.shown} dari {board.truncated.total} tiket aktif yang dimuat (yang terlama lebih dulu). Tutup pesanan Siap yang sudah diterima pelanggan.
+        </p>
+      ) : null}
+
       {/* Toolbar ringkas */}
       {(isDesktop && view === "produksi") || (!isDesktop && mobileTab === "produksi") ? (
         <div className="flex h-11 shrink-0 items-center gap-1.5 border-b border-[var(--phv4-border)] bg-[var(--phv4-bg)] px-2 md:px-3">
-          {/* Kiri boleh digulir horizontal; pager di kanan selalu terlihat. */}
           <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto [scrollbar-width:none]">
-          {!isDesktop ? (
-            <>
-              {areaSelect}
-              {countPills}
-            </>
-          ) : null}
-          <Segmented
-            label="Filter status"
-            value={prefs.filter}
-            onChange={(filter) => savePrefs({ filter })}
-            options={[
-              { value: "production", label: "Produksi", count: counts.waiting + counts.processing },
-              { value: "waiting", label: "Menunggu" },
-              { value: "processing", label: "Proses" },
-              { value: "ready", label: "Siap" },
-              { value: "all", label: "Semua" },
-            ]}
-          />
-          <SelectBox
-            label="Urut"
-            value={prefs.sort}
-            onChange={(sort) => savePrefs({ sort })}
-            options={[
-              { value: "priority", label: "Prioritas" },
-              { value: "oldest", label: "Terlama" },
-              { value: "newest", label: "Terbaru" },
-            ]}
-          />
-          {isDesktop ? (
-            <SelectBox
-              label="Density"
-              value={prefs.density}
-              onChange={(density) => savePrefs({ density })}
-              options={[{ value: "auto" as DensityId, label: `Auto (${grid.cols}×${grid.rows})` }, ...DENSITY_PRESETS.map((p) => ({ value: p.id as DensityId, label: p.label }))]}
-            />
-          ) : null}
-          {isDesktop ? (
-            <SelectBox
-              label="Zoom"
-              value={prefs.zoom}
-              onChange={(zoom) => savePrefs({ zoom })}
-              options={[
-                { value: "100" as HubZoom, label: "100%" },
-                { value: "125" as HubZoom, label: "125% (LCD)" },
-                { value: "150" as HubZoom, label: "150% (TV)" },
-              ]}
-            />
-          ) : null}
-          <label className="flex h-8 min-w-[140px] max-w-[240px] flex-1 items-center gap-1.5 rounded-md border border-[var(--phv4-border)] bg-[var(--phv4-bg)] px-2">
-            <Search className="size-3.5 shrink-0 text-[var(--phv4-muted)]" aria-hidden />
-            <input
-              value={query}
-              onChange={(event) => {
-                setQuery(event.target.value);
-                setPage(0);
-              }}
-              placeholder="Cari order / meja"
-              aria-label="Cari order atau meja"
-              className="h-full min-w-0 flex-1 bg-transparent text-[12px] outline-none"
-            />
-          </label>
-          {isDesktop ? (
-            <>
-              <button type="button" onClick={() => setSheet("history")} className={toolButton}>
-                <History className="size-4" /> Riwayat
+            {!isDesktop ? (
+              <Segmented
+                label="Kolom"
+                value={mobileColumn}
+                onChange={setMobileColumn}
+                options={[
+                  { value: "waiting", label: "Menunggu", count: columns.waiting.length },
+                  { value: "processing", label: "Diproses", count: columns.processing.length },
+                ]}
+              />
+            ) : null}
+            {!isDesktop ? indicatorButton : null}
+            {!isDesktop ? areaSelect : null}
+            <label className={`flex h-8 min-w-[150px] max-w-[280px] flex-1 items-center gap-1.5 rounded-md border px-2 ${q ? "border-white bg-white/10" : "border-[var(--phv4-border)] bg-[var(--phv4-bg)]"}`}>
+              <Search className="size-3.5 shrink-0 text-[var(--phv4-muted)]" aria-hidden />
+              <input
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Cari order / meja / antrean…"
+                aria-label="Cari order, meja, atau nomor antrean"
+                autoComplete="off"
+                className="h-full min-w-0 flex-1 bg-transparent text-[13px] outline-none"
+              />
+            </label>
+            {q ? (
+              <button type="button" onClick={() => setQuery("")} className="h-8 shrink-0 rounded-md border border-white px-2 text-[12px] font-bold">
+                Tampilkan semua ({areaTickets.length})
               </button>
-              <div className="hidden xl:flex">{toolsRow}</div>
-            </>
-          ) : null}
+            ) : null}
+            {isDesktop ? indicatorButton : null}
+            {isDesktop ? (
+              <>
+                <SelectBox
+                  label="Zoom"
+                  value={prefs.zoom}
+                  onChange={(zoom) => savePrefs({ zoom })}
+                  options={[
+                    { value: "100" as HubZoom, label: "100%" },
+                    { value: "125" as HubZoom, label: "125% (LCD)" },
+                    { value: "150" as HubZoom, label: "150% (TV)" },
+                  ]}
+                />
+                <button type="button" onClick={() => setSheet("history")} className={toolButton}>
+                  <History className="size-4" aria-hidden /> Riwayat
+                </button>
+                <div className="hidden xl:flex">{toolsRow}</div>
+              </>
+            ) : null}
           </div>
-          {isDesktop ? (
-            <>
-              <div className="flex shrink-0 items-center gap-1">
-                {grid.clamped ? (
-                  <span className="text-[12px] text-[var(--phv4-wait)]" title="Preset diturunkan agar teks tetap terbaca">
-                    {grid.cols * grid.rows}/{prefs.density}
-                  </span>
-                ) : null}
-                <button type="button" aria-label="Halaman sebelumnya" disabled={safePage === 0} onClick={() => setPage(safePage - 1)} className="grid size-8 place-items-center rounded-md border border-[var(--phv4-border)] disabled:opacity-40">
-                  <ChevronLeft className="size-4" />
-                </button>
-                <span className="phv4-mono min-w-[44px] text-center text-[12px] font-semibold">
-                  {safePage + 1}/{pages}
-                </span>
-                <button type="button" aria-label="Halaman berikutnya" disabled={safePage >= pages - 1} onClick={() => setPage(safePage + 1)} className="grid size-8 place-items-center rounded-md border border-[var(--phv4-border)] disabled:opacity-40">
-                  <ChevronRight className="size-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openPanel("ready")}
-                  aria-label={showReadyPanel ? "Tutup antrean siap" : "Buka antrean siap"}
-                  className="grid size-8 place-items-center rounded-md border border-[var(--phv4-border)] hover:bg-white/5"
-                >
-                  {showReadyPanel ? <PanelRightClose className="size-4" /> : <PanelRightOpen className="size-4" />}
-                </button>
-              </div>
-            </>
-          ) : null}
+          <span className="hidden shrink-0 text-[12px] font-semibold text-[var(--phv4-muted)] lg:inline">Urut FIFO · tanpa halaman</span>
         </div>
       ) : null}
+
+      {(isDesktop && view === "produksi") || (!isDesktop && mobileTab === "produksi") ? kpiStrip : null}
 
       {/* Isi utama */}
       {isDesktop && view === "batch" ? (
         <div className="flex min-h-0 flex-1">{batchView}</div>
       ) : (
-      <div className="flex min-h-0 flex-1">
-        <main className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 p-2 md:p-2">
-          {/* Toast HP: strip di alur konten (mendorong daftar, tidak menutupi kartu). */}
-          {toast && !isDesktop ? (
-            <p
-              role="status"
-              className={`shrink-0 rounded-md border px-2.5 py-1.5 text-[12px] font-semibold ${
-                toast.tone === "error"
-                  ? "border-[var(--phv4-critical)] bg-[#2a1215] text-[#fecaca]"
-                  : "border-[var(--phv4-success)]/60 bg-[#0f2418] text-[#bbf7d0]"
-              }`}
-            >
-              {toast.text}
-            </p>
-          ) : null}
-          {cancelledStrip}
-          {!board ? (
-            <div className="grid flex-1 place-items-center text-[13px] text-[var(--phv4-muted)]">
-              {loadError ? `Gagal memuat: ${loadError}` : "Memuat papan produksi…"}
-            </div>
-          ) : isDesktop ? (
-            <div ref={gridHostRef} className="phv4-grid-host min-h-0 flex-1">
-              {visible.length ? (
-                <div
-                  className="grid h-full"
-                  style={{
-                    gap: GAP,
-                    gridTemplateColumns: `repeat(${grid.cols}, minmax(0, 1fr))`,
-                    gridTemplateRows: `repeat(${grid.rows}, minmax(0, 1fr))`,
-                  }}
-                >
-                  {cards}
-                </div>
-              ) : (
-                emptyGrid
-              )}
-            </div>
-          ) : mobileTab === "produksi" ? (
-            <div className="garage-scroll min-h-0 flex-1 space-y-2 overflow-y-auto pb-2">{visible.length ? cards : emptyGrid}</div>
-          ) : mobileTab === "batch" ? (
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[8px] border border-[var(--phv4-border)]">{batchView}</div>
-          ) : (
-            <div className="garage-scroll min-h-0 flex-1 overflow-y-auto">
-              {mobileTab === "ready" ? (
-                readyQueue
-              ) : mobileTab === "history" ? (
-                <div className="p-1">{historyPanel}</div>
-              ) : (
-                <div className="space-y-3 p-1">
-                  <div className="rounded-[8px] border border-[var(--phv4-border)] bg-[var(--phv4-card)] p-3">
-                    <p className="text-[12px] text-[var(--phv4-muted)]">
-                      {me.role === "Owner" || me.role === "Manajer" ? "Manajemen (override)" : workstationLabel(me.workstation)}
-                    </p>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      <button type="button" onClick={toggleSound} className={toolButton}>
-                        {soundEnabled ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />} {soundLabel}
-                      </button>
-                      <button type="button" onClick={() => void runTestSound()} className={toolButton}>
-                        <Volume2 className="size-4" /> Tes suara
-                      </button>
-                      <button type="button" onClick={() => setVoiceOpen(true)} className={toolButton}>
-                        <Settings2 className="size-4" /> Suara/voice
-                      </button>
-                      <button type="button" onClick={() => setSheet("printer")} className={toolButton}>
-                        <Printer className="size-4" /> Printer
-                      </button>
-                      <button type="button" onClick={() => window.dispatchEvent(new Event("garage:open-team-chat"))} className={toolButton}>
-                        <MessageCircle className="size-4" /> Chat tim
-                      </button>
-                      {canViewPerformance ? (
-                        <button type="button" onClick={() => void openReport()} className={toolButton}>
-                          <BarChart3 className="size-4" /> Laporan
+        <div className="flex min-h-0 flex-1">
+          <main className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 p-2">
+            {/* Toast HP: strip di alur konten (mendorong daftar, tidak menutupi kartu). */}
+            {toast && !isDesktop ? (
+              <p
+                role="status"
+                className={`shrink-0 rounded-md border px-2.5 py-1.5 text-[12px] font-semibold ${
+                  toast.tone === "error" ? "border-[var(--phv4-critical)] bg-[#2a1215] text-[#fecaca]" : "border-[var(--phv4-success)]/60 bg-[#0f2418] text-[#bbf7d0]"
+                }`}
+              >
+                {toast.text}
+              </p>
+            ) : null}
+            {cancelledStrip}
+            {!board ? (
+              <div role={loadError ? "alert" : "status"} className="grid flex-1 place-items-center px-4 text-center text-[14px] text-[var(--phv4-muted)]">
+                {loadError ? (
+                  <span>
+                    <b className="block text-white">Papan produksi belum bisa dimuat.</b>
+                    {loadError} — antrean BELUM diketahui (bukan kosong).
+                    <button type="button" onClick={() => void load()} className="mx-auto mt-3 block h-11 rounded-md bg-[var(--phv4-red)] px-4 text-[13px] font-bold text-white">
+                      Coba lagi
+                    </button>
+                  </span>
+                ) : (
+                  "Memuat papan produksi…"
+                )}
+              </div>
+            ) : isDesktop ? (
+              <div className="flex min-h-0 flex-1 gap-2">
+                {columnDefs.map((def) => (
+                  <section key={def.id} aria-label={`Kolom ${def.label}`} className={`flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[10px] border border-[var(--phv4-border)] bg-[var(--phv4-bg2)] ${def.id === "waiting" ? "flex-[1.25]" : "flex-1"}`}>
+                    <header className="flex h-10 shrink-0 items-center gap-2 border-b border-[var(--phv4-border)] px-3">
+                      <span className={`h-4 w-1.5 rounded-full ${def.accent}`} aria-hidden />
+                      <h2 className="text-[14px] font-bold tracking-wide">{def.label}</h2>
+                      <span className="phv4-mono rounded bg-white/10 px-1.5 text-[13px] font-bold">{def.list.length}</span>
+                      <span className="ml-auto hidden truncate text-[12px] text-[var(--phv4-muted)] xl:inline">{def.hint}</span>
+                    </header>
+                    <div className="garage-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain p-2">{columnBody(def)}</div>
+                  </section>
+                ))}
+              </div>
+            ) : mobileTab === "produksi" ? (
+              <div className="garage-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain pb-2">
+                {columnBody(columnDefs.find((def) => def.id === mobileColumn) ?? columnDefs[0])}
+              </div>
+            ) : mobileTab === "batch" ? (
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[8px] border border-[var(--phv4-border)]">{batchView}</div>
+            ) : (
+              <div className="garage-scroll min-h-0 flex-1 overflow-y-auto">
+                {mobileTab === "ready" ? (
+                  readyQueue
+                ) : mobileTab === "history" ? (
+                  <div className="p-1">{historyPanel}</div>
+                ) : (
+                  <div className="space-y-3 p-1">
+                    <div className="rounded-[8px] border border-[var(--phv4-border)] bg-[var(--phv4-card)] p-3">
+                      <p className="text-[12px] text-[var(--phv4-muted)]">
+                        {me.role === "Owner" || me.role === "Manajer" ? "Manajemen (override)" : workstationLabel(me.workstation)}
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        <button type="button" onClick={toggleSound} className={toolButton}>
+                          {soundEnabled ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />} {soundLabel}
                         </button>
-                      ) : null}
+                        <button type="button" onClick={() => void runTestSound()} className={toolButton}>
+                          <Volume2 className="size-4" /> Tes suara
+                        </button>
+                        <button type="button" onClick={() => setVoiceOpen(true)} className={toolButton}>
+                          <Settings2 className="size-4" /> Suara/voice
+                        </button>
+                        <button type="button" onClick={() => setSheet("printer")} className={toolButton}>
+                          <Printer className="size-4" /> Printer
+                        </button>
+                        <button type="button" onClick={() => window.dispatchEvent(new Event("garage:open-team-chat"))} className={toolButton}>
+                          <MessageCircle className="size-4" /> Chat tim
+                        </button>
+                        {canViewPerformance ? (
+                          <button type="button" onClick={() => void openReport()} className={toolButton}>
+                            <BarChart3 className="size-4" /> Laporan
+                          </button>
+                        ) : null}
+                      </div>
                     </div>
+                    {toolsRow}
                   </div>
-                  {toolsRow}
-                </div>
-              )}
-            </div>
-          )}
-        </main>
+                )}
+              </div>
+            )}
+          </main>
 
-        {showReadyPanel ? (
-          <aside aria-label="Antrean Siap Antar" className="phv4-drawer-in flex w-[300px] shrink-0 flex-col border-l border-[var(--phv4-border)] bg-[var(--phv4-bg2)] xl:w-[320px]">
-            <div className="flex h-10 shrink-0 items-center gap-2 border-b border-[var(--phv4-border)] px-3">
-              <Bike className="size-4 text-[var(--phv4-red)]" />
-              <h2 className="text-[14px] font-bold">Siap Antar / Ambil</h2>
-              <span className="phv4-mono ml-auto rounded bg-[var(--phv4-red)] px-1.5 text-[12px] font-bold">{readyTickets.length}</span>
-            </div>
-            <div className="min-h-0 flex-1">{readyQueue}</div>
-          </aside>
-        ) : null}
-      </div>
+          {showReadyPanel ? (
+            <aside aria-label="Kolom Siap Antar" className="my-2 mr-2 flex w-[290px] shrink-0 flex-col overflow-hidden rounded-[10px] border border-[var(--phv4-border)] bg-[var(--phv4-bg2)] lg:w-[320px] min-[1600px]:w-[360px]">
+              <div className="flex h-10 shrink-0 items-center gap-2 border-b border-[var(--phv4-border)] px-3">
+                <span className="h-4 w-1.5 rounded-full bg-[var(--phv4-success)]" aria-hidden />
+                <h2 className="text-[14px] font-bold tracking-wide">SIAP</h2>
+                <span className="phv4-mono rounded bg-white/10 px-1.5 text-[13px] font-bold">{readyTickets.length}</span>
+                {readyStale ? (
+                  <span className="ml-auto flex items-center gap-1 rounded bg-[var(--phv4-critical)]/20 px-1.5 text-[12px] font-bold text-[#fecaca]">
+                    <Bike className="size-3.5" aria-hidden /> {readyStale} &gt; 2 mnt
+                  </span>
+                ) : null}
+              </div>
+              {columns.readyEarlier.length ? (
+                <p className="shrink-0 border-b border-[var(--phv4-border)] bg-[var(--phv4-wait)]/10 px-3 py-1 text-[12px] font-semibold text-[var(--phv4-wait)]">
+                  {columns.readyEarlier.length} dari hari sebelumnya belum ditutup — tetap ada di daftar ini.
+                </p>
+              ) : null}
+              <div className="min-h-0 flex-1">{readyQueue}</div>
+            </aside>
+          ) : null}
+        </div>
       )}
 
       {/* Status bar */}
@@ -1171,7 +1197,7 @@ export function ProductionHubV4({
             SLA:
             <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-[var(--phv4-success)]" />aman</span>
             <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-[var(--phv4-wait)]" />mendekati target / belum dimulai</span>
-            <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-[var(--phv4-critical)]" />lewat (prioritas)</span>
+            <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-[var(--phv4-critical)]" />lewat target (urutan tetap FIFO)</span>
           </span>
           <span className="ml-auto flex shrink-0 items-center min-[1600px]:ml-0 gap-1.5 text-[var(--phv4-muted)]">
             {loadError ? <span className="text-[var(--phv4-wait)]">Sinkron gagal</span> : null}
@@ -1229,8 +1255,46 @@ export function ProductionHubV4({
       ) : null}
 
       {/* Overlay */}
-      <HubSheet open={sheet === "ready"} onClose={() => setSheet(null)} title="Siap Antar / Ambil" icon={Bike} width="md:w-[400px]">
-        <div className="-m-3 h-[70svh] md:h-full">{readyQueue}</div>
+      <HubSheet open={sheet === "insight"} onClose={() => setSheet(null)} title="Indikator produksi" icon={Lightbulb} width="md:w-[min(520px,100vw)]">
+        {indicators.length ? (
+          <ul className="space-y-2">
+            {indicators.map((item) => (
+              <li key={item.code} className={`rounded-[8px] border p-3 ${INDICATOR_TONE[item.level]}`}>
+                <p className="flex flex-wrap items-center gap-1.5 text-[14px] font-bold text-white">
+                  {item.level !== "info" ? <AlertTriangle className="size-4 shrink-0 text-[var(--phv4-wait)]" aria-hidden /> : null}
+                  <span className="min-w-0 flex-1 break-words">{item.title}</span>
+                  <span className="shrink-0 rounded border border-[var(--phv4-border)] px-1.5 text-[12px] font-semibold text-[var(--phv4-muted)]">{INDICATOR_KIND[item.kind]}</span>
+                </p>
+                <p className="mt-1 break-words text-[13px] text-[var(--phv4-muted)]">
+                  <b className="text-white">Kenapa:</b> {item.why}
+                </p>
+                <p className="mt-1 break-words text-[13px] text-[var(--phv4-muted)]">
+                  <b className="text-white">Tindakan:</b> {item.action}
+                </p>
+                {item.ticketNos.length ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSheet(null);
+                      if (!isDesktop) setMobileTab("produksi");
+                      setDetail(item.ticketNos[0]);
+                    }}
+                    className="mt-2 h-10 rounded-md border border-[var(--phv4-border)] px-3 text-[13px] font-bold hover:bg-white/5"
+                  >
+                    Buka pesanan{item.ticketNos.length > 1 ? ` pertama (dari ${item.ticketNos.length})` : ""}
+                  </button>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="rounded-[8px] border border-dashed border-[var(--phv4-border)] p-4 text-center text-[13px] text-[var(--phv4-muted)]">
+            Tidak ada catatan saat ini. Indikator hanya muncul bila didukung data papan.
+          </p>
+        )}
+        <p className="mt-3 text-[12px] text-[var(--phv4-muted)]">
+          Fakta = langsung dari data tersimpan. Hitungan = dihitung dari waktu & target di Pengaturan. Saran = usulan tindakan, bukan perintah.
+        </p>
       </HubSheet>
       <HubSheet open={sheet === "more" && isDesktop} onClose={() => setSheet(null)} title="Alat produksi" icon={Settings2} width="md:w-[380px]">
         {toolsRow}
@@ -1282,17 +1346,43 @@ export function ProductionHubV4({
       <HubSheet
         open={Boolean(detailTicket)}
         onClose={() => setDetail(null)}
-        title={detailTicket ? `#${detailTicket.orderNo ?? detailTicket.ticketNo} · ${tableText(detailTicket.table)}` : "Detail"}
+        title={detailTicket ? `Detail · ${tableText(detailTicket.table)} · #${detailTicket.orderNo ?? detailTicket.ticketNo}` : "Detail"}
         icon={LayoutGrid}
-        variant="modal"
-        width="md:w-[min(760px,94vw)]"
+        modal={false}
+        tall
+        width="md:w-[min(540px,58vw)]"
+        footer={
+          detailTicket ? (
+            <OrderDetailFooter
+              key={detailTicket.ticketNo}
+              ticket={detailTicket}
+              canOperate={canOperate[detailTicket.station]}
+              canHandover={canHandover[detailTicket.station]}
+              gone={detailGone}
+              offline={sync.state === "offline"}
+              busy={Boolean(busyKey)}
+              onAction={onAction}
+              override={{ can: Boolean(board?.canOverrideFifo), onSet: (prioritize, reason) => setOverride(detailTicket, prioritize, reason) }}
+            />
+          ) : null
+        }
       >
         {detailTicket ? (
           <OrderDetail
+            key={detailTicket.ticketNo}
             ticket={detailTicket}
             siblings={detailTicket.orderId ? siblings.get(detailTicket.orderId) ?? [detailTicket] : [detailTicket]}
             jobs={jobs.filter((j) => j.orderId && j.orderId === detailTicket.orderId)}
             canOperate={canOperate}
+            now={coarseNow}
+            position={detailTicket.status === "queue" ? positions.get(detailTicket.ticketNo) ?? null : null}
+            progress={orderProgress(detailTicket.orderId ? siblings.get(detailTicket.orderId) ?? [detailTicket] : [detailTicket])}
+            gone={detailGone}
+            onOpenBatch={() => {
+              setDetail(null);
+              if (isDesktop) setView("batch");
+              else setMobileTab("batch");
+            }}
             reopenBusy={Boolean(busyKey?.startsWith("reopen:"))}
             onReopen={reopen}
             cancel={{

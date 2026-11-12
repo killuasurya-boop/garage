@@ -1291,6 +1291,12 @@ export const kitchenTickets = pgTable(
     chitPrintedAt: timestamp("chit_printed_at", { withTimezone: true }),
     // Smart Partner Hub: tiket station "Mitra" milik satu mitra resmi (null = tiket Bar/Dapur biasa).
     partnerId: uuid("partner_id").references((): AnyPgColumn => partners.id),
+    // Production V7: didahulukan dari urutan FIFO oleh Owner/Manajer (alasan wajib, tercatat di audit).
+    // Terpisah dari `priority` (penanda "late" otomatis). Null = mengikuti FIFO.
+    fifoOverrideAt: timestamp("fifo_override_at", { withTimezone: true }),
+    fifoOverrideBy: text("fifo_override_by").references(() => user.id, { onDelete: "set null" }),
+    fifoOverrideByName: text("fifo_override_by_name"),
+    fifoOverrideReason: text("fifo_override_reason"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

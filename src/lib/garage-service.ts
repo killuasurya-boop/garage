@@ -7609,7 +7609,7 @@ async function lockTableSession(tx: DbTx, outletId: string, tableNumber: string)
   const { start } = getJakartaTodayRange();
   const windowStart = session?.cleanedAt && session.cleanedAt > start ? session.cleanedAt : start;
   const liveBills = await tx
-    .select({ id: orders.id })
+    .selectDistinct({ customerPhone: orders.customerPhone })
     .from(orders)
     .where(
       and(
@@ -7618,19 +7618,22 @@ async function lockTableSession(tx: DbTx, outletId: string, tableNumber: string)
         inArray(orders.status, [...OPEN_TABLE_BILL_STATUSES, "paid"]),
         orderOutletFilter(outletId),
       ),
-    )
-    .limit(1);
-  return { session, occupied: liveBills.length > 0, now };
+    );
+  // Nomor WhatsApp bill hidup di meja ini: pemesan yang sama boleh pesan lagi tanpa kode gabung.
+  const liveBillPhones = liveBills
+    .map((row) => (row.customerPhone ? normalizePhone(row.customerPhone) : ""))
+    .filter((phone) => phone.length >= 8);
+  return { session, occupied: liveBills.length > 0, liveBillPhones, now };
 }
 
 /** Aturan pilih meja pelanggan. Lempar TableClaimError bila tidak boleh. */
 function assertTableClaimable(
   state: Awaited<ReturnType<typeof lockTableSession>>,
   tableNumber: string,
-  claim: { holdToken?: string | null; joinCode?: string | null },
+  claim: { holdToken?: string | null; joinCode?: string | null; customerPhone?: string | null },
   options: { joinCodeRequired?: boolean } = {},
 ): "new" | "join" {
-  const { session, occupied, now } = state;
+  const { session, occupied, liveBillPhones, now } = state;
   const label = tableLabelForNumber(tableNumber);
   if (session?.needsCleaning || ["needs_cleaning", "cleaning"].includes(session?.status ?? "")) {
     throw new TableClaimError("TABLE_CLEANING", `${label} sedang dibersihkan. Pilih meja lain.`);
@@ -7640,10 +7643,13 @@ function assertTableClaimable(
     // Setting tableJoinCodeRequired mati (owner, Nov 2026): siapa saja yang scan QR meja boleh menambah pesanan
     // ke tagihan meja ini tanpa kode; kasir tetap menerima tiap pesanan. Kode yang dikirim tetap harus benar.
     if (!code && options.joinCodeRequired === false) return "join";
+    // Pesan lagi (owner, Nov 2026): nomor WhatsApp yang sama dengan bill hidup di meja ini tidak perlu kode.
+    const phone = claim.customerPhone ? normalizePhone(claim.customerPhone) : "";
+    if (!code && phone.length >= 8 && liveBillPhones.includes(phone)) return "join";
     if (!code) {
       throw new TableClaimError(
         "TABLE_OCCUPIED",
-        `${label} sedang terisi. Masukkan kode gabung dari teman semeja, atau pilih meja lain.`,
+        `${label} sedang terisi. Masukkan kode gabung dari teman semeja, pakai nomor WhatsApp pesanan sebelumnya, atau pilih meja lain.`,
       );
     }
     if (!session?.joinCode || session.joinCode !== code) {
@@ -7670,6 +7676,7 @@ export async function holdCustomerTable(input: {
   outletId?: string;
   holdToken?: string | null;
   joinCode?: string | null;
+  customerPhone?: string | null;
 }) {
   const tableNumber = parseTableNumber(input.tableNumber);
   if (!tableNumber) throw new Error(TABLE_NUMBER_RANGE_MESSAGE);
@@ -7683,7 +7690,7 @@ export async function holdCustomerTable(input: {
 
   const result = await getDb().transaction(async (tx) => {
     const state = await lockTableSession(tx, outlet.id, tableNumber);
-    const mode = assertTableClaimable(state, tableNumber, { holdToken: token, joinCode: input.joinCode }, { joinCodeRequired: settings.tableJoinCodeRequired });
+    const mode = assertTableClaimable(state, tableNumber, { holdToken: token, joinCode: input.joinCode, customerPhone: input.customerPhone }, { joinCodeRequired: settings.tableJoinCodeRequired });
     if (mode === "join") return { mode, expiresAt: null as Date | null };
     const tokenHash = hashTableHoldToken(token);
     // Satu pelanggan = satu meja terkunci: lepas kunci lama dari token yang sama.
@@ -10060,7 +10067,7 @@ async function createCustomerOrderImpl(input: CustomerOrderInput) {
         assertTableClaimable(
           state,
           dineInTableNumber,
-          { holdToken: input.tableHoldToken, joinCode: input.tableJoinCode },
+          { holdToken: input.tableHoldToken, joinCode: input.tableJoinCode, customerPhone },
           { joinCodeRequired: settings.tableJoinCodeRequired },
         );
       }

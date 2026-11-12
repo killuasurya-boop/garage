@@ -77,6 +77,7 @@ import {
   CustomerTablePicker,
   TableJoinCodeCard,
   releaseTableHold,
+  rememberLastOrderPhone,
   requestTableHold,
   type TableHoldState,
 } from "@/components/garage/order/customer-table-picker";
@@ -1659,6 +1660,7 @@ export function MemberOrderPage({
     setMessage(`${result.order.orderNo} masuk ke kasir. Pembayaran menunggu konfirmasi.${cartUnchanged ? "" : " Perubahan keranjang belum dikirim."}`);
     setLastOrder(result);
     const submittedTable = submitted?.payload.tableLabel ?? qrContext.tableLabel;
+    rememberLastOrderPhone(result.order.customerPhone);
     if (needsTable && tableHold && result.joinCode && submittedTable === tableHold.tableLabel) {
       saveTableHold({ ...tableHold, mode: "join", token: null, joinCode: result.joinCode, expiresAt: null });
     }
@@ -3356,6 +3358,8 @@ export function MemberOrderPage({
           presetTable={tableHold ? null : qrContext.presetTable}
           onPicked={(hold) => {
             saveTableHold(hold);
+            // Pesan lagi lewat nomor WhatsApp: isi otomatis nomor yang sama di checkout.
+            if (hold.customerPhone && !guestPhone.trim()) setGuestPhone(hold.customerPhone);
             setTablePickerRequested(false);
             setMessage("");
           }}

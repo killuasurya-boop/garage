@@ -13,6 +13,8 @@ const holdSchema = z.object({
   outletId: z.string().regex(UUID).optional(),
   holdToken: z.string().regex(/^[a-f0-9]{32,64}$/).optional(),
   joinCode: z.string().regex(/^\d{4}$/, "Kode gabung 4 angka.").optional(),
+  /** Pesan lagi: nomor WhatsApp pesanan sebelumnya di meja ini (pengganti kode gabung). */
+  customerPhone: z.string().trim().regex(/^\+?[\d\s-]{8,20}$/, "Nomor WhatsApp tidak valid.").optional(),
 });
 
 const releaseSchema = z.object({
@@ -22,19 +24,26 @@ const releaseSchema = z.object({
 
 /**
  * Pelanggan memilih meja di menu digital → meja dikunci sementara ("Sedang
- * dipilih"). Dengan holdToken yang sama = perpanjang; joinCode = gabung meja terisi.
+ * dipilih"). Dengan holdToken yang sama = perpanjang; joinCode = gabung meja terisi;
+ * customerPhone = pesan lagi di meja yang nomornya sudah punya bill hidup.
  */
 export async function POST(request: Request) {
   const limited = rateLimit(request, "customer-table-hold", { limit: 30, windowMs: 60_000 });
   if (limited) return limited;
   const body = await readJson(request, holdSchema);
   if (body.error) return body.error;
+  // Batas ketat untuk percobaan nomor supaya tidak dipakai menebak nomor pelanggan.
+  if (body.data.customerPhone) {
+    const phoneLimited = rateLimit(request, "customer-table-phone", { limit: 8, windowMs: 60_000 });
+    if (phoneLimited) return phoneLimited;
+  }
   try {
     const result = await holdCustomerTable({
       tableNumber: body.data.table,
       outletId: body.data.outletId,
       holdToken: body.data.holdToken,
       joinCode: body.data.joinCode,
+      customerPhone: body.data.customerPhone,
     });
     return ok(result, { headers: { "cache-control": "no-store" } });
   } catch (error) {

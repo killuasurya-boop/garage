@@ -1,5 +1,5 @@
 import { fail } from "@/lib/api-response";
-import { ProductionBatchError } from "@/lib/garage-production";
+import { FifoOverrideError, ProductionBatchError } from "@/lib/garage-production";
 import { ProductionBatchPendingError } from "@/lib/garage-production-tickets";
 import { CompletionPrintError } from "@/lib/production-completion-print";
 import {
@@ -31,6 +31,9 @@ export function productionErrorResponse(error: unknown) {
   }
   if (error instanceof KitchenTransitionError) {
     return fail(422, "INVALID_TRANSITION", "Status tiket sudah berubah. Muat ulang papan.");
+  }
+  if (error instanceof FifoOverrideError) {
+    return fail(error.code === "FORBIDDEN" ? 403 : 422, `FIFO_OVERRIDE_${error.code}`, error.message);
   }
   if (error instanceof ProductionBatchError) {
     const status = error.code === "BATCH_NOT_FOUND" ? 404 : error.code === "BATCH_CONFLICT" ? 409 : 422;

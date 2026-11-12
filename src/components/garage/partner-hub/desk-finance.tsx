@@ -52,6 +52,19 @@ type SettlementDetail = {
   reports: Array<{ id: string; reportNo: string; audience: string; kind: string; version: number; createdAt: string }>;
 };
 
+const NUMERIC_HEADS = new Set(["Qty", "Harga", "Total jual", "HPP", "Profit", "Setoran"]);
+
+/** Angka kecil berlabel di kepala kartu mitra. */
+function Stat({ label, value, tone = "default" }: { label: string; value: string; tone?: "default" | "red" | "amber" | "green" }) {
+  const color = tone === "red" ? "text-[#ff8a94]" : tone === "amber" ? "text-[#ffd08a]" : tone === "green" ? "text-[#86efac]" : "text-white";
+  return (
+    <div className="min-w-0 rounded-lg border border-[#2a2a30] bg-black/20 px-3 py-2">
+      <dt className="text-xs text-[#b8b8bf]">{label}</dt>
+      <dd className={`mt-0.5 break-words text-sm font-bold tabular-nums ${color}`}>{value}</dd>
+    </div>
+  );
+}
+
 const LINE_STATUS: Record<string, string> = { queue: "Menunggu", accepted: "Diterima", processing: "Diproses", ready: "Siap", delivered: "Diantar", rejected: "Ditolak", cancelled: "Batal" };
 
 export function DeskFinance({ role, userId }: { role: string; userId: string }) {
@@ -113,8 +126,11 @@ export function DeskFinance({ role, userId }: { role: string; userId: string }) 
     () => partners.reduce((acc, p) => ({ gross: acc.gross + p.netSales, cost: acc.cost + (p.totalCost ?? 0), profit: acc.profit + (p.garageProfit ?? 0), liability: acc.liability + p.liabilityTotal }), { gross: 0, cost: 0, profit: 0, liability: 0 }),
     [partners],
   );
-  const unpaid = settlements.filter((s) => ["approved", "partially_paid"].includes(s.settlement.status)).reduce((sum, s) => sum + s.settlement.liabilityTotal - s.settlement.paidAmount, 0);
-  const paid = settlements.reduce((sum, s) => sum + s.settlement.paidAmount, 0);
+  // Kartu settlement ikut filter mitra (nama mitra = kunci yang tersedia di daftar settlement).
+  const filteredName = partnerFilter === "all" ? null : ((data?.partners ?? []).find((p) => p.partnerId === partnerFilter)?.partnerName ?? null);
+  const shownSettlements = filteredName ? settlements.filter((s) => s.partnerName === filteredName) : settlements;
+  const unpaid = shownSettlements.filter((s) => ["approved", "partially_paid"].includes(s.settlement.status)).reduce((sum, s) => sum + s.settlement.liabilityTotal - s.settlement.paidAmount, 0);
+  const paid = shownSettlements.reduce((sum, s) => sum + s.settlement.paidAmount, 0);
 
   return (
     <div className="grid gap-4">
@@ -148,26 +164,43 @@ export function DeskFinance({ role, userId }: { role: string; userId: string }) 
         </div>
       </Card>
 
-      <div className={`grid grid-cols-2 gap-3 ${showCost ? "lg:grid-cols-6" : "lg:grid-cols-4"}`}>
-        <Kpi label="Penjualan mitra (bersih)" value={rp(totals.gross)} />
-        {showCost ? <Kpi label="Total HPP mitra" value={rp(totals.cost)} hint="semua item terjual" /> : null}
-        {showCost ? <Kpi label="Profit kotor Garage" value={rp(totals.profit)} tone={totals.profit < 0 ? "red" : "green"} hint={totals.profit < 0 ? "rugi: cek refund/void setelah siap" : undefined} /> : null}
-        <Kpi label="Kewajiban setoran" value={rp(totals.liability)} tone="amber" hint="item Siap Antar" />
-        <Kpi label="Sudah dibayar" value={rp(paid)} hint="semua settlement" />
-        <Kpi label="Sisa setoran" value={rp(unpaid)} tone="red" hint="settlement disetujui" />
-      </div>
+      {data === null ? (
+        <Card>
+          <p className="text-sm text-[#b8b8bf]">Memuat keuangan mitra…</p>
+        </Card>
+      ) : null}
+      <section aria-label="Ringkasan periode">
+        <h3 className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-[#b8b8bf]">
+          Periode {dateWib(`${from}T00:00:00+07:00`)}
+          {to !== from ? ` – ${dateWib(`${to}T00:00:00+07:00`)}` : ""}
+        </h3>
+        <div className={`grid grid-cols-2 gap-3 ${showCost ? "lg:grid-cols-4" : "lg:grid-cols-2"}`}>
+          <Kpi label="Penjualan mitra (bersih)" value={rp(totals.gross)} />
+          {showCost ? <Kpi label="Total HPP mitra" value={rp(totals.cost)} hint="semua item terjual" /> : null}
+          {showCost ? <Kpi label="Profit kotor Garage" value={rp(totals.profit)} tone={totals.profit < 0 ? "red" : "green"} hint={totals.profit < 0 ? "rugi: cek refund/void setelah siap" : undefined} /> : null}
+          <Kpi label="Kewajiban setoran" value={rp(totals.liability)} tone="amber" hint="item Siap Antar" />
+        </div>
+      </section>
+      <section aria-label="Ringkasan settlement">
+        <h3 className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-[#b8b8bf]">Semua settlement{filteredName ? ` · ${filteredName}` : " · semua mitra"} (tidak mengikuti periode)</h3>
+        <div className="grid grid-cols-2 gap-3">
+          <Kpi label="Sudah dibayar ke mitra" value={rp(paid)} hint="pembayaran terverifikasi" />
+          <Kpi label="Sisa yang harus dibayar" value={rp(unpaid)} tone={unpaid > 0 ? "red" : "default"} hint="settlement disetujui, belum lunas" />
+        </div>
+      </section>
+      {data !== null && partners.length === 0 ? (
+        <Card>
+          <p className="text-center text-sm text-[#b8b8bf]">Belum ada mitra dengan transaksi di periode ini.</p>
+        </Card>
+      ) : null}
 
       {partners.map((partner) => (
         <Card key={partner.partnerId}>
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h3 className="text-base font-bold text-white">
+            <div className="min-w-0">
+              <h3 className="break-words text-base font-bold text-white">
                 {partner.partnerName} <span className="text-xs font-semibold text-[#b8b8bf]">#{partner.partnerCode}</span>
               </h3>
-              <p className="text-xs text-[#b8b8bf]">
-                {partner.orderCount} order · jual {rp(partner.netSales)}
-                {showCost ? ` · HPP ${rp(partner.totalCost ?? 0)} · profit ${rp(partner.garageProfit ?? 0)}` : ""} · setoran {rp(partner.liabilityTotal)}
-              </p>
             </div>
             <Btn
               tone="primary"
@@ -177,15 +210,56 @@ export function DeskFinance({ role, userId }: { role: string; userId: string }) 
                 void run(`create-${partner.partnerId}`, () => api("/api/finance/partner-settlements", { method: "POST", body: JSON.stringify({ partnerId: partner.partnerId, from, to }) }), "Draft settlement dibuat. Periksa lalu ajukan.")
               }
             >
-              <Send className="size-4" /> Buat draft settlement ({partner.unsettledLines})
+              <Send className="size-4" aria-hidden /> Buat draft settlement ({partner.unsettledLines})
             </Btn>
           </div>
-          <div className="mt-3 overflow-x-auto rounded-lg border border-[#2a2a30]">
+          <dl className={`mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 ${showCost ? "lg:grid-cols-6" : "lg:grid-cols-4"}`}>
+            <Stat label="Order" value={String(partner.orderCount)} />
+            <Stat label="Penjualan" value={rp(partner.netSales)} />
+            {showCost ? <Stat label="HPP mitra" value={rp(partner.totalCost ?? 0)} /> : null}
+            {showCost ? <Stat label="Profit Garage" value={rp(partner.garageProfit ?? 0)} tone={(partner.garageProfit ?? 0) < 0 ? "red" : "green"} /> : null}
+            <Stat label="Kewajiban setoran" value={rp(partner.liabilityTotal)} tone="amber" />
+            <Stat label="Belum masuk settlement" value={`${partner.unsettledLines} baris`} tone={partner.unsettledLines ? "amber" : "default"} />
+          </dl>
+          {/* HP: daftar kartu per baris (tanpa gulir samping). */}
+          <ul className="mt-3 grid gap-2 sm:hidden">
+            {partner.lines.length === 0 ? <li className="rounded-lg border border-dashed border-[#3a3a42] p-3 text-center text-sm text-[#b8b8bf]">Belum ada transaksi mitra di periode ini.</li> : null}
+            {partner.lines.map((line) => (
+              <li key={line.id} className="rounded-lg border border-[#2a2a30] bg-black/20 p-3 text-sm text-[#f4f4f5]">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="min-w-0 break-words font-semibold">
+                    {line.itemName}
+                    {line.variantLabel && line.variantLabel !== "Regular" ? ` (${line.variantLabel})` : ""}
+                  </p>
+                  <Chip>{LINE_STATUS[line.status] ?? line.status}</Chip>
+                </div>
+                <p className="mt-0.5 text-xs text-[#b8b8bf]">
+                  {timeWib(line.createdAt)} · {line.orderNo} · {line.tableLabel ?? "Take away"}
+                  {line.customerName ? ` · ${line.customerName}` : ""}
+                </p>
+                <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                  <dt className="text-[#b8b8bf]">Qty × harga</dt>
+                  <dd className="text-right tabular-nums">
+                    {line.qty} × {rp(line.unitPrice)}
+                  </dd>
+                  <dt className="text-[#b8b8bf]">Total jual</dt>
+                  <dd className="text-right font-semibold tabular-nums">{rp(line.gross)}</dd>
+                  {showCost ? <dt className="text-[#b8b8bf]">Profit Garage</dt> : null}
+                  {showCost ? <dd className={`text-right tabular-nums ${profitTone(line.profit ?? 0)}`}>{rp(line.profit ?? 0)}</dd> : null}
+                  <dt className="text-[#b8b8bf]">Setoran mitra</dt>
+                  <dd className="text-right tabular-nums text-[#ffd08a]">{rp(line.liability)}</dd>
+                  <dt className="text-[#b8b8bf]">Settlement</dt>
+                  <dd className="break-all text-right">{line.settlementNo ?? "belum"}</dd>
+                </dl>
+              </li>
+            ))}
+          </ul>
+          <div className="garage-scroll mt-3 hidden max-h-[28rem] overflow-auto rounded-lg border border-[#2a2a30] sm:block">
             <table className="w-full min-w-[960px] text-left text-sm">
-              <thead className="bg-[#0f0f12] text-xs uppercase tracking-wide text-[#b8b8bf]">
+              <thead className="sticky top-0 z-[1] bg-[#0f0f12] text-xs uppercase tracking-wide text-[#b8b8bf]">
                 <tr>
                   {["Jam", "No. Order", "Meja", "Pemesan", "Produk", "Qty", "Harga", "Total jual", ...(showCost ? ["HPP", "Profit"] : []), "Setoran", "Status", "Settlement"].map((h) => (
-                    <th key={h} className="px-2 py-2 font-semibold">
+                    <th key={h} className={`px-2 py-2 font-semibold ${NUMERIC_HEADS.has(h) ? "text-right" : ""}`}>
                       {h}
                     </th>
                   ))}
@@ -209,18 +283,34 @@ export function DeskFinance({ role, userId }: { role: string; userId: string }) 
                         {line.itemName}
                         {line.variantLabel && line.variantLabel !== "Regular" ? ` (${line.variantLabel})` : ""}
                       </td>
-                      <td className="px-2 py-2 tabular-nums">{line.qty}</td>
-                      <td className="px-2 py-2 tabular-nums">{rp(line.unitPrice)}</td>
-                      <td className="px-2 py-2 tabular-nums">{rp(line.gross)}</td>
-                      {showCost ? <td className="px-2 py-2 tabular-nums">{rp(line.cost ?? 0)}</td> : null}
-                      {showCost ? <td className={`px-2 py-2 tabular-nums ${profitTone(line.profit ?? 0)}`}>{rp(line.profit ?? 0)}</td> : null}
-                      <td className="px-2 py-2 tabular-nums text-[#ffd08a]">{rp(line.liability)}</td>
+                      <td className="px-2 py-2 text-right whitespace-nowrap tabular-nums">{line.qty}</td>
+                      <td className="px-2 py-2 text-right whitespace-nowrap tabular-nums">{rp(line.unitPrice)}</td>
+                      <td className="px-2 py-2 text-right whitespace-nowrap tabular-nums">{rp(line.gross)}</td>
+                      {showCost ? <td className="px-2 py-2 text-right whitespace-nowrap tabular-nums">{rp(line.cost ?? 0)}</td> : null}
+                      {showCost ? <td className={`px-2 py-2 text-right whitespace-nowrap tabular-nums ${profitTone(line.profit ?? 0)}`}>{rp(line.profit ?? 0)}</td> : null}
+                      <td className="px-2 py-2 text-right whitespace-nowrap tabular-nums text-[#ffd08a]">{rp(line.liability)}</td>
                       <td className="px-2 py-2">{LINE_STATUS[line.status] ?? line.status}</td>
                       <td className="px-2 py-2 text-xs text-[#b8b8bf]">{line.settlementNo ?? "-"}</td>
                     </tr>
                   ))
                 )}
               </tbody>
+              {partner.lines.length ? (
+                <tfoot className="sticky bottom-0 bg-[#0f0f12] text-sm font-bold text-white">
+                  <tr className="border-t border-[#3a3a42]">
+                    <td colSpan={5} className="px-2 py-2">
+                      Total {partner.lines.length} baris
+                    </td>
+                    <td className="px-2 py-2 text-right whitespace-nowrap tabular-nums">{partner.lines.reduce((sum, line) => sum + line.qty, 0)}</td>
+                    <td className="px-2 py-2" />
+                    <td className="px-2 py-2 text-right whitespace-nowrap tabular-nums">{rp(partner.lines.reduce((sum, line) => sum + line.gross, 0))}</td>
+                    {showCost ? <td className="px-2 py-2 text-right whitespace-nowrap tabular-nums">{rp(partner.lines.reduce((sum, line) => sum + (line.cost ?? 0), 0))}</td> : null}
+                    {showCost ? <td className={`px-2 py-2 text-right whitespace-nowrap tabular-nums ${profitTone(partner.lines.reduce((sum, line) => sum + (line.profit ?? 0), 0))}`}>{rp(partner.lines.reduce((sum, line) => sum + (line.profit ?? 0), 0))}</td> : null}
+                    <td className="px-2 py-2 text-right whitespace-nowrap tabular-nums text-[#ffd08a]">{rp(partner.lines.reduce((sum, line) => sum + line.liability, 0))}</td>
+                    <td colSpan={2} className="px-2 py-2 text-xs font-normal text-[#b8b8bf]">sebelum penyesuaian</td>
+                  </tr>
+                </tfoot>
+              ) : null}
             </table>
           </div>
         </Card>
@@ -230,7 +320,7 @@ export function DeskFinance({ role, userId }: { role: string; userId: string }) 
 
       <Card>
         <h3 className="flex items-center gap-2 text-base font-bold text-white">
-          <Wallet className="size-4 text-[#ff5a66]" /> Settlement mitra
+          <Wallet className="size-4 text-[#ff5a66]" aria-hidden /> Settlement mitra
         </h3>
         {settlements.length === 0 ? (
           <p className="mt-2 text-sm text-[#b8b8bf]">Belum ada settlement.</p>
@@ -239,14 +329,29 @@ export function DeskFinance({ role, userId }: { role: string; userId: string }) 
             {settlements.map(({ settlement: s, partnerName }) => (
               <li key={s.id} className={`rounded-lg border p-3 ${selected === s.id ? "border-[#ff5a66]" : "border-[#3a3a42]"} bg-black/20`}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <button type="button" onClick={() => void loadDetail(s.id)} className="min-h-10 text-left font-semibold text-white underline-offset-4 hover:underline">
+                  <button type="button" aria-expanded={selected === s.id} onClick={() => void loadDetail(s.id)} className="min-h-10 min-w-0 break-words text-left font-semibold text-white underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70">
                     {s.settlementNo} · {partnerName}
                   </button>
                   <Chip tone={s.status === "paid" ? "green" : s.status === "cancelled" ? "red" : s.status === "approved" || s.status === "partially_paid" ? "amber" : "default"}>{SETTLEMENT_LABEL[s.status] ?? s.status}</Chip>
                 </div>
                 <p className="mt-1 text-xs text-[#b8b8bf]">
-                  {dateWib(s.periodFrom)} – {dateWib(new Date(new Date(s.periodTo).getTime() - 1).toISOString())} · {s.lineCount} baris · setoran {rp(s.liabilityTotal)} · dibayar {rp(s.paidAmount)} · sisa {rp(s.liabilityTotal - s.paidAmount)}
+                  {dateWib(s.periodFrom)} – {dateWib(new Date(new Date(s.periodTo).getTime() - 1).toISOString())} · {s.lineCount} baris
                 </p>
+                {s.status !== "cancelled" && s.liabilityTotal > 0 ? (
+                  <div className="mt-2">
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-3 text-xs">
+                      <span className="text-[#e4e4e8]">
+                        Dibayar <b className="tabular-nums text-white">{rp(s.paidAmount)}</b> dari <b className="tabular-nums text-white">{rp(s.liabilityTotal)}</b>
+                      </span>
+                      <span className={`font-semibold tabular-nums ${s.liabilityTotal - s.paidAmount > 0 ? "text-[#ffd08a]" : "text-[#86efac]"}`}>
+                        {s.liabilityTotal - s.paidAmount > 0 ? `Sisa ${rp(s.liabilityTotal - s.paidAmount)}` : "Lunas"}
+                      </span>
+                    </div>
+                    <div className="mt-1 h-2 overflow-hidden rounded-full bg-white/10" role="progressbar" aria-label={`Pembayaran ${s.settlementNo}`} aria-valuemin={0} aria-valuemax={s.liabilityTotal} aria-valuenow={Math.min(s.paidAmount, s.liabilityTotal)}>
+                      <div className="h-full rounded-full bg-[#22c55e]" style={{ width: `${Math.min(100, Math.round((s.paidAmount / s.liabilityTotal) * 100))}%` }} />
+                    </div>
+                  </div>
+                ) : null}
                 {selected === s.id && detail ? (
                   <SettlementActions
                     detail={detail}

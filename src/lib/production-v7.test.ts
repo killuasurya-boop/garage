@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ProductionTicketView } from "@/lib/garage-api-types";
 import {
+  batchFifoAhead,
   boardColumns,
   fifoPositions,
   fifoSort,
@@ -77,6 +78,28 @@ describe("FIFO", () => {
     expect(pos.get(bar2.ticketNo)).toBe(2);
     expect(pos.get(food1.ticketNo)).toBe(1);
     expect(pos.has(cooking.ticketNo)).toBe(false);
+  });
+});
+
+describe("keadilan FIFO untuk batch", () => {
+  it("menghitung pesanan menunggu yang masuk lebih dulu tetapi tidak ikut batch", () => {
+    const older = ticket({ ticketNo: "T-OLD", createdAt: at(20) });
+    const inBatchA = ticket({ ticketNo: "T-A", createdAt: at(10) });
+    const inBatchB = ticket({ ticketNo: "T-B", createdAt: at(5) });
+    const otherStation = ticket({ ticketNo: "T-FOOD", station: "Food", createdAt: at(30) });
+    const cooking = ticket({ ticketNo: "T-COOK", status: "cooking", createdAt: at(40) });
+    const all = [inBatchB, older, otherStation, cooking, inBatchA];
+    const result = batchFifoAhead({ station: "Bar", ticketNos: ["T-A", "T-B"] }, all);
+    expect(result.count).toBe(1);
+    expect(result.first?.ticketNo).toBe("T-OLD");
+  });
+
+  it("batch yang memuat pesanan terdepan tidak melompati siapa pun", () => {
+    const head = ticket({ ticketNo: "T-HEAD", createdAt: at(20) });
+    const later = ticket({ ticketNo: "T-LATER", createdAt: at(5) });
+    expect(batchFifoAhead({ station: "Bar", ticketNos: ["T-HEAD"] }, [later, head])).toEqual({ count: 0, first: null });
+    // Tiket batch sudah tidak menunggu (sedang diproses) → tidak ada yang dilompati.
+    expect(batchFifoAhead({ station: "Bar", ticketNos: ["T-GONE"] }, [later, head]).count).toBe(0);
   });
 });
 

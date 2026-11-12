@@ -84,6 +84,23 @@ export function fifoPositions(tickets: readonly ProductionTicketView[]): Map<str
   return out;
 }
 
+/**
+ * Keadilan FIFO untuk batch: berapa pesanan MENUNGGU di station yang sama yang masuk lebih dulu daripada
+ * porsi tertua di batch ini tetapi TIDAK ikut batch. > 0 berarti memulai batch sekarang melompati mereka.
+ * Hanya hitungan dari data papan — bukan larangan; keputusan tetap di staf.
+ */
+export function batchFifoAhead(
+  batch: { station: Station; ticketNos: readonly string[] },
+  tickets: readonly ProductionTicketView[],
+): { count: number; first: ProductionTicketView | null } {
+  const inBatch = new Set(batch.ticketNos);
+  const waiting = fifoSort(tickets.filter((t) => t.status === "queue" && t.station === batch.station));
+  const firstInBatch = waiting.findIndex((t) => inBatch.has(t.ticketNo));
+  if (firstInBatch <= 0) return { count: 0, first: null };
+  const ahead = waiting.slice(0, firstInBatch);
+  return { count: ahead.length, first: ahead[0] ?? null };
+}
+
 /** Nomor antrean harian yang stabil: "#0012". Null bila order tidak punya nomor antrean. */
 export function queueLabel(queueNo: number | null | undefined): string | null {
   return typeof queueNo === "number" && queueNo > 0 ? `#${String(queueNo).padStart(4, "0")}` : null;

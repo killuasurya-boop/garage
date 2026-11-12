@@ -39,6 +39,7 @@ import {
   tallyMenus,
   type BatchRow,
 } from "@/lib/production-batch-view";
+import { batchFifoAhead } from "@/lib/production-v7";
 import { elapsedSeconds, formatElapsed, hubStatusOf } from "@/lib/production-hub-v4";
 
 import { HubSheet } from "./hub-ui";
@@ -812,6 +813,7 @@ export function BatchView({
             busyKey={busyKey}
             now={now}
             eta={estimateMinutes(detail, avgMinutes[station], now)}
+            fifoAhead={batchFifoAhead({ station: detail.station, ticketNos: detail.suggestions.flatMap((s) => s.items.map((i) => i.ticketNo)) }, tickets)}
             actions={actions}
             onOpenTicket={onOpenTicket}
           />
@@ -836,9 +838,12 @@ function BatchDetail({
   busyKey,
   now,
   eta,
+  fifoAhead,
   actions,
   onOpenTicket,
 }: {
+  /** Pesanan menunggu yang masuk lebih dulu dari batch yang belum dimulai ini (keadilan FIFO). */
+  fifoAhead: ReturnType<typeof batchFifoAhead>;
   row: BatchRow;
   menu: MenuItem | undefined;
   allowed: boolean;
@@ -991,10 +996,29 @@ function BatchDetail({
         <section className="rounded-[8px] border border-dashed border-[var(--phv4-wait)]/60 p-2.5">
           <p className="mb-1.5 text-[12px] font-bold text-[var(--phv4-wait)]">Belum dimulai</p>
           {row.suggestions.map((s) => (
-            <p key={s.key} className="text-[12px] text-[#d1d5db]">
-              {s.totalQty}× {s.note ? `• ${s.note}` : "Normal"} — {s.items.map((i) => `#${i.orderNo ?? i.ticketNo}`).join(", ")}
+            <p key={s.key} className="break-words text-[13px] text-[#d1d5db]">
+              <b className="text-white">
+                {s.totalQty}× {s.note ? `• ${s.note}` : "Normal"}
+              </b>{" "}
+              — {s.items.map((i) => `${tableText(i.table)} #${i.orderNo ?? i.ticketNo} (${i.qty})`).join(", ")}
             </p>
           ))}
+          <p className="mt-1 text-[12px] text-[var(--phv4-muted)]">Kartu pesanan asal tetap ada di papan sampai tiap pesanan selesai.</p>
+          {fifoAhead.count > 0 && fifoAhead.first ? (
+            <div className="mt-2 flex flex-wrap items-center gap-2 rounded-[6px] border border-[var(--phv4-wait)]/60 bg-[var(--phv4-wait)]/10 px-2 py-1.5">
+              <span className="min-w-0 flex-1 break-words text-[13px] font-semibold text-[#fde68a]">
+                Urutan FIFO: {fifoAhead.count} pesanan masuk lebih dulu dari batch ini (terdepan {tableText(fifoAhead.first.table)} #
+                {fifoAhead.first.orderNo ?? fifoAhead.first.ticketNo}). Kerjakan dulu supaya tidak terlewati.
+              </span>
+              <button
+                type="button"
+                onClick={() => onOpenTicket(fifoAhead.first!.ticketNo)}
+                className="h-10 shrink-0 rounded-md border border-[var(--phv4-wait)] px-3 text-[13px] font-bold text-[#fde68a]"
+              >
+                Buka pesanan
+              </button>
+            </div>
+          ) : null}
           {allowed ? (
             <button
               type="button"

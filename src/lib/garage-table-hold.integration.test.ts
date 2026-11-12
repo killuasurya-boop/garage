@@ -10,8 +10,9 @@ import {
 
 // =============================================================================
 // Menu digital pilih meja (PDF owner, Okt 2026): kunci meja "Sedang dipilih",
-// tabrakan pilihan, kode gabung meja terisi, reserved / perlu bersih ditolak,
-// kode ikut pindah meja & hilang saat meja dikosongkan.
+// tabrakan pilihan, kode gabung meja terisi, pesan lagi dengan nomor WhatsApp
+// yang sama tanpa kode, reserved / perlu bersih ditolak, kode ikut pindah meja
+// & hilang saat meja dikosongkan.
 // =============================================================================
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -35,7 +36,7 @@ function kasir(): GarageSession {
   } as unknown as GarageSession;
 }
 
-function customerOrder(table: string, claim: { tableHoldToken?: string; tableJoinCode?: string }) {
+function customerOrder(table: string, claim: { tableHoldToken?: string; tableJoinCode?: string; guestPhone?: string }) {
   return svc.createCustomerOrder({
     orderType: "dine-in",
     tableLabel: table,
@@ -163,6 +164,44 @@ describe("Meja terisi & kode gabung", () => {
 
     const status = await svc.getPublicCustomerOrderStatus(second.order.id);
     expect(status.tableJoin?.joinCode).toBe(code);
+    await setJoinCodeRequired(false);
+  });
+
+  it("setting wajib kode: pemesan dengan nomor WhatsApp yang sama boleh pesan lagi tanpa kode; nomor lain tetap ditolak", async () => {
+    await setJoinCodeRequired(true);
+    const a = await svc.holdCustomerTable({ tableNumber: "25", outletId });
+    await customerOrder("25", { tableHoldToken: a.holdToken, guestPhone: "081234567890" });
+
+    // Format nomor berbeda (+62 / spasi) tetap dianggap nomor yang sama.
+    const hold = await svc.holdCustomerTable({ tableNumber: "25", outletId, customerPhone: "+62 812-3456-7890" });
+    expect(hold.mode).toBe("join");
+    expect(hold.holdToken).toBeNull();
+    const again = await customerOrder("25", { guestPhone: "6281234567890" });
+    expect(again.order.tableLabel).toBe("Meja 25");
+
+    await expect(svc.holdCustomerTable({ tableNumber: "25", outletId, customerPhone: "089999999999" })).rejects.toMatchObject({ code: "TABLE_OCCUPIED" });
+    await expect(customerOrder("25", { guestPhone: "089999999999" })).rejects.toMatchObject({ code: "TABLE_OCCUPIED" });
+    await expect(customerOrder("25", {})).rejects.toMatchObject({ code: "TABLE_OCCUPIED" });
+    // Kode yang dikirim tetap divalidasi walau nomornya cocok.
+    const wrong = again.joinCode === "1234" ? "4321" : "1234";
+    await expect(customerOrder("25", { guestPhone: "081234567890", tableJoinCode: wrong })).rejects.toMatchObject({ code: "TABLE_JOIN_CODE_INVALID" });
+    await setJoinCodeRequired(false);
+  });
+
+  it("nomor sama tidak menembus meja yang sedang dibersihkan, dan order kemarin tidak dihitung", async () => {
+    await setJoinCodeRequired(true);
+    const a = await svc.holdCustomerTable({ tableNumber: "26", outletId });
+    await customerOrder("26", { tableHoldToken: a.holdToken, guestPhone: "081211112222" });
+    await svc.updateTableStatus("26", { status: "needs_cleaning", needsCleaning: true, preserveCleanedAt: true }, kasir());
+    await expect(svc.holdCustomerTable({ tableNumber: "26", outletId, customerPhone: "081211112222" })).rejects.toMatchObject({ code: "TABLE_CLEANING" });
+
+    const b = await svc.holdCustomerTable({ tableNumber: "27", outletId });
+    const old = await customerOrder("27", { tableHoldToken: b.holdToken, guestPhone: "081233334444" });
+    const { eq } = await import("drizzle-orm");
+    await t.getDb().update(t.schema.orders).set({ createdAt: new Date(Date.now() - 36 * 3_600_000) }).where(eq(t.schema.orders.id, old.order.id));
+    // Bill kemarin bukan bill hidup: meja tidak terisi, nomor lama tidak memberi akses "gabung".
+    const fresh = await svc.holdCustomerTable({ tableNumber: "27", outletId, customerPhone: "081233334444" });
+    expect(fresh.mode).toBe("new");
     await setJoinCodeRequired(false);
   });
 

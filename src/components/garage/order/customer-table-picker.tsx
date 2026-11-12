@@ -27,8 +27,31 @@ export type TableHoldState = {
   token: string | null;
   /** Kode gabung (mode "join", atau setelah pesanan pertama). */
   joinCode: string | null;
+  /** Pesan lagi tanpa kode: nomor WhatsApp pesanan sebelumnya di meja ini (mode "join"). */
+  customerPhone?: string | null;
   expiresAt: string | null;
 };
+
+const LAST_ORDER_PHONE_KEY = "garage:lastOrderPhone";
+
+/** Nomor WhatsApp terakhir yang dipakai checkout di HP ini (hanya untuk isi otomatis). */
+export function readLastOrderPhone(): string {
+  try {
+    return window.localStorage.getItem(LAST_ORDER_PHONE_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+export function rememberLastOrderPhone(phone: string | null | undefined) {
+  const value = phone?.trim();
+  if (!value) return;
+  try {
+    window.localStorage.setItem(LAST_ORDER_PHONE_KEY, value);
+  } catch {
+    /* localStorage tidak tersedia */
+  }
+}
 
 type PublicTable = {
   tableNumber: string;
@@ -62,6 +85,7 @@ export async function requestTableHold(input: {
   outletId?: string;
   holdToken?: string | null;
   joinCode?: string | null;
+  customerPhone?: string | null;
 }): Promise<TableHoldState> {
   const response = await fetch("/api/customer/tables/hold", {
     method: "POST",
@@ -72,6 +96,7 @@ export async function requestTableHold(input: {
       outletId: input.outletId,
       holdToken: input.holdToken ?? undefined,
       joinCode: input.joinCode ?? undefined,
+      customerPhone: input.customerPhone ?? undefined,
     }),
   });
   const data = await readEnvelope<HoldResponse>(response);
@@ -81,6 +106,7 @@ export async function requestTableHold(input: {
     mode: data.mode,
     token: data.holdToken ?? (data.mode === "new" ? input.holdToken ?? null : null),
     joinCode: data.mode === "join" ? input.joinCode ?? null : null,
+    customerPhone: data.mode === "join" ? input.customerPhone ?? null : null,
     expiresAt: data.expiresAt,
   };
 }
@@ -141,6 +167,9 @@ export function CustomerTablePicker({
   const [confirmTable, setConfirmTable] = useState<PublicTable | null>(null);
   const [joinTable, setJoinTable] = useState<PublicTable | null>(null);
   const [joinCode, setJoinCode] = useState("");
+  // "Saya sudah pesan di meja ini": nomor WhatsApp pesanan sebelumnya menggantikan kode gabung.
+  const [joinByPhone, setJoinByPhone] = useState(false);
+  const [joinPhone, setJoinPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState("");
   const [presetHandled, setPresetHandled] = useState(false);
@@ -187,7 +216,7 @@ export function CustomerTablePicker({
     }
     setFloor(tableFloor(table));
     if (table.customerStatus === "available" || table.mine) setConfirmTable(table);
-    else if (table.customerStatus === "occupied") setJoinTable(table);
+    else if (table.customerStatus === "occupied") openJoin(table);
     else setActionError(`${table.tableLabel} ${CUSTOMER_TABLE_STATUS_COPY[table.customerStatus].label.toLowerCase()}. Pilih meja lain.`);
   }, [presetHandled, presetTable, tables]);
 
@@ -220,8 +249,20 @@ export function CustomerTablePicker({
     }
   }
 
+  function openJoin(table: PublicTable) {
+    setJoinCode("");
+    setJoinByPhone(false);
+    setJoinPhone(readLastOrderPhone());
+    setJoinTable(table);
+  }
+
   async function join(table: PublicTable) {
-    const needsCode = table.joinCodeRequired !== false;
+    const usePhone = table.joinCodeRequired !== false && joinByPhone;
+    const needsCode = table.joinCodeRequired !== false && !usePhone;
+    if (usePhone && joinPhone.replace(/\D/g, "").length < 8) {
+      setActionError("Isi nomor WhatsApp yang kamu pakai saat pesan tadi.");
+      return;
+    }
     if (needsCode && !/^\d{4}$/.test(joinCode)) {
       setActionError("Kode gabung 4 angka (lihat layar/struk teman semeja, atau tanya waiter/kasir).");
       return;
@@ -230,10 +271,16 @@ export function CustomerTablePicker({
     setActionError("");
     try {
       if (current?.token) await releaseTableHold(current.token, outletId);
-      const hold = await requestTableHold({ table: table.tableNumber, outletId, joinCode: needsCode ? joinCode : undefined });
+      const hold = await requestTableHold({
+        table: table.tableNumber,
+        outletId,
+        joinCode: needsCode ? joinCode : undefined,
+        customerPhone: usePhone ? joinPhone : undefined,
+      });
+      if (usePhone) rememberLastOrderPhone(joinPhone);
       onPicked(hold);
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : "Kode gabung salah.");
+      setActionError(error instanceof Error ? error.message : usePhone ? "Nomor tidak cocok dengan pesanan di meja ini." : "Kode gabung salah.");
     } finally {
       setBusy(false);
     }
@@ -244,8 +291,7 @@ export function CustomerTablePicker({
     if (table.customerStatus === "available" || table.mine) {
       setConfirmTable(table);
     } else if (table.customerStatus === "occupied") {
-      setJoinCode("");
-      setJoinTable(table);
+      openJoin(table);
     } else {
       setActionError(
         `${table.tableLabel}: ${CUSTOMER_TABLE_STATUS_COPY[table.customerStatus].label} — ${CUSTOMER_TABLE_STATUS_COPY[table.customerStatus].hint.toLowerCase()}.`,
@@ -516,6 +562,30 @@ export function CustomerTablePicker({
               <CrystalButton onClick={() => setJoinTable(null)}>Pilih meja lain</CrystalButton>
             </div>
           </div>
+        ) : joinTable && joinByPhone ? (
+          <div>
+            <h3 id="join-table-title" className="text-[22px] font-extrabold text-white">
+              Pesan lagi di {joinTable.tableLabel}
+            </h3>
+            <p className="mt-1 text-sm text-[var(--gc-text-2)]">
+              Isi <strong className="text-white">nomor WhatsApp yang kamu pakai saat pesan tadi</strong> di meja ini. Tidak perlu kode gabung.
+            </p>
+            <input
+              value={joinPhone}
+              onChange={(event) => setJoinPhone(event.target.value.replace(/[^\d+\s-]/g, "").slice(0, 20))}
+              inputMode="tel"
+              autoComplete="tel"
+              aria-label="Nomor WhatsApp pesanan sebelumnya"
+              placeholder="08xxxxxxxxxx"
+              className="mt-3 w-full rounded-2xl border border-white/20 bg-black/40 px-3 py-3 text-center text-xl font-bold tracking-[0.08em] text-white placeholder:text-white/30 focus:border-[var(--gc-laser)] focus:outline-none"
+            />
+            <div className="mt-4 grid gap-2">
+              <CrystalButton tone="primary" loading={busy} disabled={joinPhone.replace(/\D/g, "").length < 8} onClick={() => void join(joinTable)}>
+                Lanjut pesan lagi
+              </CrystalButton>
+              <CrystalButton onClick={() => { setActionError(""); setJoinByPhone(false); }}>Pakai kode gabung</CrystalButton>
+            </div>
+          </div>
         ) : joinTable ? (
           <div>
             <h3 id="join-table-title" className="text-[22px] font-extrabold text-white">
@@ -541,9 +611,15 @@ export function CustomerTablePicker({
               <CrystalButton tone="primary" loading={busy} disabled={joinCode.length !== 4} onClick={() => void join(joinTable)}>
                 Gabung
               </CrystalButton>
+              <CrystalButton onClick={() => { setActionError(""); setJoinByPhone(true); }}>Saya sudah pesan di meja ini</CrystalButton>
               <CrystalButton onClick={() => setJoinTable(null)}>Pilih meja lain</CrystalButton>
             </div>
           </div>
+        ) : null}
+        {joinTable && actionError ? (
+          <p role="alert" className="mt-3 rounded-xl border border-[var(--gc-amber)]/45 bg-[var(--gc-amber)]/12 px-3 py-2 text-sm font-semibold text-[#ffe2b0]">
+            {actionError}
+          </p>
         ) : null}
       </CrystalSheet>
     </div>

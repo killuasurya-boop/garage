@@ -628,7 +628,9 @@ Scroll direction:
   benar?"), server hold `table_sessions.held_until` (`tableHoldMinutes`, FOR UPDATE
   in tx). Occupied tables: setting `tableJoinCodeRequired` (default OFF, owner Nov 2026) — OFF = anyone scanning the table QR
   may add orders to that table's bill (`assertTableClaimable` returns "join"; picker shows a confirm sheet; cashier still accepts
-  every order); ON = 4-digit `join_code` (cleared when emptied).
+  every order); ON = 4-digit `join_code` (cleared when emptied), except a re-order whose WhatsApp number
+  (`normalizePhone`) matches a live bill at that table (`lockTableSession().liveBillPhones`; picker "Saya sudah pesan di meja
+  ini", hold route rate-limited per IP). Cleaning/reserved/held-by-other still win; a sent code must still be correct.
   `/api/customer/orders` sets `enforceTableClaim`; staff orders don't.
 - Digital menu mode (Menu V5, owner 4 Nov 2026) = setting `digitalMenuMode` per outlet (`src/lib/digital-menu-mode.ts`):
   `self_order` (default, flow above) or `waiter_list` (customer builds a Daftar Pilihan → "Tunjukkan ke Waiter" QR =

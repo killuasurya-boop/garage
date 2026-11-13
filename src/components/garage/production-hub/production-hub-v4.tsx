@@ -1255,6 +1255,67 @@ export function ProductionHubV4({
       ) : null}
 
       {/* Overlay */}
+      {/* Panel detail dirender PALING AWAL: lembar lain (pilih waiter, indikator, riwayat, printer) yang dibuka saat
+          panel ini terbuka selalu tampil DI ATASNYA — tidak pernah tertutup olehnya. */}
+      <HubSheet
+        open={Boolean(detailTicket)}
+        onClose={() => setDetail(null)}
+        title={detailTicket ? `Detail · ${tableText(detailTicket.table)} · #${detailTicket.orderNo ?? detailTicket.ticketNo}` : "Detail"}
+        icon={LayoutGrid}
+        modal={false}
+        tall
+        width="md:w-[min(540px,58vw)]"
+        footer={
+          detailTicket ? (
+            <OrderDetailFooter
+              key={detailTicket.ticketNo}
+              ticket={detailTicket}
+              canOperate={canOperate[detailTicket.station]}
+              canHandover={canHandover[detailTicket.station]}
+              gone={detailGone}
+              offline={sync.state === "offline"}
+              busy={Boolean(busyKey)}
+              onAction={onAction}
+              override={{ can: Boolean(board?.canOverrideFifo), onSet: (prioritize, reason) => setOverride(detailTicket, prioritize, reason) }}
+            />
+          ) : null
+        }
+      >
+        {detailTicket ? (
+          <OrderDetail
+            key={detailTicket.ticketNo}
+            ticket={detailTicket}
+            siblings={detailTicket.orderId ? siblings.get(detailTicket.orderId) ?? [detailTicket] : [detailTicket]}
+            jobs={jobs.filter((j) => j.orderId && j.orderId === detailTicket.orderId)}
+            canOperate={canOperate}
+            now={coarseNow}
+            position={detailTicket.status === "queue" ? positions.get(detailTicket.ticketNo) ?? null : null}
+            progress={orderProgress(detailTicket.orderId ? siblings.get(detailTicket.orderId) ?? [detailTicket] : [detailTicket])}
+            gone={detailGone}
+            onOpenBatch={() => {
+              setDetail(null);
+              if (isDesktop) setView("batch");
+              else setMobileTab("batch");
+            }}
+            reopenBusy={Boolean(busyKey?.startsWith("reopen:"))}
+            onReopen={reopen}
+            cancel={{
+              canRequest: canWrite && (canOperate.Bar || canOperate.Food || canHandover.Bar || canHandover.Food),
+              isManager: me.role === "Owner" || me.role === "Manajer",
+              busy: Boolean(busyKey?.startsWith("cancel-req:")),
+              onSubmit: (body) =>
+                runAction(
+                  `cancel-req:${body.orderId}`,
+                  () => garageApi.post("/api/production/cancel-requests", body),
+                  me.role === "Owner" || me.role === "Manajer"
+                    ? "Pembatalan dieksekusi."
+                    : "Pengajuan batal terkirim — menunggu persetujuan Owner/Manajer.",
+                ),
+            }}
+          />
+        ) : null}
+      </HubSheet>
+
       <HubSheet open={sheet === "insight"} onClose={() => setSheet(null)} title="Indikator produksi" icon={Lightbulb} width="md:w-[min(520px,100vw)]">
         {indicators.length ? (
           <ul className="space-y-2">
@@ -1343,65 +1404,6 @@ export function ProductionHubV4({
           </div>
         ) : null}
       </HubSheet>
-      <HubSheet
-        open={Boolean(detailTicket)}
-        onClose={() => setDetail(null)}
-        title={detailTicket ? `Detail · ${tableText(detailTicket.table)} · #${detailTicket.orderNo ?? detailTicket.ticketNo}` : "Detail"}
-        icon={LayoutGrid}
-        modal={false}
-        tall
-        width="md:w-[min(540px,58vw)]"
-        footer={
-          detailTicket ? (
-            <OrderDetailFooter
-              key={detailTicket.ticketNo}
-              ticket={detailTicket}
-              canOperate={canOperate[detailTicket.station]}
-              canHandover={canHandover[detailTicket.station]}
-              gone={detailGone}
-              offline={sync.state === "offline"}
-              busy={Boolean(busyKey)}
-              onAction={onAction}
-              override={{ can: Boolean(board?.canOverrideFifo), onSet: (prioritize, reason) => setOverride(detailTicket, prioritize, reason) }}
-            />
-          ) : null
-        }
-      >
-        {detailTicket ? (
-          <OrderDetail
-            key={detailTicket.ticketNo}
-            ticket={detailTicket}
-            siblings={detailTicket.orderId ? siblings.get(detailTicket.orderId) ?? [detailTicket] : [detailTicket]}
-            jobs={jobs.filter((j) => j.orderId && j.orderId === detailTicket.orderId)}
-            canOperate={canOperate}
-            now={coarseNow}
-            position={detailTicket.status === "queue" ? positions.get(detailTicket.ticketNo) ?? null : null}
-            progress={orderProgress(detailTicket.orderId ? siblings.get(detailTicket.orderId) ?? [detailTicket] : [detailTicket])}
-            gone={detailGone}
-            onOpenBatch={() => {
-              setDetail(null);
-              if (isDesktop) setView("batch");
-              else setMobileTab("batch");
-            }}
-            reopenBusy={Boolean(busyKey?.startsWith("reopen:"))}
-            onReopen={reopen}
-            cancel={{
-              canRequest: canWrite && (canOperate.Bar || canOperate.Food || canHandover.Bar || canHandover.Food),
-              isManager: me.role === "Owner" || me.role === "Manajer",
-              busy: Boolean(busyKey?.startsWith("cancel-req:")),
-              onSubmit: (body) =>
-                runAction(
-                  `cancel-req:${body.orderId}`,
-                  () => garageApi.post("/api/production/cancel-requests", body),
-                  me.role === "Owner" || me.role === "Manajer"
-                    ? "Pembatalan dieksekusi."
-                    : "Pengajuan batal terkirim — menunggu persetujuan Owner/Manajer.",
-                ),
-            }}
-          />
-        ) : null}
-      </HubSheet>
-
       {canViewPerformance ? (
         <Dialog open={reportOpen} onOpenChange={setReportOpen}>
           <DialogContent className="max-h-[88svh] overflow-y-auto border-[#343840] bg-[#15171b] text-white sm:max-w-3xl">

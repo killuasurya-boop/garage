@@ -355,7 +355,15 @@ export function InviteIntro({ guestName, children }: { guestName: string; childr
  * Hitung mundur di banner beranda (hari/jam/menit/detik). Sebelum hidrasi tampil
  * "--" dengan ukuran sama (tanpa lompatan layout); saat acara berjalan → badge LIVE.
  */
-export function HomeCountdown({ startsAt, endsAt }: { startsAt: string; endsAt: string }) {
+export function HomeCountdown({
+  startsAt,
+  endsAt,
+  label = "Hitung mundur menuju Grand Opening",
+}: {
+  startsAt: string;
+  endsAt: string;
+  label?: string;
+}) {
   const now = useSyncExternalStore(subscribeSecond, currentSecond, serverSecond);
   const phase = now === null ? "upcoming" : eventPhase({ startsAt, endsAt }, now);
   if (phase === "ended") return null;
@@ -379,7 +387,7 @@ export function HomeCountdown({ startsAt, endsAt }: { startsAt: string; endsAt: 
     { label: "Detik", value: parts?.seconds },
   ];
   return (
-    <div className="go-count" role="timer" aria-label="Hitung mundur menuju Grand Opening" data-testid="home-event-countdown">
+    <div className="go-count" role="timer" aria-label={label} data-testid="home-event-countdown">
       {cells.map((cell) => {
         const text = cell.value === undefined ? "--" : String(cell.value).padStart(2, "0");
         return (

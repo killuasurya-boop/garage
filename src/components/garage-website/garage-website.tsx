@@ -682,6 +682,38 @@ const MEGA_CATS = [
 { Icon: Cookie, name: "Cemilan", desc: "Teman ngopi & sharing bareng", count: "Dapur" }];
 
 
+function EventBadge() {
+  // GARAGE EVENT PLATFORM: badge kecil dari /event/api/events; gagal -> disembunyikan.
+  const [badge, setBadge] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    fetch("/event/api/events", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        const list = Array.isArray(d?.events) ? d.events : [];
+        const ev = list.find((e) => e.online) ?? list[0];
+        if (!alive || !ev) return;
+        if (ev.live) return setBadge("LIVE");
+        const dt = ev.date ? new Date(ev.date) : null;
+        const label = dt && !Number.isNaN(dt.getTime())
+          ? dt.toLocaleDateString("id-ID", { day: "2-digit", month: "short", timeZone: "Asia/Jakarta" }).replace(".", "").toUpperCase()
+          : "";
+        setBadge(label ? `GIGS · ${label}` : "GIGS");
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  if (!badge) return null;
+  return (
+    <span
+      className="mono"
+      style={{ marginLeft: 6, padding: "2px 6px", fontSize: 9, lineHeight: 1.4, letterSpacing: "0.06em", background: "var(--red)", color: "#fff", borderRadius: 999, whiteSpace: "nowrap" }}
+    >
+      {badge}
+    </span>
+  );
+}
+
 function Nav() {
   const y = useScrollY();
   const biz = useBiz();
@@ -692,7 +724,7 @@ function Nav() {
   ["Menu", "#menu", true],
   ["Live Outlet", "#live-status"],
   ["Member", "#membership"],
-  ["Event", "#events"],
+  ["Event", "/event", false, true],
   ["Lokasi", "#location"]];
   const mobileItems = [
   ...items,
@@ -796,20 +828,20 @@ function Nav() {
           </a>
 
           <ul style={{ display: "flex", gap: 20, listStyle: "none" }} className="nav-desktop">
-            {items.map(([label, href, hasMega]) =>
+            {items.map(([label, href, hasMega, isEvent]) =>
             <li
               key={href}
               onMouseEnter={hasMega ? openMega : undefined}
               onMouseLeave={hasMega ? closeMega : undefined}
               style={{ position: "relative" }}>
               
-                {href.startsWith("/") ? (
+                {href.startsWith("/") && !href.startsWith("/event") ? (
                   <Link href={href} className="navlink">
                     <span>{label}</span>
                   </Link>
                 ) : (
                   <a href={href} className="navlink">
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>{label}{hasMega && <ChevronDown size={13} aria-hidden="true" style={{ opacity: 0.75 }} />}</span>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>{label}{hasMega && <ChevronDown size={13} aria-hidden="true" style={{ opacity: 0.75 }} />}{isEvent && <EventBadge />}</span>
                   </a>
                 )}
               </li>
@@ -991,7 +1023,7 @@ function Nav() {
         <ul className="mob-nav-list" style={{ listStyle: "none", display: "grid", gap: 8 }}>
           {mobileItems.map(([label, href], i) =>
           <li key={href}>
-              {href.startsWith("/") ? (
+              {href.startsWith("/") && !href.startsWith("/event") ? (
                 <Link
                   className="mob-nav-link"
                   href={href}
@@ -4844,7 +4876,10 @@ function Events() {
               Kopdar, acara komunitas, dan kumpul rombongan di GARAGE. Jadwal event diumumkan di Instagram — mau bikin acara sendiri? Booking tempat lewat WhatsApp.
             </p>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 28 }}>
-              <a href={bookingUrl} target="_blank" rel="noopener noreferrer" className="btn btn-primary">
+              <a href="/event" className="btn btn-primary">
+                <span>Lihat Event Garage</span><ArrowRight />
+              </a>
+              <a href={bookingUrl} target="_blank" rel="noopener noreferrer" className="btn">
                 <span>Booking Acara</span><ArrowRight />
               </a>
               {instagram ? (
@@ -5501,7 +5536,7 @@ function FooterMvp() {
     ["Menu", "#menu"],
     ["Cara Pesan", "#cara-pesan"],
     ["Cek Meja", "#live-status"],
-    ["Event", "#events"],
+    ["Event", "/event"],
     ["Member", MEMBER_LOGIN_URL],
     ["Franchise", "/franchise"],
     ["Jadi Mitra", "/mitra"],

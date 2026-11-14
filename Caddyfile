@@ -13,6 +13,14 @@
 	}
 
 	# IP klien asli dari koneksi (bukan header kiriman klien) untuk rate limit.
+	# GARAGE EVENT PLATFORM (stack terpisah "garage-event", /root/garage-event)
+	@garageEvent path /event /event/*
+	handle @garageEvent {
+		reverse_proxy garage-event-platform:4400 {
+			header_up X-Real-IP {remote_host}
+		}
+	}
+
 	reverse_proxy app:3000 {
 		header_up X-Real-IP {remote_host}
 	}

@@ -2,45 +2,18 @@ import fs from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-import { inventoryItems, menuItems } from "@/lib/garage-data";
-import { parseMasterWorkbook, planMasterImport, type CurrentState } from "@/lib/master-import-plan";
+import { parseMasterWorkbook, planMasterImport } from "@/lib/master-import-plan";
+import { MASTER_WORKBOOK_PATH, seedCurrentState as seedState } from "@/lib/test-helpers/master-workbook-fixture";
 
-const WORKBOOK = "docs/data/Garage_Coffee_Master_Pro_Final_v3.1_POS.xlsx";
+// Workbook asli = data bisnis privat, tidak ada di repo publik (PR #210). Tes ini jalan bila berkasnya ada
+// (letakkan di docs/data/ atau set GARAGE_MASTER_WORKBOOK); di CI dilewati — logika yang sama diuji dengan
+// workbook sintetis di master-import-plan.synthetic.test.ts.
+const WORKBOOK = MASTER_WORKBOOK_PATH;
+const HAS_WORKBOOK = fs.existsSync(WORKBOOK);
 
-function seedState(): CurrentState {
-  const activeRecipes = new Map<string, Map<string, number>>();
-  for (const menu of menuItems) {
-    for (const r of menu.recipes ?? []) {
-      const key = `${menu.id}:${r.variantId}`;
-      const m = activeRecipes.get(key) ?? new Map<string, number>();
-      m.set(r.inventorySku, (m.get(r.inventorySku) ?? 0) + r.qty);
-      activeRecipes.set(key, m);
-    }
-  }
-  return {
-    materials: inventoryItems.map((i) => ({
-      sku: i.sku,
-      name: i.name,
-      usageArea: i.usageArea,
-      unit: i.unit,
-      packageQty: i.packageQty,
-      purchasePrice: i.purchasePrice,
-      unitCost: i.unitCost,
-    })),
-    menus: menuItems.map((m) => ({
-      id: m.id,
-      name: m.name,
-      category: m.category,
-      status: "active",
-      variants: m.variants.map((v) => ({ variantId: v.id, label: v.label, price: v.price })),
-    })),
-    activeRecipes,
-    draftRecipeMenuIds: new Set(),
-  };
-}
-
-describe("Master workbook v3.1", () => {
-  const data = parseMasterWorkbook(fs.readFileSync(WORKBOOK));
+describe.skipIf(!HAS_WORKBOOK)("Master workbook v3.1 (berkas privat)", () => {
+  // Body describe tetap dievaluasi saat koleksi walau dilewati → jangan parse berkas yang tidak ada.
+  const data = (HAS_WORKBOOK ? parseMasterWorkbook(fs.readFileSync(WORKBOOK)) : null) as ReturnType<typeof parseMasterWorkbook>;
 
   it("membaca sheet master bahan, resep, dan POS register", () => {
     expect(data.warnings).toEqual([]);

@@ -1253,5 +1253,14 @@ describe("Smart Partner Hub — kontrol status dari daftar mitra", () => {
     const events = await svc.listPartnerEvents(partnerB.id, owner());
     expect(events.filter((e) => e.kind === "partner_status").slice(0, 2).map((e) => e.toStatus)).toEqual(["aktif", "dibekukan"]);
     await expect(svc.applyPartnerStatusAction(partnerB.id, "freeze", "x", owner())).rejects.toThrow(/Alasan/);
+    // Dibekukan lalu produk aktif terakhir dinonaktifkan → "Aktifkan lagi" ditolak dengan pesan syarat; readiness menyebutnya.
+    await svc.applyPartnerStatusAction(partnerB.id, "freeze", "Mitra libur sementara", owner());
+    const active = (await svc.listPartnerProducts(partnerB.id, { outletId, showCost: false })).filter((p) => p.active);
+    for (const p of active) await svc.setPartnerProductActive(p.linkId, false, owner());
+    const frozenRow = (await svc.listPartners(owner())).find((p) => p.id === partnerB.id)!;
+    expect(frozenRow.readiness.missing.join(" ")).toMatch(/produk/);
+    await expect(svc.applyPartnerStatusAction(partnerB.id, "activate", "Masalah sudah selesai", owner())).rejects.toThrow(/Belum bisa diaktifkan/);
+    for (const p of active) await svc.setPartnerProductActive(p.linkId, true, owner());
+    await svc.applyPartnerStatusAction(partnerB.id, "activate", "Masalah sudah selesai", owner());
   });
 });

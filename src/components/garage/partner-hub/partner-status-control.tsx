@@ -128,7 +128,8 @@ function StatusDialog({
   const [choice, setChoice] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const reason = [choice, note.trim()].filter(Boolean).join(" — ");
-  const missing = action.kind === "activate" && partner.status !== "dibekukan" ? partner.readiness?.missing ?? [] : [];
+  // Sama dengan server: aktivasi (termasuk "Aktifkan lagi" dari Dibekukan) selalu dicek syaratnya.
+  const missing = action.kind === "activate" ? partner.readiness?.missing ?? [] : [];
   const blocked = missing.length > 0;
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => event.key === "Escape" && onClose();
@@ -136,8 +137,8 @@ function StatusDialog({
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby={`sd-${partner.id}`} onClick={onClose}>
-      <div className="w-full max-w-md rounded-2xl border border-[#3a3a42] bg-[#17171c] p-5 text-[#f4f4f5] shadow-[0_24px_60px_rgba(0,0,0,0.6)]" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby={`sd-${partner.id}`} onClick={onClose}>
+      <div className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-[#3a3a42] bg-[#17171c] p-5 text-[#f4f4f5] shadow-[0_24px_60px_rgba(0,0,0,0.6)]" onClick={(e) => e.stopPropagation()}>
         <h2 id={`sd-${partner.id}`} className="text-lg font-black text-white">
           {action.label}: {partner.name}
         </h2>
@@ -182,7 +183,7 @@ function StatusDialog({
             <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} placeholder="Catatan tambahan (opsional)" className={`${inputCls} mt-2`} aria-label="Catatan tambahan" />
           </>
         )}
-        <div className="mt-4 flex flex-wrap justify-end gap-2">
+        <div className="sticky -bottom-5 -mx-5 mt-4 flex flex-wrap justify-end gap-2 border-t border-[#2a2a30] bg-[#17171c] px-5 py-3">
           <Btn onClick={onClose}>Batal</Btn>
           {!blocked ? (
             <Btn tone={action.kind === "deactivate" || action.kind === "freeze" ? "danger" : "primary"} busy={busy} disabled={reason.trim().length < 3} onClick={() => onConfirm(reason)}>

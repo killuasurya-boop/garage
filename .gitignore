@@ -131,3 +131,13 @@ testsprite_tests\tmp\config.json
 
 # Konfigurasi Playwright sementara (cloud QA)
 /playwright.cloudtmp.config.ts
+
+# Public release guard: local and business-private artifacts
+/.claude/settings.local.json
+/docs/franchise-internal/uploads/
+/docs/data/
+/storage/company-documents/seed/
+/public/uploads/
+/output/
+/tmp/
+/testsprite_tests/tmp/

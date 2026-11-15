@@ -6,9 +6,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BadgeCheck, Eye, FileDown, MessageCircle, Send, Wallet } from "lucide-react";
 
-import { partnerSettlementWhatsapp, settlementPayoutState } from "@/lib/partner-hub-rules";
+import { partnerFacingPayoutStatus, partnerSettlementWhatsapp, settlementPayoutState } from "@/lib/partner-hub-rules";
 
 import { api, Btn, Card, Chip, dateWib, Field, inputCls, Kpi, Notice, rp, SETTLEMENT_LABEL, timeWib, todayKey } from "./desk-shared";
+import { useNowTick } from "./desk-orders";
 
 type FinanceLine = {
   id: string;
@@ -71,6 +72,8 @@ function Stat({ label, value, tone = "default" }: { label: string; value: string
 const LINE_STATUS: Record<string, string> = { queue: "Menunggu", accepted: "Diterima", processing: "Diproses", ready: "Siap", delivered: "Diantar", rejected: "Ditolak", cancelled: "Batal" };
 
 export function DeskFinance({ role, userId }: { role: string; userId: string }) {
+  // Label jatuh tempo (12.00 WIB) ikut berganti tanpa muat ulang.
+  const now = useNowTick(60_000);
   const [from, setFrom] = useState(todayKey());
   const [to, setTo] = useState(todayKey());
   const [data, setData] = useState<{ partners: PartnerFinance[] } | null>(null);
@@ -330,7 +333,7 @@ export function DeskFinance({ role, userId }: { role: string; userId: string }) 
         ) : (
           <ul className="mt-3 grid gap-2">
             {settlements.map(({ settlement: s, partnerName, pendingAmount }) => {
-              const due = settlementPayoutState({ status: s.status, periodTo: s.periodTo, liabilityTotal: s.liabilityTotal, paidAmount: s.paidAmount, pendingAmount });
+              const due = settlementPayoutState({ status: s.status, periodFrom: s.periodFrom, liabilityTotal: s.liabilityTotal, paidAmount: s.paidAmount, pendingAmount }, new Date(now));
               return (
               <li key={s.id} className={`rounded-lg border p-3 ${selected === s.id ? "border-[#ff5a66]" : "border-[#3a3a42]"} bg-black/20`}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -398,6 +401,7 @@ function SettlementActions({
   run: (key: string, fn: () => Promise<unknown>, ok: string) => Promise<void>;
 }) {
   const s = detail.settlement;
+  const now = useNowTick(60_000);
   // Persetujuan Owner: bila akun Owner memakai 2FA, server meminta kode authenticator (428) → minta lalu ulangi.
   const approve = () =>
     run(
@@ -437,23 +441,32 @@ function SettlementActions({
   // A4 (Owner 15 Nov 2026): kirim PDF settlement ke WA mitra. HP → lembar bagikan dengan PDF terlampir;
   // komputer → PDF terunduh + chat WA mitra terbuka dengan ringkasan. Nomor = nomor mitra di Partner Hub.
   const pendingAmount = detail.payouts.filter((p) => p.status === "recorded").reduce((sum, p) => sum + p.amount, 0);
-  const due = settlementPayoutState({ status: s.status, periodTo: s.periodTo, liabilityTotal: s.liabilityTotal, paidAmount: s.paidAmount, pendingAmount });
+  const due = settlementPayoutState({ status: s.status, periodFrom: s.periodFrom, liabilityTotal: s.liabilityTotal, paidAmount: s.paidAmount, pendingAmount }, new Date(now));
   const wa = partnerSettlementWhatsapp({
     partnerName: detail.partner?.name ?? "Mitra",
     phone: detail.partner?.phone ?? null,
     settlementNo: s.settlementNo,
     periodFrom: s.periodFrom,
     periodTo: s.periodTo,
-    grossSales: s.grossSales + s.salesAdjustments,
+    grossSales: s.grossSales,
     garageProfit: s.garageProfit,
     liabilityTotal: s.liabilityTotal,
-    paidAmount: s.paidAmount,
-    statusLabel: due.label,
+    // Ke mitra: jumlah yang sudah ditransfer termasuk yang menunggu verifikasi Owner; status dengan bahasa mitra.
+    paidAmount: s.paidAmount + pendingAmount,
+    statusLabel: partnerFacingPayoutStatus(due),
   });
-  const [preparedPdf, setPreparedPdf] = useState<File | null>(null);
+  // PDF yang sudah diunduh tapi menunggu ketukan baru untuk dibagikan; ikut settlement & statusnya
+  // (berganti settlement / status → dibuang, supaya PDF lama tidak terkirim).
+  const [prepared, setPrepared] = useState<{ key: string; file: File } | null>(null);
+  const preparedKey = `${s.id}:${s.status}:${s.paidAmount}`;
+  const preparedPdf = prepared?.key === preparedKey ? prepared.file : null;
+  const setPreparedPdf = (file: File | null) => setPrepared(file ? { key: preparedKey, file } : null);
+  // Lembar bagikan (PDF terlampir) hanya di perangkat sentuh/HP. Chrome/Edge desktop juga mendukung
+  // navigator.share, tapi di sana nomor mitra tidak terpakai — desktop selalu lewat chat wa.me + unduh PDF.
   const canShareFiles = () => {
     try {
-      return typeof navigator !== "undefined" && typeof navigator.canShare === "function" && navigator.canShare({ files: [new File([""], "cek.pdf", { type: "application/pdf" })] });
+      const touch = typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;
+      return Boolean(touch) && typeof navigator.canShare === "function" && navigator.canShare({ files: [new File([""], "cek.pdf", { type: "application/pdf" })] });
     } catch {
       return false;
     }
@@ -469,7 +482,11 @@ function SettlementActions({
       await navigator.share({ files: [file], text: wa.text, title: `Laporan ${s.settlementNo}` });
       setPreparedPdf(null);
     } catch (error) {
-      if ((error as DOMException).name === "AbortError") return; // kasir menutup lembar bagikan
+      if ((error as DOMException).name === "AbortError") {
+        // Kasir menutup lembar bagikan: PDF BELUM terkirim — jangan tampilkan pesan sukses.
+        setPreparedPdf(file);
+        throw new Error("Pengiriman dibatalkan — PDF belum terkirim. Ketuk \"Bagikan sekarang\" untuk mencoba lagi.");
+      }
       if ((error as DOMException).name === "NotAllowedError") {
         // Browser (mis. Safari) butuh ketukan baru setelah PDF selesai diunduh.
         setPreparedPdf(file);
@@ -484,7 +501,9 @@ function SettlementActions({
       return run(`${s.id}-wa`, async () => shareFile(await fetchPdf()), "Pilih WhatsApp lalu kontak mitra — PDF sudah terlampir.");
     }
     // Komputer: buka chat WA sekarang (masih dalam ketukan, tidak diblok popup), lalu unduh PDF untuk dilampirkan.
-    const chat = wa.url ? window.open(wa.url, "_blank", "noopener") : null;
+    // Tanpa fitur "noopener" (dengan itu window.open SELALU mengembalikan null) — opener diputus manual.
+    const chat = wa.url ? window.open(wa.url, "_blank") : null;
+    if (chat) chat.opener = null;
     return run(
       `${s.id}-wa`,
       async () => {
@@ -531,7 +550,7 @@ function SettlementActions({
           <MessageCircle className="size-4" /> {busy === `${s.id}-wa` ? "Menyiapkan PDF…" : "Kirim PDF via WA"}
         </button>
         {preparedPdf ? (
-          <button type="button" onClick={() => void shareNow()} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#16a34a] px-3 text-sm font-bold text-white hover:bg-[#15803d]">
+          <button type="button" onClick={() => void shareNow()} disabled={busy !== null} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#16a34a] px-3 text-sm font-bold text-white hover:bg-[#15803d] disabled:opacity-60">
             <MessageCircle className="size-4" /> Bagikan sekarang
           </button>
         ) : null}

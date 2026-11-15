@@ -178,14 +178,16 @@ describe("partnerMarketingBlockers (media marketing)", () => {
 });
 
 describe("settlementPayoutState — setoran harian X+1 12.00 WIB (Owner 15 Nov 2026)", () => {
-  // Settlement penjualan 13 Nov: periodTo = 14 Nov 00.00 WIB → jatuh tempo 14 Nov 12.00 WIB.
-  const periodTo = "2026-11-13T17:00:00.000Z";
+  // Settlement penjualan 13 Nov: periodFrom = 13 Nov 00.00 WIB → jatuh tempo 14 Nov 12.00 WIB.
+  const periodFrom = "2026-11-12T17:00:00.000Z";
   const at = (wib: string) => new Date(`${wib}+07:00`);
-  const base = { periodTo, liabilityTotal: 224_000, paidAmount: 0 };
+  const base = { periodFrom, liabilityTotal: 224_000, paidAmount: 0 };
 
   it("jatuh tempo = X+1 pukul 12.00 WIB", async () => {
     const { settlementDueAt } = await import("@/lib/partner-hub-rules");
-    expect(settlementDueAt(periodTo).toISOString()).toBe("2026-11-14T05:00:00.000Z");
+    expect(settlementDueAt(periodFrom).toISOString()).toBe("2026-11-14T05:00:00.000Z");
+    // Multi-hari 10–13 Nov: penjualan 10 Nov wajib dibayar 11 Nov 12.00.
+    expect(settlementDueAt("2026-11-09T17:00:00.000Z").toISOString()).toBe("2026-11-11T05:00:00.000Z");
   });
 
   it("sebelum batas: label sesuai tahap", async () => {
@@ -248,5 +250,24 @@ describe("partnerSettlementWhatsapp — kirim PDF setoran ke mitra (A4)", () => 
     expect(msg.url).toBeNull();
     expect(msg.text).toContain("13 Nov 2026 – 14 Nov 2026");
     expect(msg.text).toContain("Sudah ditransfer: Rp1");
+  });
+});
+
+describe("settlementPayoutState — batas tepat & bahasa mitra", () => {
+  const base = { periodFrom: "2026-11-12T17:00:00.000Z", liabilityTotal: 224_000, paidAmount: 0 };
+  it("tepat 12.00.00 belum terlambat; sisa sebagian + menunggu verifikasi ditulis jelas", async () => {
+    const { settlementPayoutState } = await import("@/lib/partner-hub-rules");
+    expect(settlementPayoutState({ ...base, status: "approved" }, new Date("2026-11-14T12:00:00+07:00")).key).toBe("awaiting_transfer");
+    const late = settlementPayoutState({ ...base, status: "approved", pendingAmount: 100_000 }, new Date("2026-11-14T13:00:00+07:00"));
+    expect(late.key).toBe("late");
+    expect(late.label).toContain("sisa Rp124.000 belum ditransfer");
+    expect(late.label).toContain("Rp100.000 menunggu verifikasi Owner");
+  });
+  it("teks untuk mitra tanpa istilah internal", async () => {
+    const { settlementPayoutState, partnerFacingPayoutStatus } = await import("@/lib/partner-hub-rules");
+    const draft = partnerFacingPayoutStatus(settlementPayoutState({ ...base, status: "draft" }, new Date("2026-11-14T09:00:00+07:00")));
+    expect(draft).toMatch(/paling lambat .*14 Nov.*12[.:]00 WIB/);
+    expect(draft).not.toMatch(/Owner|draft|TERLAMBAT/i);
+    expect(partnerFacingPayoutStatus(settlementPayoutState({ ...base, status: "approved", pendingAmount: 224_000 }))).toBe("Sudah ditransfer, sedang kami cocokkan.");
   });
 });

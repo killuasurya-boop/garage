@@ -304,14 +304,20 @@ export function settlementStatusAfterPayment(liabilityTotal: number, verifiedPai
 
 // ─── Jatuh tempo setoran harian (keputusan Owner 15 Nov 2026) ───────────────
 // Penjualan tanggal X dibayar paling lambat X+1 pukul 12.00 WIB, selalu lewat transfer.
-// periodTo settlement = batas akhir eksklusif (00.00 WIB hari setelah periode), jadi
-// jatuh tempo = periodTo + 12 jam. Transfer yang sudah dicatat tetapi menunggu verifikasi
-// Owner TIDAK dihitung terlambat.
+// Jatuh tempo dihitung dari HARI PERTAMA periode (periodFrom): settlement multi-hari
+// (mis. 10–13 Nov) jatuh tempo 11 Nov 12.00 karena penjualan 10 Nov sudah wajib dibayar saat itu.
+// Transfer yang sudah dicatat tetapi menunggu verifikasi Owner TIDAK dihitung terlambat.
 
-export const SETTLEMENT_DUE_HOURS_AFTER_PERIOD = 12;
+const WIB_OFFSET_MS = 7 * 3_600_000;
+const DAY_MS = 86_400_000;
+/** Jam jatuh tempo pada hari berikutnya (12.00 WIB). */
+export const SETTLEMENT_DUE_HOUR_WIB = 12;
 
-export function settlementDueAt(periodTo: Date | string) {
-  return new Date(new Date(periodTo).getTime() + SETTLEMENT_DUE_HOURS_AFTER_PERIOD * 3_600_000);
+/** Jatuh tempo = (awal hari WIB dari periodFrom) + 1 hari + 12 jam. */
+export function settlementDueAt(periodFrom: Date | string) {
+  const t = new Date(periodFrom).getTime();
+  const dayStart = Math.floor((t + WIB_OFFSET_MS) / DAY_MS) * DAY_MS - WIB_OFFSET_MS;
+  return new Date(dayStart + DAY_MS + SETTLEMENT_DUE_HOUR_WIB * 3_600_000);
 }
 
 export type SettlementPayoutState = {
@@ -321,28 +327,49 @@ export type SettlementPayoutState = {
   dueAt: Date;
 };
 
-/** Label status setoran untuk layar (kasir/Owner). `pendingAmount` = transfer dicatat, belum diverifikasi Owner. */
+const rupiahText = (n: number) => `Rp${Math.round(n).toLocaleString("id-ID")}`;
+
+/** Label status setoran untuk layar staf. `pendingAmount` = transfer dicatat, belum diverifikasi Owner. */
 export function settlementPayoutState(
-  input: { status: string; periodTo: Date | string; liabilityTotal: number; paidAmount: number; pendingAmount?: number },
+  input: { status: string; periodFrom: Date | string; liabilityTotal: number; paidAmount: number; pendingAmount?: number },
   now = new Date(),
 ): SettlementPayoutState {
-  const dueAt = settlementDueAt(input.periodTo);
+  const dueAt = settlementDueAt(input.periodFrom);
   const clock = new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(dueAt);
   const pending = Math.max(0, input.pendingAmount ?? 0);
   const late = now.getTime() > dueAt.getTime();
+  const pendingNote = pending > 0 ? `, ${rupiahText(pending)} menunggu verifikasi Owner` : "";
   if (input.status === "cancelled") return { key: "cancelled", label: "Dibatalkan", tone: "default", dueAt };
   if (input.liabilityTotal <= 0) return { key: "none", label: "Tidak ada setoran", tone: "default", dueAt };
   if (input.status === "paid" || input.paidAmount >= input.liabilityTotal) return { key: "paid", label: "Lunas", tone: "green", dueAt };
   if (input.status === "disputed") return { key: "disputed", label: "Dipersoalkan", tone: "red", dueAt };
   if (input.paidAmount + pending >= input.liabilityTotal) return { key: "awaiting_verification", label: "Sudah transfer · menunggu verifikasi Owner", tone: "blue", dueAt };
   if (late) {
-    const why = input.status === "draft" ? "belum diajukan" : input.status === "submitted" ? "belum disetujui Owner" : input.paidAmount + pending > 0 ? "baru dibayar sebagian" : "belum ditransfer";
+    const why =
+      input.status === "draft"
+        ? "belum diajukan"
+        : input.status === "submitted"
+          ? "belum disetujui Owner"
+          : input.paidAmount + pending > 0
+            ? `sisa ${rupiahText(input.liabilityTotal - input.paidAmount - pending)} belum ditransfer${pendingNote}`
+            : "belum ditransfer";
     return { key: "late", label: `TERLAMBAT — ${why} (batas ${clock})`, tone: "red", dueAt };
   }
   if (input.status === "draft") return { key: "not_submitted", label: `Belum diajukan · batas bayar ${clock}`, tone: "amber", dueAt };
   if (input.status === "submitted") return { key: "awaiting_approval", label: `Menunggu persetujuan Owner · batas bayar ${clock}`, tone: "amber", dueAt };
-  if (input.paidAmount + pending > 0) return { key: "partial", label: `Dibayar sebagian · batas ${clock}`, tone: "amber", dueAt };
+  if (input.paidAmount + pending > 0) return { key: "partial", label: `Sebagian sudah ditransfer${pendingNote} · batas ${clock}`, tone: "amber", dueAt };
   return { key: "awaiting_transfer", label: `Menunggu transfer · batas ${clock}`, tone: "amber", dueAt };
+}
+
+/** Status setoran dengan bahasa untuk MITRA (tanpa istilah internal seperti "Owner"/"draft"). */
+export function partnerFacingPayoutStatus(state: SettlementPayoutState) {
+  const due = new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", weekday: "long", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(state.dueAt);
+  if (state.key === "paid") return "Lunas — terima kasih.";
+  if (state.key === "awaiting_verification") return "Sudah ditransfer, sedang kami cocokkan.";
+  if (state.key === "cancelled") return "Laporan ini dibatalkan.";
+  if (state.key === "disputed") return "Sedang kami periksa ulang bersama Anda.";
+  if (state.key === "none") return "Tidak ada setoran untuk periode ini.";
+  return `Dijadwalkan ditransfer paling lambat ${due} WIB.`;
 }
 
 /** Pembayaran tidak boleh melebihi sisa kewajiban (PRD 16.3 #5). Null = boleh. */

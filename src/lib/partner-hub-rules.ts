@@ -369,7 +369,69 @@ export function partnerFacingPayoutStatus(state: SettlementPayoutState) {
   if (state.key === "cancelled") return "Laporan ini dibatalkan.";
   if (state.key === "disputed") return "Sedang kami periksa ulang bersama Anda.";
   if (state.key === "none") return "Tidak ada setoran untuk periode ini.";
+  if (state.key === "late") return `Terlambat — batas transfer ${due} WIB sudah lewat. Garage sedang menindaklanjuti.`;
   return `Dijadwalkan ditransfer paling lambat ${due} WIB.`;
+}
+
+// ─── A7: settlement harian & pengingat (Owner 15 Nov 2026) ───────────────────
+
+/** Kunci hari WIB "YYYY-MM-DD" dari sebuah waktu. */
+export function wibDayKey(at: Date | string) {
+  return new Date(new Date(at).getTime() + WIB_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+/** Awal hari WIB (00.00) dari sebuah waktu. */
+export function wibDayStart(at: Date | string) {
+  const t = new Date(at).getTime();
+  return new Date(Math.floor((t + WIB_OFFSET_MS) / DAY_MS) * DAY_MS - WIB_OFFSET_MS);
+}
+
+/** Settlement harian: periode harus tepat satu hari kalender WIB (00.00–24.00). Null = sah. */
+export function dailyPeriodError(from: Date, to: Date) {
+  if (!(from < to)) return "Periode tidak valid.";
+  if (wibDayStart(from).getTime() !== from.getTime() || to.getTime() - from.getTime() !== DAY_MS) {
+    return "Settlement dibuat per hari: pilih satu tanggal (Dari = Sampai).";
+  }
+  return null;
+}
+
+/** Dua periode [a, b) dan [c, d) bertumpuk. */
+export function periodsOverlap(aFrom: Date | string, aTo: Date | string, bFrom: Date | string, bTo: Date | string) {
+  return new Date(aFrom).getTime() < new Date(bTo).getTime() && new Date(bFrom).getTime() < new Date(aTo).getTime();
+}
+
+/** Jam pengingat (WIB). Tutup outlet = 23.00 hari X; setujui 08.00 & transfer 10.00 pada hari X+1. */
+export const SETTLEMENT_REMINDER = { closeHour: 23, approveHour: 8, transferHour: 10 } as const;
+
+export type SettlementReminderStage = "approve" | "transfer" | "late";
+
+/**
+ * Pengingat yang sudah jatuh waktu untuk satu settlement (hanya tahap paling lanjut).
+ * - approve: ≥ 08.00 X+1, masih draft/diajukan
+ * - transfer: ≥ 10.00 X+1, sudah disetujui tetapi transfer belum menutup kewajiban
+ * - late: lewat 12.00 X+1 dan belum tertutup (transfer menunggu verifikasi Owner TIDAK dihitung terlambat)
+ */
+export function settlementReminderStage(
+  input: { status: string; periodFrom: Date | string; liabilityTotal: number; paidAmount: number; pendingAmount?: number },
+  now = new Date(),
+): SettlementReminderStage | null {
+  const state = settlementPayoutState(input, now);
+  if (state.key === "late") return "late";
+  const nextDay = wibDayStart(input.periodFrom).getTime() + DAY_MS;
+  const t = now.getTime();
+  if ((state.key === "not_submitted" || state.key === "awaiting_approval") && t >= nextDay + SETTLEMENT_REMINDER.approveHour * 3_600_000) return "approve";
+  if ((state.key === "awaiting_transfer" || state.key === "partial") && t >= nextDay + SETTLEMENT_REMINDER.transferHour * 3_600_000) return "transfer";
+  return null;
+}
+
+/**
+ * Transaksi sebelum batas ini seharusnya sudah masuk settlement: sejak 23.00 WIB = akhir hari ini;
+ * sebelum 23.00 = awal hari ini (hari-hari sebelumnya wajib sudah direkap).
+ */
+export function settlementMissingCutoff(now = new Date()) {
+  const start = wibDayStart(now);
+  const closing = start.getTime() + SETTLEMENT_REMINDER.closeHour * 3_600_000;
+  return now.getTime() >= closing ? new Date(start.getTime() + DAY_MS) : start;
 }
 
 /** Pembayaran tidak boleh melebihi sisa kewajiban (PRD 16.3 #5). Null = boleh. */

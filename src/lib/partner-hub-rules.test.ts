@@ -271,3 +271,52 @@ describe("settlementPayoutState — batas tepat & bahasa mitra", () => {
     expect(partnerFacingPayoutStatus(settlementPayoutState({ ...base, status: "approved", pendingAmount: 224_000 }))).toBe("Sudah ditransfer, sedang kami cocokkan.");
   });
 });
+
+describe("A7 — settlement harian & pengingat (aturan murni)", () => {
+  const day = new Date("2026-11-13T00:00:00+07:00");
+  const base = { status: "approved", periodFrom: day, liabilityTotal: 224_000, paidAmount: 0 };
+  const at = (iso: string) => new Date(`${iso}+07:00`);
+
+  it("periode harus tepat satu hari kalender WIB", async () => {
+    const { dailyPeriodError, wibDayKey, wibDayStart } = await import("@/lib/partner-hub-rules");
+    expect(dailyPeriodError(day, new Date(day.getTime() + 86_400_000))).toBeNull();
+    expect(dailyPeriodError(day, new Date(day.getTime() + 2 * 86_400_000))).toMatch(/per hari/);
+    expect(dailyPeriodError(new Date(day.getTime() + 3_600_000), new Date(day.getTime() + 86_400_000 + 3_600_000))).toMatch(/per hari/);
+    expect(dailyPeriodError(day, day)).toMatch(/tidak valid/);
+    expect(wibDayKey(at("2026-11-13T23:59:59"))).toBe("2026-11-13");
+    expect(wibDayKey(at("2026-11-14T00:00:00"))).toBe("2026-11-14");
+    expect(wibDayStart(at("2026-11-13T23:30:00")).toISOString()).toBe(day.toISOString());
+  });
+
+  it("tahap pengingat: 08.00 setujui · 10.00 transfer · lewat 12.00 terlambat", async () => {
+    const { settlementReminderStage } = await import("@/lib/partner-hub-rules");
+    expect(settlementReminderStage({ ...base, status: "draft" }, at("2026-11-14T07:59:00"))).toBeNull();
+    expect(settlementReminderStage({ ...base, status: "draft" }, at("2026-11-14T08:00:00"))).toBe("approve");
+    expect(settlementReminderStage({ ...base, status: "submitted" }, at("2026-11-14T09:00:00"))).toBe("approve");
+    expect(settlementReminderStage(base, at("2026-11-14T09:59:00"))).toBeNull();
+    expect(settlementReminderStage(base, at("2026-11-14T10:00:00"))).toBe("transfer");
+    expect(settlementReminderStage({ ...base, status: "partially_paid", paidAmount: 100_000 }, at("2026-11-14T11:00:00"))).toBe("transfer");
+    expect(settlementReminderStage(base, at("2026-11-14T12:00:00"))).toBe("transfer"); // tepat 12.00 belum terlambat
+    expect(settlementReminderStage(base, at("2026-11-14T12:01:00"))).toBe("late");
+    expect(settlementReminderStage({ ...base, status: "draft" }, at("2026-11-14T12:01:00"))).toBe("late");
+    // Transfer dicatat menunggu verifikasi Owner / lunas / batal → tidak ada pengingat.
+    expect(settlementReminderStage({ ...base, pendingAmount: 224_000 }, at("2026-11-14T13:00:00"))).toBeNull();
+    expect(settlementReminderStage({ ...base, status: "paid", paidAmount: 224_000 }, at("2026-11-14T13:00:00"))).toBeNull();
+    expect(settlementReminderStage({ ...base, status: "cancelled" }, at("2026-11-14T13:00:00"))).toBeNull();
+    expect(settlementReminderStage({ ...base, liabilityTotal: 0 }, at("2026-11-14T13:00:00"))).toBeNull();
+  });
+
+  it("batas rekap: sebelum 23.00 = awal hari ini; sejak 23.00 = akhir hari ini", async () => {
+    const { settlementMissingCutoff } = await import("@/lib/partner-hub-rules");
+    expect(settlementMissingCutoff(at("2026-11-13T22:59:00")).toISOString()).toBe(day.toISOString());
+    expect(settlementMissingCutoff(at("2026-11-13T23:00:00")).toISOString()).toBe(at("2026-11-14T00:00:00").toISOString());
+    expect(settlementMissingCutoff(at("2026-11-14T00:30:00")).toISOString()).toBe(at("2026-11-14T00:00:00").toISOString());
+  });
+
+  it("portal mitra: terlambat tidak lagi berbunyi 'dijadwalkan'", async () => {
+    const { partnerFacingPayoutStatus, settlementPayoutState } = await import("@/lib/partner-hub-rules");
+    const late = partnerFacingPayoutStatus(settlementPayoutState(base, at("2026-11-14T13:00:00")));
+    expect(late).toMatch(/^Terlambat — batas transfer .*12[.:]00 WIB sudah lewat/);
+    expect(late).not.toMatch(/Owner|draft|Dijadwalkan/i);
+  });
+});

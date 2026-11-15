@@ -52,6 +52,7 @@ type SettlementRow = { pendingAmount?: number; settlement: { id: string; settlem
 type SettlementDetail = {
   settlement: SettlementRow["settlement"] & { totalCost: number | null; salesAdjustments: number; liabilityAdjustments: number };
   partner?: { id: string; name: string; phone: string | null };
+  sentLog?: Array<{ actorName: string | null; createdAt: string; channel: string | null }>;
   payouts: Array<{ id: string; amount: number; fundSource: string; reference: string; status: string; paidAt: string; selfVerified: boolean; createdBy: string | null; hasProof?: boolean }>;
   reports: Array<{ id: string; reportNo: string; audience: string; kind: string; version: number; createdAt: string }>;
 };
@@ -208,16 +209,27 @@ export function DeskFinance({ role, userId }: { role: string; userId: string }) 
                 {partner.partnerName} <span className="text-xs font-semibold text-[#b8b8bf]">#{partner.partnerCode}</span>
               </h3>
             </div>
-            <Btn
-              tone="primary"
-              disabled={partner.unsettledLines === 0}
-              busy={busy === `create-${partner.partnerId}`}
-              onClick={() =>
-                void run(`create-${partner.partnerId}`, () => api("/api/finance/partner-settlements", { method: "POST", body: JSON.stringify({ partnerId: partner.partnerId, from, to }) }), "Draft settlement dibuat. Periksa lalu ajukan.")
-              }
-            >
-              <Send className="size-4" aria-hidden /> Buat draft settlement ({partner.unsettledLines})
-            </Btn>
+            {/* A7: settlement per hari kalender WIB (penjualan X dibayar X+1 ≤ 12.00). */}
+            <div className="grid justify-items-end gap-1">
+              <Btn
+                tone="primary"
+                disabled={partner.unsettledLines === 0 || from !== to}
+                busy={busy === `create-${partner.partnerId}`}
+                onClick={() => {
+                  // Hari ini belum tutup (23.00 WIB): transaksi berikutnya hari ini tidak bisa ditambahkan ke draft ini.
+                  const wibHour = new Date(Date.now() + 7 * 3_600_000).getUTCHours();
+                  if (from === todayKey() && wibHour < 23 && !window.confirm("Hari ini belum tutup (23.00). Transaksi mitra setelah ini tidak masuk ke settlement ini, dan selama draft ini terbuka tanggal ini tidak bisa direkap lagi. Tetap buat sekarang?")) return;
+                  void run(
+                    `create-${partner.partnerId}`,
+                    () => api("/api/finance/partner-settlements", { method: "POST", body: JSON.stringify({ partnerId: partner.partnerId, from, to: from }) }),
+                    `Draft settlement ${dateWib(`${from}T00:00:00+07:00`)} dibuat. Periksa, ajukan, lalu kirim PDF ke mitra.`,
+                  );
+                }}
+              >
+                <Send className="size-4" aria-hidden /> Buat settlement harian {dateWib(`${from}T00:00:00+07:00`)} ({partner.unsettledLines})
+              </Btn>
+              {from !== to ? <p className="text-xs text-[#ffd08a]">Settlement dibuat per hari — samakan tanggal Dari &amp; Sampai.</p> : null}
+            </div>
           </div>
           <dl className={`mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 ${showCost ? "lg:grid-cols-6" : "lg:grid-cols-4"}`}>
             <Stat label="Order" value={String(partner.orderCount)} />
@@ -477,10 +489,14 @@ function SettlementActions({
     const name = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ?? `${s.settlementNo}.pdf`;
     return new File([await res.blob()], name, { type: "application/pdf" });
   }
+  // A7: jejak "PDF sudah dikirim" (siapa & kapan). Gagal mencatat tidak membatalkan pengiriman.
+  const markSent = (channel: "share" | "wa_desktop") =>
+    api(`/api/finance/partner-settlements/${s.id}/sent`, { method: "POST", body: JSON.stringify({ channel }) }).catch(() => undefined);
   async function shareFile(file: File) {
     try {
       await navigator.share({ files: [file], text: wa.text, title: `Laporan ${s.settlementNo}` });
       setPreparedPdf(null);
+      await markSent("share");
     } catch (error) {
       if ((error as DOMException).name === "AbortError") {
         // Kasir menutup lembar bagikan: PDF BELUM terkirim — jangan tampilkan pesan sukses.
@@ -518,6 +534,7 @@ function SettlementActions({
         window.setTimeout(() => URL.revokeObjectURL(href), 30_000);
         if (!wa.url) throw new Error("PDF terunduh, tetapi nomor WA mitra belum diisi/valid di Kelola Mitra — kirim manual.");
         if (!chat) throw new Error("PDF terunduh. Browser memblokir jendela WhatsApp — izinkan pop-up lalu coba lagi.");
+        await markSent("wa_desktop");
       },
       wa.url ? "PDF terunduh & chat WA mitra terbuka — lampirkan file PDF di chat, lalu kirim." : "PDF terunduh.",
     );
@@ -582,6 +599,11 @@ function SettlementActions({
           </Btn>
         ) : null}
       </div>
+      <p className="text-xs text-[#b8b8bf]" data-testid="settlement-sent-log">
+        {detail.sentLog?.length
+          ? `PDF terakhir dikirim ke mitra: ${detail.sentLog[0].actorName ?? "staf"} · ${dateWib(detail.sentLog[0].createdAt)} ${timeWib(detail.sentLog[0].createdAt)} (${detail.sentLog[0].channel === "share" ? "lembar bagikan HP" : "WA komputer"})${detail.sentLog.length > 1 ? ` · total ${detail.sentLog.length}×` : ""}`
+          : "PDF belum pernah dikirim ke mitra lewat tombol WA."}
+      </p>
       {detail.reports.length ? (
         <p className="text-xs text-[#b8b8bf]">
           Arsip PDF: {detail.reports.map((r) => `${r.reportNo} (${r.kind === "final" ? "FINAL" : "DRAFT"})`).join(" · ")}

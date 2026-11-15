@@ -376,6 +376,49 @@ export function partnerTicketWhatsappText(input: {
   return lines.join("\n");
 }
 
+/** Nomor WA Indonesia → format wa.me (62…). Null bila tidak valid. */
+export function waNumber(phone: string | null | undefined) {
+  const digits = (phone ?? "").replace(/\D/g, "");
+  const wa = digits.startsWith("0") ? `62${digits.slice(1)}` : digits.startsWith("8") ? `62${digits}` : digits;
+  return /^62\d{8,13}$/.test(wa) ? wa : null;
+}
+
+/**
+ * Pesan WhatsApp pendamping PDF settlement ke mitra (A4, Owner 15 Nov 2026).
+ * Nomor = nomor mitra di data Partner Hub (tidak diubah). PDF dilampirkan terpisah.
+ */
+export function partnerSettlementWhatsapp(input: {
+  partnerName: string;
+  phone: string | null;
+  settlementNo: string;
+  periodFrom: Date | string;
+  periodTo: Date | string;
+  grossSales: number;
+  garageProfit: number | null;
+  liabilityTotal: number;
+  paidAmount: number;
+  statusLabel: string;
+}) {
+  const day = (d: Date) => new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", day: "numeric", month: "short", year: "numeric" }).format(d);
+  const from = new Date(input.periodFrom);
+  const lastDay = new Date(new Date(input.periodTo).getTime() - 1);
+  const period = day(from) === day(lastDay) ? day(from) : `${day(from)} – ${day(lastDay)}`;
+  const rupiah = (n: number) => `Rp${Math.round(n).toLocaleString("id-ID")}`;
+  const lines = [
+    `Halo ${input.partnerName}, berikut laporan penjualan & setoran dari Garage Coffee.`,
+    `No. ${input.settlementNo} · ${period}`,
+    `Total penjualan: ${rupiah(input.grossSales)}`,
+    ...(input.garageProfit === null ? [] : [`Bagian Garage: ${rupiah(input.garageProfit)}`]),
+    `Setoran untuk mitra: ${rupiah(input.liabilityTotal)}`,
+    ...(input.paidAmount > 0 ? [`Sudah ditransfer: ${rupiah(input.paidAmount)}`] : []),
+    `Status: ${input.statusLabel}`,
+    "Rincian per transaksi ada di PDF terlampir. Terima kasih!",
+  ];
+  const text = lines.join("\n");
+  const wa = waNumber(input.phone);
+  return { text, wa, url: wa ? `https://wa.me/${wa}?text=${encodeURIComponent(text)}` : null };
+}
+
 /** Produk terlaris mitra pada periode: qty terjual (setelah batal), penjualan, HPP, profit — urut qty lalu penjualan. */
 export function partnerBestSellers(lines: Array<PartnerLineAmounts & { itemName: string; variantLabel: string }>) {
   const map = new Map<string, { itemName: string; variantLabel: string; qty: number; gross: number; cost: number; profit: number }>();

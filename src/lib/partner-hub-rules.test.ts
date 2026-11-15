@@ -215,3 +215,38 @@ describe("settlementPayoutState — setoran harian X+1 12.00 WIB (Owner 15 Nov 2
     expect(settlementPayoutState({ ...base, liabilityTotal: 0, status: "approved" }, after).key).toBe("none");
   });
 });
+
+describe("partnerSettlementWhatsapp — kirim PDF setoran ke mitra (A4)", () => {
+  it("nomor 08… jadi 62…, isi ringkas & tanpa data pelanggan", async () => {
+    const { partnerSettlementWhatsapp, waNumber } = await import("@/lib/partner-hub-rules");
+    expect(waNumber("0853-1234-5648")).toBe("6285312345648");
+    expect(waNumber("+62 851 1234 5855")).toBe("6285112345855");
+    expect(waNumber("12")).toBeNull();
+    const msg = partnerSettlementWhatsapp({
+      partnerName: "Mitra Dimsum Cidut",
+      phone: "085312345648",
+      settlementNo: "PST-DSM-20261114-XLRZF",
+      periodFrom: "2026-11-12T17:00:00.000Z",
+      periodTo: "2026-11-13T17:00:00.000Z",
+      grossSales: 257_000,
+      garageProfit: 33_000,
+      liabilityTotal: 224_000,
+      paidAmount: 0,
+      statusLabel: "Menunggu transfer · batas 14 Nov 12.00",
+    });
+    expect(msg.url).toMatch(/^https:\/\/wa\.me\/6285312345648\?text=/);
+    expect(msg.text).toContain("13 Nov 2026");
+    expect(msg.text).not.toContain("–");
+    expect(msg.text).toContain("Setoran untuk mitra: Rp224.000");
+    expect(msg.text).toContain("Bagian Garage: Rp33.000");
+    expect(msg.text).not.toContain("Sudah ditransfer");
+  });
+
+  it("tanpa nomor valid: teks tetap ada, url null", async () => {
+    const { partnerSettlementWhatsapp } = await import("@/lib/partner-hub-rules");
+    const msg = partnerSettlementWhatsapp({ partnerName: "X", phone: null, settlementNo: "S", periodFrom: "2026-11-12T17:00:00.000Z", periodTo: "2026-11-14T17:00:00.000Z", grossSales: 1, garageProfit: null, liabilityTotal: 1, paidAmount: 1, statusLabel: "Lunas" });
+    expect(msg.url).toBeNull();
+    expect(msg.text).toContain("13 Nov 2026 – 14 Nov 2026");
+    expect(msg.text).toContain("Sudah ditransfer: Rp1");
+  });
+});

@@ -4,9 +4,9 @@
 // Kasir: lihat, buat draft, ajukan, preview PDF. Owner: setujui. Owner/Manajer: catat & verifikasi transfer.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BadgeCheck, Eye, FileDown, Send, Wallet } from "lucide-react";
+import { BadgeCheck, Eye, FileDown, MessageCircle, Send, Wallet } from "lucide-react";
 
-import { settlementPayoutState } from "@/lib/partner-hub-rules";
+import { partnerSettlementWhatsapp, settlementPayoutState } from "@/lib/partner-hub-rules";
 
 import { api, Btn, Card, Chip, dateWib, Field, inputCls, Kpi, Notice, rp, SETTLEMENT_LABEL, timeWib, todayKey } from "./desk-shared";
 
@@ -50,6 +50,7 @@ const profitTone = (value: number) => (value < 0 ? "text-[#ff8a94]" : "text-[#86
 type SettlementRow = { pendingAmount?: number; settlement: { id: string; settlementNo: string; status: string; liabilityTotal: number; paidAmount: number; grossSales: number; garageProfit: number | null; periodFrom: string; periodTo: string; lineCount: number }; partnerName: string; partnerCode: string };
 type SettlementDetail = {
   settlement: SettlementRow["settlement"] & { totalCost: number | null; salesAdjustments: number; liabilityAdjustments: number };
+  partner?: { id: string; name: string; phone: string | null };
   payouts: Array<{ id: string; amount: number; fundSource: string; reference: string; status: string; paidAt: string; selfVerified: boolean; createdBy: string | null; hasProof?: boolean }>;
   reports: Array<{ id: string; reportNo: string; audience: string; kind: string; version: number; createdAt: string }>;
 };
@@ -433,6 +434,76 @@ function SettlementActions({
   const [paidAt, setPaidAt] = useState(todayKey());
   const action = (name: string, body: Record<string, unknown>, ok: string) => run(`${s.id}-${name}`, () => api(`/api/finance/partner-settlements/${s.id}/action`, { method: "POST", body: JSON.stringify(body) }), ok);
   const approved = ["approved", "partially_paid", "paid"].includes(s.status);
+  // A4 (Owner 15 Nov 2026): kirim PDF settlement ke WA mitra. HP → lembar bagikan dengan PDF terlampir;
+  // komputer → PDF terunduh + chat WA mitra terbuka dengan ringkasan. Nomor = nomor mitra di Partner Hub.
+  const pendingAmount = detail.payouts.filter((p) => p.status === "recorded").reduce((sum, p) => sum + p.amount, 0);
+  const due = settlementPayoutState({ status: s.status, periodTo: s.periodTo, liabilityTotal: s.liabilityTotal, paidAmount: s.paidAmount, pendingAmount });
+  const wa = partnerSettlementWhatsapp({
+    partnerName: detail.partner?.name ?? "Mitra",
+    phone: detail.partner?.phone ?? null,
+    settlementNo: s.settlementNo,
+    periodFrom: s.periodFrom,
+    periodTo: s.periodTo,
+    grossSales: s.grossSales + s.salesAdjustments,
+    garageProfit: s.garageProfit,
+    liabilityTotal: s.liabilityTotal,
+    paidAmount: s.paidAmount,
+    statusLabel: due.label,
+  });
+  const [preparedPdf, setPreparedPdf] = useState<File | null>(null);
+  const canShareFiles = () => {
+    try {
+      return typeof navigator !== "undefined" && typeof navigator.canShare === "function" && navigator.canShare({ files: [new File([""], "cek.pdf", { type: "application/pdf" })] });
+    } catch {
+      return false;
+    }
+  };
+  async function fetchPdf() {
+    const res = await fetch(`/api/finance/partner-settlements/${s.id}/pdf`, { credentials: "include", cache: "no-store" });
+    if (!res.ok) throw new Error(((await res.json().catch(() => null)) as { error?: { message?: string } } | null)?.error?.message ?? "PDF gagal dibuat.");
+    const name = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ?? `${s.settlementNo}.pdf`;
+    return new File([await res.blob()], name, { type: "application/pdf" });
+  }
+  async function shareFile(file: File) {
+    try {
+      await navigator.share({ files: [file], text: wa.text, title: `Laporan ${s.settlementNo}` });
+      setPreparedPdf(null);
+    } catch (error) {
+      if ((error as DOMException).name === "AbortError") return; // kasir menutup lembar bagikan
+      if ((error as DOMException).name === "NotAllowedError") {
+        // Browser (mis. Safari) butuh ketukan baru setelah PDF selesai diunduh.
+        setPreparedPdf(file);
+        throw new Error("PDF siap — ketuk \"Bagikan sekarang\" untuk memilih WhatsApp.");
+      }
+      throw error;
+    }
+  }
+  const shareNow = () => (preparedPdf ? run(`${s.id}-wa`, () => shareFile(preparedPdf), "PDF dibagikan — pastikan terkirim ke kontak mitra.") : Promise.resolve());
+  const sendWhatsapp = () => {
+    if (canShareFiles()) {
+      return run(`${s.id}-wa`, async () => shareFile(await fetchPdf()), "Pilih WhatsApp lalu kontak mitra — PDF sudah terlampir.");
+    }
+    // Komputer: buka chat WA sekarang (masih dalam ketukan, tidak diblok popup), lalu unduh PDF untuk dilampirkan.
+    const chat = wa.url ? window.open(wa.url, "_blank", "noopener") : null;
+    return run(
+      `${s.id}-wa`,
+      async () => {
+        const file = await fetchPdf();
+        const href = URL.createObjectURL(file);
+        const link = document.createElement("a");
+        link.href = href;
+        link.download = file.name;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.setTimeout(() => URL.revokeObjectURL(href), 30_000);
+        if (!wa.url) throw new Error("PDF terunduh, tetapi nomor WA mitra belum diisi/valid di Kelola Mitra — kirim manual.");
+        if (!chat) throw new Error("PDF terunduh. Browser memblokir jendela WhatsApp — izinkan pop-up lalu coba lagi.");
+      },
+      wa.url ? "PDF terunduh & chat WA mitra terbuka — lampirkan file PDF di chat, lalu kirim." : "PDF terunduh.",
+    );
+  };
+
   return (
     <div className="mt-3 grid gap-3 border-t border-[#2a2a30] pt-3">
       <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
@@ -456,6 +527,14 @@ function SettlementActions({
         <a href={`/api/finance/partner-settlements/${s.id}/pdf`} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[#3a3a42] px-3 text-sm font-semibold text-[#e4e4e8] hover:bg-white/10">
           <FileDown className="size-4" /> Unduh PDF mitra
         </a>
+        <button type="button" onClick={() => void sendWhatsapp()} disabled={busy !== null} data-testid="settlement-send-wa" className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[#22c55e]/60 bg-[#14532d]/40 px-3 text-sm font-semibold text-[#bbf7d0] hover:bg-[#14532d] disabled:opacity-60">
+          <MessageCircle className="size-4" /> {busy === `${s.id}-wa` ? "Menyiapkan PDF…" : "Kirim PDF via WA"}
+        </button>
+        {preparedPdf ? (
+          <button type="button" onClick={() => void shareNow()} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#16a34a] px-3 text-sm font-bold text-white hover:bg-[#15803d]">
+            <MessageCircle className="size-4" /> Bagikan sekarang
+          </button>
+        ) : null}
         {canPay ? (
           <a href={`/api/finance/partner-settlements/${s.id}/pdf?audience=internal&inline=1`} target="_blank" rel="noopener" className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[#3a3a42] px-3 text-sm font-semibold text-[#e4e4e8] hover:bg-white/10">
             <FileDown className="size-4" /> PDF internal

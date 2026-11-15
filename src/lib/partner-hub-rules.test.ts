@@ -176,3 +176,42 @@ describe("partnerMarketingBlockers (media marketing)", () => {
     expect(partnerMarketingBlockers({ ...ok, priceOk: false, showInDigitalMenu: false, linkActive: false, hasVerifiedBank: false })).toHaveLength(4);
   });
 });
+
+describe("settlementPayoutState — setoran harian X+1 12.00 WIB (Owner 15 Nov 2026)", () => {
+  // Settlement penjualan 13 Nov: periodTo = 14 Nov 00.00 WIB → jatuh tempo 14 Nov 12.00 WIB.
+  const periodTo = "2026-11-13T17:00:00.000Z";
+  const at = (wib: string) => new Date(`${wib}+07:00`);
+  const base = { periodTo, liabilityTotal: 224_000, paidAmount: 0 };
+
+  it("jatuh tempo = X+1 pukul 12.00 WIB", async () => {
+    const { settlementDueAt } = await import("@/lib/partner-hub-rules");
+    expect(settlementDueAt(periodTo).toISOString()).toBe("2026-11-14T05:00:00.000Z");
+  });
+
+  it("sebelum batas: label sesuai tahap", async () => {
+    const { settlementPayoutState } = await import("@/lib/partner-hub-rules");
+    const before = at("2026-11-14T09:00:00");
+    expect(settlementPayoutState({ ...base, status: "draft" }, before).key).toBe("not_submitted");
+    expect(settlementPayoutState({ ...base, status: "submitted" }, before).key).toBe("awaiting_approval");
+    expect(settlementPayoutState({ ...base, status: "approved" }, before)).toMatchObject({ key: "awaiting_transfer", tone: "amber" });
+    expect(settlementPayoutState({ ...base, status: "partially_paid", paidAmount: 100_000 }, before).key).toBe("partial");
+  });
+
+  it("lewat 12.00 tanpa transfer = TERLAMBAT; sebab ditulis", async () => {
+    const { settlementPayoutState } = await import("@/lib/partner-hub-rules");
+    const after = at("2026-11-14T12:01:00");
+    const state = settlementPayoutState({ ...base, status: "approved" }, after);
+    expect(state).toMatchObject({ key: "late", tone: "red" });
+    expect(state.label).toMatch(/belum ditransfer/);
+    expect(settlementPayoutState({ ...base, status: "draft" }, after).label).toMatch(/belum diajukan/);
+  });
+
+  it("transfer Manajer menunggu verifikasi Owner tidak dihitung terlambat; lunas = hijau", async () => {
+    const { settlementPayoutState } = await import("@/lib/partner-hub-rules");
+    const after = at("2026-11-14T15:00:00");
+    expect(settlementPayoutState({ ...base, status: "approved", pendingAmount: 224_000 }, after).key).toBe("awaiting_verification");
+    expect(settlementPayoutState({ ...base, status: "paid", paidAmount: 224_000 }, after)).toMatchObject({ key: "paid", tone: "green" });
+    expect(settlementPayoutState({ ...base, status: "cancelled" }, after).key).toBe("cancelled");
+    expect(settlementPayoutState({ ...base, liabilityTotal: 0, status: "approved" }, after).key).toBe("none");
+  });
+});

@@ -19,20 +19,8 @@ export async function GET(request: Request) {
     const summaries = await Promise.all(
       targets.map(async (partner) => ({ partnerId: partner.id, partnerName: partner.name, partnerCode: partner.code, ...(await partnerFinanceSummary(partner.id, outletId, from, to)) })),
     );
-    // Kasir cukup tahu penjualan & jumlah setoran; HPP per item dan profit Garage hanya untuk Owner/Manajer.
-    if (session.data.profile.role === "Kasir") {
-      return {
-        from,
-        to,
-        costHidden: true,
-        partners: summaries.map((summary) => ({
-          ...summary,
-          totalCost: null,
-          garageProfit: null,
-          lines: summary.lines.map((line) => ({ ...line, unitCost: null, cost: null, profit: null })),
-        })),
-      };
-    }
+    // Keputusan Owner 15 Nov 2026: Kasir boleh melihat harga mitra (HPP) & profit Garage — angka yang sama
+    // sudah tercantum di PDF settlement yang dikirim ke mitra.
     return { from, to, costHidden: false, partners: summaries };
   });
 }

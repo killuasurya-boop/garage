@@ -302,6 +302,49 @@ export function settlementStatusAfterPayment(liabilityTotal: number, verifiedPai
   return verifiedPaid >= liabilityTotal ? "paid" : "partially_paid";
 }
 
+// ─── Jatuh tempo setoran harian (keputusan Owner 15 Nov 2026) ───────────────
+// Penjualan tanggal X dibayar paling lambat X+1 pukul 12.00 WIB, selalu lewat transfer.
+// periodTo settlement = batas akhir eksklusif (00.00 WIB hari setelah periode), jadi
+// jatuh tempo = periodTo + 12 jam. Transfer yang sudah dicatat tetapi menunggu verifikasi
+// Owner TIDAK dihitung terlambat.
+
+export const SETTLEMENT_DUE_HOURS_AFTER_PERIOD = 12;
+
+export function settlementDueAt(periodTo: Date | string) {
+  return new Date(new Date(periodTo).getTime() + SETTLEMENT_DUE_HOURS_AFTER_PERIOD * 3_600_000);
+}
+
+export type SettlementPayoutState = {
+  key: "none" | "cancelled" | "paid" | "disputed" | "awaiting_verification" | "not_submitted" | "awaiting_approval" | "awaiting_transfer" | "partial" | "late";
+  label: string;
+  tone: "default" | "green" | "amber" | "red" | "blue";
+  dueAt: Date;
+};
+
+/** Label status setoran untuk layar (kasir/Owner). `pendingAmount` = transfer dicatat, belum diverifikasi Owner. */
+export function settlementPayoutState(
+  input: { status: string; periodTo: Date | string; liabilityTotal: number; paidAmount: number; pendingAmount?: number },
+  now = new Date(),
+): SettlementPayoutState {
+  const dueAt = settlementDueAt(input.periodTo);
+  const clock = new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(dueAt);
+  const pending = Math.max(0, input.pendingAmount ?? 0);
+  const late = now.getTime() > dueAt.getTime();
+  if (input.status === "cancelled") return { key: "cancelled", label: "Dibatalkan", tone: "default", dueAt };
+  if (input.liabilityTotal <= 0) return { key: "none", label: "Tidak ada setoran", tone: "default", dueAt };
+  if (input.status === "paid" || input.paidAmount >= input.liabilityTotal) return { key: "paid", label: "Lunas", tone: "green", dueAt };
+  if (input.status === "disputed") return { key: "disputed", label: "Dipersoalkan", tone: "red", dueAt };
+  if (input.paidAmount + pending >= input.liabilityTotal) return { key: "awaiting_verification", label: "Sudah transfer · menunggu verifikasi Owner", tone: "blue", dueAt };
+  if (late) {
+    const why = input.status === "draft" ? "belum diajukan" : input.status === "submitted" ? "belum disetujui Owner" : input.paidAmount + pending > 0 ? "baru dibayar sebagian" : "belum ditransfer";
+    return { key: "late", label: `TERLAMBAT — ${why} (batas ${clock})`, tone: "red", dueAt };
+  }
+  if (input.status === "draft") return { key: "not_submitted", label: `Belum diajukan · batas bayar ${clock}`, tone: "amber", dueAt };
+  if (input.status === "submitted") return { key: "awaiting_approval", label: `Menunggu persetujuan Owner · batas bayar ${clock}`, tone: "amber", dueAt };
+  if (input.paidAmount + pending > 0) return { key: "partial", label: `Dibayar sebagian · batas ${clock}`, tone: "amber", dueAt };
+  return { key: "awaiting_transfer", label: `Menunggu transfer · batas ${clock}`, tone: "amber", dueAt };
+}
+
 /** Pembayaran tidak boleh melebihi sisa kewajiban (PRD 16.3 #5). Null = boleh. */
 export function payoutBlockReason(input: { status: string; liabilityTotal: number; verifiedPaid: number; recordedPending: number; amount: number }) {
   if (!["approved", "partially_paid"].includes(input.status)) return "Settlement harus disetujui Owner sebelum dibayar.";

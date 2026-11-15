@@ -1561,7 +1561,13 @@ export async function getPartnerSettlement(id: string, viewer: { outletId: strin
 
 export async function listPartnerSettlements(outletId: string, partnerId?: string) {
   return getDb()
-    .select({ settlement: partnerSettlements, partnerName: partners.name, partnerCode: partners.code })
+    .select({
+      settlement: partnerSettlements,
+      partnerName: partners.name,
+      partnerCode: partners.code,
+      // Transfer sudah dicatat tapi belum diverifikasi Owner (tidak dihitung terlambat).
+      pendingAmount: sql<number>`coalesce((select sum(pp.amount) from partner_payouts pp where pp.settlement_id = ${partnerSettlements.id} and pp.status = 'recorded'), 0)::int`,
+    })
     .from(partnerSettlements)
     .innerJoin(partners, eq(partnerSettlements.partnerId, partners.id))
     .where(and(eq(partnerSettlements.outletId, outletId), partnerId ? eq(partnerSettlements.partnerId, partnerId) : undefined))

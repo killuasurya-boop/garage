@@ -6,6 +6,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BadgeCheck, Eye, FileDown, Send, Wallet } from "lucide-react";
 
+import { settlementPayoutState } from "@/lib/partner-hub-rules";
+
 import { api, Btn, Card, Chip, dateWib, Field, inputCls, Kpi, Notice, rp, SETTLEMENT_LABEL, timeWib, todayKey } from "./desk-shared";
 
 type FinanceLine = {
@@ -45,7 +47,7 @@ type PartnerFinance = {
 /** Untung hijau, rugi merah — angka negatif tidak boleh tampil seperti untung. */
 const profitTone = (value: number) => (value < 0 ? "text-[#ff8a94]" : "text-[#86efac]");
 
-type SettlementRow = { settlement: { id: string; settlementNo: string; status: string; liabilityTotal: number; paidAmount: number; grossSales: number; garageProfit: number | null; periodFrom: string; periodTo: string; lineCount: number }; partnerName: string; partnerCode: string };
+type SettlementRow = { pendingAmount?: number; settlement: { id: string; settlementNo: string; status: string; liabilityTotal: number; paidAmount: number; grossSales: number; garageProfit: number | null; periodFrom: string; periodTo: string; lineCount: number }; partnerName: string; partnerCode: string };
 type SettlementDetail = {
   settlement: SettlementRow["settlement"] & { totalCost: number | null; salesAdjustments: number; liabilityAdjustments: number };
   payouts: Array<{ id: string; amount: number; fundSource: string; reference: string; status: string; paidAt: string; selfVerified: boolean; createdBy: string | null; hasProof?: boolean }>;
@@ -79,8 +81,8 @@ export function DeskFinance({ role, userId }: { role: string; userId: string }) 
   const [partnerFilter, setPartnerFilter] = useState<string>("all");
   const isOwner = role === "Owner";
   const canPay = role === "Owner" || role === "Manajer";
-  // Kasir tidak melihat HPP per item & profit Garage (server juga tidak mengirimnya).
-  const showCost = role !== "Kasir";
+  // Keputusan Owner 15 Nov 2026: semua peran keuangan (termasuk Kasir) melihat HPP mitra & profit Garage.
+  const showCost = true;
 
   const load = useCallback(async () => {
     try {
@@ -326,7 +328,9 @@ export function DeskFinance({ role, userId }: { role: string; userId: string }) 
           <p className="mt-2 text-sm text-[#b8b8bf]">Belum ada settlement.</p>
         ) : (
           <ul className="mt-3 grid gap-2">
-            {settlements.map(({ settlement: s, partnerName }) => (
+            {settlements.map(({ settlement: s, partnerName, pendingAmount }) => {
+              const due = settlementPayoutState({ status: s.status, periodTo: s.periodTo, liabilityTotal: s.liabilityTotal, paidAmount: s.paidAmount, pendingAmount });
+              return (
               <li key={s.id} className={`rounded-lg border p-3 ${selected === s.id ? "border-[#ff5a66]" : "border-[#3a3a42]"} bg-black/20`}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <button type="button" aria-expanded={selected === s.id} onClick={() => void loadDetail(s.id)} className="min-h-10 min-w-0 break-words text-left font-semibold text-white underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70">
@@ -337,6 +341,11 @@ export function DeskFinance({ role, userId }: { role: string; userId: string }) 
                 <p className="mt-1 text-xs text-[#b8b8bf]">
                   {dateWib(s.periodFrom)} – {dateWib(new Date(new Date(s.periodTo).getTime() - 1).toISOString())} · {s.lineCount} baris
                 </p>
+                {due.key !== "cancelled" && due.key !== "none" ? (
+                  <p className="mt-1" data-testid="settlement-due-state">
+                    <Chip tone={due.tone}>{due.label}</Chip>
+                  </p>
+                ) : null}
                 {s.status !== "cancelled" && s.liabilityTotal > 0 ? (
                   <div className="mt-2">
                     <div className="flex flex-wrap items-baseline justify-between gap-x-3 text-xs">
@@ -363,7 +372,8 @@ export function DeskFinance({ role, userId }: { role: string; userId: string }) 
                   />
                 ) : null}
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </Card>

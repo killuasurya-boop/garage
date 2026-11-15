@@ -267,6 +267,9 @@ describe("Smart Partner Hub — settlement & payout", () => {
     ).rejects.toThrow(/melebihi sisa/);
     const first = await svc.recordPartnerPayout(draft.id, { amount: 20_000, fundSource: "bank_jago", reference: "TRF-1001", paidAt: new Date(), idempotencyKey: "pay-1001-key" }, manager());
     expect(first.status).toBe("recorded");
+    // Daftar settlement membawa transfer yang menunggu verifikasi Owner (label "menunggu verifikasi", bukan terlambat).
+    const listed = (await svc.listPartnerSettlements(outletId, partnerA.id)).find((row) => row.settlement.id === draft.id)!;
+    expect(listed.pendingAmount).toBe(20_000);
     // Buku kas: catatan Manajer yang belum diverifikasi belum mengurangi saldo bank.
     const ledgerOf = (payoutId: string) => d.select().from(t.schema.cashLedgerEntries).where(eq(t.schema.cashLedgerEntries.sourceId, payoutId));
     const { accountBalance } = await import("@/lib/cash-ledger");

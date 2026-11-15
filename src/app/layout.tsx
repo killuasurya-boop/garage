@@ -7,6 +7,7 @@ import { AutoLogoutWatcher } from "@/components/garage/admin/auto-logout-watcher
 import { ClientErrorReporter } from "@/components/garage/client-error-reporter";
 import "./globals.css";
 import "@/components/garage-website/garage-website.css";
+import "@/components/garage-website/gigs-spotlight.css";
 
 const anton = Anton({
   variable: "--font-anton",

@@ -48,8 +48,8 @@ export function GigsPromoBanner({ promo }: { promo: GigsPromo }) {
             <a href={promo.url} data-testid="home-gigs-cta" className="btn btn-primary">
               <span>Lihat Event</span> <ArrowRight aria-hidden size={16} />
             </a>
-            {promo.links.daftar ? (
-              <a href={promo.links.daftar} className="btn">
+            {promo.links.daftarSponsor ? (
+              <a href={promo.links.daftarSponsor} className="btn">
                 <span>Daftar Sponsor / UMKM</span>
               </a>
             ) : null}

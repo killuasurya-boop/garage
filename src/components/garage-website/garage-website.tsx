@@ -11,6 +11,7 @@ import { GARAGE_BRAND_ASSETS, GARAGE_BRAND_LOGO_ASPECT } from "@/lib/garage-bran
 import type { PublicEvent } from "@/lib/event-format";
 import { GrandOpeningBanner } from "@/components/garage-website/grand-opening-banner";
 import { GigsPromoBanner } from "@/components/garage-website/gigs-promo-banner";
+import { GigsSpotlight } from "@/components/garage-website/gigs-spotlight";
 import type { GigsPromo } from "@/lib/gigs-promo";
 import { SuryaShowcase } from "@/components/surya/surya-showcase";
 import { SuryaDeveloperCredit } from "@/components/surya/surya-developer-credit";
@@ -6357,7 +6358,8 @@ function GarageWebsiteRoot({
       <MenuGallery />
       <LiveTestimonials />
       <Experience />
-      {/* 5. Event */}
+      {/* 5. Event — GIGS (GARAGE EVENT PLATFORM) lalu event komunitas */}
+      {gigsPromo ? <GigsSpotlight promo={gigsPromo} /> : null}
       <Events />
       {/* 6. Lokasi & sosmed */}
       <LocationMvp />

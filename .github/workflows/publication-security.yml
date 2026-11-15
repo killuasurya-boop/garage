@@ -1,0 +1,32 @@
+name: Publication Security Precheck
+
+on:
+  pull_request:
+    paths:
+      - 'README.md'
+      - '.gitignore'
+      - 'src/db/seed.ts'
+      - 'docs/**'
+      - 'public/**'
+      - 'storage/**'
+      - '.claude/**'
+      - 'scripts/security-publication-scan.mjs'
+      - '.github/workflows/publication-security.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publication-precheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Audit tracked files (no production secrets)
+        run: node scripts/security-publication-scan.mjs

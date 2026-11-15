@@ -246,11 +246,14 @@ describe("Smart Partner Hub — Portal Mitra & isolasi", () => {
 
 describe("Smart Partner Hub — settlement & payout", () => {
   it("settlement anti-dobel, Owner approve → biaya HPP Mitra, payout parsial lalu lunas (UAT-17/18/19)", async () => {
-    const from = new Date(Date.now() - 86_400_000);
-    const to = new Date(Date.now() + 86_400_000);
+    // A7: settlement per hari kalender WIB.
+    const { wibDayStart } = await import("@/lib/partner-hub-rules");
+    const from = wibDayStart(new Date());
+    const to = new Date(from.getTime() + 86_400_000);
     const draft = await svc.createPartnerSettlement({ partnerId: partnerA.id, from, to }, kasir());
     expect(draft).toMatchObject({ status: "draft", liabilityTotal: 38_000, grossSales: 44_000, garageProfit: 6_000, lineCount: 1 });
-    await expect(svc.createPartnerSettlement({ partnerId: partnerA.id, from, to }, kasir())).rejects.toThrow(/Tidak ada transaksi/);
+    // Hari yang sama masih punya draft → ditolak (bukan draft kedua yang tumpang tindih).
+    await expect(svc.createPartnerSettlement({ partnerId: partnerA.id, from, to }, kasir())).rejects.toThrow(/masih punya settlement/);
     await svc.submitPartnerSettlement(draft.id, kasir());
     await expect(svc.approvePartnerSettlement(draft.id, kasir())).rejects.toThrow(/Owner/);
     await expect(
@@ -267,6 +270,9 @@ describe("Smart Partner Hub — settlement & payout", () => {
     ).rejects.toThrow(/melebihi sisa/);
     const first = await svc.recordPartnerPayout(draft.id, { amount: 20_000, fundSource: "bank_jago", reference: "TRF-1001", paidAt: new Date(), idempotencyKey: "pay-1001-key" }, manager());
     expect(first.status).toBe("recorded");
+    // Daftar settlement membawa transfer yang menunggu verifikasi Owner (label "menunggu verifikasi", bukan terlambat).
+    const listed = (await svc.listPartnerSettlements(outletId, partnerA.id)).find((row) => row.settlement.id === draft.id)!;
+    expect(listed.pendingAmount).toBe(20_000);
     // Buku kas: catatan Manajer yang belum diverifikasi belum mengurangi saldo bank.
     const ledgerOf = (payoutId: string) => d.select().from(t.schema.cashLedgerEntries).where(eq(t.schema.cashLedgerEntries.sourceId, payoutId));
     const { accountBalance } = await import("@/lib/cash-ledger");
@@ -1005,5 +1011,223 @@ describe("Smart Partner Hub — pelanggan pesan sendiri dari QR meja (owner Nov 
     await expect(garageSvc.holdCustomerTable({ tableNumber: "9", outletId })).rejects.toMatchObject({ code: "TABLE_OCCUPIED" });
     await expect(customerOrder([{ itemId: "itm-coffee", variantId: "reg", qty: 1 }], "Meja 09")).rejects.toMatchObject({ code: "TABLE_OCCUPIED" });
     await setHub(true);
+  });
+});
+
+describe("Smart Partner Hub — staf memproses pesanan atas nama mitra (Owner 15 Nov 2026)", () => {
+  const staff = (id: string, role: "Owner" | "Manajer" | "Kasir" | "Waiter", workstation: string | null, otherOutlet = false): GarageSession =>
+    ({
+      user: { id, name: `${role}${workstation ? `-${workstation}` : ""} Staf` },
+      profile: {
+        id: `sp-${id}`,
+        role,
+        workstation,
+        shiftLabel: "Pagi",
+        deviceLabel: "T-1",
+        passwordResetRequired: false,
+        outlet: { id: otherOutlet ? "00000000-0000-0000-0000-000000000000" : outletId, code: "TST", name: "Outlet Test", timezone: "Asia/Jakarta" },
+      },
+    }) as unknown as GarageSession;
+
+  // Mitra sendiri untuk blok ini (tidak bergantung urutan/state test lain).
+  let mitra = { id: "", code: "STF" };
+  let menuStaf = "";
+  beforeAll(async () => {
+    await setHub(true);
+    const row = await svc.createPartner({ code: "STF", name: "Mitra Staf" }, manager());
+    mitra = { id: row.id, code: row.code };
+    await svc.updatePartnerProfile(row.id, { phone: "081234500077", terms: "Uji staf atas nama mitra." }, manager());
+    const bank = await svc.addPartnerBankAccount(row.id, { bankName: "BNI", accountName: "Staf", accountNumber: "7777000077" }, manager());
+    await svc.verifyPartnerBankAccount(bank.id, owner());
+    await svc.createPartnerAccount(row.id, { phone: "081277700077", displayName: "Akun Mitra Staf", pin: "246810" }, manager());
+    const product = await svc.createPartnerProduct(
+      row.id,
+      { code: "STF-001", name: "Dimsum Uji Staf", category: "Dimsum", variants: [{ variantId: "reg", label: "Regular", unitCost: 22_000, sellPrice: 25_000 }] },
+      manager(),
+    );
+    menuStaf = product.menuItemId;
+    await svc.setPartnerProductActive(product.linkId, true, owner());
+    await svc.changePartnerStatus(row.id, "verifikasi", "data lengkap", manager());
+    await svc.changePartnerStatus(row.id, "disetujui", "kontrak oke", owner());
+    await svc.changePartnerStatus(row.id, "aktif", "uji order lulus", owner());
+  });
+
+  async function freshTicket() {
+    await svc.setPartnerOperationalStatus(mitra.id, "buka", { garage: manager() });
+    const res = await sale([{ itemId: menuStaf, qty: 1 }]);
+    return (await svc.listTicketsForPartner(mitra.id, "active")).find((row) => row.orderNo === res.orderNo)!;
+  }
+
+  it("waiter terima + barista (Kasir/bar) siapkan atas nama mitra; tercatat staf yang menekan", async () => {
+    const ticket = await freshTicket();
+    await svc.actOnPartnerTicketAsStaff(staff("user-itest-waiter", "Waiter", null), ticket.ticketNo, "accept");
+    const out = await svc.actOnPartnerTicketAsStaff(staff("user-itest-barista", "Kasir", "bar"), ticket.ticketNo, "ready");
+    expect(out.status).toBe("ready");
+    const d = t.getDb();
+    const { eq } = await import("drizzle-orm");
+    const [row] = await d.select().from(t.schema.kitchenTickets).where(eq(t.schema.kitchenTickets.ticketNo, ticket.ticketNo));
+    expect(row.status).toBe("ready");
+    expect(row.acceptedByName).toContain("Waiter Staf (staf, a.n.");
+    expect(row.readyByName).toContain("Kasir-bar Staf (staf, a.n.");
+    const events = (await d.select().from(t.schema.partnerEvents).where(eq(t.schema.partnerEvents.subjectId, ticket.ticketNo))) as Array<{
+      kind: string;
+      actorType: string;
+      actorName: string;
+      metadata: Record<string, unknown>;
+    }>;
+    const ready = events.find((e) => e.kind === "ticket_ready")!;
+    expect(ready.actorType).toBe("staff");
+    expect(ready.actorName).toMatch(/Kasir\/bar — atas nama/);
+    expect(ready.metadata).toMatchObject({ onBehalfOfPartner: true, staffRole: "Kasir", staffWorkstation: "bar" });
+    // Baris keuangan mitra ikut berubah persis seperti aksi mitra sendiri.
+    const lines = await d.select().from(t.schema.partnerOrderLines).where(eq(t.schema.partnerOrderLines.ticketId, row.id));
+    expect(lines.every((line: { status: string }) => line.status === "ready")).toBe(true);
+  });
+
+  it("aturan transisi sama dengan portal mitra; tolak wajib alasan", async () => {
+    const ticket = await freshTicket();
+    const kurir = staff("user-itest-kurir", "Waiter", "kurir");
+    await expect(svc.actOnPartnerTicketAsStaff(kurir, ticket.ticketNo, "start")).rejects.toThrow(/tidak bisa/);
+    await expect(svc.actOnPartnerTicketAsStaff(kurir, ticket.ticketNo, "reject")).rejects.toThrow(/Alasan/);
+    const out = await svc.actOnPartnerTicketAsStaff(kurir, ticket.ticketNo, "reject", "HP mitra mati, stok habis");
+    expect(out.status).toBe("rejected");
+    await expect(svc.actOnPartnerTicketAsStaff(kurir, ticket.ticketNo, "accept")).rejects.toThrow(/tidak bisa/);
+    // Tiket ditolak masuk antrean refund kasir seperti penolakan oleh mitra.
+    const monitor = await svc.listPartnerOrdersForOutlet(outletId, {});
+    expect(monitor.find((r) => r.ticketNo === ticket.ticketNo)).toMatchObject({ needsRefund: true });
+  });
+
+  it("jalur staf: terima → mulai proses → siap (serah-terima tercatat)", async () => {
+    const ticket = await freshTicket();
+    const manajer = staff("user-itest-mgr-onbehalf", "Manajer", null);
+    for (const action of ["accept", "start", "ready"] as const) await svc.actOnPartnerTicketAsStaff(manajer, ticket.ticketNo, action);
+    const d = t.getDb();
+    const { eq } = await import("drizzle-orm");
+    const [row] = await d.select().from(t.schema.kitchenTickets).where(eq(t.schema.kitchenTickets.ticketNo, ticket.ticketNo));
+    expect(row).toMatchObject({ status: "ready" });
+    expect(row.handoverByName).toContain("(staf, a.n.");
+    expect(row.handoverAt).not.toBeNull();
+  });
+
+  it("jalur portal mitra tidak berubah: aktor 'partner', nama akun mitra, tanpa metadata staf", async () => {
+    const ticket = await freshTicket();
+    await svc.actOnPartnerTicket(partnerSession(mitra, "Akun Mitra Staf"), ticket.ticketNo, "accept");
+    const d = t.getDb();
+    const { eq } = await import("drizzle-orm");
+    const [row] = await d.select().from(t.schema.kitchenTickets).where(eq(t.schema.kitchenTickets.ticketNo, ticket.ticketNo));
+    expect(row.acceptedByName).toBe("Akun Mitra Staf");
+    const [event] = (await d.select().from(t.schema.partnerEvents).where(eq(t.schema.partnerEvents.subjectId, ticket.ticketNo))) as Array<{ actorType: string; metadata: Record<string, unknown> }>;
+    expect(event.actorType).toBe("partner");
+    expect(event.metadata).toEqual({});
+  });
+
+  it("staf outlet lain / tiket bukan mitra → 404", async () => {
+    const ticket = await freshTicket();
+    await expect(svc.actOnPartnerTicketAsStaff(staff("user-itest-luar", "Kasir", null, true), ticket.ticketNo, "accept")).rejects.toThrow(/tidak ditemukan/);
+    await expect(svc.actOnPartnerTicketAsStaff(staff("user-itest-kasir2", "Kasir", null), "TIKET-TIDAK-ADA", "accept")).rejects.toThrow(/tidak ditemukan/);
+  });
+});
+
+describe("Smart Partner Hub — A7 settlement harian & pengingat (Owner 15 Nov 2026)", () => {
+  let mitra = { id: "", code: "HRN" };
+  const DAY = 86_400_000;
+  beforeAll(async () => {
+    await setHub(true);
+    const row = await svc.createPartner({ code: "HRN", name: "Mitra Harian" }, manager());
+    mitra = { id: row.id, code: row.code };
+    await svc.updatePartnerProfile(row.id, { phone: "081234500088", terms: "Uji settlement harian." }, manager());
+    const bank = await svc.addPartnerBankAccount(row.id, { bankName: "BNI", accountName: "Harian", accountNumber: "8888000088" }, manager());
+    await svc.verifyPartnerBankAccount(bank.id, owner());
+    await svc.createPartnerAccount(row.id, { phone: "081277700088", displayName: "Akun Mitra Harian", pin: "135790" }, manager());
+    const product = await svc.createPartnerProduct(
+      row.id,
+      { code: "HRN-001", name: "Kue Uji Harian", category: "Kue", variants: [{ variantId: "reg", label: "Regular", unitCost: 9_000, sellPrice: 10_000 }] },
+      manager(),
+    );
+    await svc.setPartnerProductActive(product.linkId, true, owner());
+    await svc.changePartnerStatus(row.id, "verifikasi", "data lengkap", manager());
+    await svc.changePartnerStatus(row.id, "disetujui", "kontrak oke", owner());
+    await svc.changePartnerStatus(row.id, "aktif", "uji order lulus", owner());
+    await svc.setPartnerOperationalStatus(row.id, "buka", { garage: manager() });
+    const res = await sale([{ itemId: product.menuItemId, qty: 1 }]);
+    const ticket = (await svc.listTicketsForPartner(row.id, "active")).find((item) => item.orderNo === res.orderNo)!;
+    for (const action of ["accept", "ready"] as const) await svc.actOnPartnerTicket(partnerSession(mitra), ticket.ticketNo, action);
+  });
+
+  async function notesFor(fragment: string) {
+    const d = t.getDb();
+    const { like } = await import("drizzle-orm");
+    return (await d.select().from(t.schema.staffNotifications).where(like(t.schema.staffNotifications.dedupKey, `%${fragment}%`))) as Array<{
+      kind: string;
+      audience: string;
+      severity: string;
+      title: string;
+    }>;
+  }
+
+  it("periode wajib satu hari WIB; pengingat 23.00 bila belum direkap (sekali saja)", async () => {
+    const { wibDayKey, wibDayStart } = await import("@/lib/partner-hub-rules");
+    const day = wibDayStart(new Date());
+    await expect(svc.createPartnerSettlement({ partnerId: mitra.id, from: new Date(day.getTime() - DAY), to: new Date(day.getTime() + DAY) }, kasir())).rejects.toThrow(/per hari/);
+    await expect(svc.createPartnerSettlement({ partnerId: mitra.id, from: new Date(day.getTime() + 3_600_000), to: new Date(day.getTime() + DAY + 3_600_000) }, kasir())).rejects.toThrow(/per hari/);
+    // Sebelum 23.00: transaksi hari ini belum wajib direkap.
+    await svc.sweepPartnerSettlementReminders(new Date(day.getTime() + 20 * 3_600_000));
+    const key = wibDayKey(day);
+    expect(await notesFor(`missing:${mitra.id}:${key}`)).toHaveLength(0);
+    // 23.30: satu catatan ke audiens kasir (sudah mencakup Owner/Manajer); diulang tidak menggandakan.
+    await svc.sweepPartnerSettlementReminders(new Date(day.getTime() + 23.5 * 3_600_000));
+    await svc.sweepPartnerSettlementReminders(new Date(day.getTime() + 23.6 * 3_600_000));
+    expect(await notesFor(`missing:${mitra.id}:${key}`)).toEqual([
+      expect.objectContaining({ audience: "cashier", kind: "partner_settlement_missing", title: "Buat settlement Mitra Harian" }),
+    ]);
+    // Belum lewat 12.00 X+1 → belum "terlambat".
+    expect(await notesFor(`missing_late:${mitra.id}`)).toHaveLength(0);
+    // 08.00 X+1 masih belum ada settlement → manajemen diingatkan; lewat 12.00 → TERLAMBAT (per hari).
+    await svc.sweepPartnerSettlementReminders(new Date(day.getTime() + DAY + 8.5 * 3_600_000));
+    expect(await notesFor(`missing_morning:${mitra.id}:${key}`)).toEqual([expect.objectContaining({ audience: "management" })]);
+    await svc.sweepPartnerSettlementReminders(new Date(day.getTime() + DAY + 12.5 * 3_600_000));
+    expect(await notesFor(`missing_late:${mitra.id}:${key}`)).toEqual([expect.objectContaining({ severity: "urgent" })]);
+  });
+
+  it("08.00 setujui → 10.00 transfer → lewat 12.00 TERLAMBAT; transfer menunggu verifikasi bukan terlambat", async () => {
+    const { wibDayStart, settlementReminderStage } = await import("@/lib/partner-hub-rules");
+    const day = wibDayStart(new Date());
+    const at = (hourNextDay: number) => new Date(day.getTime() + DAY + hourNextDay * 3_600_000);
+    const draft = await svc.createPartnerSettlement({ partnerId: mitra.id, from: day, to: new Date(day.getTime() + DAY) }, kasir());
+    expect(draft).toMatchObject({ status: "draft", liabilityTotal: 9_000, grossSales: 10_000 });
+    await svc.sweepPartnerSettlementReminders(at(7.5));
+    expect(await notesFor(`approve:${draft.id}`)).toHaveLength(0);
+    await svc.sweepPartnerSettlementReminders(at(8.5));
+    expect(await notesFor(`approve:${draft.id}`)).toEqual([expect.objectContaining({ audience: "management", kind: "partner_settlement_approve" })]);
+    await svc.submitPartnerSettlement(draft.id, kasir());
+    await svc.approvePartnerSettlement(draft.id, owner());
+    await svc.sweepPartnerSettlementReminders(at(10.5));
+    expect(await notesFor(`transfer:${draft.id}`)).toHaveLength(1);
+    await svc.sweepPartnerSettlementReminders(at(12.5));
+    expect(await notesFor(`late:${draft.id}`)).toEqual([expect.objectContaining({ severity: "urgent", kind: "partner_settlement_late" })]);
+    // Settlement hari itu sudah disetujui → tidak memblokir rekap susulan (hanya "tidak ada transaksi").
+    await expect(svc.createPartnerSettlement({ partnerId: mitra.id, from: day, to: new Date(day.getTime() + DAY) }, kasir())).rejects.toThrow(/Tidak ada transaksi/);
+    // Manajer mencatat transfer penuh (menunggu verifikasi Owner) → bukan terlambat lagi.
+    await svc.recordPartnerPayout(draft.id, { amount: 9_000, fundSource: "bank_bni", reference: "TRF-HRN-1", paidAt: at(11), idempotencyKey: "pay-hrn-0001" }, manager());
+    const listed = (await svc.listPartnerSettlements(outletId, mitra.id)).find((row) => row.settlement.id === draft.id)!;
+    expect(settlementReminderStage({ ...listed.settlement, pendingAmount: listed.pendingAmount }, at(13))).toBeNull();
+    // Portal mitra membawa jumlah yang menunggu verifikasi (penanda terlambat tidak menyala).
+    const overview = await svc.partnerPortalOverview(partnerSession(mitra));
+    expect(overview.settlements.find((row) => row.id === draft.id)).toMatchObject({ pendingAmount: 9_000 });
+  });
+
+  it("catatan PDF dikirim: siapa & kapan, hanya untuk staf", async () => {
+    const [row] = await svc.listPartnerSettlements(outletId, mitra.id);
+    await svc.recordSettlementPdfSent(row.settlement.id, "share", kasir());
+    await svc.recordSettlementPdfSent(row.settlement.id, "wa_desktop", manager());
+    const detail = await svc.getPartnerSettlement(row.settlement.id, { outletId });
+    expect(detail.sentLog).toHaveLength(2);
+    expect(detail.sentLog.map((entry) => entry.channel).sort()).toEqual(["share", "wa_desktop"]);
+    expect(detail.sentLog.some((entry) => entry.actorName?.includes("Kasir"))).toBe(true);
+    const asPartner = await svc.getPartnerSettlement(row.settlement.id, { outletId, partnerId: mitra.id });
+    expect(asPartner.sentLog).toEqual([]);
+    const outsider = kasir();
+    const otherOutlet = { ...outsider, profile: { ...outsider.profile, outlet: { ...outsider.profile.outlet, id: "00000000-0000-0000-0000-000000000000" } } };
+    await expect(svc.recordSettlementPdfSent(row.settlement.id, "share", otherOutlet)).rejects.toThrow(/tidak ditemukan/);
   });
 });

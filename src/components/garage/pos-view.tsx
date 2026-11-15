@@ -4866,6 +4866,9 @@ export function PosView({
               {settings.partnerHubEnabled ? (
                 <PosV6NavItem icon={Handshake} label="Partner Hub (Mitra)" testId="pos-menu-partners" count={partnerAttention} dot={partnerAttention ? "danger" : undefined} onClick={() => openModulePath("/partners", "Partner Hub")} />
               ) : null}
+              {settings.partnerHubEnabled ? (
+                <PosV6NavItem icon={HandCoins} label="Penjualan Mitra Hari Ini" testId="pos-menu-partner-sales" onClick={() => openModulePath("/partners?tab=finance", "Penjualan & Setoran Mitra")} />
+              ) : null}
             </PosV6NavGroup>
             <PosV6NavGroup label="Lainnya">
               <PosV6NavItem

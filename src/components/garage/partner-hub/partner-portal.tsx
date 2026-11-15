@@ -7,6 +7,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Bell, BellOff, BellRing, Check, CheckCircle2, ChefHat, CircleX, FileText, Loader2, LogOut, PackageCheck, Store, Sun, Timer } from "lucide-react";
 
+import { partnerFacingPayoutStatus, settlementPayoutState } from "@/lib/partner-hub-rules";
+
 import "@/components/crystal/crystal.css";
 import "./partner-login.css";
 
@@ -37,7 +39,7 @@ type Overview = {
   cancelledTickets?: Array<Ticket & { cancelledAt: string | null }>;
   today: { qty: number; gross: number; liability: number; orders: number };
   unpaid: number;
-  settlements: Array<{ id: string; settlementNo: string; status: string; liabilityTotal: number; paidAmount: number; periodFrom: string; periodTo: string }>;
+  settlements: Array<{ id: string; settlementNo: string; status: string; liabilityTotal: number; paidAmount: number; periodFrom: string; periodTo: string; pendingAmount?: number }>;
   slaWarnMinutes?: number;
   profile?: PartnerProfile | null;
   payouts?: PartnerPayout[];
@@ -420,7 +422,7 @@ export function PartnerPortal() {
         <PartnerEarnings refreshKey={overview.activeTickets.map((t) => `${t.ticketNo}:${t.status}`).join("|") + `#${overview.today.liability}`} />
         <PartnerPerformancePanel />
         <PartnerPricePanel products={overview.products} refreshKey={overview.products.map((p) => p.variants.map((v) => `${v.variantId}:${v.unitCost}`).join(",")).join("|")} />
-        <PartnerFinance settlements={overview.settlements} />
+        <PartnerFinance settlements={overview.settlements} now={now} />
         <PartnerPayouts payouts={overview.payouts ?? []} />
         <PartnerInfo profile={overview.profile ?? null} />
         <PartnerPinChange />
@@ -443,14 +445,22 @@ function ActionButton({ children, onClick, busy, primary }: { children: React.Re
   );
 }
 
-function PartnerFinance({ settlements }: { settlements: Overview["settlements"] }) {
+function PartnerFinance({ settlements, now }: { settlements: Overview["settlements"]; now: number }) {
   const dateFmt = useMemo(() => new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", day: "2-digit", month: "short" }), []);
+  // A7: status setoran dengan batas X+1 12.00 WIB; transfer yang sedang dicocokkan Garage tidak dihitung terlambat.
+  const states = new Map(settlements.map((s) => [s.id, settlementPayoutState({ status: s.status, periodFrom: s.periodFrom, liabilityTotal: s.liabilityTotal, paidAmount: s.paidAmount, pendingAmount: s.pendingAmount ?? 0 }, new Date(now))]));
+  const lateCount = [...states.values()].filter((state) => state.key === "late").length;
   return (
     <>
       <section className="rounded-xl border border-[#34343c] bg-[#17171c] p-4">
         <h2 className="flex items-center gap-2 text-base font-bold text-white">
           <FileText className="size-4 text-[#ff5a66]" /> Setoran & laporan
         </h2>
+        {lateCount ? (
+          <p role="alert" data-testid="partner-settlement-late" className="mt-3 rounded-lg border border-[#ff5a66]/60 bg-[#7f1d1d]/40 p-3 text-sm font-semibold text-[#fecaca]">
+            {lateCount} setoran terlambat dari batas 12.00 WIB. Garage sudah diberi tahu dan sedang menindaklanjuti.
+          </p>
+        ) : null}
         {settlements.length === 0 ? (
           <p className="mt-3 text-sm text-[#b8b8bf]">Belum ada settlement. Rekap dibuat Garage setelah tutup operasional.</p>
         ) : (
@@ -463,6 +473,15 @@ function PartnerFinance({ settlements }: { settlements: Overview["settlements"] 
                     <p className="font-semibold text-white">{s.settlementNo}</p>
                     <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-[#e4e4e8]">{SETTLEMENT_LABEL[s.status] ?? s.status}</span>
                   </div>
+                  {(() => {
+                    const state = states.get(s.id);
+                    if (!state || state.key === "cancelled") return null;
+                    return (
+                      <p className={`mt-1 text-xs font-semibold ${state.key === "late" ? "text-[#ff8a94]" : state.key === "paid" ? "text-[#86efac]" : "text-[#ffd08a]"}`} data-testid="partner-settlement-status">
+                        {partnerFacingPayoutStatus(state)}
+                      </p>
+                    );
+                  })()}
                   <p className="mt-1 text-xs text-[#b8b8bf]">
                     {dateFmt.format(new Date(s.periodFrom))} – {dateFmt.format(new Date(new Date(s.periodTo).getTime() - 1))} · Setoran {rp(s.liabilityTotal)} · Dibayar {rp(s.paidAmount)} · Sisa {rp(s.liabilityTotal - s.paidAmount)}
                   </p>

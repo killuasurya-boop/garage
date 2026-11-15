@@ -3,6 +3,7 @@ import { GarageWebsite } from "@/components/garage-website/garage-website";
 import { getLandingHeroAsset } from "@/lib/site-assets";
 import { getBusinessInfo } from "@/lib/garage-service";
 import { getHomeFeaturedEvent } from "@/lib/event-service";
+import { getGigsPromo } from "@/lib/gigs-promo";
 
 export const dynamic = "force-dynamic";
 
@@ -40,13 +41,14 @@ export const metadata: Metadata = {
 };
 
 export default async function Home() {
-  const [landingHero, businessInfo, featuredEvent] = await Promise.all([
+  const [landingHero, businessInfo, featuredEvent, gigsPromo] = await Promise.all([
     getLandingHeroAsset().catch(() => null),
     getBusinessInfo().catch(() => null),
     getHomeFeaturedEvent().catch(() => null),
+    getGigsPromo().catch(() => null),
   ]);
 
   // Hero hanya butuh tanda "ada foto hero"; teks alt lama (brand "Coffee & Motor") tidak dikirim ke klien.
   const hero = landingHero ? { ...landingHero, alt: "Garage Coffee Tebing Tinggi" } : null;
-  return <GarageWebsite landingHero={hero} businessInfo={businessInfo} featuredEvent={featuredEvent} />;
+  return <GarageWebsite landingHero={hero} businessInfo={businessInfo} featuredEvent={featuredEvent} gigsPromo={gigsPromo} />;
 }

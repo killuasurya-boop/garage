@@ -9,14 +9,6 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const session = await requireCashierSession();
   if (session.response) return session.response;
   const { id } = await context.params;
-  return partnerRoute(async () => {
-    const detail = await getPartnerSettlement(id, { outletId: session.data.profile.outlet.id });
-    if (session.data.profile.role !== "Kasir") return detail;
-    // Kasir: tanpa HPP per baris & profit Garage.
-    return {
-      ...detail,
-      settlement: { ...detail.settlement, totalCost: null, garageProfit: null },
-      lines: detail.lines.map((line) => ({ ...line, unitCost: null, cost: null })),
-    };
-  });
+  // Keputusan Owner 15 Nov 2026: Kasir boleh melihat HPP & profit Garage (sama dengan isi PDF mitra).
+  return partnerRoute(() => getPartnerSettlement(id, { outletId: session.data.profile.outlet.id }));
 }

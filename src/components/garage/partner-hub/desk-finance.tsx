@@ -4,9 +4,12 @@
 // Kasir: lihat, buat draft, ajukan, preview PDF. Owner: setujui. Owner/Manajer: catat & verifikasi transfer.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BadgeCheck, Eye, FileDown, Send, Wallet } from "lucide-react";
+import { BadgeCheck, Eye, FileDown, MessageCircle, Send, Wallet } from "lucide-react";
+
+import { partnerFacingPayoutStatus, partnerSettlementWhatsapp, settlementPayoutState } from "@/lib/partner-hub-rules";
 
 import { api, Btn, Card, Chip, dateWib, Field, inputCls, Kpi, Notice, rp, SETTLEMENT_LABEL, timeWib, todayKey } from "./desk-shared";
+import { useNowTick } from "./desk-orders";
 
 type FinanceLine = {
   id: string;
@@ -45,9 +48,11 @@ type PartnerFinance = {
 /** Untung hijau, rugi merah — angka negatif tidak boleh tampil seperti untung. */
 const profitTone = (value: number) => (value < 0 ? "text-[#ff8a94]" : "text-[#86efac]");
 
-type SettlementRow = { settlement: { id: string; settlementNo: string; status: string; liabilityTotal: number; paidAmount: number; grossSales: number; garageProfit: number | null; periodFrom: string; periodTo: string; lineCount: number }; partnerName: string; partnerCode: string };
+type SettlementRow = { pendingAmount?: number; settlement: { id: string; settlementNo: string; status: string; liabilityTotal: number; paidAmount: number; grossSales: number; garageProfit: number | null; periodFrom: string; periodTo: string; lineCount: number }; partnerName: string; partnerCode: string };
 type SettlementDetail = {
   settlement: SettlementRow["settlement"] & { totalCost: number | null; salesAdjustments: number; liabilityAdjustments: number };
+  partner?: { id: string; name: string; phone: string | null };
+  sentLog?: Array<{ actorName: string | null; createdAt: string; channel: string | null }>;
   payouts: Array<{ id: string; amount: number; fundSource: string; reference: string; status: string; paidAt: string; selfVerified: boolean; createdBy: string | null; hasProof?: boolean }>;
   reports: Array<{ id: string; reportNo: string; audience: string; kind: string; version: number; createdAt: string }>;
 };
@@ -68,6 +73,8 @@ function Stat({ label, value, tone = "default" }: { label: string; value: string
 const LINE_STATUS: Record<string, string> = { queue: "Menunggu", accepted: "Diterima", processing: "Diproses", ready: "Siap", delivered: "Diantar", rejected: "Ditolak", cancelled: "Batal" };
 
 export function DeskFinance({ role, userId }: { role: string; userId: string }) {
+  // Label jatuh tempo (12.00 WIB) ikut berganti tanpa muat ulang.
+  const now = useNowTick(60_000);
   const [from, setFrom] = useState(todayKey());
   const [to, setTo] = useState(todayKey());
   const [data, setData] = useState<{ partners: PartnerFinance[] } | null>(null);
@@ -79,8 +86,8 @@ export function DeskFinance({ role, userId }: { role: string; userId: string }) 
   const [partnerFilter, setPartnerFilter] = useState<string>("all");
   const isOwner = role === "Owner";
   const canPay = role === "Owner" || role === "Manajer";
-  // Kasir tidak melihat HPP per item & profit Garage (server juga tidak mengirimnya).
-  const showCost = role !== "Kasir";
+  // Keputusan Owner 15 Nov 2026: semua peran keuangan (termasuk Kasir) melihat HPP mitra & profit Garage.
+  const showCost = true;
 
   const load = useCallback(async () => {
     try {
@@ -202,16 +209,27 @@ export function DeskFinance({ role, userId }: { role: string; userId: string }) 
                 {partner.partnerName} <span className="text-xs font-semibold text-[#b8b8bf]">#{partner.partnerCode}</span>
               </h3>
             </div>
-            <Btn
-              tone="primary"
-              disabled={partner.unsettledLines === 0}
-              busy={busy === `create-${partner.partnerId}`}
-              onClick={() =>
-                void run(`create-${partner.partnerId}`, () => api("/api/finance/partner-settlements", { method: "POST", body: JSON.stringify({ partnerId: partner.partnerId, from, to }) }), "Draft settlement dibuat. Periksa lalu ajukan.")
-              }
-            >
-              <Send className="size-4" aria-hidden /> Buat draft settlement ({partner.unsettledLines})
-            </Btn>
+            {/* A7: settlement per hari kalender WIB (penjualan X dibayar X+1 ≤ 12.00). */}
+            <div className="grid justify-items-end gap-1">
+              <Btn
+                tone="primary"
+                disabled={partner.unsettledLines === 0 || from !== to}
+                busy={busy === `create-${partner.partnerId}`}
+                onClick={() => {
+                  // Hari ini belum tutup (23.00 WIB): transaksi berikutnya hari ini tidak bisa ditambahkan ke draft ini.
+                  const wibHour = new Date(Date.now() + 7 * 3_600_000).getUTCHours();
+                  if (from === todayKey() && wibHour < 23 && !window.confirm("Hari ini belum tutup (23.00). Transaksi mitra setelah ini tidak masuk ke settlement ini, dan selama draft ini terbuka tanggal ini tidak bisa direkap lagi. Tetap buat sekarang?")) return;
+                  void run(
+                    `create-${partner.partnerId}`,
+                    () => api("/api/finance/partner-settlements", { method: "POST", body: JSON.stringify({ partnerId: partner.partnerId, from, to: from }) }),
+                    `Draft settlement ${dateWib(`${from}T00:00:00+07:00`)} dibuat. Periksa, ajukan, lalu kirim PDF ke mitra.`,
+                  );
+                }}
+              >
+                <Send className="size-4" aria-hidden /> Buat settlement harian {dateWib(`${from}T00:00:00+07:00`)} ({partner.unsettledLines})
+              </Btn>
+              {from !== to ? <p className="text-xs text-[#ffd08a]">Settlement dibuat per hari — samakan tanggal Dari &amp; Sampai.</p> : null}
+            </div>
           </div>
           <dl className={`mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 ${showCost ? "lg:grid-cols-6" : "lg:grid-cols-4"}`}>
             <Stat label="Order" value={String(partner.orderCount)} />
@@ -326,7 +344,9 @@ export function DeskFinance({ role, userId }: { role: string; userId: string }) 
           <p className="mt-2 text-sm text-[#b8b8bf]">Belum ada settlement.</p>
         ) : (
           <ul className="mt-3 grid gap-2">
-            {settlements.map(({ settlement: s, partnerName }) => (
+            {settlements.map(({ settlement: s, partnerName, pendingAmount }) => {
+              const due = settlementPayoutState({ status: s.status, periodFrom: s.periodFrom, liabilityTotal: s.liabilityTotal, paidAmount: s.paidAmount, pendingAmount }, new Date(now));
+              return (
               <li key={s.id} className={`rounded-lg border p-3 ${selected === s.id ? "border-[#ff5a66]" : "border-[#3a3a42]"} bg-black/20`}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <button type="button" aria-expanded={selected === s.id} onClick={() => void loadDetail(s.id)} className="min-h-10 min-w-0 break-words text-left font-semibold text-white underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70">
@@ -337,6 +357,11 @@ export function DeskFinance({ role, userId }: { role: string; userId: string }) 
                 <p className="mt-1 text-xs text-[#b8b8bf]">
                   {dateWib(s.periodFrom)} – {dateWib(new Date(new Date(s.periodTo).getTime() - 1).toISOString())} · {s.lineCount} baris
                 </p>
+                {due.key !== "cancelled" && due.key !== "none" ? (
+                  <p className="mt-1" data-testid="settlement-due-state">
+                    <Chip tone={due.tone}>{due.label}</Chip>
+                  </p>
+                ) : null}
                 {s.status !== "cancelled" && s.liabilityTotal > 0 ? (
                   <div className="mt-2">
                     <div className="flex flex-wrap items-baseline justify-between gap-x-3 text-xs">
@@ -363,7 +388,8 @@ export function DeskFinance({ role, userId }: { role: string; userId: string }) 
                   />
                 ) : null}
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </Card>
@@ -387,6 +413,7 @@ function SettlementActions({
   run: (key: string, fn: () => Promise<unknown>, ok: string) => Promise<void>;
 }) {
   const s = detail.settlement;
+  const now = useNowTick(60_000);
   // Persetujuan Owner: bila akun Owner memakai 2FA, server meminta kode authenticator (428) → minta lalu ulangi.
   const approve = () =>
     run(
@@ -423,6 +450,96 @@ function SettlementActions({
   const [paidAt, setPaidAt] = useState(todayKey());
   const action = (name: string, body: Record<string, unknown>, ok: string) => run(`${s.id}-${name}`, () => api(`/api/finance/partner-settlements/${s.id}/action`, { method: "POST", body: JSON.stringify(body) }), ok);
   const approved = ["approved", "partially_paid", "paid"].includes(s.status);
+  // A4 (Owner 15 Nov 2026): kirim PDF settlement ke WA mitra. HP → lembar bagikan dengan PDF terlampir;
+  // komputer → PDF terunduh + chat WA mitra terbuka dengan ringkasan. Nomor = nomor mitra di Partner Hub.
+  const pendingAmount = detail.payouts.filter((p) => p.status === "recorded").reduce((sum, p) => sum + p.amount, 0);
+  const due = settlementPayoutState({ status: s.status, periodFrom: s.periodFrom, liabilityTotal: s.liabilityTotal, paidAmount: s.paidAmount, pendingAmount }, new Date(now));
+  const wa = partnerSettlementWhatsapp({
+    partnerName: detail.partner?.name ?? "Mitra",
+    phone: detail.partner?.phone ?? null,
+    settlementNo: s.settlementNo,
+    periodFrom: s.periodFrom,
+    periodTo: s.periodTo,
+    grossSales: s.grossSales,
+    garageProfit: s.garageProfit,
+    liabilityTotal: s.liabilityTotal,
+    // Ke mitra: jumlah yang sudah ditransfer termasuk yang menunggu verifikasi Owner; status dengan bahasa mitra.
+    paidAmount: s.paidAmount + pendingAmount,
+    statusLabel: partnerFacingPayoutStatus(due),
+  });
+  // PDF yang sudah diunduh tapi menunggu ketukan baru untuk dibagikan; ikut settlement & statusnya
+  // (berganti settlement / status → dibuang, supaya PDF lama tidak terkirim).
+  const [prepared, setPrepared] = useState<{ key: string; file: File } | null>(null);
+  const preparedKey = `${s.id}:${s.status}:${s.paidAmount}`;
+  const preparedPdf = prepared?.key === preparedKey ? prepared.file : null;
+  const setPreparedPdf = (file: File | null) => setPrepared(file ? { key: preparedKey, file } : null);
+  // Lembar bagikan (PDF terlampir) hanya di perangkat sentuh/HP. Chrome/Edge desktop juga mendukung
+  // navigator.share, tapi di sana nomor mitra tidak terpakai — desktop selalu lewat chat wa.me + unduh PDF.
+  const canShareFiles = () => {
+    try {
+      const touch = typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;
+      return Boolean(touch) && typeof navigator.canShare === "function" && navigator.canShare({ files: [new File([""], "cek.pdf", { type: "application/pdf" })] });
+    } catch {
+      return false;
+    }
+  };
+  async function fetchPdf() {
+    const res = await fetch(`/api/finance/partner-settlements/${s.id}/pdf`, { credentials: "include", cache: "no-store" });
+    if (!res.ok) throw new Error(((await res.json().catch(() => null)) as { error?: { message?: string } } | null)?.error?.message ?? "PDF gagal dibuat.");
+    const name = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ?? `${s.settlementNo}.pdf`;
+    return new File([await res.blob()], name, { type: "application/pdf" });
+  }
+  // A7: jejak "PDF sudah dikirim" (siapa & kapan). Gagal mencatat tidak membatalkan pengiriman.
+  const markSent = (channel: "share" | "wa_desktop") =>
+    api(`/api/finance/partner-settlements/${s.id}/sent`, { method: "POST", body: JSON.stringify({ channel }) }).catch(() => undefined);
+  async function shareFile(file: File) {
+    try {
+      await navigator.share({ files: [file], text: wa.text, title: `Laporan ${s.settlementNo}` });
+      setPreparedPdf(null);
+      await markSent("share");
+    } catch (error) {
+      if ((error as DOMException).name === "AbortError") {
+        // Kasir menutup lembar bagikan: PDF BELUM terkirim — jangan tampilkan pesan sukses.
+        setPreparedPdf(file);
+        throw new Error("Pengiriman dibatalkan — PDF belum terkirim. Ketuk \"Bagikan sekarang\" untuk mencoba lagi.");
+      }
+      if ((error as DOMException).name === "NotAllowedError") {
+        // Browser (mis. Safari) butuh ketukan baru setelah PDF selesai diunduh.
+        setPreparedPdf(file);
+        throw new Error("PDF siap — ketuk \"Bagikan sekarang\" untuk memilih WhatsApp.");
+      }
+      throw error;
+    }
+  }
+  const shareNow = () => (preparedPdf ? run(`${s.id}-wa`, () => shareFile(preparedPdf), "PDF dibagikan — pastikan terkirim ke kontak mitra.") : Promise.resolve());
+  const sendWhatsapp = () => {
+    if (canShareFiles()) {
+      return run(`${s.id}-wa`, async () => shareFile(await fetchPdf()), "Pilih WhatsApp lalu kontak mitra — PDF sudah terlampir.");
+    }
+    // Komputer: buka chat WA sekarang (masih dalam ketukan, tidak diblok popup), lalu unduh PDF untuk dilampirkan.
+    // Tanpa fitur "noopener" (dengan itu window.open SELALU mengembalikan null) — opener diputus manual.
+    const chat = wa.url ? window.open(wa.url, "_blank") : null;
+    if (chat) chat.opener = null;
+    return run(
+      `${s.id}-wa`,
+      async () => {
+        const file = await fetchPdf();
+        const href = URL.createObjectURL(file);
+        const link = document.createElement("a");
+        link.href = href;
+        link.download = file.name;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.setTimeout(() => URL.revokeObjectURL(href), 30_000);
+        if (!wa.url) throw new Error("PDF terunduh, tetapi nomor WA mitra belum diisi/valid di Kelola Mitra — kirim manual.");
+        if (!chat) throw new Error("PDF terunduh. Browser memblokir jendela WhatsApp — izinkan pop-up lalu coba lagi.");
+        await markSent("wa_desktop");
+      },
+      wa.url ? "PDF terunduh & chat WA mitra terbuka — lampirkan file PDF di chat, lalu kirim." : "PDF terunduh.",
+    );
+  };
+
   return (
     <div className="mt-3 grid gap-3 border-t border-[#2a2a30] pt-3">
       <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
@@ -446,6 +563,14 @@ function SettlementActions({
         <a href={`/api/finance/partner-settlements/${s.id}/pdf`} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[#3a3a42] px-3 text-sm font-semibold text-[#e4e4e8] hover:bg-white/10">
           <FileDown className="size-4" /> Unduh PDF mitra
         </a>
+        <button type="button" onClick={() => void sendWhatsapp()} disabled={busy !== null} data-testid="settlement-send-wa" className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[#22c55e]/60 bg-[#14532d]/40 px-3 text-sm font-semibold text-[#bbf7d0] hover:bg-[#14532d] disabled:opacity-60">
+          <MessageCircle className="size-4" /> {busy === `${s.id}-wa` ? "Menyiapkan PDF…" : "Kirim PDF via WA"}
+        </button>
+        {preparedPdf ? (
+          <button type="button" onClick={() => void shareNow()} disabled={busy !== null} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#16a34a] px-3 text-sm font-bold text-white hover:bg-[#15803d] disabled:opacity-60">
+            <MessageCircle className="size-4" /> Bagikan sekarang
+          </button>
+        ) : null}
         {canPay ? (
           <a href={`/api/finance/partner-settlements/${s.id}/pdf?audience=internal&inline=1`} target="_blank" rel="noopener" className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[#3a3a42] px-3 text-sm font-semibold text-[#e4e4e8] hover:bg-white/10">
             <FileDown className="size-4" /> PDF internal
@@ -474,6 +599,11 @@ function SettlementActions({
           </Btn>
         ) : null}
       </div>
+      <p className="text-xs text-[#b8b8bf]" data-testid="settlement-sent-log">
+        {detail.sentLog?.length
+          ? `PDF terakhir dikirim ke mitra: ${detail.sentLog[0].actorName ?? "staf"} · ${dateWib(detail.sentLog[0].createdAt)} ${timeWib(detail.sentLog[0].createdAt)} (${detail.sentLog[0].channel === "share" ? "lembar bagikan HP" : "WA komputer"})${detail.sentLog.length > 1 ? ` · total ${detail.sentLog.length}×` : ""}`
+          : "PDF belum pernah dikirim ke mitra lewat tombol WA."}
+      </p>
       {detail.reports.length ? (
         <p className="text-xs text-[#b8b8bf]">
           Arsip PDF: {detail.reports.map((r) => `${r.reportNo} (${r.kind === "final" ? "FINAL" : "DRAFT"})`).join(" · ")}

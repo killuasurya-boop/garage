@@ -10,6 +10,9 @@ import type { SiteAsset } from "@/lib/site-assets";
 import { GARAGE_BRAND_ASSETS, GARAGE_BRAND_LOGO_ASPECT } from "@/lib/garage-brand-assets";
 import type { PublicEvent } from "@/lib/event-format";
 import { GrandOpeningBanner } from "@/components/garage-website/grand-opening-banner";
+import { GigsPromoBanner } from "@/components/garage-website/gigs-promo-banner";
+import { GigsSpotlight } from "@/components/garage-website/gigs-spotlight";
+import type { GigsPromo } from "@/lib/gigs-promo";
 import { SuryaShowcase } from "@/components/surya/surya-showcase";
 import { SuryaDeveloperCredit } from "@/components/surya/surya-developer-credit";
 import {
@@ -682,6 +685,38 @@ const MEGA_CATS = [
 { Icon: Cookie, name: "Cemilan", desc: "Teman ngopi & sharing bareng", count: "Dapur" }];
 
 
+function EventBadge() {
+  // GARAGE EVENT PLATFORM: badge kecil dari /event/api/events; gagal -> disembunyikan.
+  const [badge, setBadge] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    fetch("/event/api/events", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        const list = Array.isArray(d?.events) ? d.events : [];
+        const ev = list.find((e) => e.online) ?? list[0];
+        if (!alive || !ev) return;
+        if (ev.live) return setBadge("LIVE");
+        const dt = ev.date ? new Date(ev.date) : null;
+        const label = dt && !Number.isNaN(dt.getTime())
+          ? dt.toLocaleDateString("id-ID", { day: "2-digit", month: "short", timeZone: "Asia/Jakarta" }).replace(".", "").toUpperCase()
+          : "";
+        setBadge(label ? `GIGS · ${label}` : "GIGS");
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  if (!badge) return null;
+  return (
+    <span
+      className="mono"
+      style={{ marginLeft: 6, padding: "2px 6px", fontSize: 9, lineHeight: 1.4, letterSpacing: "0.06em", background: "var(--red)", color: "#fff", borderRadius: 999, whiteSpace: "nowrap" }}
+    >
+      {badge}
+    </span>
+  );
+}
+
 function Nav() {
   const y = useScrollY();
   const biz = useBiz();
@@ -692,7 +727,7 @@ function Nav() {
   ["Menu", "#menu", true],
   ["Live Outlet", "#live-status"],
   ["Member", "#membership"],
-  ["Event", "#events"],
+  ["Event", "/event", false, true],
   ["Lokasi", "#location"]];
   const mobileItems = [
   ...items,
@@ -796,20 +831,20 @@ function Nav() {
           </a>
 
           <ul style={{ display: "flex", gap: 20, listStyle: "none" }} className="nav-desktop">
-            {items.map(([label, href, hasMega]) =>
+            {items.map(([label, href, hasMega, isEvent]) =>
             <li
               key={href}
               onMouseEnter={hasMega ? openMega : undefined}
               onMouseLeave={hasMega ? closeMega : undefined}
               style={{ position: "relative" }}>
               
-                {href.startsWith("/") ? (
+                {href.startsWith("/") && !href.startsWith("/event") ? (
                   <Link href={href} className="navlink">
                     <span>{label}</span>
                   </Link>
                 ) : (
                   <a href={href} className="navlink">
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>{label}{hasMega && <ChevronDown size={13} aria-hidden="true" style={{ opacity: 0.75 }} />}</span>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>{label}{hasMega && <ChevronDown size={13} aria-hidden="true" style={{ opacity: 0.75 }} />}{isEvent && <EventBadge />}</span>
                   </a>
                 )}
               </li>
@@ -991,7 +1026,7 @@ function Nav() {
         <ul className="mob-nav-list" style={{ listStyle: "none", display: "grid", gap: 8 }}>
           {mobileItems.map(([label, href], i) =>
           <li key={href}>
-              {href.startsWith("/") ? (
+              {href.startsWith("/") && !href.startsWith("/event") ? (
                 <Link
                   className="mob-nav-link"
                   href={href}
@@ -3281,10 +3316,69 @@ function HowToOrder() {
   );
 }
 
+// ---------------- PROMO EVENT (GARAGE EVENT PLATFORM) ----------------
+// Label singkat "H-46" / "HARI INI" / "SEDANG BERLANGSUNG". Dihitung setelah mount
+// (bukan saat render server) agar tidak ada selisih hidrasi di sekitar tengah malam.
+function useEventCountdownLabel(promo) {
+  const [label, setLabel] = useState(null);
+  useEffect(() => {
+    if (!promo) return undefined;
+    const compute = () => {
+      const now = Date.now();
+      const start = Date.parse(promo.startsAt);
+      const end = Date.parse(promo.endsAt);
+      if (promo.live || (now >= start && now <= end)) return setLabel("SEDANG BERLANGSUNG");
+      if (now > end) return setLabel(null);
+      const dayMs = 86400000;
+      const wib = (t) => Math.floor((t + 7 * 3600000) / dayMs); // hari kalender WIB
+      const days = wib(start) - wib(now);
+      setLabel(days <= 0 ? "HARI INI" : `H-${days}`);
+    };
+    compute();
+    const timer = window.setInterval(compute, 60_000);
+    return () => window.clearInterval(timer);
+  }, [promo]);
+  return label;
+}
+
+// Chip mengambang di HP (di atas bar pesan bawah). Bisa ditutup; diingat 24 jam.
+function GigsMobileChip({ promo }) {
+  const label = useEventCountdownLabel(promo);
+  const [hidden, setHidden] = useState(true);
+  useEffect(() => {
+    try {
+      const until = Number(window.localStorage.getItem("garage.gigsChipHiddenUntil") || 0);
+      setHidden(Date.now() < until);
+    } catch {
+      setHidden(false);
+    }
+  }, []);
+  if (!promo || !label || hidden) return null;
+  const close = () => {
+    setHidden(true);
+    try {
+      window.localStorage.setItem("garage.gigsChipHiddenUntil", String(Date.now() + 86400000));
+    } catch {}
+  };
+  return (
+    <div className="gigs-chip" data-testid="home-gigs-chip">
+      <a href={promo.url} className="gigs-chip__link">
+        <span className="gigs-chip__dot" aria-hidden />
+        <span>GIGS · {label}</span>
+        <ArrowRight />
+      </a>
+      <button type="button" className="gigs-chip__close" onClick={close} aria-label="Tutup promo GIGS">
+        <svg width="12" height="12" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 3L11 11M3 11L11 3" stroke="currentColor" strokeWidth="1.6" /></svg>
+      </button>
+    </div>
+  );
+}
+
 // ---------------- PROMO BAR ----------------
-function PromoBar() {
+function PromoBar({ gigsPromo = null }) {
   const [closed, setClosed] = useState(false);
   const biz = useBiz();
+  const gigsLabel = useEventCountdownLabel(gigsPromo);
   if (closed) return null;
   const status = openStatus(biz.hoursOpen, biz.hoursClose);
   const promoMessages = [
@@ -3296,11 +3390,25 @@ function PromoBar() {
   ];
   return (
     <div className="promo-bar">
-      <span className="promo-bar__label">LIVE OUTLET</span>
+      {gigsPromo && gigsLabel ? (
+        <a className="promo-bar__label promo-bar__label--gigs" href={gigsPromo.url}>GIGS 2026</a>
+      ) : (
+        <span className="promo-bar__label">LIVE OUTLET</span>
+      )}
       <div className="promo-bar__viewport">
         <div className="promo-bar__track">
           {[0, 1].map((group) => (
             <div className="promo-bar__group" key={group} aria-hidden={group === 1}>
+              {gigsPromo && gigsLabel ? (
+                <>
+                  <a className="promo-bar__gigs" href={gigsPromo.url} tabIndex={group === 1 ? -1 : undefined}>
+                    {gigsLabel === "SEDANG BERLANGSUNG"
+                      ? `${gigsPromo.name} SEDANG BERLANGSUNG — DATANG SEKARANG`
+                      : `${gigsPromo.name} · ${new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", timeZone: "Asia/Jakarta" }).format(new Date(gigsPromo.startsAt)).toUpperCase()} · ${gigsLabel} · LIHAT EVENT →`}
+                  </a>
+                  <span className="promo-bar__star">|</span>
+                </>
+              ) : null}
               {promoMessages.map((message) => (
                 <React.Fragment key={`${group}-${message}`}>
                   <span>{message}</span>
@@ -3337,6 +3445,24 @@ function PromoBar() {
           position: relative;
           z-index: 2;
           flex: 0 0 auto;
+        }
+        .promo-bar__label--gigs {
+          color: #111;
+          background: #fff;
+          border-color: #fff;
+          text-decoration: none;
+        }
+        .promo-bar__gigs {
+          color: #fff;
+          text-decoration: underline;
+          text-underline-offset: 3px;
+          font-family: var(--font-mono);
+          font-size: 11px;
+          font-weight: 800;
+          letter-spacing: 0.14em;
+          line-height: 1;
+          text-transform: uppercase;
+          white-space: nowrap;
         }
         .promo-bar__label,
         .promo-bar__group span {
@@ -4844,7 +4970,10 @@ function Events() {
               Kopdar, acara komunitas, dan kumpul rombongan di GARAGE. Jadwal event diumumkan di Instagram — mau bikin acara sendiri? Booking tempat lewat WhatsApp.
             </p>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 28 }}>
-              <a href={bookingUrl} target="_blank" rel="noopener noreferrer" className="btn btn-primary">
+              <a href="/event" className="btn btn-primary">
+                <span>Lihat Event Garage</span><ArrowRight />
+              </a>
+              <a href={bookingUrl} target="_blank" rel="noopener noreferrer" className="btn">
                 <span>Booking Acara</span><ArrowRight />
               </a>
               {instagram ? (
@@ -5501,7 +5630,7 @@ function FooterMvp() {
     ["Menu", "#menu"],
     ["Cara Pesan", "#cara-pesan"],
     ["Cek Meja", "#live-status"],
-    ["Event", "#events"],
+    ["Event", "/event"],
     ["Member", MEMBER_LOGIN_URL],
     ["Franchise", "/franchise"],
     ["Jadi Mitra", "/mitra"],
@@ -6125,9 +6254,11 @@ function GarageWebsiteRoot({
   landingHero = null,
   businessInfo = null,
   featuredEvent = null,
+  gigsPromo = null,
 }: {
   landingHero?: SiteAsset | null;
   featuredEvent?: PublicEvent | null;
+  gigsPromo?: GigsPromo | null;
   businessInfo?: {
     tagline?: string;
     whatsapp?: string;
@@ -6207,10 +6338,10 @@ function GarageWebsiteRoot({
       <CursorGlow />
       <div className="bg-grain" />
       <div className="bg-vignette" />
-      <PromoBar />
+      <PromoBar gigsPromo={gigsPromo} />
       <Nav />
       <Hero landingHero={landingHero} />
-      {featuredEvent ? <GrandOpeningBanner event={featuredEvent} /> : null}
+      {gigsPromo ? <GigsPromoBanner promo={gigsPromo} /> : featuredEvent ? <GrandOpeningBanner event={featuredEvent} /> : null}
       {/* 1. Pesan: menu, promo, unggulan, cara pesan */}
       <Menu />
       <PromoProducts />
@@ -6227,7 +6358,8 @@ function GarageWebsiteRoot({
       <MenuGallery />
       <LiveTestimonials />
       <Experience />
-      {/* 5. Event */}
+      {/* 5. Event — GIGS (GARAGE EVENT PLATFORM) lalu event komunitas */}
+      {gigsPromo ? <GigsSpotlight promo={gigsPromo} /> : null}
       <Events />
       {/* 6. Lokasi & sosmed */}
       <LocationMvp />
@@ -6235,6 +6367,7 @@ function GarageWebsiteRoot({
       <FinalCTA />
       <FooterMvp />
       <FloatingWA />
+      <GigsMobileChip promo={gigsPromo} />
       <MobileOrderBar />
     </main>
     </BizContext.Provider>

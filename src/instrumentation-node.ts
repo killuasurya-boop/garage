@@ -48,6 +48,17 @@ function startUnpaidOrderSweeper() {
       } catch (error) {
         console.warn("[partner-sla] gagal:", error instanceof Error ? error.message : error);
       }
+      // A7: pengingat setoran mitra harian (23.00 belum direkap · 08.00 setujui · 10.00 transfer · lewat 12.00 terlambat).
+      // Tiap 5 menit; aman diulang karena tiap pengingat punya kunci dedup.
+      if (new Date().getMinutes() % 5 === 0) {
+        try {
+          const { sweepPartnerSettlementReminders } = await import("@/lib/partner-hub-service");
+          const r = await sweepPartnerSettlementReminders();
+          if (r.sent) console.log(`[partner-settlement] ${r.sent} pengingat setoran mitra dikirim.`);
+        } catch (error) {
+          console.warn("[partner-settlement] gagal:", error instanceof Error ? error.message : error);
+        }
+      }
       // Sekali per jam: bersihkan feed notifikasi staf yang sudah lama (> 14 hari).
       if (new Date().getMinutes() === 7) {
         const { pruneStaffNotifications } = await import("@/lib/staff-notifications");

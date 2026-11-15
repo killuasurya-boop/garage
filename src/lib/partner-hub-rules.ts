@@ -302,6 +302,138 @@ export function settlementStatusAfterPayment(liabilityTotal: number, verifiedPai
   return verifiedPaid >= liabilityTotal ? "paid" : "partially_paid";
 }
 
+// ─── Jatuh tempo setoran harian (keputusan Owner 15 Nov 2026) ───────────────
+// Penjualan tanggal X dibayar paling lambat X+1 pukul 12.00 WIB, selalu lewat transfer.
+// Jatuh tempo dihitung dari HARI PERTAMA periode (periodFrom): settlement multi-hari
+// (mis. 10–13 Nov) jatuh tempo 11 Nov 12.00 karena penjualan 10 Nov sudah wajib dibayar saat itu.
+// Transfer yang sudah dicatat tetapi menunggu verifikasi Owner TIDAK dihitung terlambat.
+
+const WIB_OFFSET_MS = 7 * 3_600_000;
+const DAY_MS = 86_400_000;
+/** Jam jatuh tempo pada hari berikutnya (12.00 WIB). */
+export const SETTLEMENT_DUE_HOUR_WIB = 12;
+
+/** Jatuh tempo = (awal hari WIB dari periodFrom) + 1 hari + 12 jam. */
+export function settlementDueAt(periodFrom: Date | string) {
+  const t = new Date(periodFrom).getTime();
+  const dayStart = Math.floor((t + WIB_OFFSET_MS) / DAY_MS) * DAY_MS - WIB_OFFSET_MS;
+  return new Date(dayStart + DAY_MS + SETTLEMENT_DUE_HOUR_WIB * 3_600_000);
+}
+
+export type SettlementPayoutState = {
+  key: "none" | "cancelled" | "paid" | "disputed" | "awaiting_verification" | "not_submitted" | "awaiting_approval" | "awaiting_transfer" | "partial" | "late";
+  label: string;
+  tone: "default" | "green" | "amber" | "red" | "blue";
+  dueAt: Date;
+};
+
+const rupiahText = (n: number) => `Rp${Math.round(n).toLocaleString("id-ID")}`;
+
+/** Label status setoran untuk layar staf. `pendingAmount` = transfer dicatat, belum diverifikasi Owner. */
+export function settlementPayoutState(
+  input: { status: string; periodFrom: Date | string; liabilityTotal: number; paidAmount: number; pendingAmount?: number },
+  now = new Date(),
+): SettlementPayoutState {
+  const dueAt = settlementDueAt(input.periodFrom);
+  const clock = new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(dueAt);
+  const pending = Math.max(0, input.pendingAmount ?? 0);
+  const late = now.getTime() > dueAt.getTime();
+  const pendingNote = pending > 0 ? `, ${rupiahText(pending)} menunggu verifikasi Owner` : "";
+  if (input.status === "cancelled") return { key: "cancelled", label: "Dibatalkan", tone: "default", dueAt };
+  if (input.liabilityTotal <= 0) return { key: "none", label: "Tidak ada setoran", tone: "default", dueAt };
+  if (input.status === "paid" || input.paidAmount >= input.liabilityTotal) return { key: "paid", label: "Lunas", tone: "green", dueAt };
+  if (input.status === "disputed") return { key: "disputed", label: "Dipersoalkan", tone: "red", dueAt };
+  if (input.paidAmount + pending >= input.liabilityTotal) return { key: "awaiting_verification", label: "Sudah transfer · menunggu verifikasi Owner", tone: "blue", dueAt };
+  if (late) {
+    const why =
+      input.status === "draft"
+        ? "belum diajukan"
+        : input.status === "submitted"
+          ? "belum disetujui Owner"
+          : input.paidAmount + pending > 0
+            ? `sisa ${rupiahText(input.liabilityTotal - input.paidAmount - pending)} belum ditransfer${pendingNote}`
+            : "belum ditransfer";
+    return { key: "late", label: `TERLAMBAT — ${why} (batas ${clock})`, tone: "red", dueAt };
+  }
+  if (input.status === "draft") return { key: "not_submitted", label: `Belum diajukan · batas bayar ${clock}`, tone: "amber", dueAt };
+  if (input.status === "submitted") return { key: "awaiting_approval", label: `Menunggu persetujuan Owner · batas bayar ${clock}`, tone: "amber", dueAt };
+  if (input.paidAmount + pending > 0) return { key: "partial", label: `Sebagian sudah ditransfer${pendingNote} · batas ${clock}`, tone: "amber", dueAt };
+  return { key: "awaiting_transfer", label: `Menunggu transfer · batas ${clock}`, tone: "amber", dueAt };
+}
+
+/** Status setoran dengan bahasa untuk MITRA (tanpa istilah internal seperti "Owner"/"draft"). */
+export function partnerFacingPayoutStatus(state: SettlementPayoutState) {
+  const due = new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", weekday: "long", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(state.dueAt);
+  if (state.key === "paid") return "Lunas — terima kasih.";
+  if (state.key === "awaiting_verification") return "Sudah ditransfer, sedang kami cocokkan.";
+  if (state.key === "cancelled") return "Laporan ini dibatalkan.";
+  if (state.key === "disputed") return "Sedang kami periksa ulang bersama Anda.";
+  if (state.key === "none") return "Tidak ada setoran untuk periode ini.";
+  if (state.key === "late") return `Terlambat — batas transfer ${due} WIB sudah lewat. Garage sedang menindaklanjuti.`;
+  return `Dijadwalkan ditransfer paling lambat ${due} WIB.`;
+}
+
+// ─── A7: settlement harian & pengingat (Owner 15 Nov 2026) ───────────────────
+
+/** Kunci hari WIB "YYYY-MM-DD" dari sebuah waktu. */
+export function wibDayKey(at: Date | string) {
+  return new Date(new Date(at).getTime() + WIB_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+/** Awal hari WIB (00.00) dari sebuah waktu. */
+export function wibDayStart(at: Date | string) {
+  const t = new Date(at).getTime();
+  return new Date(Math.floor((t + WIB_OFFSET_MS) / DAY_MS) * DAY_MS - WIB_OFFSET_MS);
+}
+
+/** Settlement harian: periode harus tepat satu hari kalender WIB (00.00–24.00). Null = sah. */
+export function dailyPeriodError(from: Date, to: Date) {
+  if (!(from < to)) return "Periode tidak valid.";
+  if (wibDayStart(from).getTime() !== from.getTime() || to.getTime() - from.getTime() !== DAY_MS) {
+    return "Settlement dibuat per hari: pilih satu tanggal (Dari = Sampai).";
+  }
+  return null;
+}
+
+/** Dua periode [a, b) dan [c, d) bertumpuk. */
+export function periodsOverlap(aFrom: Date | string, aTo: Date | string, bFrom: Date | string, bTo: Date | string) {
+  return new Date(aFrom).getTime() < new Date(bTo).getTime() && new Date(bFrom).getTime() < new Date(aTo).getTime();
+}
+
+/** Jam pengingat (WIB). Tutup outlet = 23.00 hari X; setujui 08.00 & transfer 10.00 pada hari X+1. */
+export const SETTLEMENT_REMINDER = { closeHour: 23, approveHour: 8, transferHour: 10 } as const;
+
+export type SettlementReminderStage = "approve" | "transfer" | "late";
+
+/**
+ * Pengingat yang sudah jatuh waktu untuk satu settlement (hanya tahap paling lanjut).
+ * - approve: ≥ 08.00 X+1, masih draft/diajukan
+ * - transfer: ≥ 10.00 X+1, sudah disetujui tetapi transfer belum menutup kewajiban
+ * - late: lewat 12.00 X+1 dan belum tertutup (transfer menunggu verifikasi Owner TIDAK dihitung terlambat)
+ */
+export function settlementReminderStage(
+  input: { status: string; periodFrom: Date | string; liabilityTotal: number; paidAmount: number; pendingAmount?: number },
+  now = new Date(),
+): SettlementReminderStage | null {
+  const state = settlementPayoutState(input, now);
+  if (state.key === "late") return "late";
+  const nextDay = wibDayStart(input.periodFrom).getTime() + DAY_MS;
+  const t = now.getTime();
+  if ((state.key === "not_submitted" || state.key === "awaiting_approval") && t >= nextDay + SETTLEMENT_REMINDER.approveHour * 3_600_000) return "approve";
+  if ((state.key === "awaiting_transfer" || state.key === "partial") && t >= nextDay + SETTLEMENT_REMINDER.transferHour * 3_600_000) return "transfer";
+  return null;
+}
+
+/**
+ * Transaksi sebelum batas ini seharusnya sudah masuk settlement: sejak 23.00 WIB = akhir hari ini;
+ * sebelum 23.00 = awal hari ini (hari-hari sebelumnya wajib sudah direkap).
+ */
+export function settlementMissingCutoff(now = new Date()) {
+  const start = wibDayStart(now);
+  const closing = start.getTime() + SETTLEMENT_REMINDER.closeHour * 3_600_000;
+  return now.getTime() >= closing ? new Date(start.getTime() + DAY_MS) : start;
+}
+
 /** Pembayaran tidak boleh melebihi sisa kewajiban (PRD 16.3 #5). Null = boleh. */
 export function payoutBlockReason(input: { status: string; liabilityTotal: number; verifiedPaid: number; recordedPending: number; amount: number }) {
   if (!["approved", "partially_paid"].includes(input.status)) return "Settlement harus disetujui Owner sebelum dibayar.";
@@ -331,6 +463,49 @@ export function partnerTicketWhatsappText(input: {
   ];
   if (input.portalUrl) lines.push(`Buka Portal Mitra: ${input.portalUrl}`);
   return lines.join("\n");
+}
+
+/** Nomor WA Indonesia → format wa.me (62…). Null bila tidak valid. */
+export function waNumber(phone: string | null | undefined) {
+  const digits = (phone ?? "").replace(/\D/g, "");
+  const wa = digits.startsWith("0") ? `62${digits.slice(1)}` : digits.startsWith("8") ? `62${digits}` : digits;
+  return /^62\d{8,13}$/.test(wa) ? wa : null;
+}
+
+/**
+ * Pesan WhatsApp pendamping PDF settlement ke mitra (A4, Owner 15 Nov 2026).
+ * Nomor = nomor mitra di data Partner Hub (tidak diubah). PDF dilampirkan terpisah.
+ */
+export function partnerSettlementWhatsapp(input: {
+  partnerName: string;
+  phone: string | null;
+  settlementNo: string;
+  periodFrom: Date | string;
+  periodTo: Date | string;
+  grossSales: number;
+  garageProfit: number | null;
+  liabilityTotal: number;
+  paidAmount: number;
+  statusLabel: string;
+}) {
+  const day = (d: Date) => new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", day: "numeric", month: "short", year: "numeric" }).format(d);
+  const from = new Date(input.periodFrom);
+  const lastDay = new Date(new Date(input.periodTo).getTime() - 1);
+  const period = day(from) === day(lastDay) ? day(from) : `${day(from)} – ${day(lastDay)}`;
+  const rupiah = (n: number) => `Rp${Math.round(n).toLocaleString("id-ID")}`;
+  const lines = [
+    `Halo ${input.partnerName}, berikut laporan penjualan & setoran dari Garage Coffee.`,
+    `No. ${input.settlementNo} · ${period}`,
+    `Total penjualan: ${rupiah(input.grossSales)}`,
+    ...(input.garageProfit === null ? [] : [`Bagian Garage: ${rupiah(input.garageProfit)}`]),
+    `Setoran untuk mitra: ${rupiah(input.liabilityTotal)}`,
+    ...(input.paidAmount > 0 ? [`Sudah ditransfer: ${rupiah(input.paidAmount)}`] : []),
+    `Status: ${input.statusLabel}`,
+    "Rincian per transaksi ada di PDF terlampir. Terima kasih!",
+  ];
+  const text = lines.join("\n");
+  const wa = waNumber(input.phone);
+  return { text, wa, url: wa ? `https://wa.me/${wa}?text=${encodeURIComponent(text)}` : null };
 }
 
 /** Produk terlaris mitra pada periode: qty terjual (setelah batal), penjualan, HPP, profit — urut qty lalu penjualan. */

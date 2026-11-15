@@ -53,7 +53,15 @@ import {
   partnerSettlementTotals,
   partnerTicketNextStatus,
   payoutBlockReason,
+  dailyPeriodError,
+  SETTLEMENT_STATUS_LABEL,
+  settlementDueAt,
+  SETTLEMENT_REMINDER,
+  settlementMissingCutoff,
+  settlementReminderStage,
   settlementStatusAfterPayment,
+  wibDayKey,
+  wibDayStart,
   type PartnerTicketAction,
 } from "@/lib/partner-hub-rules";
 import {
@@ -936,14 +944,28 @@ export async function listRecentlyCancelledTickets(partnerId: string, now = new 
   return rows.map((ticket) => ({ ...ticketView(ticket, lines.filter((line) => line.ticketId === ticket.id)), cancelledAt: ticket.issueAt }));
 }
 
-/** Aksi mitra pada tiketnya: terima → proses → siap antar, atau tolak (dengan alasan). */
-export async function actOnPartnerTicket(session: PartnerSession, ticketNo: string, action: PartnerTicketAction, reason?: string) {
+type PartnerTicketActor = {
+  partnerId: string;
+  partnerName: string;
+  outletId: string;
+  /** Nama yang ditulis di tiket (acceptedByName/readyByName/handoverByName). */
+  byName: string;
+  actor: Actor;
+  /** Staf Garage yang menekan tombol atas nama mitra (bukan mitra sendiri). */
+  onBehalf: null | { userId: string; name: string; role: string; workstation: string | null };
+};
+
+/**
+ * Inti aksi tiket mitra: terima → proses → siap antar, atau tolak (alasan wajib).
+ * Dipakai oleh mitra (portal) dan staf Garage (atas nama mitra); aturan transisi sama persis.
+ */
+async function applyPartnerTicketAction(who: PartnerTicketActor, ticketNo: string, action: PartnerTicketAction, reason?: string) {
   const db = getDb();
   const result = await db.transaction(async (tx) => {
     const [ticket] = await tx
       .select()
       .from(kitchenTickets)
-      .where(and(eq(kitchenTickets.ticketNo, ticketNo), eq(kitchenTickets.partnerId, session.partner.id)))
+      .where(and(eq(kitchenTickets.ticketNo, ticketNo), eq(kitchenTickets.partnerId, who.partnerId)))
       .for("update")
       .limit(1);
     // 404 juga untuk tiket mitra lain: tidak membocorkan keberadaannya.
@@ -953,7 +975,7 @@ export async function actOnPartnerTicket(session: PartnerSession, ticketNo: stri
     if (!next) throw new PartnerHubError("INVALID_TRANSITION", `Tiket berstatus ${current} tidak bisa di-${action}.`, 409);
     if (action === "reject" && !reason?.trim()) throw new PartnerHubError("REASON_REQUIRED", "Alasan penolakan wajib diisi.");
     const now = new Date();
-    const actorName = session.account.displayName;
+    const actorName = who.byName;
     const patch: Partial<typeof kitchenTickets.$inferInsert> = { updatedAt: now };
     if (action === "accept") Object.assign(patch, { acceptedAt: now, acceptedByName: actorName });
     if (action === "start") Object.assign(patch, { status: "cooking", acceptedAt: ticket.acceptedAt ?? now });
@@ -972,7 +994,18 @@ export async function actOnPartnerTicket(session: PartnerSession, ticketNo: stri
         updatedAt: now,
       })
       .where(eq(partnerOrderLines.ticketId, ticket.id));
-    await logEvent(tx, { partnerId: session.partner.id, kind: `ticket_${action}`, subjectId: ticket.ticketNo, fromStatus: current, toStatus: next, reason: reason ?? null, actor: partnerActor(session) });
+    await logEvent(tx, {
+      partnerId: who.partnerId,
+      kind: `ticket_${action}`,
+      subjectId: ticket.ticketNo,
+      fromStatus: current,
+      toStatus: next,
+      reason: reason ?? null,
+      actor: who.actor,
+      metadata: who.onBehalf
+        ? { onBehalfOfPartner: true, staffUserId: who.onBehalf.userId, staffName: who.onBehalf.name, staffRole: who.onBehalf.role, staffWorkstation: who.onBehalf.workstation }
+        : undefined,
+    });
     return { ticket, next };
   });
   // Notifikasi in-app setelah mutasi sukses (WhatsApp hanya jalur tambahan).
@@ -982,11 +1015,11 @@ export async function actOnPartnerTicket(session: PartnerSession, ticketNo: stri
     publishProductionChange();
     if (action === "ready") {
       await notifyStaff({
-        outletId: session.partner.outletId,
+        outletId: who.outletId,
         audience: "waiter",
         kind: "partner_ready",
         severity: "info",
-        title: `Siap diambil dari ${session.partner.name}`,
+        title: `Siap diambil dari ${who.partnerName}`,
         body: `${result.ticket.orderNo} · ${result.ticket.tableLabel ?? "Take away"}`,
         url: "/partners?tab=pickup",
         dedupKey: `partner_ready:${ticketNo}`,
@@ -994,11 +1027,13 @@ export async function actOnPartnerTicket(session: PartnerSession, ticketNo: stri
     }
     if (action === "reject") {
       await notifyStaff({
-        outletId: session.partner.outletId,
+        outletId: who.outletId,
         audience: "cashier",
         kind: "partner_rejected",
         severity: "urgent",
-        title: `${session.partner.name} menolak pesanan ${result.ticket.orderNo}`,
+        title: who.onBehalf
+          ? `Pesanan ${result.ticket.orderNo} (${who.partnerName}) ditolak oleh ${who.onBehalf.name}`
+          : `${who.partnerName} menolak pesanan ${result.ticket.orderNo}`,
         body: reason?.slice(0, 200) ?? null,
         url: "/partners",
         dedupKey: `partner_rejected:${ticketNo}`,
@@ -1008,6 +1043,54 @@ export async function actOnPartnerTicket(session: PartnerSession, ticketNo: stri
     /* notifikasi tidak boleh menggagalkan aksi tiket */
   }
   return { ticketNo, status: result.next };
+}
+
+/** Aksi mitra pada tiketnya sendiri lewat portal mitra. */
+export async function actOnPartnerTicket(session: PartnerSession, ticketNo: string, action: PartnerTicketAction, reason?: string) {
+  return applyPartnerTicketAction(
+    {
+      partnerId: session.partner.id,
+      partnerName: session.partner.name,
+      outletId: session.partner.outletId,
+      byName: session.account.displayName,
+      actor: partnerActor(session),
+      onBehalf: null,
+    },
+    ticketNo,
+    action,
+    reason,
+  );
+}
+
+/**
+ * Staf Garage memproses tiket mitra atas nama mitra (mis. HP mitra mati / mitra sibuk).
+ * Keputusan Owner 15 Nov 2026: semua staf boleh (Owner, Manajer, Kasir, Waiter).
+ * Tiket hanya dari mitra di outlet staf; jejak audit mencatat staf yang menekan.
+ */
+export async function actOnPartnerTicketAsStaff(garage: GarageSession, ticketNo: string, action: PartnerTicketAction, reason?: string) {
+  const db = getDb();
+  const [row] = await db
+    .select({ partnerId: partners.id, partnerName: partners.name, outletId: partners.outletId })
+    .from(kitchenTickets)
+    .innerJoin(partners, eq(kitchenTickets.partnerId, partners.id))
+    .where(eq(kitchenTickets.ticketNo, ticketNo))
+    .limit(1);
+  if (!row || row.outletId !== garage.profile.outlet.id) throw new PartnerHubError("TICKET_NOT_FOUND", "Tiket mitra tidak ditemukan.", 404);
+  const workstation = garage.profile.workstation?.trim() || null;
+  const roleLabel = workstation ? `${garage.profile.role}/${workstation}` : garage.profile.role;
+  return applyPartnerTicketAction(
+    {
+      partnerId: row.partnerId,
+      partnerName: row.partnerName,
+      outletId: row.outletId,
+      byName: `${garage.user.name} (staf, a.n. ${row.partnerName})`,
+      actor: { type: "staff", id: garage.user.id, name: `${garage.user.name} / ${roleLabel} — atas nama ${row.partnerName}` },
+      onBehalf: { userId: garage.user.id, name: garage.user.name, role: garage.profile.role, workstation },
+    },
+    ticketNo,
+    action,
+    reason,
+  );
 }
 
 // ─── Monitor POS & keuangan ──────────────────────────────────────────────────
@@ -1351,9 +1434,33 @@ function summaryHash(input: unknown) {
  */
 export async function createPartnerSettlement(input: { partnerId: string; from: Date; to: Date; note?: string | null }, garage: GarageSession) {
   if (!["Owner", "Manajer", "Kasir"].includes(garage.profile.role)) throw new PartnerHubError("FORBIDDEN", "Tidak berwenang membuat settlement.", 403);
-  if (!(input.from < input.to)) throw new PartnerHubError("INVALID_PERIOD", "Periode tidak valid.");
+  // A7 (Owner 15 Nov 2026): settlement per hari kalender WIB — penjualan X dibayar X+1 ≤ 12.00.
+  const periodError = dailyPeriodError(input.from, input.to);
+  if (periodError) throw new PartnerHubError("INVALID_PERIOD", periodError);
   const db = getDb();
   const partner = await loadPartner(db, input.partnerId, garage.profile.outlet.id);
+  // Tolak periode yang bertumpuk dengan settlement yang MASIH TERBUKA (draft/diajukan) milik mitra yang sama.
+  // Settlement yang sudah disetujui/dibayar tidak memblokir: transaksi susulan hari itu (mis. pesanan baru siap
+  // setelah rekap) tetap bisa direkap; baris yang sama tidak bisa masuk dua kali (active_line_key unik).
+  const [overlap] = await db
+    .select({ settlementNo: partnerSettlements.settlementNo, status: partnerSettlements.status })
+    .from(partnerSettlements)
+    .where(
+      and(
+        eq(partnerSettlements.partnerId, partner.id),
+        inArray(partnerSettlements.status, ["draft", "submitted"]),
+        lt(partnerSettlements.periodFrom, input.to),
+        sql`${partnerSettlements.periodTo} > ${input.from}`,
+      ),
+    )
+    .limit(1);
+  if (overlap) {
+    throw new PartnerHubError(
+      "PERIOD_OVERLAP",
+      `Tanggal ${wibDayKey(input.from)} masih punya settlement ${overlap.settlementNo} (${SETTLEMENT_STATUS_LABEL[overlap.status] ?? overlap.status}). Selesaikan itu dulu, atau batalkan bila ingin menyusun ulang.`,
+      409,
+    );
+  }
   const lines = await partnerFinanceLines(partner.id, partner.outletId, input.from, input.to);
   const eligible = lines.filter((line) => !line.settlementNo && isPayableLineStatus(line.status));
   const adjustments = await db
@@ -1438,8 +1545,18 @@ export async function getPartnerSettlement(id: string, viewer: { outletId: strin
     .from(partnerReports)
     .where(eq(partnerReports.settlementId, settlement.id))
     .orderBy(desc(partnerReports.createdAt));
+  // A7: jejak "PDF sudah dikirim ke mitra" (siapa & kapan) — hanya untuk layar staf.
+  const sentLog = viewer.partnerId
+    ? []
+    : await db
+        .select({ actorName: partnerEvents.actorName, createdAt: partnerEvents.createdAt, metadata: partnerEvents.metadata })
+        .from(partnerEvents)
+        .where(and(eq(partnerEvents.partnerId, settlement.partnerId), eq(partnerEvents.kind, "settlement_pdf_sent"), eq(partnerEvents.subjectId, settlement.settlementNo)))
+        .orderBy(desc(partnerEvents.createdAt))
+        .limit(10);
   return {
     settlement,
+    sentLog: sentLog.map((row) => ({ actorName: row.actorName, createdAt: row.createdAt, channel: typeof row.metadata?.channel === "string" ? row.metadata.channel : null })),
     partner: { id: partner.id, code: partner.code, name: partner.name, address: partner.address, phone: partner.phone, productKind: partner.productKind },
     lines: lines
       .map(({ sl, line, adj }) =>
@@ -1486,12 +1603,156 @@ export async function getPartnerSettlement(id: string, viewer: { outletId: strin
 
 export async function listPartnerSettlements(outletId: string, partnerId?: string) {
   return getDb()
-    .select({ settlement: partnerSettlements, partnerName: partners.name, partnerCode: partners.code })
+    .select({
+      settlement: partnerSettlements,
+      partnerName: partners.name,
+      partnerCode: partners.code,
+      // Transfer sudah dicatat tapi belum diverifikasi Owner (tidak dihitung terlambat).
+      pendingAmount: sql<number>`coalesce((select sum(pp.amount) from partner_payouts pp where pp.settlement_id = "partner_settlements"."id" and pp.status = 'recorded'), 0)::int`,
+    })
     .from(partnerSettlements)
     .innerJoin(partners, eq(partnerSettlements.partnerId, partners.id))
     .where(and(eq(partnerSettlements.outletId, outletId), partnerId ? eq(partnerSettlements.partnerId, partnerId) : undefined))
     .orderBy(desc(partnerSettlements.createdAt))
     .limit(200);
+}
+
+/** A7: catat bahwa PDF settlement dikirim/dibagikan ke mitra (siapa & kapan). Tidak mengubah angka settlement. */
+export async function recordSettlementPdfSent(id: string, channel: "share" | "wa_desktop", garage: GarageSession) {
+  const db = getDb();
+  const settlement = await loadSettlement(db, id, garage.profile.outlet.id);
+  if (settlement.status === "cancelled") throw new PartnerHubError("SETTLEMENT_CANCELLED", "Settlement sudah dibatalkan.", 409);
+  await logEvent(db, {
+    partnerId: settlement.partnerId,
+    kind: "settlement_pdf_sent",
+    subjectId: settlement.settlementNo,
+    actor: staffActor(garage),
+    metadata: { settlementId: settlement.id, channel, status: settlement.status },
+  });
+  return { ok: true };
+}
+
+const REMINDER_LOOKBACK_DAYS = 10; // < masa simpan notifikasi (14 hari) agar kunci dedup tidak hilang lebih dulu
+
+/**
+ * A7: pengingat setoran mitra harian (dipanggil sapuan menit; aman diulang — dedup per kunci).
+ * 1) Tutup outlet (≥ 23.00) / hari berikutnya: transaksi mitra yang siap direkap belum masuk settlement → kasir & manajemen.
+ * 2) 08.00 X+1: settlement X belum diajukan/disetujui → manajemen.
+ * 3) 10.00 X+1: sudah disetujui tetapi belum ditransfer → manajemen.
+ * 4) Lewat 12.00 X+1: TERLAMBAT → manajemen (mendesak).
+ */
+export async function sweepPartnerSettlementReminders(now = new Date()) {
+  const db = getDb();
+  const { getAppSettings } = await import("@/lib/garage-service");
+  const { notifyStaff } = await import("@/lib/staff-notifications");
+  const since = new Date(wibDayStart(now).getTime() - REMINDER_LOOKBACK_DAYS * 86_400_000);
+  const activePartners = await db
+    .select({ id: partners.id, name: partners.name, outletId: partners.outletId })
+    .from(partners); // semua status: mitra yang dibekukan tetap harus dibayar
+  const outletIds = [...new Set(activePartners.map((p) => p.outletId))];
+  const enabled = new Set<string>();
+  for (const outletId of outletIds) if ((await getAppSettings(outletId)).partnerHubEnabled) enabled.add(outletId);
+  let sent = 0;
+  const notify = async (input: Parameters<typeof notifyStaff>[0]) => {
+    const row = await notifyStaff(input).catch(() => null);
+    if (row) sent += 1;
+  };
+
+  // 1) Transaksi siap direkap yang belum masuk settlement — PER HARI WIB (satu hari lama yang belum beres
+  //    tidak menutupi hari-hari berikutnya). Tiap hari hanya tahap paling lanjut yang dikirim:
+  //    23.00 X → kasir (audiens "cashier" sudah mencakup Owner/Manajer) · 08.00 X+1 → manajemen · lewat 12.00 X+1 → TERLAMBAT.
+  const cutoff = settlementMissingCutoff(now);
+  for (const partner of activePartners) {
+    if (!enabled.has(partner.outletId) || cutoff <= since) continue;
+    const lines = await partnerFinanceLines(partner.id, partner.outletId, since, cutoff);
+    const missing = lines.filter((line) => !line.settlementNo && isPayableLineStatus(line.status));
+    const perDay = new Map<string, number>();
+    for (const line of missing) {
+      const day = wibDayKey(line.createdAt);
+      perDay.set(day, (perDay.get(day) ?? 0) + 1);
+    }
+    for (const [day, count] of [...perDay.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+      const dayStart = new Date(`${day}T00:00:00+07:00`).getTime();
+      const late = now.getTime() > settlementDueAt(new Date(dayStart)).getTime();
+      const morning = now.getTime() >= dayStart + 86_400_000 + SETTLEMENT_REMINDER.approveHour * 3_600_000;
+      const hint = "Partner Hub › Keuangan › pilih tanggal itu → Buat settlement harian. Bila tanggal itu masih punya draft, ajukan/batalkan dulu.";
+      if (late) {
+        await notify({
+          outletId: partner.outletId,
+          audience: "management",
+          kind: "partner_settlement_late",
+          severity: "urgent",
+          title: `TERLAMBAT: setoran ${partner.name} (${day}) belum direkap`,
+          body: `${count} transaksi ${day} belum masuk settlement dan batas bayar 12.00 WIB sudah lewat. ${hint}`,
+          url: "/partners?tab=finance",
+          dedupKey: `partner_settlement_missing_late:${partner.id}:${day}`,
+        });
+      } else if (morning) {
+        await notify({
+          outletId: partner.outletId,
+          audience: "management",
+          kind: "partner_settlement_approve",
+          severity: "warning",
+          title: `Settlement ${partner.name} (${day}) belum dibuat`,
+          body: `${count} transaksi ${day} belum direkap. Batas transfer hari ini 12.00 WIB. ${hint}`,
+          url: "/partners?tab=finance",
+          dedupKey: `partner_settlement_missing_morning:${partner.id}:${day}`,
+        });
+      } else {
+        await notify({
+          outletId: partner.outletId,
+          audience: "cashier",
+          kind: "partner_settlement_missing",
+          severity: "warning",
+          title: `Buat settlement ${partner.name}`,
+          body: `${count} transaksi ${day} belum direkap. ${hint} Lalu kirim PDF ke mitra.`,
+          url: "/partners?tab=finance",
+          dedupKey: `partner_settlement_missing:${partner.id}:${day}`,
+        });
+      }
+    }
+  }
+
+  // 2–4) Settlement yang belum tuntas.
+  const open = await db
+    .select({
+      id: partnerSettlements.id,
+      settlementNo: partnerSettlements.settlementNo,
+      outletId: partnerSettlements.outletId,
+      status: partnerSettlements.status,
+      periodFrom: partnerSettlements.periodFrom,
+      liabilityTotal: partnerSettlements.liabilityTotal,
+      paidAmount: partnerSettlements.paidAmount,
+      partnerName: partners.name,
+      pendingAmount: sql<number>`coalesce((select sum(pp.amount) from partner_payouts pp where pp.settlement_id = "partner_settlements"."id" and pp.status = 'recorded'), 0)::int`,
+    })
+    .from(partnerSettlements)
+    .innerJoin(partners, eq(partnerSettlements.partnerId, partners.id))
+    .where(and(inArray(partnerSettlements.status, ["draft", "submitted", "approved", "partially_paid"]), gte(partnerSettlements.periodFrom, since)));
+  for (const s of open) {
+    if (!enabled.has(s.outletId)) continue;
+    const stage = settlementReminderStage(s, now);
+    if (!stage) continue;
+    const day = wibDayKey(s.periodFrom);
+    const remaining = Math.max(0, s.liabilityTotal - s.paidAmount - s.pendingAmount);
+    const text =
+      stage === "approve"
+        ? { title: `Setujui settlement ${s.partnerName} (${day})`, body: `${s.settlementNo} masih ${s.status === "draft" ? "draft — ajukan" : "menunggu persetujuan Owner"}. Batas transfer hari ini 12.00 WIB.`, severity: "warning" as const }
+        : stage === "transfer"
+          ? { title: `Transfer setoran ${s.partnerName} sebelum 12.00`, body: `${s.settlementNo} · sisa Rp${remaining.toLocaleString("id-ID")} belum ditransfer. Catat nomor referensi setelah transfer.`, severity: "warning" as const }
+          : { title: `TERLAMBAT: setoran ${s.partnerName} (${day})`, body: `${s.settlementNo} lewat batas 12.00 WIB · sisa Rp${remaining.toLocaleString("id-ID")}. Segera transfer & catat referensi.`, severity: "urgent" as const };
+    await notify({
+      outletId: s.outletId,
+      audience: "management",
+      kind: `partner_settlement_${stage}`,
+      severity: text.severity,
+      title: text.title,
+      body: text.body,
+      url: "/partners?tab=finance",
+      dedupKey: `partner_settlement_${stage}:${s.id}`,
+    });
+  }
+  return { sent };
 }
 
 export async function submitPartnerSettlement(id: string, garage: GarageSession) {
@@ -1873,7 +2134,7 @@ export async function partnerPortalOverview(session: PartnerSession) {
     listTicketsForPartner(session.partner.id, "active"),
     partnerFinanceSummary(session.partner.id, session.partner.outletId, dayStart, new Date(now.getTime() + 60_000)),
     db
-      .select({ id: partnerSettlements.id, settlementNo: partnerSettlements.settlementNo, status: partnerSettlements.status, liabilityTotal: partnerSettlements.liabilityTotal, paidAmount: partnerSettlements.paidAmount, periodFrom: partnerSettlements.periodFrom, periodTo: partnerSettlements.periodTo })
+      .select({ id: partnerSettlements.id, settlementNo: partnerSettlements.settlementNo, status: partnerSettlements.status, liabilityTotal: partnerSettlements.liabilityTotal, paidAmount: partnerSettlements.paidAmount, periodFrom: partnerSettlements.periodFrom, periodTo: partnerSettlements.periodTo, pendingAmount: sql<number>`coalesce((select sum(pp.amount) from partner_payouts pp where pp.settlement_id = "partner_settlements"."id" and pp.status = 'recorded'), 0)::int` })
       .from(partnerSettlements)
       .where(and(eq(partnerSettlements.partnerId, session.partner.id), ne(partnerSettlements.status, "cancelled")))
       .orderBy(desc(partnerSettlements.createdAt))

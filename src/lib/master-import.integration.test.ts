@@ -9,6 +9,7 @@ import {
   teardownGarageTestDb,
   type GarageTestDb,
 } from "@/lib/test-helpers/garage-test-db";
+import { MASTER_WORKBOOK_PATH } from "@/lib/test-helpers/master-workbook-fixture";
 
 // =============================================================================
 // Impor master Excel v3.1 → bahan Dapur + resep draft, tanpa mengubah data POS.
@@ -19,9 +20,13 @@ let t: GarageTestDb;
 let mi: any;
 let baseline: any;
 const ACTOR = { id: "owner-master", name: "Owner Master" };
-const buffer = fs.readFileSync("docs/data/Garage_Coffee_Master_Pro_Final_v3.1_POS.xlsx");
+// Workbook asli = data bisnis privat (tidak ada di repo publik, PR #210): tes ini jalan bila berkasnya ada.
+// Alur yang sama diuji di CI dengan workbook sintetis: master-import-synthetic.integration.test.ts.
+const HAS_WORKBOOK = fs.existsSync(MASTER_WORKBOOK_PATH);
+const buffer = HAS_WORKBOOK ? fs.readFileSync(MASTER_WORKBOOK_PATH) : Buffer.alloc(0);
 
 beforeAll(async () => {
+  if (!HAS_WORKBOOK) return;
   t = await setupGarageTestDb();
   await seedGarageBasics(t, { userId: ACTOR.id });
   const d = t.getDb();
@@ -37,10 +42,10 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(async () => {
-  await teardownGarageTestDb(t);
+  if (t) await teardownGarageTestDb(t);
 });
 
-describe("Impor master Excel", () => {
+describe.skipIf(!HAS_WORKBOOK)("Impor master Excel (berkas privat)", () => {
   it("preview tidak menulis data operasional", async () => {
     const res = await mi.previewMasterImport({ buffer, fileName: "master.xlsx" }, ACTOR);
     expect(res.summary.materialsToCreate).toBe(40);

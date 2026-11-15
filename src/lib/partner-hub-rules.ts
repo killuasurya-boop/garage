@@ -603,7 +603,10 @@ export function partnerStatusActions(status: string, role: string): PartnerStatu
       label: status === "dibekukan" ? "Aktifkan lagi" : "Aktifkan mitra",
       path: activate,
       ownerOnly: true,
-      effect: "Produk yang disetujui bisa dijual lagi di POS, waiter, menu digital & website. Mitra mengatur Buka/Jeda/Tutup dari HP.",
+      effect:
+        status === "dibekukan"
+          ? "Produk yang disetujui bisa dijual lagi di POS, waiter, menu digital & website. Mitra mengatur Buka/Jeda/Tutup dari HP."
+          : "Produk yang disetujui mulai dijual di POS, waiter, menu digital & website. Mitra login di Portal Mitra lalu menekan BUKA.",
     });
   }
   if (status === "aktif") {

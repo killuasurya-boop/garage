@@ -310,6 +310,30 @@ export async function requireCashierSession() {
   return session;
 }
 
+/**
+ * Semua akun staf yang login langsung (Owner, Manajer, Kasir termasuk Kasir-bar/dapur,
+ * Waiter termasuk kurir). API key agent ditolak supaya jejak audit selalu orang nyata.
+ * Dipakai untuk aksi operasional yang Owner izinkan untuk semua staf
+ * (mis. memproses pesanan mitra atas nama mitra).
+ *
+ * `agentReadPermission`: khusus endpoint baca — API key agent tetap boleh bila punya izin itu
+ * (perilaku lama endpoint tersebut tidak berubah untuk agent).
+ */
+export async function requireStaffSession(options: { agentReadPermission?: Permission } = {}) {
+  const session = await requireGarageSession(["Owner", "Manajer", "Kasir", "Waiter"]);
+  if (session.response) return session;
+  const resetBlocked = passwordResetBlocked(session);
+  if (resetBlocked) return resetBlocked;
+  if (session.data.profile.agentKey) {
+    if (options.agentReadPermission && canUseApiAs(session.data.profile, options.agentReadPermission)) return session;
+    return {
+      data: null,
+      response: fail(403, "HUMAN_SESSION_REQUIRED", "Aksi ini hanya untuk staf yang login langsung."),
+    };
+  }
+  return session;
+}
+
 export async function requireAnyPermission(permissions: Permission[]) {
   const session = await requireGarageSession();
   if (session.response) {

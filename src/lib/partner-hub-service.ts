@@ -936,14 +936,28 @@ export async function listRecentlyCancelledTickets(partnerId: string, now = new 
   return rows.map((ticket) => ({ ...ticketView(ticket, lines.filter((line) => line.ticketId === ticket.id)), cancelledAt: ticket.issueAt }));
 }
 
-/** Aksi mitra pada tiketnya: terima → proses → siap antar, atau tolak (dengan alasan). */
-export async function actOnPartnerTicket(session: PartnerSession, ticketNo: string, action: PartnerTicketAction, reason?: string) {
+type PartnerTicketActor = {
+  partnerId: string;
+  partnerName: string;
+  outletId: string;
+  /** Nama yang ditulis di tiket (acceptedByName/readyByName/handoverByName). */
+  byName: string;
+  actor: Actor;
+  /** Staf Garage yang menekan tombol atas nama mitra (bukan mitra sendiri). */
+  onBehalf: null | { userId: string; name: string; role: string; workstation: string | null };
+};
+
+/**
+ * Inti aksi tiket mitra: terima → proses → siap antar, atau tolak (alasan wajib).
+ * Dipakai oleh mitra (portal) dan staf Garage (atas nama mitra); aturan transisi sama persis.
+ */
+async function applyPartnerTicketAction(who: PartnerTicketActor, ticketNo: string, action: PartnerTicketAction, reason?: string) {
   const db = getDb();
   const result = await db.transaction(async (tx) => {
     const [ticket] = await tx
       .select()
       .from(kitchenTickets)
-      .where(and(eq(kitchenTickets.ticketNo, ticketNo), eq(kitchenTickets.partnerId, session.partner.id)))
+      .where(and(eq(kitchenTickets.ticketNo, ticketNo), eq(kitchenTickets.partnerId, who.partnerId)))
       .for("update")
       .limit(1);
     // 404 juga untuk tiket mitra lain: tidak membocorkan keberadaannya.
@@ -953,7 +967,7 @@ export async function actOnPartnerTicket(session: PartnerSession, ticketNo: stri
     if (!next) throw new PartnerHubError("INVALID_TRANSITION", `Tiket berstatus ${current} tidak bisa di-${action}.`, 409);
     if (action === "reject" && !reason?.trim()) throw new PartnerHubError("REASON_REQUIRED", "Alasan penolakan wajib diisi.");
     const now = new Date();
-    const actorName = session.account.displayName;
+    const actorName = who.byName;
     const patch: Partial<typeof kitchenTickets.$inferInsert> = { updatedAt: now };
     if (action === "accept") Object.assign(patch, { acceptedAt: now, acceptedByName: actorName });
     if (action === "start") Object.assign(patch, { status: "cooking", acceptedAt: ticket.acceptedAt ?? now });
@@ -972,7 +986,18 @@ export async function actOnPartnerTicket(session: PartnerSession, ticketNo: stri
         updatedAt: now,
       })
       .where(eq(partnerOrderLines.ticketId, ticket.id));
-    await logEvent(tx, { partnerId: session.partner.id, kind: `ticket_${action}`, subjectId: ticket.ticketNo, fromStatus: current, toStatus: next, reason: reason ?? null, actor: partnerActor(session) });
+    await logEvent(tx, {
+      partnerId: who.partnerId,
+      kind: `ticket_${action}`,
+      subjectId: ticket.ticketNo,
+      fromStatus: current,
+      toStatus: next,
+      reason: reason ?? null,
+      actor: who.actor,
+      metadata: who.onBehalf
+        ? { onBehalfOfPartner: true, staffUserId: who.onBehalf.userId, staffName: who.onBehalf.name, staffRole: who.onBehalf.role, staffWorkstation: who.onBehalf.workstation }
+        : undefined,
+    });
     return { ticket, next };
   });
   // Notifikasi in-app setelah mutasi sukses (WhatsApp hanya jalur tambahan).
@@ -982,11 +1007,11 @@ export async function actOnPartnerTicket(session: PartnerSession, ticketNo: stri
     publishProductionChange();
     if (action === "ready") {
       await notifyStaff({
-        outletId: session.partner.outletId,
+        outletId: who.outletId,
         audience: "waiter",
         kind: "partner_ready",
         severity: "info",
-        title: `Siap diambil dari ${session.partner.name}`,
+        title: `Siap diambil dari ${who.partnerName}`,
         body: `${result.ticket.orderNo} · ${result.ticket.tableLabel ?? "Take away"}`,
         url: "/partners?tab=pickup",
         dedupKey: `partner_ready:${ticketNo}`,
@@ -994,11 +1019,13 @@ export async function actOnPartnerTicket(session: PartnerSession, ticketNo: stri
     }
     if (action === "reject") {
       await notifyStaff({
-        outletId: session.partner.outletId,
+        outletId: who.outletId,
         audience: "cashier",
         kind: "partner_rejected",
         severity: "urgent",
-        title: `${session.partner.name} menolak pesanan ${result.ticket.orderNo}`,
+        title: who.onBehalf
+          ? `Pesanan ${result.ticket.orderNo} (${who.partnerName}) ditolak oleh ${who.onBehalf.name}`
+          : `${who.partnerName} menolak pesanan ${result.ticket.orderNo}`,
         body: reason?.slice(0, 200) ?? null,
         url: "/partners",
         dedupKey: `partner_rejected:${ticketNo}`,
@@ -1008,6 +1035,54 @@ export async function actOnPartnerTicket(session: PartnerSession, ticketNo: stri
     /* notifikasi tidak boleh menggagalkan aksi tiket */
   }
   return { ticketNo, status: result.next };
+}
+
+/** Aksi mitra pada tiketnya sendiri lewat portal mitra. */
+export async function actOnPartnerTicket(session: PartnerSession, ticketNo: string, action: PartnerTicketAction, reason?: string) {
+  return applyPartnerTicketAction(
+    {
+      partnerId: session.partner.id,
+      partnerName: session.partner.name,
+      outletId: session.partner.outletId,
+      byName: session.account.displayName,
+      actor: partnerActor(session),
+      onBehalf: null,
+    },
+    ticketNo,
+    action,
+    reason,
+  );
+}
+
+/**
+ * Staf Garage memproses tiket mitra atas nama mitra (mis. HP mitra mati / mitra sibuk).
+ * Keputusan Owner 15 Nov 2026: semua staf boleh (Owner, Manajer, Kasir, Waiter).
+ * Tiket hanya dari mitra di outlet staf; jejak audit mencatat staf yang menekan.
+ */
+export async function actOnPartnerTicketAsStaff(garage: GarageSession, ticketNo: string, action: PartnerTicketAction, reason?: string) {
+  const db = getDb();
+  const [row] = await db
+    .select({ partnerId: partners.id, partnerName: partners.name, outletId: partners.outletId })
+    .from(kitchenTickets)
+    .innerJoin(partners, eq(kitchenTickets.partnerId, partners.id))
+    .where(eq(kitchenTickets.ticketNo, ticketNo))
+    .limit(1);
+  if (!row || row.outletId !== garage.profile.outlet.id) throw new PartnerHubError("TICKET_NOT_FOUND", "Tiket mitra tidak ditemukan.", 404);
+  const workstation = garage.profile.workstation?.trim() || null;
+  const roleLabel = workstation ? `${garage.profile.role}/${workstation}` : garage.profile.role;
+  return applyPartnerTicketAction(
+    {
+      partnerId: row.partnerId,
+      partnerName: row.partnerName,
+      outletId: row.outletId,
+      byName: `${garage.user.name} (staf, a.n. ${row.partnerName})`,
+      actor: { type: "staff", id: garage.user.id, name: `${garage.user.name} / ${roleLabel} — atas nama ${row.partnerName}` },
+      onBehalf: { userId: garage.user.id, name: garage.user.name, role: garage.profile.role, workstation },
+    },
+    ticketNo,
+    action,
+    reason,
+  );
 }
 
 // ─── Monitor POS & keuangan ──────────────────────────────────────────────────

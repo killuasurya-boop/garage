@@ -4,7 +4,7 @@
 // endpoint waiter yang sudah ada (/api/waiter/tickets/[no]/claim|deliver): satu klaim sah, anti dobel.
 
 import { useCallback, useEffect, useState } from "react";
-import { Bike, CheckCircle2, MessageCircle, RefreshCw, TriangleAlert, Undo2, Users } from "lucide-react";
+import { Bike, Check, CheckCircle2, MessageCircle, PackageCheck, Play, RefreshCw, TriangleAlert, Undo2, Users, XCircle } from "lucide-react";
 
 import { groupPickupByTable } from "@/lib/partner-hub-insights";
 
@@ -126,6 +126,30 @@ export function DeskOrders({ mode, slaWarnMinutes = 2, readyWarnMinutes = 3 }: {
     );
     await load();
     setBusy(null);
+  }
+
+  // Staf memproses tiket ATAS NAMA mitra (HP mitra mati / mitra sibuk). Aturan transisi sama dengan portal mitra;
+  // server mencatat staf yang menekan. Tolak wajib alasan.
+  const [rejecting, setRejecting] = useState<{ ticketNo: string; reason: string } | null>(null);
+  async function actForPartner(order: PartnerOrder, action: "accept" | "start" | "ready" | "reject", reason?: string) {
+    setBusy(`${order.ticketNo}-${action}`);
+    setMessage(null);
+    try {
+      await api(`/api/partners/tickets/${order.ticketNo}/action`, { method: "POST", body: JSON.stringify(action === "reject" ? { action, reason } : { action }) });
+      const done: Record<typeof action, string> = {
+        accept: "diterima",
+        start: "mulai diproses",
+        ready: "siap diambil — waiter bisa klaim",
+        reject: "ditolak — selesaikan bill pelanggan di kartu merah",
+      };
+      setMessage({ tone: "ok", text: `${order.orderNo} (${order.partnerName}) ${done[action]}. Tercatat atas nama Anda.` });
+      setRejecting(null);
+      await load();
+    } catch (error) {
+      setMessage({ tone: "error", text: (error as Error).message });
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function refundRejected(ticketNo: string) {
@@ -271,6 +295,64 @@ export function DeskOrders({ mode, slaWarnMinutes = 2, readyWarnMinutes = 3 }: {
                     </a>
                   ) : null}
                 </div>
+                {mode === "monitor" && (order.status === "queue" || order.status === "accepted" || order.status === "cooking") ? (
+                  <div className="mt-3 rounded-lg border border-dashed border-[#4a4a54] bg-black/20 p-2.5" data-testid="partner-on-behalf">
+                    <p className="text-xs font-semibold text-[#b8b8bf]">Proses atas nama mitra (bila mitra tidak merespons)</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {order.status === "queue" ? (
+                        <Btn tone="primary" busy={busy === `${order.ticketNo}-accept`} disabled={busy !== null} onClick={() => void actForPartner(order, "accept")}>
+                          <Check className="size-4" /> Terima
+                        </Btn>
+                      ) : null}
+                      {order.status === "accepted" ? (
+                        <Btn busy={busy === `${order.ticketNo}-start`} disabled={busy !== null} onClick={() => void actForPartner(order, "start")}>
+                          <Play className="size-4" /> Mulai proses
+                        </Btn>
+                      ) : null}
+                      {order.status === "accepted" || order.status === "cooking" ? (
+                        <Btn tone="success" busy={busy === `${order.ticketNo}-ready`} disabled={busy !== null} onClick={() => void actForPartner(order, "ready")}>
+                          <PackageCheck className="size-4" /> Siap diambil
+                        </Btn>
+                      ) : null}
+                      {(order.status === "queue" || order.status === "accepted") && rejecting?.ticketNo !== order.ticketNo ? (
+                        <Btn tone="danger" disabled={busy !== null} onClick={() => setRejecting({ ticketNo: order.ticketNo, reason: "" })}>
+                          <XCircle className="size-4" /> Tolak
+                        </Btn>
+                      ) : null}
+                    </div>
+                    {rejecting?.ticketNo === order.ticketNo && (order.status === "queue" || order.status === "accepted") ? (
+                      <form
+                        className="mt-2 grid gap-2"
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          if (rejecting.reason.trim()) void actForPartner(order, "reject", rejecting.reason.trim());
+                        }}
+                      >
+                        <label className="text-xs text-[#e4e4e8]" htmlFor={`reject-${order.ticketNo}`}>
+                          Alasan penolakan (wajib, tampil ke kasir &amp; mitra)
+                        </label>
+                        <input
+                          id={`reject-${order.ticketNo}`}
+                          value={rejecting.reason}
+                          onChange={(event) => setRejecting({ ticketNo: order.ticketNo, reason: event.target.value })}
+                          maxLength={300}
+                          required
+                          autoFocus
+                          placeholder="mis. Stok dimsum habis"
+                          className="min-h-10 rounded-lg border border-[#4a4a54] bg-black/40 px-3 text-sm text-white"
+                        />
+                        <div className="flex flex-wrap gap-2">
+                          <Btn tone="danger" type="submit" busy={busy === `${order.ticketNo}-reject`} disabled={busy !== null || !rejecting.reason.trim()}>
+                            <XCircle className="size-4" /> Tolak pesanan
+                          </Btn>
+                          <Btn onClick={() => setRejecting(null)} disabled={busy !== null}>
+                            Batal
+                          </Btn>
+                        </div>
+                      </form>
+                    ) : null}
+                  </div>
+                ) : null}
               </li>
             );
           })}

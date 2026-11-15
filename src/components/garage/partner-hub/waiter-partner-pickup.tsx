@@ -33,9 +33,11 @@ export function WaiterPartnerPickup() {
   if (!rows || rows.length === 0) return null;
   const ready = rows.filter((row) => row.status === "ready" && !row.claimedByName).length;
   const inProgress = rows.filter((row) => row.status !== "ready" && row.status !== "rejected").length;
+  const waiting = rows.filter((row) => row.status === "queue").length;
   return (
     <Link
-      href="/partners?tab=pickup"
+      // Belum ada yang siap tapi ada pesanan menunggu diterima mitra → buka monitor, staf bisa proses atas nama mitra.
+      href={!ready && waiting ? "/partners?tab=orders" : "/partners?tab=pickup"}
       className={`flex min-h-12 items-center gap-3 rounded-lg border px-3 py-2.5 ${
         ready ? "border-[#ff4d5e]/70 bg-[#d11a2a]/18" : "border-garage-line bg-garage-bg-1"
       }`}
@@ -47,6 +49,9 @@ export function WaiterPartnerPickup() {
           {ready ? `${ready} pesanan siap diambil` : "Belum ada yang siap"}
           {inProgress ? ` · ${inProgress} sedang disiapkan mitra` : ""}
         </span>
+        {waiting ? (
+          <span className="block text-[12px] font-semibold text-[#ffd08a]">{waiting} menunggu diterima mitra — bisa diproses atas nama mitra</span>
+        ) : null}
       </span>
       {ready ? <span className="rounded-full bg-[#d11a2a] px-2.5 py-1 text-sm font-bold text-white">{ready}</span> : null}
     </Link>

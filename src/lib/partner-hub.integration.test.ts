@@ -1007,3 +1007,117 @@ describe("Smart Partner Hub — pelanggan pesan sendiri dari QR meja (owner Nov 
     await setHub(true);
   });
 });
+
+describe("Smart Partner Hub — staf memproses pesanan atas nama mitra (Owner 15 Nov 2026)", () => {
+  const staff = (id: string, role: "Owner" | "Manajer" | "Kasir" | "Waiter", workstation: string | null, otherOutlet = false): GarageSession =>
+    ({
+      user: { id, name: `${role}${workstation ? `-${workstation}` : ""} Staf` },
+      profile: {
+        id: `sp-${id}`,
+        role,
+        workstation,
+        shiftLabel: "Pagi",
+        deviceLabel: "T-1",
+        passwordResetRequired: false,
+        outlet: { id: otherOutlet ? "00000000-0000-0000-0000-000000000000" : outletId, code: "TST", name: "Outlet Test", timezone: "Asia/Jakarta" },
+      },
+    }) as unknown as GarageSession;
+
+  // Mitra sendiri untuk blok ini (tidak bergantung urutan/state test lain).
+  let mitra = { id: "", code: "STF" };
+  let menuStaf = "";
+  beforeAll(async () => {
+    await setHub(true);
+    const row = await svc.createPartner({ code: "STF", name: "Mitra Staf" }, manager());
+    mitra = { id: row.id, code: row.code };
+    await svc.updatePartnerProfile(row.id, { phone: "081234500077", terms: "Uji staf atas nama mitra." }, manager());
+    const bank = await svc.addPartnerBankAccount(row.id, { bankName: "BNI", accountName: "Staf", accountNumber: "7777000077" }, manager());
+    await svc.verifyPartnerBankAccount(bank.id, owner());
+    await svc.createPartnerAccount(row.id, { phone: "081277700077", displayName: "Akun Mitra Staf", pin: "246810" }, manager());
+    const product = await svc.createPartnerProduct(
+      row.id,
+      { code: "STF-001", name: "Dimsum Uji Staf", category: "Dimsum", variants: [{ variantId: "reg", label: "Regular", unitCost: 22_000, sellPrice: 25_000 }] },
+      manager(),
+    );
+    menuStaf = product.menuItemId;
+    await svc.setPartnerProductActive(product.linkId, true, owner());
+    await svc.changePartnerStatus(row.id, "verifikasi", "data lengkap", manager());
+    await svc.changePartnerStatus(row.id, "disetujui", "kontrak oke", owner());
+    await svc.changePartnerStatus(row.id, "aktif", "uji order lulus", owner());
+  });
+
+  async function freshTicket() {
+    await svc.setPartnerOperationalStatus(mitra.id, "buka", { garage: manager() });
+    const res = await sale([{ itemId: menuStaf, qty: 1 }]);
+    return (await svc.listTicketsForPartner(mitra.id, "active")).find((row) => row.orderNo === res.orderNo)!;
+  }
+
+  it("waiter terima + barista (Kasir/bar) siapkan atas nama mitra; tercatat staf yang menekan", async () => {
+    const ticket = await freshTicket();
+    await svc.actOnPartnerTicketAsStaff(staff("user-itest-waiter", "Waiter", null), ticket.ticketNo, "accept");
+    const out = await svc.actOnPartnerTicketAsStaff(staff("user-itest-barista", "Kasir", "bar"), ticket.ticketNo, "ready");
+    expect(out.status).toBe("ready");
+    const d = t.getDb();
+    const { eq } = await import("drizzle-orm");
+    const [row] = await d.select().from(t.schema.kitchenTickets).where(eq(t.schema.kitchenTickets.ticketNo, ticket.ticketNo));
+    expect(row.status).toBe("ready");
+    expect(row.acceptedByName).toContain("Waiter Staf (staf, a.n.");
+    expect(row.readyByName).toContain("Kasir-bar Staf (staf, a.n.");
+    const events = (await d.select().from(t.schema.partnerEvents).where(eq(t.schema.partnerEvents.subjectId, ticket.ticketNo))) as Array<{
+      kind: string;
+      actorType: string;
+      actorName: string;
+      metadata: Record<string, unknown>;
+    }>;
+    const ready = events.find((e) => e.kind === "ticket_ready")!;
+    expect(ready.actorType).toBe("staff");
+    expect(ready.actorName).toMatch(/Kasir\/bar — atas nama/);
+    expect(ready.metadata).toMatchObject({ onBehalfOfPartner: true, staffRole: "Kasir", staffWorkstation: "bar" });
+    // Baris keuangan mitra ikut berubah persis seperti aksi mitra sendiri.
+    const lines = await d.select().from(t.schema.partnerOrderLines).where(eq(t.schema.partnerOrderLines.ticketId, row.id));
+    expect(lines.every((line: { status: string }) => line.status === "ready")).toBe(true);
+  });
+
+  it("aturan transisi sama dengan portal mitra; tolak wajib alasan", async () => {
+    const ticket = await freshTicket();
+    const kurir = staff("user-itest-kurir", "Waiter", "kurir");
+    await expect(svc.actOnPartnerTicketAsStaff(kurir, ticket.ticketNo, "start")).rejects.toThrow(/tidak bisa/);
+    await expect(svc.actOnPartnerTicketAsStaff(kurir, ticket.ticketNo, "reject")).rejects.toThrow(/Alasan/);
+    const out = await svc.actOnPartnerTicketAsStaff(kurir, ticket.ticketNo, "reject", "HP mitra mati, stok habis");
+    expect(out.status).toBe("rejected");
+    await expect(svc.actOnPartnerTicketAsStaff(kurir, ticket.ticketNo, "accept")).rejects.toThrow(/tidak bisa/);
+    // Tiket ditolak masuk antrean refund kasir seperti penolakan oleh mitra.
+    const monitor = await svc.listPartnerOrdersForOutlet(outletId, {});
+    expect(monitor.find((r) => r.ticketNo === ticket.ticketNo)).toMatchObject({ needsRefund: true });
+  });
+
+  it("jalur staf: terima → mulai proses → siap (serah-terima tercatat)", async () => {
+    const ticket = await freshTicket();
+    const manajer = staff("user-itest-mgr-onbehalf", "Manajer", null);
+    for (const action of ["accept", "start", "ready"] as const) await svc.actOnPartnerTicketAsStaff(manajer, ticket.ticketNo, action);
+    const d = t.getDb();
+    const { eq } = await import("drizzle-orm");
+    const [row] = await d.select().from(t.schema.kitchenTickets).where(eq(t.schema.kitchenTickets.ticketNo, ticket.ticketNo));
+    expect(row).toMatchObject({ status: "ready" });
+    expect(row.handoverByName).toContain("(staf, a.n.");
+    expect(row.handoverAt).not.toBeNull();
+  });
+
+  it("jalur portal mitra tidak berubah: aktor 'partner', nama akun mitra, tanpa metadata staf", async () => {
+    const ticket = await freshTicket();
+    await svc.actOnPartnerTicket(partnerSession(mitra, "Akun Mitra Staf"), ticket.ticketNo, "accept");
+    const d = t.getDb();
+    const { eq } = await import("drizzle-orm");
+    const [row] = await d.select().from(t.schema.kitchenTickets).where(eq(t.schema.kitchenTickets.ticketNo, ticket.ticketNo));
+    expect(row.acceptedByName).toBe("Akun Mitra Staf");
+    const [event] = (await d.select().from(t.schema.partnerEvents).where(eq(t.schema.partnerEvents.subjectId, ticket.ticketNo))) as Array<{ actorType: string; metadata: Record<string, unknown> }>;
+    expect(event.actorType).toBe("partner");
+    expect(event.metadata).toEqual({});
+  });
+
+  it("staf outlet lain / tiket bukan mitra → 404", async () => {
+    const ticket = await freshTicket();
+    await expect(svc.actOnPartnerTicketAsStaff(staff("user-itest-luar", "Kasir", null, true), ticket.ticketNo, "accept")).rejects.toThrow(/tidak ditemukan/);
+    await expect(svc.actOnPartnerTicketAsStaff(staff("user-itest-kasir2", "Kasir", null), "TIKET-TIDAK-ADA", "accept")).rejects.toThrow(/tidak ditemukan/);
+  });
+});

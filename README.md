@@ -1,6 +1,6 @@
-# Garage Digital Ecosystem
+# Garage OS — Garage Digital Ecosystem
 
-Garage Coffee & Motor operational OS built from `PRD_GARAGE.md`.
+Business operations platform developed for Garage Coffee. This repository includes application, operations, and deployment code.
 
 ## Stack
 
@@ -36,25 +36,14 @@ npm.cmd run dev:lan
 
 Then open the LAN URL from the tablet, for example `http://YOUR_LAN_IP:3001`.
 
-Seed login examples:
+## Demo accounts and credentials
 
-- `owner@garage.local`
-- `admin@garage.local`
-- `kasir@garage.local`
-- `barista@garage.local`
-- `kitchen@garage.local`
-- `koki@garage.local`
-- `waiter1@garage.local`
-- `waiter2@garage.local`
-- password from `GARAGE_SEED_PASSWORD`, default `garage12345`
+For local development, set `GARAGE_SEED_PASSWORD`, `GARAGE_MEMBER_SEED_PASSWORD`, and `GARAGE_POS_API_KEY` to **independently generated, strong values** before using seed data. Never reuse development credentials for a production deployment.
 
-Seed member examples:
+Some historical development examples in this repository used predictable defaults; **treat those values as compromised** if ever configured on an internet-facing system. Before exposing a production instance, rotate them and run the existing default-password audit against the authorized database.
 
-- `081300001001` / `member12345` - Silver
-- `081300001002` / `member12345` - Gold
-- `081300001003` / `member12345` - Platinum
-- POS terminal code: `GARAGE-POS-01`
-- POS dev API key: `garage-pos-dev-key`
+The included seed scripts and test data are intended only for authorized local development. Do not run demo or seed workflows on a production database without a reviewed operational procedure.
+
 
 ## Verify
 
@@ -176,3 +165,10 @@ Copy `.env.example` to `.env.local` and set:
 - optional `MEMBER_AUTH_SECRET`
 
 This version has no payment gateway, email provider, external ERP sync, or production RBAC admin UI. Garage roles live in `staff_profiles`; Better Auth handles identity and sessions.
+
+
+## Public repository security notice
+
+This repository is undergoing a publication security audit. It is **not yet approved as a safe, fully licensed open-source release**. Before reusing or distributing code, review the project's licensing status. Brand logos and original artwork are not automatically licensed for reuse. Never copy operational credentials, private data, or deployment values from examples.
+
+Report vulnerabilities privately through the GitHub Security tab if private reporting is enabled. Do not post sensitive details in public issues. Internal production workflows must not be tested by outside contributors.

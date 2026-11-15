@@ -1005,15 +1005,21 @@ async function main() {
 
   await ensureDatabaseReady();
 
-  // Production (Docker migrator/VPS: NODE_ENV=production) tidak boleh membuat
-  // akun staf/terminal POS dengan rahasia bawaan kode yang tertulis di repo.
+  // Production must reject missing OR publicly documented legacy seed values.
+  // Existing deployments must rotate any legacy values before seeding.
   if (process.env.NODE_ENV === "production") {
-    const missing = ["GARAGE_SEED_PASSWORD", "GARAGE_MEMBER_SEED_PASSWORD", "GARAGE_POS_API_KEY"].filter(
-      (key) => !process.env[key]?.trim(),
-    );
-    if (missing.length) {
+    const required = [
+      ["GARAGE_SEED_PASSWORD", "garage12345"],
+      ["GARAGE_MEMBER_SEED_PASSWORD", "member12345"],
+      ["GARAGE_POS_API_KEY", "garage-pos-dev-key"],
+    ] as const;
+    const unsafe = required.filter(([key, knownDefault]) => {
+      const value = process.env[key]?.trim();
+      return !value || value === knownDefault;
+    });
+    if (unsafe.length > 0) {
       throw new Error(
-        `Seed production ditolak: set ${missing.join(", ")} di .env.production (jangan pakai nilai bawaan).`,
+        `Seed production ditolak: konfigurasi tidak aman untuk ${unsafe.map(([key]) => key).join(", ")}. Set nilai acak yang kuat (bukan default publik).`,
       );
     }
   }

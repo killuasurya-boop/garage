@@ -55,6 +55,17 @@ UPDATE staff_access_requests SET phone = pg_temp.anon_phone(phone);
 UPDATE staff_personal SET nik = NULL, ktp_url = NULL, address = NULL, whatsapp = pg_temp.anon_phone(whatsapp),
   bank_account_name = NULL, bank_account_number = NULL, emergency_name = NULL, emergency_phone = NULL, emergency_relation = NULL;
 
+-- Mitra (Partner Hub, 16 Nov 2026): kontak & rekening mitra disamarkan; nama usaha tetap (data bisnis).
+-- Langganan push mitra DIHAPUS: tanpa ini pesanan uji di staging memunculkan notifikasi di HP mitra sungguhan.
+UPDATE partners SET pic_name = pg_temp.anon_name(pic_name, 'PIC'), phone = pg_temp.anon_phone(phone),
+  address = CASE WHEN address IS NULL THEN NULL ELSE 'Alamat disamarkan' END;
+UPDATE partner_accounts SET phone = pg_temp.anon_phone(phone), display_name = pg_temp.anon_name(display_name, 'Akun Mitra');
+UPDATE partner_bank_accounts SET account_name = pg_temp.anon_name(account_name, 'Rekening'),
+  account_number = '9' || substr(regexp_replace(md5(account_number), '[^0-9]', '', 'g') || '000000000', 1, 9);
+UPDATE partner_applications SET owner_name = pg_temp.anon_name(owner_name, 'Pemilik'), whatsapp = pg_temp.anon_phone(whatsapp),
+  email = pg_temp.anon_email(email), address = CASE WHEN address IS NULL THEN NULL ELSE 'Alamat disamarkan' END;
+DELETE FROM partner_push_subscriptions;
+
 -- Token, sesi, kunci & antrean keluar: staging tidak boleh memakai akses produksi
 -- atau mengirim apa pun ke pelanggan/staf.
 DELETE FROM session;

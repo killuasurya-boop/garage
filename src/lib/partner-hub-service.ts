@@ -57,6 +57,9 @@ import {
   jakartaDayMinute,
   parseClock,
   partnerMarketingBlockers,
+  partnerStatusActions,
+  partnerStatusNeedsOwner,
+  type PartnerStatusActionKind,
   PARTNER_WEBSITE_TAG,
   partnerSettlementTotals,
   partnerTicketNextStatus,
@@ -170,7 +173,7 @@ export async function listPartners(garage: GarageSession) {
   const rows = await db.select().from(partners).where(eq(partners.outletId, garage.profile.outlet.id)).orderBy(asc(partners.name));
   if (!rows.length) return [];
   const ids = rows.map((row) => row.id);
-  const [links, banks, accounts] = await Promise.all([
+  const [links, banks, accounts, activeTickets] = await Promise.all([
     db
       .select({ link: partnerProductLinks, item: menuItems })
       .from(partnerProductLinks)
@@ -178,11 +181,28 @@ export async function listPartners(garage: GarageSession) {
       .where(inArray(partnerProductLinks.partnerId, ids)),
     db.select().from(partnerBankAccounts).where(and(inArray(partnerBankAccounts.partnerId, ids), ne(partnerBankAccounts.status, "superseded"))),
     db.select().from(partnerAccounts).where(inArray(partnerAccounts.partnerId, ids)),
+    db
+      .select({ partnerId: kitchenTickets.partnerId, count: sql<number>`count(*)::int` })
+      .from(kitchenTickets)
+      .where(and(inArray(kitchenTickets.partnerId, ids), inArray(kitchenTickets.status, ["queue", "cooking", "ready"])))
+      .groupBy(kitchenTickets.partnerId),
   ]);
   return rows.map((partner) => {
     const own = links.filter((row) => row.link.partnerId === partner.id);
+    // Kesiapan aktivasi (aturan sama dengan server) → indikator "Siap aktif x/5" di daftar.
+    const missing = partnerActivationBlockers({
+      status: "disetujui",
+      hasVerifiedBank: banks.some((b) => b.partnerId === partner.id && b.status === "verified"),
+      hasActiveAccount: accounts.some((a) => a.partnerId === partner.id && a.status === "active" && /^0\d{8,14}$/.test(a.phone)),
+      phone: partner.phone,
+      activeProductCount: own.filter((row) => row.link.active).length,
+      termsAccepted: Boolean(partner.terms?.trim()),
+    });
     return {
       ...partner,
+      readiness: { total: 5, done: 5 - missing.length, missing },
+      activeOrders: Number(activeTickets.find((t) => t.partnerId === partner.id)?.count ?? 0),
+      productActiveCount: own.filter((row) => row.link.active).length,
       // Buka/Jeda kemarin tidak terbawa ke hari ini (lihat effectiveOperationalStatus).
       operationalStatus: effectiveOperationalStatus({ operationalStatus: partner.operationalStatus, operationalStatusAt: partner.operationalStatusAt }),
       productCount: own.length,
@@ -263,37 +283,42 @@ export async function updatePartnerProfile(partnerId: string, input: PartnerProf
 }
 
 /** Ubah status siklus hidup mitra (PRD 04). Disetujui/Aktif = Owner; aktivasi wajib lolos syarat. */
+/** Syarat aktivasi satu mitra (dipakai server sebelum aktif & ringkasan kesiapan di daftar). */
+async function partnerActivationCheck(db: DbLike, partner: typeof partners.$inferSelect, statusForCheck = "disetujui") {
+  const [bank] = await db
+    .select({ id: partnerBankAccounts.id })
+    .from(partnerBankAccounts)
+    .where(and(eq(partnerBankAccounts.partnerId, partner.id), eq(partnerBankAccounts.status, "verified")))
+    .limit(1);
+  const accounts = await db
+    .select({ phone: partnerAccounts.phone })
+    .from(partnerAccounts)
+    .where(and(eq(partnerAccounts.partnerId, partner.id), eq(partnerAccounts.status, "active")));
+  const [{ count }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(partnerProductLinks)
+    .where(and(eq(partnerProductLinks.partnerId, partner.id), eq(partnerProductLinks.active, true)));
+  return partnerActivationBlockers({
+    status: statusForCheck,
+    hasVerifiedBank: Boolean(bank),
+    hasActiveAccount: accounts.some((a) => /^0\d{8,14}$/.test(a.phone)),
+    phone: partner.phone,
+    activeProductCount: Number(count),
+    termsAccepted: Boolean(partner.terms?.trim()),
+  });
+}
+
 export async function changePartnerStatus(partnerId: string, to: string, reason: string, garage: GarageSession) {
   const db = getDb();
   const partner = await loadPartner(db, partnerId, garage.profile.outlet.id);
   if (!canChangePartnerStatus(partner.status, to)) {
     throw new PartnerHubError("INVALID_STATUS", `Status mitra tidak bisa diubah dari ${partner.status} ke ${to}.`, 409);
   }
-  if (to === "disetujui" || to === "aktif") assertOwner(garage, "Menyetujui / mengaktifkan mitra");
+  // Aktif / disetujui / nonaktif = keputusan kerja sama → Owner. Bekukan/draft/verifikasi boleh Manajer (darurat).
+  if (partnerStatusNeedsOwner(to)) assertOwner(garage, "Mengaktifkan / menyetujui / menonaktifkan mitra");
   else assertOwnerOrManager(garage, "Mengubah status mitra");
   if (to === "aktif") {
-    const [bank] = await db
-      .select({ id: partnerBankAccounts.id })
-      .from(partnerBankAccounts)
-      .where(and(eq(partnerBankAccounts.partnerId, partnerId), eq(partnerBankAccounts.status, "verified")))
-      .limit(1);
-    const [account] = await db
-      .select({ id: partnerAccounts.id })
-      .from(partnerAccounts)
-      .where(and(eq(partnerAccounts.partnerId, partnerId), eq(partnerAccounts.status, "active")))
-      .limit(1);
-    const [{ count }] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(partnerProductLinks)
-      .where(and(eq(partnerProductLinks.partnerId, partnerId), eq(partnerProductLinks.active, true)));
-    const blockers = partnerActivationBlockers({
-      status: partner.status,
-      hasVerifiedBank: Boolean(bank),
-      hasActiveAccount: Boolean(account),
-      phone: partner.phone,
-      activeProductCount: Number(count),
-      termsAccepted: Boolean(partner.terms?.trim()),
-    });
+    const blockers = await partnerActivationCheck(db, partner, partner.status);
     if (blockers.length) throw new PartnerHubError("ACTIVATION_BLOCKED", blockers.join(" "), 409);
   }
   return db.transaction(async (tx) => {
@@ -312,6 +337,40 @@ export async function changePartnerStatus(partnerId: string, to: string, reason:
     await logEvent(tx, { partnerId, kind: "partner_status", fromStatus: partner.status, toStatus: to, reason, actor: staffActor(garage) });
     return row;
   });
+}
+
+const STATUS_PUSH: Partial<Record<string, string>> = {
+  aktif: "Kerja sama Anda AKTIF. Tekan BUKA di Portal Mitra saat siap menerima pesanan.",
+  dibekukan: "Penjualan produk Anda DIBEKUKAN sementara oleh Garage.",
+  nonaktif: "Kerja sama dengan Garage Coffee DIAKHIRI.",
+};
+
+/**
+ * Aksi status dari daftar mitra (Bekukan / Aktifkan / Nonaktifkan / Buka ulang). Jalur transisi dihitung server
+ * dari status sekarang (partnerStatusActions); aktivasi dicek syaratnya DULU agar tidak berhenti di tengah jalan.
+ */
+export async function applyPartnerStatusAction(partnerId: string, kind: PartnerStatusActionKind, reason: string, garage: GarageSession) {
+  if (reason.trim().length < 3) throw new PartnerHubError("REASON_REQUIRED", "Alasan wajib diisi.");
+  const db = getDb();
+  const partner = await loadPartner(db, partnerId, garage.profile.outlet.id);
+  const action = partnerStatusActions(partner.status, garage.profile.role).find((a) => a.kind === kind);
+  if (!action) {
+    const exists = partnerStatusActions(partner.status, "Owner").some((a) => a.kind === kind);
+    throw exists
+      ? new PartnerHubError("FORBIDDEN", "Aksi ini hanya boleh dilakukan Owner.", 403)
+      : new PartnerHubError("INVALID_STATUS", `Aksi ini tidak berlaku untuk mitra berstatus ${partner.status}.`, 409);
+  }
+  if (action.path.includes("aktif")) {
+    const blockers = await partnerActivationCheck(db, partner);
+    if (blockers.length) throw new PartnerHubError("ACTIVATION_BLOCKED", `Belum bisa diaktifkan: ${blockers.join(" ")}`, 409);
+  }
+  let row = partner;
+  for (const to of action.path) row = await changePartnerStatus(partnerId, to, reason.trim(), garage);
+  const text = STATUS_PUSH[row.status];
+  if (text) {
+    await pushToPartner(partnerId, { title: "Status kerja sama Garage", body: `${text} Alasan: ${reason.trim()}`.slice(0, 220), tag: `partner-status:${partnerId}:${row.status}` });
+  }
+  return { id: partnerId, status: row.status };
 }
 
 // ─── Rekening (perubahan = baris baru + verifikasi Owner) ────────────────────

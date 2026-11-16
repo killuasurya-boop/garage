@@ -16,3 +16,11 @@
   .sdc-sep { display: none; }
 }
 @media print { .sdc--invoice { border-color: #999; background: #fff; color: #333; } .sdc--invoice strong, .sdc--invoice .sdc-link { color: #000; } }
+.sdc-explore {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 16px; border-radius: 10px;
+  border: 1px solid rgba(255, 42, 58, 0.55); color: var(--sdc-fg); font-weight: 600; text-decoration: none;
+  transition: border-color .18s ease, background-color .18s ease;
+}
+.sdc-explore:hover { border-color: #ff2a3a; background: rgba(209, 26, 42, 0.12); }
+.sdc-explore:focus-visible { outline: 2px solid var(--sdc-red); outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) { .sdc-explore { transition: none; } }

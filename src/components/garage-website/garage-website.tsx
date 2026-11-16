@@ -14,6 +14,7 @@ import { GigsPromoBanner } from "@/components/garage-website/gigs-promo-banner";
 import { GigsSpotlight } from "@/components/garage-website/gigs-spotlight";
 import type { GigsPromo } from "@/lib/gigs-promo";
 import { SuryaShowcase } from "@/components/surya/surya-showcase";
+import { BuiltBySurya } from "@/components/surya/portfolio/built-by-surya";
 import { SuryaDeveloperCredit } from "@/components/surya/surya-developer-credit";
 import {
   Award,
@@ -5710,7 +5711,7 @@ function FooterMvp() {
         </div>
 
         <div className="footer-mvp-bottom">
-          <SuryaDeveloperCredit variant="compact" />
+          <SuryaDeveloperCredit variant="compact" exploreHref="#built-by-surya" />
           <div className="footer-mvp-bottom-links">
             <a href={MEMBER_LOGIN_URL} className="footer-mvp-link">Login Member</a>
             <a href={LOGIN_URL} onClick={(event) => goToAccess(event, LOGIN_URL)} className="footer-mvp-link">Login Karyawan</a>
@@ -6301,9 +6302,10 @@ function GarageWebsiteRoot({
       <MembershipMasterPro />
       <LiveTestimonials />
       <PartnerShowcase limit={4} />
-      {/* 6. Lokasi & sosmed, lalu showcase Garage OS di bawah */}
+      {/* 6. Lokasi & sosmed, lalu pengembang di balik Garage (SURYA.dev) + showcase Garage OS di bawah */}
       <LocationMvp />
       <SocialPortfolio />
+      <BuiltBySurya />
       <SuryaShowcase />
       <FinalCTA />
       <FooterMvp />

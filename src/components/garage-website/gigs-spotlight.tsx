@@ -167,8 +167,10 @@ export function GigsSpotlight({ promo }: { promo: GigsPromo }) {
                     const slot = promo.promo.lineup.indexOf(performer) + 1;
                     return (
                       <li key={performer.name} className={`gigs-spot__band${performer.kind ? ` is-${performer.kind}` : ""}`}>
-                        <span className="gigs-spot__slot">#{String(slot).padStart(2, "0")}</span>
-                        {performer.kind ? <span className="gigs-spot__kind">{LINEUP_KIND_LABEL[performer.kind]}</span> : null}
+                        <div className="gigs-spot__card-head">
+                          <span className="gigs-spot__slot">#{String(slot).padStart(2, "0")}</span>
+                          {performer.kind ? <span className="gigs-spot__kind">{LINEUP_KIND_LABEL[performer.kind]}</span> : null}
+                        </div>
                         <div className="gigs-spot__band-logo">
                           {performer.logo ? <img src={performer.logo} alt={`Logo ${performer.name}`} loading="lazy" decoding="async" /> : null}
                         </div>

@@ -191,10 +191,16 @@
   border: 1px solid rgba(225, 6, 19, 0.6);
   color: #ff5a66;
 }
+/* Nomor slot + label jenis satu baris; turun ke baris baru bila kartu sempit (HP 390 px) agar tidak bertumpuk. */
+.garage-website .gigs-spot__card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
 .garage-website .gigs-spot__kind {
-  position: absolute;
-  top: 12px;
-  right: 12px;
+  max-width: 100%;
   padding: 2px 8px;
   font-family: var(--font-mono);
   font-size: 11px;

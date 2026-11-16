@@ -181,9 +181,9 @@ export function LineupPanel() {
       />
 
       {/* Pilih / buat event */}
-      <div className={`${cardClass} flex flex-wrap items-end gap-3`}>
+      <div className={`${cardClass} grid gap-3 lg:grid-cols-[18rem_minmax(0,1fr)] lg:items-start`}>
         <Field label="Event">
-          <select className={`${inputClass} sm:w-72`} value={event ?? ""} onChange={(e) => void load(e.target.value || null)}>
+          <select className={inputClass} value={event ?? ""} onChange={(e) => void load(e.target.value || null)}>
             {!board?.events.length ? <option value="">Belum ada event</option> : null}
             {board?.events.map((name) => (
               <option key={name} value={name}>
@@ -193,7 +193,7 @@ export function LineupPanel() {
           </select>
         </Field>
         <form
-          className="flex min-w-0 flex-1 flex-wrap items-end gap-2"
+          className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start"
           onSubmit={(e) => {
             e.preventDefault();
             const name = newEvent.trim();
@@ -204,9 +204,9 @@ export function LineupPanel() {
           }}
         >
           <Field label="Event baru" hint="Pakai nama persis seperti di platform event (mis. GIGS AKHIR TAHUN 2026) agar lineup tampil di website.">
-            <input className={`${inputClass} sm:w-80`} value={newEvent} onChange={(e) => setNewEvent(e.target.value)} placeholder="Nama event" maxLength={120} />
+            <input className={inputClass} value={newEvent} onChange={(e) => setNewEvent(e.target.value)} placeholder="Nama event" maxLength={120} />
           </Field>
-          <button type="submit" className={ghostBtn}>
+          <button type="submit" className={`${ghostBtn} sm:mt-[1.375rem]`}>
             <Plus size={16} /> Pakai
           </button>
         </form>

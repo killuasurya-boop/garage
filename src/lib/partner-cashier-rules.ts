@@ -228,6 +228,8 @@ export function partnerShiftSales(lines: PartnerShiftLine[], adjustments: Partne
     return row;
   };
 
+  // Penjualan yang benar-benar diakui per baris (qty siap × harga) — batas refund yang boleh mengurangi profit.
+  const recognizedSales = new Map<string, number>();
   for (const line of lines) {
     const row = partnerOf(line.partnerId, line.partnerName);
     const f = partnerLineFinance(line);
@@ -253,6 +255,7 @@ export function partnerShiftSales(lines: PartnerShiftLine[], adjustments: Partne
       row.pending.sales += line.salesVoided ? 0 : (f.soldQty - qty) * line.unitPrice;
       row.pending.partnerCost += (f.soldQty - qty) * line.unitCost;
     }
+    recognizedSales.set(line.id, (recognizedSales.get(line.id) ?? 0) + sales);
     row.orders.add(line.orderNo);
     row.qty += qty;
     row.sales += sales;
@@ -275,7 +278,18 @@ export function partnerShiftSales(lines: PartnerShiftLine[], adjustments: Partne
     if (adj.status !== "approved") continue;
     const row = byPartner.get(adj.partnerId);
     if (!row) continue;
-    if (adj.salesDelta < 0) row.refunds += -adj.salesDelta;
+    if (adj.salesDelta < 0) {
+      // Refund hanya mengurangi profit sebesar penjualan baris itu yang sudah diakui (item yang direfund sebelum siap
+      // tidak pernah dihitung sebagai penjualan, jadi refund-nya juga tidak dihitung). Penyesuaian tanpa baris: apa adanya.
+      if (adj.orderLineId) {
+        const left = recognizedSales.get(adj.orderLineId) ?? 0;
+        const counted = Math.min(-adj.salesDelta, left);
+        recognizedSales.set(adj.orderLineId, left - counted);
+        row.refunds += counted;
+      } else {
+        row.refunds += -adj.salesDelta;
+      }
+    }
     liabilityAdj.set(adj.partnerId, (liabilityAdj.get(adj.partnerId) ?? 0) + adj.liabilityDelta);
   }
 

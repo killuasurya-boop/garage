@@ -7,7 +7,7 @@
 
 import { createHash, randomUUID } from "node:crypto";
 
-import { and, asc, desc, eq, gte, inArray, lt, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lt, ne, or, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
@@ -1152,10 +1152,32 @@ export async function handoverPartnerTicket(garage: GarageSession, ticketNo: str
     throw new PartnerHubError("TICKET_CLAIMED", `Pesanan ini sedang dibawa ${ticket.claimedByName ?? "staf lain"}.`, 409);
   }
   const now = new Date();
-  await db
+  // Klaim atomik: hanya berhasil bila tiket masih Siap DAN pengklaimnya belum berubah sejak dibaca. Waiter yang mengklaim
+  // di antara baca & tulis membuat update ini gagal (bukan ditimpa). Owner/Manajer yang menyelesaikan tiket milik orang
+  // lain mempertahankan pengklaim aslinya.
+  const [claimed] = await db
     .update(kitchenTickets)
-    .set({ claimedBy: ticket.claimedBy ?? garage.user.id, claimedByName: ticket.claimedByName ?? garage.user.name, claimedAt: ticket.claimedAt ?? now, updatedAt: now })
-    .where(and(eq(kitchenTickets.id, ticket.id), eq(kitchenTickets.status, "ready")));
+    .set(ticket.claimedBy ? { updatedAt: now } : { claimedBy: garage.user.id, claimedByName: garage.user.name, claimedAt: now, updatedAt: now })
+    .where(
+      and(
+        eq(kitchenTickets.id, ticket.id),
+        eq(kitchenTickets.status, "ready"),
+        ticket.claimedBy ? eq(kitchenTickets.claimedBy, ticket.claimedBy) : isNull(kitchenTickets.claimedBy),
+      ),
+    )
+    .returning({ id: kitchenTickets.id });
+  if (!claimed) {
+    const [latest] = await db
+      .select({ status: kitchenTickets.status, claimedBy: kitchenTickets.claimedBy, claimedByName: kitchenTickets.claimedByName })
+      .from(kitchenTickets)
+      .where(eq(kitchenTickets.id, ticket.id))
+      .limit(1);
+    if (latest?.status === "delivered") return { ticketNo, status: "delivered", already: true };
+    if (latest?.claimedBy && latest.claimedBy !== garage.user.id) {
+      throw new PartnerHubError("TICKET_CLAIMED", `Pesanan ini baru saja diambil ${latest.claimedByName ?? "staf lain"}.`, 409);
+    }
+    throw new PartnerHubError("TICKET_CHANGED", "Status pesanan baru saja berubah. Muat ulang lalu coba lagi.", 409);
+  }
   const { updateKitchenStatus } = await import("@/lib/garage-service");
   const updated = await updateKitchenStatus(ticketNo, "delivered", garage);
   await logEvent(db, {

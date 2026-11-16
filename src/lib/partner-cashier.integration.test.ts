@@ -169,6 +169,19 @@ describe("Kasir mengelola pesanan mitra take away", () => {
     expect(history).toMatchObject({ status: "delivered", deliveredByName: expect.any(String) });
   });
 
+  it("Owner menyelesaikan tiket yang dibawa staf lain: klaim asli dipertahankan (bukan ditimpa)", async () => {
+    const d = t.getDb();
+    const { eq } = await import("drizzle-orm");
+    const created = await takeaway(1);
+    const ticket = await partnerTicketOf(created.order.orderNo);
+    await svc.actOnPartnerTicket(partnerSession(), ticket.ticketNo, "accept");
+    await svc.actOnPartnerTicket(partnerSession(), ticket.ticketNo, "ready");
+    await d.update(t.schema.kitchenTickets).set({ claimedBy: kasir2Id, claimedByName: "Kasir Dua" }).where(eq(t.schema.kitchenTickets.ticketNo, ticket.ticketNo));
+    expect(await svc.handoverPartnerTicket(owner(), ticket.ticketNo)).toMatchObject({ status: "delivered", already: false });
+    const [row] = await d.select().from(t.schema.kitchenTickets).where(eq(t.schema.kitchenTickets.ticketNo, ticket.ticketNo));
+    expect(row).toMatchObject({ status: "delivered", claimedBy: kasir2Id });
+  });
+
   it("tiket mitra outlet lain / bukan tiket mitra → 404", async () => {
     await expect(svc.handoverPartnerTicket(kasir(), "TIDAK-ADA")).rejects.toThrow(/tidak ditemukan/);
   });
@@ -191,10 +204,10 @@ describe("Penjualan Mitra di laporan shift", () => {
     const data = await report.getShiftAccountability(cashSessionId);
     expect(data?.partners).not.toBeNull();
     const totals = data!.partners!.totals;
-    // Take away 2 + meja 1 = 3 × (25.000 jual / 22.000 setor).
-    expect(totals).toMatchObject({ qty: 3, sales: 75_000, partnerCost: 66_000, payable: 66_000, garageProfit: 9_000, pendingQty: 3, cancelledQty: 1 });
+    // Take away 2 + take away 1 (diserahkan Owner) + meja 1 = 4 × (25.000 jual / 22.000 setor).
+    expect(totals).toMatchObject({ qty: 4, sales: 100_000, partnerCost: 88_000, payable: 88_000, garageProfit: 12_000, pendingQty: 3, cancelledQty: 1 });
     const [dimsum] = data!.partners!.partners;
-    expect(dimsum.products).toEqual([{ itemName: "Dimsum Ayam", variantLabel: "Regular", qty: 3, unitPrice: 25_000, sales: 75_000, partnerCost: 66_000, garageProfit: 9_000 }]);
+    expect(dimsum.products).toEqual([{ itemName: "Dimsum Ayam", variantLabel: "Regular", qty: 4, unitPrice: 25_000, sales: 100_000, partnerCost: 88_000, garageProfit: 12_000 }]);
     expect(data!.partners!.payoutNote).toMatch(/pukul 12\.00 WIB/);
     expect(data!.products.find((p) => p.name === "Dimsum Ayam")?.partner).toBe(true);
 
@@ -204,10 +217,10 @@ describe("Penjualan Mitra di laporan shift", () => {
 
     // Layar POS saat shift BERJALAN: kasir pemilik boleh, kasir lain tidak.
     const onScreen = await svc.partnerSalesForCashSession(cashSessionId, kasir(), { allowAll: false });
-    expect(onScreen).toMatchObject({ status: "open", totals: { sales: 75_000, payable: 66_000, garageProfit: 9_000 } });
+    expect(onScreen).toMatchObject({ status: "open", totals: { sales: 100_000, payable: 88_000, garageProfit: 12_000 } });
     expect(JSON.stringify(onScreen)).not.toMatch(/expectedCash|actualCash/);
     await expect(svc.partnerSalesForCashSession(cashSessionId, kasir2(), { allowAll: false })).rejects.toThrow(/bukan milik kasir/);
-    expect((await svc.partnerSalesForCashSession(cashSessionId, owner(), { allowAll: true })).totals.payable).toBe(66_000);
+    expect((await svc.partnerSalesForCashSession(cashSessionId, owner(), { allowAll: true })).totals.payable).toBe(88_000);
   });
 });
 

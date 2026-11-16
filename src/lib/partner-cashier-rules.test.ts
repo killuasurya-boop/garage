@@ -140,6 +140,18 @@ describe("partnerShiftSales", () => {
     expect(result.partners[0]).toMatchObject({ refunds: 25_000, payable: 44_000, garageProfit: -19_000 });
   });
 
+  it("refund item yang belum siap tidak mengurangi profit (penjualannya belum diakui); refund dibatasi penjualan baris", () => {
+    const result = partnerShiftSales(
+      [line(), line({ id: "l2", status: "queue", fulfilledQty: 0, qty: 1 })],
+      [
+        { orderLineId: "l2", partnerId: "p1", kind: "refund", salesDelta: -25_000, liabilityDelta: 0, status: "approved" },
+        { orderLineId: "l1", partnerId: "p1", kind: "refund", salesDelta: -75_000, liabilityDelta: 0, status: "approved" },
+      ],
+    );
+    // l1 hanya punya penjualan diakui 50.000 → refund dihitung 50.000; l2 belum siap → 0.
+    expect(result.partners[0]).toMatchObject({ sales: 50_000, refunds: 50_000, payable: 44_000, garageProfit: -44_000 });
+  });
+
   it("bill belum dibayar pelanggan tetap wajib bayar ke mitra (ditandai terpisah)", () => {
     const p = partnerShiftSales([line({ orderPayment: "pending" })]).partners[0];
     expect(p.payable).toBe(44_000);

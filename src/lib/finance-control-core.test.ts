@@ -68,6 +68,7 @@ function raw(partial: Partial<DayRaw>): DayRaw {
     settlementFees: 0,
     capitalIn: 0,
     capitalOut: 0,
+    otherIncome: 0,
     ...partial,
   };
 }

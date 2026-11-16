@@ -540,7 +540,7 @@ JIKA ADA ❌ → tunda deploy, perbaiki
 [ ] SETIAP perubahan UI → test desktop + mobile + console error.
 [ ] SETIAP akhir hari kerja → npm run lint && npm run build harus hijau.
 [ ] SETIAP fase punya gate Go/No-Go. JANGAN paksa lanjut jika ❌.
-[ ] DOKUMENTASIKAN keputusan teknis penting di CLAUDE.md.
+[ ] DOKUMENTASIKAN keputusan teknis penting di skill modulnya (`.claude/skills/garage-*`), indeks di CLAUDE.md.
 [ ] CATAT blocker di issue tracker, jangan ditampung di kepala saja.
 ```
 

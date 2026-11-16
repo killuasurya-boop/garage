@@ -15,6 +15,8 @@ Planning mode. Routing ke fase audit yang sesuai.
 @panduan_deploy_aplikasi_mvp_ke_vps.md
 @CLAUDE.md
 
+Aturan detail per modul ada di skill `.claude/skills/garage-*/SKILL.md` (indeks di CLAUDE.md): muat skill setiap modul yang diaudit.
+
 ## Argumen
 Input: **$ARGUMENTS**
 

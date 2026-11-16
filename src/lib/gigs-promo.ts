@@ -1,6 +1,7 @@
 // Promosi GARAGE EVENT PLATFORM (mis. GIGS AKHIR TAHUN 2026) di beranda.
 // Sumber tunggal: platform event (stack Docker terpisah "garage-event") lewat jaringan internal.
 // Tidak ada tanggal/teks/lineup yang ditulis di sini. Gagal/timeout -> null -> beranda tampil normal.
+import { parseLineupKind, type LineupItem } from "@/lib/gigs-lineup";
 
 export type GigsPromo = {
   slug: string;
@@ -19,7 +20,7 @@ export type GigsPromo = {
     headline: string | null;
     pitch: string | null;
     programs: string[];
-    lineup: Array<{ name: string; logo: string | null }>;
+    lineup: LineupItem[];
     instagram: string | null;
   };
   sponsorMin: number | null;
@@ -52,7 +53,7 @@ type PlatformEvent = {
     headline?: string;
     pitch?: string;
     programs?: unknown[];
-    lineup?: Array<{ name?: string; logo?: string }>;
+    lineup?: Array<{ name?: string; logo?: string; type?: string; kind?: string; category?: string }>;
     instagram?: string;
   };
   sponsorMin?: number | null;
@@ -107,9 +108,13 @@ export async function getGigsPromo(now = Date.now()): Promise<GigsPromo | null> 
           .filter((p): p is string => Boolean(p))
           .slice(0, 8),
         lineup: (Array.isArray(promo.lineup) ? promo.lineup : [])
-          .map((x) => ({ name: text(x?.name, 40) ?? "", logo: safePath(x?.logo) }))
+          .map((x) => ({
+            name: text(x?.name, 40) ?? "",
+            logo: safePath(x?.logo),
+            kind: parseLineupKind(x?.type ?? x?.kind ?? x?.category),
+          }))
           .filter((x) => x.name)
-          .slice(0, 8),
+          .slice(0, 16),
         instagram:
           typeof promo.instagram === "string" && /^https:\/\/(www\.)?instagram\.com\/[A-Za-z0-9._/]+$/.test(promo.instagram)
             ? promo.instagram

@@ -25,6 +25,7 @@ function totals(partial: Partial<DayFigure>) {
     operatingExpense: 0,
     operatingProfit: 0,
     nonOperatingExpense: 0,
+    otherIncome: 0,
     netProfit: 0,
     cashIn: 0,
     cashOut: 0,

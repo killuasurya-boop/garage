@@ -203,6 +203,7 @@ export async function buildFinanceReport(input: {
           ["Biaya tetap & operasional", -pnl.operatingExpense],
           ["Operating profit", pnl.operatingProfit],
           ["Non-operasional", -pnl.nonOperatingExpense],
+          ...(pnl.otherIncome ? [["Pendapatan lain (sponsor event)", pnl.otherIncome]] : []),
           ["Net profit", pnl.netProfit],
         ].map(([line, amount]) => ({ line, amount: Number(amount) || 0, ratio: ratioPct(Number(amount) || 0, pnl.netSales) })),
       });

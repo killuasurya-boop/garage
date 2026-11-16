@@ -84,6 +84,8 @@ export const KEEP_TABLES = [
   "master_imports", "master_crosswalk",
   // event & undangan Grand Opening — dibuat sebelum hari H, tidak boleh terhapus saat reset H-1
   "events", "event_guests", "event_invitations", "event_rsvps", "event_activity_logs",
+  // Sponsor Event: kesepakatan, jadwal, kewajiban & sponsor barang = master (pembayaran ikut buku kas → CLEAR)
+  "event_sponsors", "event_sponsor_installments", "event_sponsor_obligations", "event_sponsor_inkind",
   // Smart Partner Hub — master mitra resmi, akun, rekening, produk & histori harga
   "partners", "partner_bank_accounts", "partner_accounts", "partner_push_subscriptions", "partner_applications", "partner_product_links", "partner_price_history",
   "partner_price_proposals",
@@ -100,6 +102,8 @@ export const CLEAR_TABLES = [
   // Smart Partner Hub — transaksi mitra (baris order, event, penyesuaian, settlement, payout, PDF)
   "partner_order_lines", "partner_events", "partner_adjustments", "partner_settlements",
   "partner_settlement_lines", "partner_payouts", "partner_reports",
+  // Sponsor Event — uang masuk Rekening Jago (berpasangan dengan baris buku kas yang ikut dihapus)
+  "event_sponsor_payments",
   // kas & finance transaksional
   "cash_sessions", "cash_session_counts", "cash_session_final_snapshots", "cash_movements", "cash_ledger_entries", "cash_opening_certifications", "petty_cash_entries", "shift_incidents", "expenses", "supplier_invoices", "supplier_receivings",
   "supplier_receiving_items", "finance_daily_closings", "finance_monthly_closings", "financial_snapshots",

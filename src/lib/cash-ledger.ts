@@ -58,6 +58,8 @@ export const CASH_SOURCE_TYPES = [
   "close_float",
   "partner_payout",
   "partner_payout_void",
+  "sponsor_income",
+  "sponsor_income_void",
 ] as const;
 export type CashSourceType = (typeof CASH_SOURCE_TYPES)[number];
 
@@ -86,6 +88,8 @@ export const CASH_SOURCE_LABEL: Record<CashSourceType, string> = {
   close_float: "Modal ditinggal untuk shift berikutnya",
   partner_payout: "Pembayaran ke mitra",
   partner_payout_void: "Pembatalan pembayaran mitra",
+  sponsor_income: "Uang sponsor masuk",
+  sponsor_income_void: "Pembatalan uang sponsor",
 };
 
 /**

@@ -71,3 +71,15 @@ describe("tugas & kesiapan", () => {
     expect(performerScheduleMessage("GIGS", { name: "Surai", slot: 2, start: "20:00", end: "20:30" })).toContain("slot #02, 20:00–20:30 WIB");
   });
 });
+
+describe("buildRundown lewat tengah malam", () => {
+  it("23:30–00:00 lalu 00:00–00:30 tidak bertumpuk, jeda 0", () => {
+    const rows = buildRundown([
+      p("A", { slotOrder: 1, setStart: "23:30", setMinutes: 30 }),
+      p("B", { slotOrder: 2, setStart: "00:00", setMinutes: 30 }),
+      p("C", { slotOrder: 3, setStart: "00:20", setMinutes: 20 }),
+    ]);
+    expect(rows[1]).toMatchObject({ start: "00:00", end: "00:30", overlap: false, gapMinutes: 0 });
+    expect(rows[2]).toMatchObject({ start: "00:20", overlap: true, gapMinutes: -10 });
+  });
+});

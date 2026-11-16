@@ -52,6 +52,7 @@ describe("Lineup & Panitia — alur", () => {
     calon = (await svc.createPerformer({ eventName: EVENT, name: "Band Calon", kind: "band" }, owner())).id;
     expect(s.contactPhone).toBe("081233334444");
     await expect(svc.createPerformer({ eventName: EVENT, name: "Nomor Salah", kind: "band", contactPhone: "123" }, owner())).rejects.toMatchObject({ code: "INVALID_PHONE" });
+    expect(svc.performerInputSchema.safeParse({ eventName: EVENT, name: "Langsung Batal", kind: "band", status: "batal" }).success).toBe(false);
   });
 
   it("urutan slot disimpan; event lain / id asing ditolak", async () => {

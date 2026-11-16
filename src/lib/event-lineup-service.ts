@@ -84,11 +84,12 @@ const performerFields = {
   showOnWebsite: z.boolean().optional(),
 };
 
-export const performerInputSchema = z.object({ eventName, ...performerFields, status: z.enum(PERFORMER_STATUSES).optional() });
+// Penampil baru hanya calon/konfirmasi; "batal" hanya lewat ubah status (wajib alasan).
+export const performerInputSchema = z.object({ eventName, ...performerFields, status: z.enum(["calon", "konfirmasi"]).optional() });
 export const performerPatchSchema = performerInputSchema
   .omit({ eventName: true })
   .partial()
-  .extend({ cancelReason: optionalText(300) });
+  .extend({ status: z.enum(PERFORMER_STATUSES).optional(), cancelReason: optionalText(300) });
 
 export const reorderSchema = z.object({ eventName, ids: z.array(z.string().uuid()).min(1).max(200) });
 

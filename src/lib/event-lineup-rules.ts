@@ -106,12 +106,26 @@ export function buildRundown(items: RundownInput[]): RundownRow[] {
       const sb = b.slotOrder ?? Number.MAX_SAFE_INTEGER;
       return sa - sb || a.name.localeCompare(b.name, "id");
     });
+  // Waktu dihitung absolut agar acara yang melewati tengah malam (23:30 → 00:00) tidak terbaca bertumpuk:
+  // jam yang mundur lebih dari 12 jam dari slot sebelumnya dianggap hari berikutnya.
   let prevEnd: number | null = null;
+  let prevStart: number | null = null;
+  let dayOffset = 0;
   return active.map((item, index) => {
-    const startMin = clockToMinutes(item.setStart);
+    const clockStart = clockToMinutes(item.setStart);
+    let startMin: number | null = null;
+    if (clockStart !== null) {
+      startMin = clockStart + dayOffset;
+      const reference = prevEnd ?? prevStart;
+      if (reference !== null && startMin < reference - 720) {
+        dayOffset += 1440;
+        startMin += 1440;
+      }
+    }
     const endMin = startMin !== null && item.setMinutes ? startMin + item.setMinutes : null;
     const overlap = startMin !== null && prevEnd !== null && startMin < prevEnd;
     const gapMinutes = startMin !== null && prevEnd !== null ? startMin - prevEnd : null;
+    if (startMin !== null) prevStart = startMin;
     if (endMin !== null) prevEnd = endMin;
     else if (startMin !== null) prevEnd = startMin;
     return {

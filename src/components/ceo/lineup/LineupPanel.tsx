@@ -199,8 +199,8 @@ export function LineupPanel() {
             const name = newEvent.trim();
             if (name.length < 2) return;
             setNewEvent("");
-            setBoard((b) => (b ? { ...b, eventName: name, events: [name, ...b.events.filter((x) => x !== name)], performers: [], rundown: [], crew: [], tasks: [] } : b));
-            setEvent(name);
+            // Selalu muat dari server: nama yang sudah ada menampilkan datanya, nama baru mendapat papan & kesiapan kosong.
+            void load(name);
           }}
         >
           <Field label="Event baru" hint="Pakai nama persis seperti di platform event (mis. GIGS AKHIR TAHUN 2026) agar lineup tampil di website.">

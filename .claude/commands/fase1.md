@@ -14,6 +14,8 @@ Kamu **WAJIB masuk planning mode** (jangan edit/tulis file). Tugas: audit kesiap
 @POLA_KERJA_AI_AGENT.md
 @CLAUDE.md
 
+Aturan detail per modul ada di skill `.claude/skills/garage-*/SKILL.md` (indeks di CLAUDE.md): muat skill setiap modul yang diaudit.
+
 ## Argumen
 Target modul: **$ARGUMENTS** (jika kosong → audit seluruh 20 modul).
 

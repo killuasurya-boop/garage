@@ -30,6 +30,16 @@ export function recordJobOutcome(job: BackgroundJob, ok: boolean, now = new Date
   return alert;
 }
 
+/**
+ * Notifikasi "gagal" belum terkirim (mis. database notifikasi juga sedang bermasalah) → alarm dianggap belum
+ * dikirim, sehingga putaran gagal berikutnya mencoba lagi (dedup per jam mencegah dobel bila ternyata sudah masuk).
+ */
+function markAlertUndelivered(job: BackgroundJob) {
+  const states = store();
+  const state = states[job];
+  if (state && state.consecutiveFailures > 0) states[job] = { ...state, alerted: false };
+}
+
 /** Hanya untuk tes: kosongkan status. */
 export function resetBackgroundJobHealth() {
   const states = store();
@@ -45,6 +55,7 @@ async function alertOwners(job: BackgroundJob, alert: JobAlert, now: Date) {
     .where(and(eq(staffProfiles.role, "Owner"), eq(staffProfiles.status, "active")));
   let delivered = 0;
   for (const owner of owners) {
+    // Error dilempar ke pemanggil (runner menandai alarm belum terkirim). Null = sudah ada (dedup) → dianggap terkirim.
     const row = await notifyStaff({
       outletId: owner.outletId,
       audience: "user",
@@ -55,7 +66,7 @@ async function alertOwners(job: BackgroundJob, alert: JobAlert, now: Date) {
       body: note.body,
       url: "/partners?tab=manage",
       dedupKey: `${note.dedupKey}:${owner.userId}`,
-    }).catch(() => null);
+    });
     if (row) delivered += 1;
   }
   return delivered;
@@ -65,7 +76,13 @@ async function alertOwners(job: BackgroundJob, alert: JobAlert, now: Date) {
  * Jalankan satu proses otomatis. Error tidak pernah dilempar ke pemanggil (sweeper lain tetap jalan): ditulis ke log,
  * dicatat sebagai gagal, dan setelah 3× berturut-turut Owner diberi tahu.
  */
-export async function runMonitoredJob<T>(job: BackgroundJob, run: () => Promise<T>, now = () => new Date()): Promise<T | null> {
+export async function runMonitoredJob<T>(
+  job: BackgroundJob,
+  run: () => Promise<T>,
+  now = () => new Date(),
+  /** Pengirim alarm (default: notifikasi Garage OS ke Owner); dapat diganti di tes. */
+  deliver: (job: BackgroundJob, alert: JobAlert, at: Date) => Promise<unknown> = alertOwners,
+): Promise<T | null> {
   let result: T | null = null;
   let ok = true;
   try {
@@ -78,9 +95,10 @@ export async function runMonitoredJob<T>(job: BackgroundJob, run: () => Promise<
   const alert = recordJobOutcome(job, ok, at);
   if (alert) {
     try {
-      await alertOwners(job, alert, at);
+      await deliver(job, alert, at);
     } catch (error) {
       console.warn(`[job:${job}] notifikasi Owner gagal:`, error instanceof Error ? error.message : error);
+      if (alert.state === "failing") markAlertUndelivered(job);
     }
   }
   return result;

@@ -344,7 +344,16 @@ export type CoverageMissing = {
  * belum dibayar dan tidak dibuat kasir) membuat dua angka itu berbeda. Fungsi ini menunjukkan baris-baris itu.
  * Hanya informasi — tidak mengubah data.
  */
-export function partnerShiftCoverage(lines: CoverageLine[], coveredOrderIds: ReadonlySet<string>) {
+export type CoverageAdjustment = {
+  partnerName: string;
+  /** Order baris yang disesuaikan; null = penyesuaian tingkat mitra (tanpa pesanan). */
+  orderId: string | null;
+  orderNo: string | null;
+  liabilityDelta: number;
+  kind: string;
+};
+
+export function partnerShiftCoverage(lines: CoverageLine[], coveredOrderIds: ReadonlySet<string>, adjustments: CoverageAdjustment[] = []) {
   let totalPayable = 0;
   let coveredPayable = 0;
   const missing: CoverageMissing[] = [];
@@ -370,6 +379,25 @@ export function partnerShiftCoverage(lines: CoverageLine[], coveredOrderIds: Rea
           : line.orderPayment === "cancelled"
             ? "Order dibatalkan setelah mitra menyiapkan — tetap wajib bayar ke mitra."
             : "Bill belum dibayar dan tidak dibuat dari shift kasir mana pun.",
+    });
+  }
+  // Penyesuaian kewajiban yang disetujui ikut dihitung (sama dengan rekap setoran & laporan shift). Penyesuaian pada
+  // pesanan yang masuk shift = tercatat; penyesuaian tanpa pesanan / di pesanan luar shift = selisih yang ditampilkan.
+  for (const adj of adjustments) {
+    if (!adj.liabilityDelta) continue;
+    totalPayable += adj.liabilityDelta;
+    if (adj.orderId && coveredOrderIds.has(adj.orderId)) {
+      coveredPayable += adj.liabilityDelta;
+      continue;
+    }
+    missing.push({
+      orderNo: adj.orderNo ?? "-",
+      partnerName: adj.partnerName,
+      itemName: `Penyesuaian (${adj.kind})`,
+      variantLabel: "",
+      qty: 0,
+      payable: adj.liabilityDelta,
+      reason: adj.orderId ? "Penyesuaian kewajiban pada pesanan di luar shift kasir." : "Penyesuaian kewajiban tanpa pesanan — hanya ada di rekap setoran, tidak di laporan shift.",
     });
   }
   return { totalPayable, coveredPayable, uncoveredPayable: totalPayable - coveredPayable, missing };

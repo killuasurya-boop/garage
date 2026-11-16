@@ -202,6 +202,15 @@ describe("partnerShiftCoverage (cek silang laporan shift ↔ setoran harian)", (
     expect(result.missing[2].reason).toMatch(/dibatalkan setelah mitra menyiapkan/);
   });
 
+  it("penyesuaian kewajiban disetujui ikut dihitung: di order shift = tercatat, tanpa pesanan = selisih", () => {
+    const result = partnerShiftCoverage([cov({ id: "a", orderId: "o1" })], new Set(["o1"]), [
+      { partnerName: "Mitra Dimsum", orderId: "o1", orderNo: "ORD-1", liabilityDelta: -2_000, kind: "correction" },
+      { partnerName: "Mitra Dimsum", orderId: null, orderNo: null, liabilityDelta: 5_000, kind: "dispute" },
+    ]);
+    expect(result).toMatchObject({ totalPayable: 44_000 - 2_000 + 5_000, coveredPayable: 42_000, uncoveredPayable: 5_000 });
+    expect(result.missing).toEqual([expect.objectContaining({ payable: 5_000, reason: expect.stringMatching(/tanpa pesanan/) })]);
+  });
+
   it("semua tercatat → selisih 0", () => {
     expect(partnerShiftCoverage([cov({ id: "a", orderId: "o1" })], new Set(["o1"]))).toMatchObject({ uncoveredPayable: 0, missing: [] });
   });

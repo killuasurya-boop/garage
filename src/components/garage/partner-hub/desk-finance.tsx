@@ -122,7 +122,7 @@ function ShiftCoverageCard({ from, to }: { from: string; to: string }) {
               {data.missing.slice(0, 20).map((row, index) => (
                 <li key={`${row.orderNo}-${index}`} className="flex flex-wrap justify-between gap-x-3 rounded-md border border-[#2a2a30] bg-black/20 px-2 py-1.5 text-[#e4e4e8]">
                   <span className="min-w-0 break-words">
-                    <b>{row.orderNo}</b> · {row.partnerName} · {row.qty}× {row.itemName}
+                    <b>{row.orderNo}</b> · {row.partnerName} · {row.qty ? `${row.qty}× ` : ""}{row.itemName}
                     {row.variantLabel && row.variantLabel !== "Regular" ? ` (${row.variantLabel})` : ""}
                     <span className="block text-xs text-[#b8b8bf]">{row.reason}</span>
                   </span>

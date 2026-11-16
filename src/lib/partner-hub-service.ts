@@ -7,7 +7,7 @@
 
 import { createHash, randomUUID } from "node:crypto";
 
-import { and, asc, desc, eq, gte, inArray, isNull, lt, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, lte, ne, or, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
@@ -31,6 +31,7 @@ import {
   partnerReports,
   partnerSettlementLines,
   partnerSettlements,
+  payments,
   partners,
 } from "@/db/schema";
 import { postAccountCash, type CashAccount } from "@/lib/cash-ledger";
@@ -1663,16 +1664,11 @@ export async function partnerSalesForCashSession(sessionId: string, garage: Gara
  */
 export async function partnerShiftCoverageForDay(outletId: string, from: Date, to: Date) {
   const db = getDb();
+  // Untuk keterangan saja: shift yang berjalan di periode ini.
   const sessions = await db
     .select({ id: cashSessions.id, code: cashSessions.code })
     .from(cashSessions)
     .where(and(eq(cashSessions.outletId, outletId), lt(cashSessions.openedAt, to), or(isNull(cashSessions.closedAt), gte(cashSessions.closedAt, from))));
-  const { getCashSessionTransactions } = await import("@/lib/garage-service");
-  const covered = new Set<string>();
-  for (const session of sessions) {
-    const base = await getCashSessionTransactions(session.id, "", { allowAll: true });
-    for (const order of base?.orders ?? []) covered.add(order.id);
-  }
   const rows = await db
     .select({ line: partnerOrderLines, ticketStatus: kitchenTickets.status, orderStatus: orders.status, partnerName: partners.name })
     .from(partnerOrderLines)
@@ -1702,7 +1698,51 @@ export async function partnerShiftCoverageForDay(outletId: string, from: Date, t
       salesVoided: line.salesVoided,
     };
   });
-  return { shiftCount: sessions.length, shifts: sessions.map((s) => s.code), ...partnerShiftCoverage(lines, covered) };
+  // Penyesuaian kewajiban yang disetujui di periode ini (sama dengan rekap setoran) — ikut dicek silang.
+  const adjustments = await db
+    .select({ id: partnerAdjustments.id, orderLineId: partnerAdjustments.orderLineId, partnerId: partnerAdjustments.partnerId, liabilityDelta: partnerAdjustments.liabilityDelta, kind: partnerAdjustments.kind })
+    .from(partnerAdjustments)
+    .where(and(eq(partnerAdjustments.outletId, outletId), eq(partnerAdjustments.status, "approved"), gte(partnerAdjustments.createdAt, from), lt(partnerAdjustments.createdAt, to)));
+  const adjLineIds = [...new Set(adjustments.map((a) => a.orderLineId).filter((id): id is string => Boolean(id)))].filter((id) => !lines.some((l) => l.id === id));
+  const extraLines = adjLineIds.length
+    ? await db.select({ id: partnerOrderLines.id, orderId: partnerOrderLines.orderId, orderNo: partnerOrderLines.orderNo }).from(partnerOrderLines).where(inArray(partnerOrderLines.id, adjLineIds))
+    : [];
+  const lineInfo = new Map<string, { orderId: string; orderNo: string }>([...lines, ...extraLines].map((l) => [l.id, { orderId: l.orderId, orderNo: l.orderNo }]));
+  const partnerNames = new Map(rows.map((r) => [r.line.partnerId, r.partnerName]));
+  // Keanggotaan shift dihitung PER ORDER dengan aturan yang sama dengan laporan shift (getCashSessionTransactions):
+  // pembayaran masuk sesi kas mana pun, ATAU order dibuat kasir pembuka sesi selama sesi itu berjalan — tanpa
+  // membatasi ke shift di tanggal ini (order 23.50 yang dibayar di shift besok tetap tercatat).
+  const orderIds = [...new Set([...lines.map((l) => l.orderId), ...extraLines.map((l) => l.orderId)])];
+  const covered = new Set<string>();
+  for (let i = 0; i < orderIds.length; i += 500) {
+    const chunk = orderIds.slice(i, i + 500);
+    const paid = await db
+      .selectDistinct({ orderId: payments.orderId })
+      .from(payments)
+      .where(and(inArray(payments.orderId, chunk), sql`${payments.cashSessionId} is not null`));
+    for (const row of paid) if (row.orderId) covered.add(row.orderId);
+    const created = await db
+      .selectDistinct({ orderId: orders.id })
+      .from(orders)
+      .innerJoin(
+        cashSessions,
+        and(
+          eq(cashSessions.openedBy, orders.createdBy),
+          eq(cashSessions.outletId, orders.outletId),
+          lte(cashSessions.openedAt, orders.createdAt),
+          or(isNull(cashSessions.closedAt), gt(cashSessions.closedAt, orders.createdAt)),
+        ),
+      )
+      .where(inArray(orders.id, chunk));
+    for (const row of created) covered.add(row.orderId);
+  }
+  const adjustmentRows = adjustments
+    .filter((a) => a.liabilityDelta !== 0)
+    .map((a) => {
+      const info = a.orderLineId ? lineInfo.get(a.orderLineId) : undefined;
+      return { partnerName: partnerNames.get(a.partnerId) ?? "Mitra", orderId: info?.orderId ?? null, orderNo: info?.orderNo ?? null, liabilityDelta: a.liabilityDelta, kind: a.kind };
+    });
+  return { shiftCount: sessions.length, shifts: sessions.map((s) => s.code), ...partnerShiftCoverage(lines, covered, adjustmentRows) };
 }
 
 export async function partnerFinanceSummary(partnerId: string, outletId: string, from: Date, to: Date) {

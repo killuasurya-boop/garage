@@ -93,10 +93,10 @@ export function PartnerShiftSalesCard({
               <Tile label="Profit Garage" value={currency.format(t.garageProfit)} tone={t.garageProfit < 0 ? "bad" : "good"} testId="partner-shift-profit" />
               <Tile label="Item mitra siap" value={num.format(t.qty)} />
             </div>
-            <ul className="grid gap-1 text-xs text-[#e4e4e8]">
+            <ul className="grid gap-1 text-xs text-[#d4d4d8]">
               {data.partners.map((p) => (
                 <li key={p.partnerId} className="flex flex-wrap justify-between gap-x-3">
-                  <span className="min-w-0 break-words font-semibold">{p.partnerName}</span>
+                  <span className="min-w-0 break-words font-semibold text-white">{p.partnerName}</span>
                   <span className="tabular-nums text-[#d4d4d8]">
                     {num.format(p.qty)} item · jual {currency.format(p.sales)} · bayar mitra {currency.format(p.payable)} · profit {currency.format(p.garageProfit)}
                   </span>

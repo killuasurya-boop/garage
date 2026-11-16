@@ -285,6 +285,13 @@
   will-change: transform;
 }
 
+/* Saat dialog/sheet staf terbuka (popup modul POS, Pesanan Mitra, dll.), Aya turun ke bawah overlay supaya tidak menutupi
+   teks, harga, atau tombol di dalam dialog (aturan: Aya tidak boleh menutupi harga/tombol). */
+body:has([data-slot="dialog-content"][data-open]) .aya-pet,
+body:has([data-slot="dialog-content"][data-state="open"]) .aya-pet {
+  z-index: 40;
+}
+
 .aya-pet[data-moving="true"] {
   transition: transform var(--aya-travel, 1.7s) cubic-bezier(0.45, 0.05, 0.25, 1);
 }

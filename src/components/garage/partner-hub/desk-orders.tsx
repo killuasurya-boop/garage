@@ -257,7 +257,7 @@ export function DeskOrders({
     mode === "pickup"
       ? all.filter((order) => order.status === "ready")
       : view === "done"
-        ? all.filter((order) => DONE_STATUSES.has(order.status)).sort((a, b) => new Date(b.deliveredAt ?? b.createdAt).getTime() - new Date(a.deliveredAt ?? a.createdAt).getTime())
+        ? all.filter((order) => DONE_STATUSES.has(order.status) && !order.needsRefund).sort((a, b) => new Date(b.deliveredAt ?? b.createdAt).getTime() - new Date(a.deliveredAt ?? a.createdAt).getTime())
         : all.filter((order) => !DONE_STATUSES.has(order.status) || order.needsRefund);
   const needRefund = view === "active" ? all.filter((order) => order.needsRefund) : [];
   const tableGroups = mode === "pickup" ? groupPickupByTable(all.filter((order) => !isPartnerPickupOrder(order))).filter((group) => group.tableLabel && group.tickets.length > 1) : [];

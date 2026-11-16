@@ -15,3 +15,13 @@ Mulai dari titik ini dan seterusnya, pada setiap tugas yang saya berikan:
 1. **SUPERPOWERS**: Wajib terapkan *Superpowers methodology*. Saya harus selalu memulai dengan bertanya dan memperjelas spesifikasi (*spec*), membuat *implementation plan* yang rapi (TDD, YAGNI, DRY), dan menggunakan sistem subagen apabila tugas sudah disetujui. Dilarang langsung melakukan coding bar-bar tanpa perencanaan yang matang.
 2. **UI/UX PRO MAX**: Wajib jalankan instruksi dari `ui-ux-pro-max-skill`. Semua antarmuka yang dibuat atau diperbarui harus mematuhi panduan desain tertinggi (premium, modern, standar UX yang ketat) sesuai aturan skill tersebut.
 <!-- END:garage-skill-rules -->
+
+<!-- BEGIN:garage-token-rules -->
+# Wajib untuk semua agent (Claude Code, Codex, Cursor, Copilot, subagent)
+
+- Baca `CLAUDE.md` (ringkas) lalu ikuti bagian **"WAJIB: Skill Modul & Hemat Token"**.
+- Di awal setiap tugas baca `.claude/skills/hemat-token/SKILL.md` dan bekerja dengan cara itu.
+- Sebelum menyentuh kode suatu modul, baca `.claude/skills/<skill-modul>/SKILL.md` sesuai tabel indeks di `CLAUDE.md`
+  (garage-pos, garage-kas, garage-produksi, garage-produk-wms, garage-meja-menu, garage-member-cx, garage-approval,
+  garage-ai-mcp, garage-partner-hub, garage-ops-deploy, garage-ui-tooling). Aturan di skill = aturan Owner, mengikat penuh.
+<!-- END:garage-token-rules -->

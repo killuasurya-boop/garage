@@ -9,6 +9,14 @@ Tujuan: hasil sama, konteks sekecil mungkin. Setiap byte yang masuk konteks diba
 lagi di setiap giliran berikutnya, jadi yang paling mahal adalah **output besar yang
 masuk sekali lalu terbawa terus**.
 
+## 0. Muat hanya skill modul yang tersentuh
+- `CLAUDE.md` sengaja ringkas; aturan detail ada di skill modul (`garage-pos`, `garage-kas`, …, tabel
+  indeks di `CLAUDE.md`). Muat skill modul yang tugasnya sentuh — WAJIB, jangan dilewati demi hemat.
+- Jangan muat skill modul yang tidak tersentuh. Skill panjang (`garage-kas`, `garage-produk-wms`,
+  `garage-partner-hub`): baca utuh bila mengubah logika uang/stok; untuk tugas sempit cukup Grep judul
+  bagiannya lalu baca bagian itu.
+- Aturan baru Owner ditulis di skill modulnya, bukan di `CLAUDE.md`.
+
 ## 1. Cari dulu, baca belakangan
 - Jangan `Read` file besar utuh. File raksasa repo ini: `src/lib/garage-service.ts`,
   `src/components/garage/garage-app.tsx`, `src/lib/garage-data.ts`, `src/db/schema.ts`,
@@ -78,6 +86,5 @@ Sebelum menjelajah, cek ringkasan ini (baca bagian relevan saja, pakai Grep):
 - Satu sesi = satu tugas. Tugas lain → sesi baru, konteks bersih.
 - Perintah spesifik ("ubah X di `file.ts` fungsi Y") jauh lebih murah dari "cek kenapa POS error".
 - Model lebih ringan (`/model`) untuk tugas mekanis; model besar untuk desain/arsitektur.
-- `CLAUDE.md` dimuat di SETIAP sesi (repo ini ±80 KB ≈ 20 ribu token). Memindahkan detail
-  modul ke `docs/` dan menyisakan ringkasan + pointer adalah penghematan terbesar —
-  lakukan hanya atas persetujuan Owner.
+- `CLAUDE.md` dimuat di SETIAP sesi; jaga tetap ringkas (±9 KB). Matikan plugin Claude Code yang
+  tidak dipakai (`/plugin`): daftar skill & tool plugin ikut dimuat tiap sesi.

@@ -42,25 +42,22 @@ function startUnpaidOrderSweeper() {
         console.warn("[approval-reconcile] gagal:", error instanceof Error ? error.message : error);
       }
       // Smart Partner Hub: eskalasi SLA mitra (belum diterima / siap belum diambil) tanpa perlu layar POS terbuka.
+      // Setiap proses dipantau (runMonitoredJob): gagal 3× berturut-turut → Owner diberi tahu (Owner 16 Nov 2026).
       try {
-        const { sweepPartnerSla, sweepPartnerServiceHours } = await import("@/lib/partner-hub-service");
-        await sweepPartnerSla();
+        const { runMonitoredJob } = await import("@/lib/background-job-runner");
+        const { sweepPartnerSla, sweepPartnerServiceHours, sweepPartnerSettlementReminders } = await import("@/lib/partner-hub-service");
+        await runMonitoredJob("partner_sla", () => sweepPartnerSla());
         // Jam layanan mitra (default 17.00–22.30): tutup otomatis + pengingat buka.
-        const hours = await sweepPartnerServiceHours();
-        if (hours.closed || hours.reminded) console.log(`[partner-hours] ${hours.closed} mitra ditutup otomatis, ${hours.reminded} pengingat buka.`);
-      } catch (error) {
-        console.warn("[partner-sla] gagal:", error instanceof Error ? error.message : error);
-      }
-      // A7: pengingat setoran mitra harian (23.00 belum direkap · 08.00 setujui · 10.00 transfer · lewat 12.00 terlambat).
-      // Tiap 5 menit; aman diulang karena tiap pengingat punya kunci dedup.
-      if (new Date().getMinutes() % 5 === 0) {
-        try {
-          const { sweepPartnerSettlementReminders } = await import("@/lib/partner-hub-service");
-          const r = await sweepPartnerSettlementReminders();
-          if (r.sent) console.log(`[partner-settlement] ${r.sent} pengingat setoran mitra dikirim.`);
-        } catch (error) {
-          console.warn("[partner-settlement] gagal:", error instanceof Error ? error.message : error);
+        const hours = await runMonitoredJob("partner_hours", () => sweepPartnerServiceHours());
+        if (hours && (hours.closed || hours.reminded)) console.log(`[partner-hours] ${hours.closed} mitra ditutup otomatis, ${hours.reminded} pengingat buka.`);
+        // A7: pengingat setoran mitra harian (23.00 belum direkap · 08.00 setujui · 10.00 transfer · lewat 12.00 terlambat).
+        // Tiap 5 menit; aman diulang karena tiap pengingat punya kunci dedup.
+        if (new Date().getMinutes() % 5 === 0) {
+          const r = await runMonitoredJob("partner_settlement", () => sweepPartnerSettlementReminders());
+          if (r?.sent) console.log(`[partner-settlement] ${r.sent} pengingat setoran mitra dikirim.`);
         }
+      } catch (error) {
+        console.warn("[partner-jobs] gagal dimuat:", error instanceof Error ? error.message : error);
       }
       // Sekali per jam: bersihkan feed notifikasi staf yang sudah lama (> 14 hari).
       if (new Date().getMinutes() === 7) {

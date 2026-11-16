@@ -72,6 +72,72 @@ function Stat({ label, value, tone = "default" }: { label: string; value: string
 
 const LINE_STATUS: Record<string, string> = { queue: "Menunggu", accepted: "Diterima", processing: "Diproses", ready: "Siap", delivered: "Diantar", rejected: "Ditolak", cancelled: "Batal" };
 
+type Coverage = {
+  shiftCount: number;
+  shifts: string[];
+  totalPayable: number;
+  coveredPayable: number;
+  uncoveredPayable: number;
+  missing: Array<{ orderNo: string; partnerName: string; itemName: string; variantLabel: string; qty: number; payable: number; reason: string }>;
+};
+
+/**
+ * Cek silang (Owner 16 Nov 2026): wajib bayar ke mitra di rekap setoran vs yang tercatat di laporan shift kasir.
+ * Selisih = pesanan mitra yang tidak masuk shift mana pun, ditampilkan dengan sebabnya. Hanya informasi.
+ */
+function ShiftCoverageCard({ from, to }: { from: string; to: string }) {
+  const [data, setData] = useState<Coverage | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    api<Coverage>(`/api/pos/partner-finance/coverage?from=${from}&to=${to}`)
+      .then((res) => alive && (setData(res), setError(null)))
+      .catch((err: Error) => alive && setError(err.message));
+    return () => {
+      alive = false;
+    };
+  }, [from, to]);
+  if (error) return <Notice message={{ tone: "error", text: `Cek silang laporan shift gagal dimuat: ${error}` }} />;
+  if (!data || data.totalPayable === 0) return null;
+  const match = data.uncoveredPayable === 0;
+  return (
+    <Card className={match ? "" : "border-[#f5a742]/60"}>
+      <div data-testid="partner-shift-coverage">
+        <h3 className="flex flex-wrap items-center gap-2 text-sm font-bold text-white">
+          Cek silang laporan shift
+          <Chip tone={match ? "green" : "amber"}>{match ? "Cocok" : "Ada selisih"}</Chip>
+          <span className="ml-auto text-xs font-normal text-[#b8b8bf]">{data.shiftCount} shift kasir di periode ini</span>
+        </h3>
+        <dl className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <Stat label="Wajib bayar di rekap setoran" value={rp(data.totalPayable)} tone="amber" />
+          <Stat label="Tercatat di laporan shift" value={rp(data.coveredPayable)} />
+          <Stat label="Tidak masuk shift mana pun" value={rp(data.uncoveredPayable)} tone={match ? "default" : "red"} />
+        </dl>
+        {match ? (
+          <p className="mt-2 text-xs text-[#bbf7d0]">Semua pesanan mitra yang wajib dibayar sudah tercatat di laporan shift kasir.</p>
+        ) : (
+          <>
+            <p className="mt-2 text-xs text-[#ffd08a]">Pesanan di bawah tetap wajib dibayar ke mitra (masuk rekap setoran), tetapi tidak tercatat di laporan shift kasir mana pun. Periksa sebelum menyetujui setoran.</p>
+            <ul className="mt-2 grid gap-1 text-sm">
+              {data.missing.slice(0, 20).map((row, index) => (
+                <li key={`${row.orderNo}-${index}`} className="flex flex-wrap justify-between gap-x-3 rounded-md border border-[#2a2a30] bg-black/20 px-2 py-1.5 text-[#e4e4e8]">
+                  <span className="min-w-0 break-words">
+                    <b>{row.orderNo}</b> · {row.partnerName} · {row.qty}× {row.itemName}
+                    {row.variantLabel && row.variantLabel !== "Regular" ? ` (${row.variantLabel})` : ""}
+                    <span className="block text-xs text-[#b8b8bf]">{row.reason}</span>
+                  </span>
+                  <span className="tabular-nums font-semibold text-[#ffd08a]">{rp(row.payable)}</span>
+                </li>
+              ))}
+            </ul>
+            {data.missing.length > 20 ? <p className="mt-1 text-xs text-[#b8b8bf]">+{data.missing.length - 20} baris lainnya.</p> : null}
+          </>
+        )}
+      </div>
+    </Card>
+  );
+}
+
 export function DeskFinance({ role, userId }: { role: string; userId: string }) {
   // Label jatuh tempo (12.00 WIB) ikut berganti tanpa muat ulang.
   const now = useNowTick(60_000);
@@ -188,6 +254,7 @@ export function DeskFinance({ role, userId }: { role: string; userId: string }) 
           <Kpi label="Kewajiban setoran" value={rp(totals.liability)} tone="amber" hint="item Siap Antar" />
         </div>
       </section>
+      <ShiftCoverageCard from={from} to={to} />
       <section aria-label="Ringkasan settlement">
         <h3 className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-[#b8b8bf]">Semua settlement{filteredName ? ` · ${filteredName}` : " · semua mitra"} (tidak mengikuti periode)</h3>
         <div className="grid grid-cols-2 gap-3">

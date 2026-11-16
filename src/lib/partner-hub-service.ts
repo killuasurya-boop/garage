@@ -81,7 +81,7 @@ import {
   PRICE_PROPOSAL_STATUS_LABEL,
 } from "@/lib/partner-hub-insights";
 import { normalizePhone } from "@/lib/member-types";
-import { isPartnerPickupOrder, partnerShiftPayoutNote, partnerShiftSales, type PartnerShiftLine } from "@/lib/partner-cashier-rules";
+import { isPartnerPickupOrder, partnerShiftCoverage, partnerShiftPayoutNote, partnerShiftSales, type PartnerShiftLine } from "@/lib/partner-cashier-rules";
 import { PAYMENT_STATUS_LABEL, paymentStatusOf } from "@/lib/payment-status";
 
 export class PartnerHubError extends Error {
@@ -1187,7 +1187,12 @@ export async function handoverPartnerTicket(garage: GarageSession, ticketNo: str
     fromStatus: "ready",
     toStatus: "delivered",
     actor: staffActor(garage),
-    metadata: { orderNo: ticket.orderNo, tableLabel: ticket.tableLabel },
+    metadata: {
+      orderNo: ticket.orderNo,
+      tableLabel: ticket.tableLabel,
+      // Owner/Manajer menyelesaikan tiket yang sedang dibawa staf lain: jejak siapa pemilik klaimnya.
+      ...(ticket.claimedBy && ticket.claimedBy !== garage.user.id ? { completedForClaimer: ticket.claimedByName ?? ticket.claimedBy } : {}),
+    },
   });
   return { ticketNo, status: updated?.status ?? "delivered", already: false };
 }
@@ -1649,6 +1654,55 @@ export async function partnerSalesForCashSession(sessionId: string, garage: Gara
     totals: result.totals,
     payoutNote: partnerShiftPayoutNote(session.openedAt),
   };
+}
+
+/**
+ * Cek silang satu hari (Owner 16 Nov 2026): wajib bayar ke mitra pada rekap setoran harian (semua baris mitra tanggal
+ * itu, sama dengan settlement) dibandingkan dengan yang tercatat di laporan shift kasir yang berjalan pada tanggal itu.
+ * Baris yang tidak masuk shift mana pun ditampilkan beserta sebabnya. Hanya baca.
+ */
+export async function partnerShiftCoverageForDay(outletId: string, from: Date, to: Date) {
+  const db = getDb();
+  const sessions = await db
+    .select({ id: cashSessions.id, code: cashSessions.code })
+    .from(cashSessions)
+    .where(and(eq(cashSessions.outletId, outletId), lt(cashSessions.openedAt, to), or(isNull(cashSessions.closedAt), gte(cashSessions.closedAt, from))));
+  const { getCashSessionTransactions } = await import("@/lib/garage-service");
+  const covered = new Set<string>();
+  for (const session of sessions) {
+    const base = await getCashSessionTransactions(session.id, "", { allowAll: true });
+    for (const order of base?.orders ?? []) covered.add(order.id);
+  }
+  const rows = await db
+    .select({ line: partnerOrderLines, ticketStatus: kitchenTickets.status, orderStatus: orders.status, partnerName: partners.name })
+    .from(partnerOrderLines)
+    .innerJoin(partners, eq(partnerOrderLines.partnerId, partners.id))
+    .leftJoin(kitchenTickets, eq(partnerOrderLines.ticketId, kitchenTickets.id))
+    .leftJoin(orders, eq(partnerOrderLines.orderId, orders.id))
+    .where(and(eq(partnerOrderLines.outletId, outletId), gte(partnerOrderLines.createdAt, from), lt(partnerOrderLines.createdAt, to)))
+    .orderBy(asc(partnerOrderLines.createdAt));
+  const lines = rows.map((row) => {
+    const line = effectiveLine(row);
+    return {
+      id: line.id,
+      orderId: line.orderId,
+      partnerId: line.partnerId,
+      partnerName: row.partnerName,
+      itemName: line.itemName,
+      variantLabel: line.variantLabel,
+      orderNo: line.orderNo,
+      orderPayment: paymentStatusOf({ status: row.orderStatus }),
+      createdAt: line.createdAt,
+      qty: line.qty,
+      unitPrice: line.unitPrice,
+      unitCost: line.unitCost,
+      status: line.status,
+      cancelledQty: line.cancelledQty,
+      fulfilledQty: line.fulfilledQty,
+      salesVoided: line.salesVoided,
+    };
+  });
+  return { shiftCount: sessions.length, shifts: sessions.map((s) => s.code), ...partnerShiftCoverage(lines, covered) };
 }
 
 export async function partnerFinanceSummary(partnerId: string, outletId: string, from: Date, to: Date) {

@@ -284,11 +284,11 @@ test("UAT-D: keuangan Rp0 selisih — refund penuh item mitra & void setelah sia
   const queueAfter = await call<Array<{ ticketNo: string }>>(kasir.api, "GET", "/api/pos/partner-orders");
   expect(queueAfter.data.find((row) => row.ticketNo === t5.ticketNo)).toBeUndefined();
 
-  // Kasir tidak menerima HPP / profit mitra dari server.
+  // Keputusan Owner 15 Nov 2026 (A3): kasir boleh melihat HPP mitra & profit Garage (angka sama dengan PDF settlement).
   const kasirView = await call<{ costHidden: boolean; partners: Array<{ garageProfit: number | null; totalCost: number | null; lines: Array<{ unitCost: number | null }> }> }>(kasir.api, "GET", `/api/pos/partner-finance?partnerId=${state.partnerId}`);
-  expect(kasirView.data.costHidden).toBe(true);
-  expect(kasirView.data.partners[0]).toMatchObject({ garageProfit: null, totalCost: null });
-  expect(kasirView.data.partners[0].lines.every((line) => line.unitCost === null)).toBe(true);
+  expect(kasirView.data.costHidden).toBe(false);
+  expect(kasirView.data.partners[0].totalCost).not.toBeNull();
+  expect(kasirView.data.partners[0].lines.every((line) => line.unitCost === COST)).toBe(true);
 
   // Hitungan manual dari master: O1 2×, O2 1× (direfund), O3 1× (void setelah siap), O4 batal, O5 ditolak (0).
   const expected = {

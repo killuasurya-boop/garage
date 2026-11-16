@@ -51,3 +51,21 @@ Arti angka:
 | Ditolak/batal | Rp0 ke mitra. |
 
 Uang mitra **tidak dibayar dari laci**. Wajib bayar ini masuk rekap setoran harian mitra (Keuangan Mitra), dan dibayar paling lambat esok harinya pukul 12.00 WIB lewat transfer.
+
+## 5. Cek silang laporan shift (Keuangan Mitra)
+Keuangan Mitra → kartu **Cek silang laporan shift** membandingkan dua angka untuk tanggal yang dipilih:
+- **Wajib bayar di rekap setoran:** semua pesanan mitra yang sudah siap.
+- **Tercatat di laporan shift:** yang masuk laporan shift kasir.
+
+Status kartunya:
+- **Cocok:** kedua angka sama.
+- **Ada selisih:** muncul daftar pesanan yang tidak masuk shift mana pun, beserta sebabnya. Contohnya pesanan Owner tanpa shift, atau bill pelanggan yang belum dibayar. Pesanan itu tetap wajib dibayar ke mitra. Periksa dulu sebelum menyetujui setoran.
+
+## 6. Bila koneksi terputus
+Panel Pesanan Mitra tetap menampilkan kartu terakhir disertai banner **"Koneksi terputus — data terakhir pukul …"**. Panel mencoba lagi otomatis. Setiap tombol tetap dicek ulang oleh server, jadi tidak ada pesanan yang berubah tanpa tercatat.
+
+## 7. Proses otomatis
+Penutupan jam layanan, peringatan pesanan mitra lambat, dan pengingat setoran berjalan otomatis di server.
+- Bila salah satunya gagal 3 kali berturut-turut, Owner mendapat notifikasi.
+- Bila sudah normal kembali, Owner juga dikabari.
+- Statusnya bisa dilihat di Partner Hub → Kelola Mitra → **Kesehatan mitra → Proses otomatis**.

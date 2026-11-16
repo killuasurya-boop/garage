@@ -283,3 +283,52 @@ describe("Jam layanan produk mitra (default 17.00–22.30)", () => {
     void linkId;
   });
 });
+
+describe("Partner Hub kokoh (Owner 16 Nov 2026)", () => {
+  it("proses otomatis gagal 3× berturut-turut → Owner diberi tahu sekali; pulih → kabar pulih sekali", async () => {
+    const d = t.getDb();
+    const { eq } = await import("drizzle-orm");
+    await d
+      .insert(t.schema.staffProfiles)
+      .values({ userId: ownerId, role: "Owner", outletId, shiftLabel: "Pagi", deviceLabel: "Laptop Owner" } as never)
+      .onConflictDoNothing();
+    const runner = await import("@/lib/background-job-runner");
+    runner.resetBackgroundJobHealth();
+    const base = Date.now();
+    const at = (minute: number) => () => new Date(base + minute * 60_000);
+    const boom = async () => {
+      throw new Error("relation \"partners\" does not exist");
+    };
+    for (let i = 0; i < 5; i += 1) expect(await runner.runMonitoredJob("partner_hours", boom, at(i))).toBeNull();
+    const alerts = await d.select().from(t.schema.staffNotifications).where(eq(t.schema.staffNotifications.kind, "system_alert"));
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]).toMatchObject({ userId: ownerId, severity: "urgent" });
+    expect(alerts[0].title).toContain("Jam layanan mitra");
+    // Pesan ke Owner tidak membawa teks error mentah (SQL/stack).
+    expect(`${alerts[0].title} ${alerts[0].body}`).not.toMatch(/relation|does not exist/);
+    expect(runner.backgroundJobHealth().find((r) => r.job === "partner_hours")).toMatchObject({ status: "failing", consecutiveFailures: 5 });
+
+    expect(await runner.runMonitoredJob("partner_hours", async () => ({ closed: 0, reminded: 0 }), at(6))).toEqual({ closed: 0, reminded: 0 });
+    const recovered = await d.select().from(t.schema.staffNotifications).where(eq(t.schema.staffNotifications.kind, "system_recovered"));
+    expect(recovered).toHaveLength(1);
+    expect(runner.backgroundJobHealth().find((r) => r.job === "partner_hours")?.status).toBe("ok");
+  });
+
+  it("cek silang: pesanan kasir tercatat di laporan shift; pesanan Owner tanpa shift muncul sebagai selisih", async () => {
+    const created = (await garageSvc.createOrder(
+      { orderType: "takeaway", paymentMethod: "QRIS", paymentReference: "QR-OWNER-1", guestName: "Tamu Owner", items: [{ itemId: menuId, variantId: "reg", qty: 1 }] } as never,
+      owner(),
+    )) as { orderNo: string };
+    const ticket = await partnerTicketOf(created.orderNo);
+    await svc.actOnPartnerTicket(partnerSession(), ticket.ticketNo, "accept");
+    await svc.actOnPartnerTicket(partnerSession(), ticket.ticketNo, "ready");
+    const { wibDayStart } = await import("@/lib/partner-hub-rules");
+    const from = wibDayStart(new Date());
+    const coverage = await svc.partnerShiftCoverageForDay(outletId, from, new Date(from.getTime() + 86_400_000));
+    expect(coverage.shiftCount).toBeGreaterThanOrEqual(1);
+    expect(coverage.uncoveredPayable).toBe(22_000);
+    expect(coverage.missing).toEqual([expect.objectContaining({ orderNo: created.orderNo, qty: 1, payable: 22_000 })]);
+    expect(coverage.missing[0].reason).toMatch(/luar shift kasir/);
+    expect(coverage.coveredPayable).toBe(coverage.totalPayable - 22_000);
+  });
+});

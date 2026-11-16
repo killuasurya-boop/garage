@@ -558,7 +558,7 @@ export const API_ROUTE_CATALOG: ApiRouteEntry[] = [
   {"path":"/api/shift/handover","methods":["POST"],"note":""},
   {"path":"/api/site/business-info","methods":["GET","PUT"],"note":""},
   {"path":"/api/site/events","methods":["GET","PUT"],"note":""},
-  {"path":"/api/site/landing-hero","methods":["GET","POST"],"note":""},
+  {"path":"/api/site/landing-hero","methods":["GET","POST","DELETE"],"note":""},
   {"path":"/api/site/live-tracking","methods":["GET"],"note":""},
   {"path":"/api/site/live-visit","methods":["GET"],"note":""},
   {"path":"/api/site/partner-products","methods":["GET"],"note":""},

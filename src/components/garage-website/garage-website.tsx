@@ -5960,220 +5960,159 @@ const formatRupiah = (value) =>
     maximumFractionDigits: 0,
   }).format(Number(value) || 0);
 
-function PromoProducts() {
+// Section "Pilihan" — Promo aktif + Menu unggulan dalam SATU section ringkas (owner 16 Nov 2026:
+// homepage terlalu penuh foto produk, identitas Garage tenggelam). Maks 6 kartu; menu lengkap di /order.
+const MENU_PICKS_LIMIT = 6;
+
+function MenuPicks() {
   const biz = useBiz();
   const { rows, loaded } = useLiveMenu();
-  const items = useMemo(() => rows
+  const promo = useMemo(() => rows
     .filter((it) => it && it.promoActive && Number(it.promoPrice) > 0)
     .map((it) => {
       const base = Array.isArray(it.variants) && it.variants.length
         ? Math.min(...it.variants.map((v) => Number(v.price) || 0))
         : 0;
-      return { ...it, basePrice: base };
+      return {
+        key: `promo-${it.id || it.name}`,
+        name: it.name,
+        imageUrl: it.imageUrl,
+        category: it.category,
+        price: Number(it.promoPrice),
+        basePrice: base,
+        campaign: "landing_promo",
+      };
     })
-    .filter((it) => it.basePrice > Number(it.promoPrice)), [rows]);
-
-  if (!loaded || items.length === 0) return null;
-
-  return (
-    <section id="promo" className="section-pad" style={{
-      borderTop: "1px solid var(--line)",
-      background: "linear-gradient(180deg, var(--bg-1), var(--bg-0))",
-    }}>
-      <div className="shell">
-        <div style={{ marginBottom: 40 }}>
-          <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>
-            03 / Promo
-          </Reveal>
-          <Reveal mask as="h2" delay={100} className="display" aria-label="Promo aktif."
-            style={{ fontSize: "clamp(40px, 7vw, 110px)" }}>
-            <span style={{ display: "block" }}>Promo</span>
-            <span style={{ display: "block", color: "var(--red)" }}>aktif.</span>
-          </Reveal>
-          <Reveal delay={300} as="p" style={{ marginTop: 16, color: "var(--fg-mute)", maxWidth: 520 }}>
-            Harga spesial yang lagi jalan di GARAGE. Datang langsung atau order via WhatsApp selagi promo masih ada.
-          </Reveal>
-        </div>
-
-        <div style={{
-          display: "grid",
-          gap: 16,
-          gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-        }}>
-          {items.map((it, idx) => {
-            const off = Math.round(
-              ((it.basePrice - Number(it.promoPrice)) / it.basePrice) * 100,
-            );
-            // Kartu promo langsung membuka menu digital di item ini (bisa langsung
-            // pesan & terlacak campaign); WhatsApp jadi opsi sekunder di bawah kartu.
-            const waUrl = bizWaUrl(
-              biz.whatsapp,
-              `Halo GARAGE, saya mau tanya promo ${it.name} (${formatRupiah(it.promoPrice)}).`,
-            );
-            return (
-              <Reveal key={it.id || idx} delay={idx * 60}>
-                <a href={digitalMenuItemHref(it.name, "landing_promo")} className="promo-card" style={{
-                  display: "block",
-                  borderRadius: 14,
-                  overflow: "hidden",
-                  border: "1px solid var(--line)",
-                  background: "var(--bg-2, #18181f)",
-                  textDecoration: "none",
-                  color: "inherit",
-                  transition: "transform .25s, border-color .25s",
-                }}>
-                  <div style={{ position: "relative", aspectRatio: "1 / 1", background: "#15151b" }}>
-                    {it.imageUrl ? (
-                      <img src={it.imageUrl} alt={it.name} loading="lazy"
-                        style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                    ) : null}
-                    <span style={{
-                      position: "absolute", top: 10, left: 10,
-                      background: "var(--red)", color: "#fff",
-                      fontWeight: 900, fontSize: 11, letterSpacing: ".05em",
-                      padding: "4px 8px", borderRadius: 6,
-                    }}>
-                      PROMO{off > 0 ? ` -${off}%` : ""}
-                    </span>
-                  </div>
-                  <div style={{ padding: 14 }}>
-                    <p style={{ fontWeight: 700, color: "#fff", margin: 0, lineHeight: 1.3 }}>
-                      {it.name}
-                    </p>
-                    <p className="mono" style={{ margin: "4px 0 10px", color: "var(--fg-mute)", fontSize: 11 }}>
-                      {it.category}
-                    </p>
-                    <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                      <span style={{ color: "var(--red)", fontWeight: 800, fontSize: 18 }}>
-                        {formatRupiah(it.promoPrice)}
-                      </span>
-                      <span style={{ color: "var(--fg-mute)", textDecoration: "line-through", fontSize: 13 }}>
-                        {formatRupiah(it.basePrice)}
-                      </span>
-                      <span className="card-order-pill" style={{ marginLeft: "auto" }}>Pesan</span>
-                    </div>
-                  </div>
-                </a>
-                <a href={waUrl} target="_blank" rel="noopener noreferrer" className="card-wa-link">
-                  Tanya via WhatsApp
-                </a>
-              </Reveal>
-            );
-          })}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// Section Menu Unggulan (C3) — produk bertag "Bestseller"/"Unggulan" dari DB.
-// Owner kontrol via tag di Produk Manajemen. Additive, tampil bila ada isi.
-function FeaturedMenu() {
-  const biz = useBiz();
-  const { rows, loaded } = useLiveMenu();
-  const items = useMemo(() => rows
+    .filter((it) => it.basePrice > it.price), [rows]);
+  const featured = useMemo(() => rows
     .filter((it) => it?.featured || (Array.isArray(it?.tags) && it.tags.some((t) =>
       /bestseller|unggulan|favorit|signature/i.test(String(t)))))
     .map((it) => ({
+      key: `unggulan-${it.id || it.name}`,
       name: it.name,
       imageUrl: it.imageUrl,
       category: it.category,
       price: liveItemPrice(it),
-    }))
-    .slice(0, 8), [rows]);
-  if (!loaded || items.length === 0) return null;
-  const fmt = (v) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(v) || 0);
+      basePrice: 0,
+      campaign: "landing_unggulan",
+    })), [rows]);
+  const tabs = [
+    promo.length ? { id: "promo", label: "Promo aktif", items: promo } : null,
+    featured.length ? { id: "unggulan", label: "Unggulan", items: featured } : null,
+  ].filter(Boolean);
+  const [picked, setPicked] = useState(null);
+  if (!loaded || tabs.length === 0) return null;
+  const tab = tabs.find((t) => t.id === picked) || tabs[0];
+  const items = tab.items.slice(0, MENU_PICKS_LIMIT);
+
   return (
-    <section id="unggulan" className="section-pad" style={{
-      borderTop: "1px solid var(--line)", background: "linear-gradient(180deg, var(--bg-1), var(--bg-0))",
+    <section id="pilihan" className="section-pad menu-picks" aria-labelledby="menu-picks-title" style={{
+      borderTop: "1px solid var(--line)",
+      background: "linear-gradient(180deg, var(--bg-1), var(--bg-0))",
     }}>
+      {/* Anchor lama tetap hidup untuk link kampanye (#promo, #unggulan). */}
+      <span id="promo" aria-hidden="true" />
+      <span id="unggulan" aria-hidden="true" />
       <div className="shell">
-        <div style={{ marginBottom: 40 }}>
-          <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>Unggulan</Reveal>
-          <Reveal mask as="h2" delay={100} className="display" aria-label="Menu unggulan."
-            style={{ fontSize: "clamp(40px, 7vw, 110px)" }}>
-            <span style={{ display: "block" }}>Menu</span>
-            <span style={{ display: "block", color: "var(--red)" }}>unggulan.</span>
-          </Reveal>
+        <div className="menu-picks-head">
+          <div>
+            <Reveal as="div" className="eyebrow" style={{ marginBottom: 20 }}>Pilihan hari ini</Reveal>
+            <h2 id="menu-picks-title" className="display" style={{ fontSize: "clamp(36px, 5vw, 72px)" }}>
+              Yang lagi <span style={{ color: "var(--red)" }}>jalan.</span>
+            </h2>
+          </div>
+          {tabs.length > 1 ? (
+            <div className="menu-picks-tabs" role="tablist" aria-label="Pilihan menu">
+              {tabs.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={t.id === tab.id}
+                  aria-controls="menu-picks-panel"
+                  className={`menu-picks-tab${t.id === tab.id ? " is-active" : ""}`}
+                  onClick={() => setPicked(t.id)}
+                >
+                  {t.label} <span className="mono">{t.items.length}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
-        <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}>
-          {items.map((it, idx) => {
+
+        <div id="menu-picks-panel" className="menu-picks-grid" role="tabpanel" aria-label={tab.label}>
+          {items.map((it) => {
+            const off = it.basePrice > it.price && it.basePrice > 0
+              ? Math.round(((it.basePrice - it.price) / it.basePrice) * 100)
+              : 0;
             const waUrl = bizWaUrl(biz.whatsapp, `Halo GARAGE, saya mau tanya menu ${it.name}.`);
             return (
-              <Reveal key={idx} delay={idx * 60}>
-                <a href={digitalMenuItemHref(it.name, "landing_unggulan")} style={{
-                  display: "block", borderRadius: 14, overflow: "hidden",
-                  border: "1px solid var(--line)", background: "var(--bg-2, #18181f)",
-                  textDecoration: "none", color: "inherit",
-                }}>
-                  <div style={{ position: "relative", aspectRatio: "1 / 1", background: "#15151b" }}>
+              <div key={it.key} className="menu-picks-item">
+                <a href={digitalMenuItemHref(it.name, it.campaign)} className="menu-picks-card">
+                  <span className="menu-picks-photo">
                     {it.imageUrl ? (
-                      <img src={it.imageUrl} alt={it.name} loading="lazy"
-                        style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      <img src={it.imageUrl} alt={it.name} loading="lazy" decoding="async" />
                     ) : null}
-                    <span style={{
-                      position: "absolute", top: 10, left: 10, background: "var(--red)",
-                      color: "#fff", fontWeight: 900, fontSize: 10, letterSpacing: ".05em",
-                      padding: "4px 8px", borderRadius: 6,
-                    }}>UNGGULAN</span>
-                  </div>
-                  <div style={{ padding: 14 }}>
-                    <p style={{ fontWeight: 700, color: "#fff", margin: 0, lineHeight: 1.3 }}>{it.name}</p>
-                    <p className="mono" style={{ margin: "4px 0 8px", color: "var(--fg-mute)", fontSize: 11 }}>{it.category}</p>
-                    <div className="card-order-row">
-                      {it.price ? <span style={{ color: "var(--fg)", fontWeight: 800, fontSize: 16 }}>{fmt(it.price)}</span> : <span />}
-                      <span className="card-order-pill">Pesan</span>
-                    </div>
-                  </div>
+                    <span className="menu-picks-badge">
+                      {tab.id === "promo" ? `PROMO${off > 0 ? ` -${off}%` : ""}` : "UNGGULAN"}
+                    </span>
+                  </span>
+                  <span className="menu-picks-body">
+                    <span className="menu-picks-name">{it.name}</span>
+                    <span className="mono menu-picks-cat">{it.category}</span>
+                    <span className="menu-picks-price">
+                      {it.price ? <span className="menu-picks-now">{formatRupiah(it.price)}</span> : null}
+                      {off > 0 ? <span className="menu-picks-was">{formatRupiah(it.basePrice)}</span> : null}
+                      <span className="card-order-pill" style={{ marginLeft: "auto" }}>Pesan</span>
+                    </span>
+                  </span>
                 </a>
                 <a href={waUrl} target="_blank" rel="noopener noreferrer" className="card-wa-link">
                   Tanya via WhatsApp
                 </a>
-              </Reveal>
+              </div>
             );
           })}
+        </div>
+
+        <div className="menu-picks-more">
+          <a href="/order" className="btn">
+            <span>Lihat menu lengkap{tab.items.length > MENU_PICKS_LIMIT ? ` (+${tab.items.length - MENU_PICKS_LIMIT} lagi)` : ""}</span>
+            <ArrowRight />
+          </a>
         </div>
       </div>
     </section>
   );
 }
 
-// Section Galeri (C5) — foto produk asli dari DB (/api/customer/menu). Additive,
-// tampil hanya bila ada foto. Tidak butuh upload terpisah.
-function MenuGallery() {
-  const { rows, loaded } = useLiveMenu();
-  const photos = useMemo(() => rows
-    .filter((it) => it && it.imageUrl)
-    .map((it) => ({ name: it.name, imageUrl: it.imageUrl }))
-    .slice(0, 12), [rows]);
-  if (!loaded || photos.length < 3) return null;
+// Section "Suasana" — foto suasana outlet ASLI yang diupload Owner (slot suasana_1..4 di modul Website).
+// Menggantikan galeri foto produk. Tidak tampil sama sekali bila belum ada foto (tanpa placeholder palsu).
+function Atmosphere({ photos = [] }) {
+  if (!photos.length) return null;
   return (
-    <section id="galeri" className="section-pad" style={{
+    <section id="suasana" className="section-pad atmosphere" aria-labelledby="atmosphere-title" style={{
       borderTop: "1px solid var(--line)", background: "var(--bg-1)",
     }}>
       <div className="shell">
-        <div style={{ marginBottom: 40 }}>
-          <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>Galeri</Reveal>
-          <Reveal mask as="h2" delay={100} className="display" aria-label="Dari dapur kami."
-            style={{ fontSize: "clamp(40px, 7vw, 110px)" }}>
-            <span style={{ display: "block" }}>Dari dapur</span>
-            <span style={{ display: "block", color: "var(--red)" }}>kami.</span>
-          </Reveal>
+        <div style={{ marginBottom: 36 }}>
+          <Reveal as="div" className="eyebrow" style={{ marginBottom: 20 }}>Suasana</Reveal>
+          <h2 id="atmosphere-title" className="display" style={{ fontSize: "clamp(36px, 5vw, 72px)" }}>
+            Begini rasanya <span style={{ color: "var(--red)" }}>di Garage.</span>
+          </h2>
         </div>
-        <div className="gw-gallery-grid" style={{
-          display: "grid", gap: 8,
-          gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
-        }}>
-          {photos.map((p, idx) => (
-            <Reveal key={idx} delay={idx * 40}>
-              <div style={{
-                position: "relative", aspectRatio: "1 / 1", overflow: "hidden",
-                borderRadius: 10, border: "1px solid var(--line)", background: "#15151b",
-              }}>
-                <img src={p.imageUrl} alt={p.name} loading="lazy"
-                  style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-              </div>
-            </Reveal>
+        <div className={`atmosphere-grid atmosphere-count-${photos.length}`}>
+          {photos.map((p) => (
+            <figure key={p.url} className="atmosphere-photo">
+              <img
+                src={p.url}
+                alt={p.alt || "Suasana Garage Coffee Tebing Tinggi"}
+                width={p.width || undefined}
+                height={p.height || undefined}
+                loading="lazy"
+                decoding="async"
+              />
+            </figure>
           ))}
         </div>
       </div>
@@ -6255,7 +6194,9 @@ function GarageWebsiteRoot({
   businessInfo = null,
   featuredEvent = null,
   gigsPromo = null,
+  atmosphere = [],
 }: {
+  atmosphere?: { url: string; width?: number; height?: number; alt?: string }[];
   landingHero?: SiteAsset | null;
   featuredEvent?: PublicEvent | null;
   gigsPromo?: GigsPromo | null;
@@ -6342,28 +6283,28 @@ function GarageWebsiteRoot({
       <Nav />
       <Hero landingHero={landingHero} />
       {gigsPromo ? <GigsPromoBanner promo={gigsPromo} /> : featuredEvent ? <GrandOpeningBanner event={featuredEvent} /> : null}
-      {/* 1. Pesan: menu, promo, unggulan, cara pesan */}
-      <Menu />
-      <PromoProducts />
-      <FeaturedMenu />
-      <PartnerShowcase />
-      <HowToOrder />
-      <SuryaShowcase />
+      {/* Urutan identitas dulu (owner 16 Nov 2026): siapa Garage → suasana → live → menu ringkas → komunitas. */}
+      {/* 1. Identitas */}
+      <About />
+      <Atmosphere photos={atmosphere} />
+      <Experience />
       {/* 2. Live outlet: meja, keramaian, estimasi, lacak pesanan */}
       <LiveVisitBoard />
-      {/* 3. Member */}
-      <MembershipMasterPro />
-      {/* 4. Tentang & suasana */}
-      <About />
-      <MenuGallery />
-      <LiveTestimonials />
-      <Experience />
-      {/* 5. Event — GIGS (GARAGE EVENT PLATFORM) lalu event komunitas */}
+      {/* 3. Pesan: menu (teks), pilihan ringkas (maks 6 foto), cara pesan */}
+      <Menu />
+      <MenuPicks />
+      <HowToOrder />
+      {/* 4. Komunitas: GIGS lalu event */}
       {gigsPromo ? <GigsSpotlight promo={gigsPromo} /> : null}
       <Events />
-      {/* 6. Lokasi & sosmed */}
+      {/* 5. Member, testimoni asli, mitra */}
+      <MembershipMasterPro />
+      <LiveTestimonials />
+      <PartnerShowcase limit={4} />
+      {/* 6. Lokasi & sosmed, lalu showcase Garage OS di bawah */}
       <LocationMvp />
       <SocialPortfolio />
+      <SuryaShowcase />
       <FinalCTA />
       <FooterMvp />
       <FloatingWA />

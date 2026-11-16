@@ -86,5 +86,6 @@ Sebelum menjelajah, cek ringkasan ini (baca bagian relevan saja, pakai Grep):
 - Satu sesi = satu tugas. Tugas lain → sesi baru, konteks bersih.
 - Perintah spesifik ("ubah X di `file.ts` fungsi Y") jauh lebih murah dari "cek kenapa POS error".
 - Model lebih ringan (`/model`) untuk tugas mekanis; model besar untuk desain/arsitektur.
-- `CLAUDE.md` dimuat di SETIAP sesi; jaga tetap ringkas (±9 KB). Matikan plugin Claude Code yang
-  tidak dipakai (`/plugin`): daftar skill & tool plugin ikut dimuat tiap sesi.
+- `CLAUDE.md` dimuat di SETIAP sesi; jaga tetap ringkas (±9 KB). Plugin akun yang tidak dipakai Garage
+  dimatikan untuk repo ini di `.claude/settings.json` (`enabledPlugins: false`); jangan diaktifkan lagi tanpa
+  persetujuan Owner. Daftar skill & tool plugin ikut dimuat tiap sesi.

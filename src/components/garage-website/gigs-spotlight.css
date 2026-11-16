@@ -171,6 +171,48 @@
   text-transform: uppercase;
   color: var(--fg);
 }
+/* Lineup per jenis (Band / Stand-up / …): judul kelompok + label jenis di kartu, lebih menonjol. */
+.garage-website .gigs-spot__lineup-group + .gigs-spot__lineup-group,
+.garage-website .gigs-spot__lineup--open { margin-top: 18px; }
+.garage-website .gigs-spot__group-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--fg);
+}
+.garage-website .gigs-spot__group-title svg { color: #ff2638; }
+.garage-website .gigs-spot__group-title span {
+  padding: 2px 8px;
+  border: 1px solid rgba(225, 6, 19, 0.6);
+  color: #ff5a66;
+}
+/* Nomor slot + label jenis satu baris; turun ke baris baru bila kartu sempit (HP 390 px) agar tidak bertumpuk. */
+.garage-website .gigs-spot__card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.garage-website .gigs-spot__kind {
+  max-width: 100%;
+  padding: 2px 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  background: #ff2638;
+  color: #0a0a0a;
+}
+.garage-website .gigs-spot__band.is-standup .gigs-spot__kind { background: #ffb020; }
+.garage-website .gigs-spot__band.is-standup { border-color: rgba(255, 176, 32, 0.45); }
+.garage-website .gigs-spot__band.is-band { border-color: rgba(225, 6, 19, 0.45); }
+.garage-website .gigs-spot__band strong { overflow-wrap: anywhere; }
 .garage-website .gigs-spot__band.is-open { padding: 0; border-style: dashed; border-color: rgba(225, 6, 19, 0.6); background: rgba(225, 6, 19, 0.08); }
 .garage-website .gigs-spot__band.is-open .gigs-spot__slot { position: absolute; top: 14px; left: 14px; }
 .garage-website .gigs-spot__open {

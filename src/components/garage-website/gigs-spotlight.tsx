@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import { ArrowRight, CalendarDays, MapPin, Mic2, Music2, Share2, ShieldCheck, Store, Users } from "lucide-react";
 
+import { groupLineup, LINEUP_KIND_LABEL, lineupSummary } from "@/lib/gigs-lineup";
 import type { GigsPromo } from "@/lib/gigs-promo";
 
 // Section promosi utama GIGS di beranda (#gigs). Semua isi dari platform event:
@@ -35,6 +36,8 @@ function useDayLabel(promo: GigsPromo) {
 
 export function GigsSpotlight({ promo }: { promo: GigsPromo }) {
   const dayLabel = useDayLabel(promo);
+  const lineupGroups = groupLineup(promo.promo.lineup);
+  const lineupCounts = lineupSummary(lineupGroups);
 
   const date = new Intl.DateTimeFormat("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Jakarta" }).format(new Date(promo.startsAt));
   const clock = new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" }).format(new Date(promo.startsAt));
@@ -140,24 +143,44 @@ export function GigsSpotlight({ promo }: { promo: GigsPromo }) {
           </ul>
         ) : null}
 
-        {/* ---------- Lineup resmi ---------- */}
-        {promo.promo.lineup.length ? (
+        {/* ---------- Lineup resmi (dikelompokkan per jenis bila platform event mengirim jenisnya) ---------- */}
+        {lineupGroups.length ? (
           <div className="gigs-spot__lineup-wrap">
             <div className="gigs-spot__subhead">
               <h3>Official lineup</h3>
-              <span>{promo.promo.lineup.length} penampil terkonfirmasi</span>
+              <span>
+                {promo.promo.lineup.length} penampil terkonfirmasi
+                {lineupCounts ? ` · ${lineupCounts}` : ""}
+              </span>
             </div>
-            <ol className="gigs-spot__lineup">
-              {promo.promo.lineup.map((band, i) => (
-                <li key={band.name} className="gigs-spot__band">
-                  <span className="gigs-spot__slot">#{String(i + 1).padStart(2, "0")}</span>
-                  <div className="gigs-spot__band-logo">
-                    {band.logo ? <img src={band.logo} alt={`Logo ${band.name}`} loading="lazy" decoding="async" /> : null}
-                  </div>
-                  <strong>{band.name}</strong>
-                </li>
-              ))}
-              {promo.links.daftarKreator ? (
+            {lineupGroups.map((group) => (
+              <section key={group.label} className="gigs-spot__lineup-group" aria-label={group.label}>
+                {lineupGroups.length > 1 || group.kind ? (
+                  <h4 className="gigs-spot__group-title">
+                    {group.kind === "standup" ? <Mic2 aria-hidden size={16} /> : <Music2 aria-hidden size={16} />}
+                    {group.label}
+                    <span>{group.items.length}</span>
+                  </h4>
+                ) : null}
+                <ol className="gigs-spot__lineup">
+                  {group.items.map((performer) => {
+                    const slot = promo.promo.lineup.indexOf(performer) + 1;
+                    return (
+                      <li key={performer.name} className={`gigs-spot__band${performer.kind ? ` is-${performer.kind}` : ""}`}>
+                        <span className="gigs-spot__slot">#{String(slot).padStart(2, "0")}</span>
+                        {performer.kind ? <span className="gigs-spot__kind">{LINEUP_KIND_LABEL[performer.kind]}</span> : null}
+                        <div className="gigs-spot__band-logo">
+                          {performer.logo ? <img src={performer.logo} alt={`Logo ${performer.name}`} loading="lazy" decoding="async" /> : null}
+                        </div>
+                        <strong>{performer.name}</strong>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </section>
+            ))}
+            {promo.links.daftarKreator ? (
+              <ol className="gigs-spot__lineup gigs-spot__lineup--open">
                 <li className="gigs-spot__band is-open">
                   <span className="gigs-spot__slot">#{String(promo.promo.lineup.length + 1).padStart(2, "0")}</span>
                   <a href={promo.links.daftarKreator} className="gigs-spot__open">
@@ -168,8 +191,8 @@ export function GigsSpotlight({ promo }: { promo: GigsPromo }) {
                     </em>
                   </a>
                 </li>
-              ) : null}
-            </ol>
+              </ol>
+            ) : null}
           </div>
         ) : null}
 

@@ -21,6 +21,12 @@ spec `docs/crystal-v5/01-DESIGN-SYSTEM.md`, tokens `--gc-*` (`src/lib/crystal-to
 AA-tested), components `src/components/crystal/` (CrystalCard/Button/Chip/Badge/Sheet/LaserBorder/StatusDot). It replaces the
 older Menu V5 boards and member palette as the visual target; behaviour, data and ordering rules stay (self-order kept).
 Skill `garage-menu-v5` still applies for menu data rules (no fake options/badges, real photos, Daftar Pilihan wording).
+Website stack (owner, 16 Nov 2026) for every website/page/React component built or reworked:
+1. Utama `ui-ux-pro-max` (design system, palette, typography, layout) + `frontend-design` (distinct visual, no generic AI look).
+2. Wajib `web-design-guidelines` (UX/a11y audit of the result, output `file:line`) + `vercel-react-best-practices`
+   (React/Next performance; read only the matching `rules/<id>.md`).
+Order: direction (1) → build → audit (2) → `node scripts/ui-check.mjs <path>`. Garage palette, Crystal V5 and the member
+contract always win over any skill output.
 Animation skills (owner, Nov 2026: customer surfaces = cinematic, operational screens = fast and restrained): ONE entry
 skill `garage-motion` (router + Garage motion rules). The 19 original skills (Emil Kowalski craft, LottieFiles motion-design,
 iart-ai web animation, official GreenSock gsap-*) live unchanged in `.claude/skills/garage-motion/ref/<name>/` (licenses in

@@ -120,6 +120,7 @@ adanya, Nov 2026, agar tiap sesi hemat ±20 ribu token). Aturan di skill sama me
 | Mitra/partner, `/partner`, `/mitra`, settlement, payout | `garage-partner-hub` |
 | Route API baru, staging, deploy, CI/E2E, backup | `garage-ops-deploy` |
 | UI/desain, Crystal V5, MCP UI | `garage-ui-tooling` + `design-system/MASTER.md` |
+| Website/halaman/komponen React baru atau dirombak | Utama: `ui-ux-pro-max` + `frontend-design`; Wajib: `web-design-guidelines` (audit UX/a11y) + `vercel-react-best-practices` (performa React/Next) |
 | Animasi/motion apa pun (CSS, Framer, GSAP, SVG, transisi) | `garage-motion` |
 
 Invarian lintas modul (ringkas; detail di skill):

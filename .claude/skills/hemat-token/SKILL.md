@@ -40,9 +40,28 @@ masuk sekali lalu terbawa terus**.
 - Subagent (`Agent`) mulai dari nol dan membaca ulang konteks: pakai hanya untuk
   pencarian sangat luas yang hasilnya cukup kesimpulan, atau kalau user minta.
 - Jangan muat skill/MCP desain (ui-ux-pro-max, gsap-*, playwright) untuk tugas backend.
-- Screenshot Playwright: `deviceScaleFactor: 1`, satu viewport per cek, baca gambar
-  hanya sekali. Jangan dump HTML/DOM utuh; ambil selector yang dicek saja.
 - `context7`/web: satu query terarah, bukan beberapa yang tumpang tindih.
+
+## 4b. Playwright — pilih cara termurah
+| Kebutuhan | Cara | Biaya token |
+|---|---|---|
+| Cek tampilan setelah ubah UI | `node scripts/ui-check.mjs /pos /inventory` | beberapa baris |
+| Debug layout yang ketahuan bermasalah | Playwright MCP, seperlunya | besar (snapshot tiap aksi) |
+| Sebelum rilis | `npm run test:e2e -- --reporter=line 2>&1 \| tail -30` | sedang |
+
+- `scripts/ui-check.mjs` membuka tiap path di desktop 1366×900 dan mobile 390×844, lalu HANYA
+  mencetak: console/page error, overflow horizontal (+ elemen penyebab), teks terpotong
+  (uang/status/nama). Exit 1 bila ada temuan.
+  - `--base=http://127.0.0.1:3000` (default), `--only=desktop|mobile`, `--shots=<dir>` simpan PNG
+    (scale 1). Lihat PNG HANYA bila ada temuan, satu per satu, simpan di scratchpad.
+  - Halaman yang butuh login: jalankan dulu tanpa login untuk halaman publik; untuk modul staf
+    pakai MCP/E2E karena butuh sesi.
+- Playwright MCP: setiap navigate/klik mengirim snapshot aksesibilitas seluruh halaman (ribuan
+  token di POS/Inventory). Jangan `browser_snapshot` berulang; pakai `browser_evaluate` untuk
+  mengambil angka/teks yang dicek saja, dan tutup browser setelah selesai.
+- E2E: jalankan file/test yang relevan (`npx playwright test -g "POS"`), bukan seluruh suite tiap
+  edit kecil. Tanpa `--trace off`, Playwright merekam trace di tiap test.
+- Screenshot untuk dicek sendiri: `deviceScaleFactor: 1`; jangan dump HTML/DOM utuh.
 
 ## 5. Gunakan peta yang sudah ada
 Sebelum menjelajah, cek ringkasan ini (baca bagian relevan saja, pakai Grep):

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isPartnerPickupOrder, partnerDeskPlan, partnerDeskSteps, partnerShiftPayoutNote, partnerShiftSales, type PartnerShiftLine } from "@/lib/partner-cashier-rules";
+import { isPartnerPickupOrder, partnerDeskPlan, partnerDeskSteps, partnerShiftCoverage, partnerShiftPayoutNote, partnerShiftSales, type PartnerShiftLine } from "@/lib/partner-cashier-rules";
 import {
   clockLabel,
   isWithinPartnerServiceHours,
@@ -182,7 +182,41 @@ describe("partnerShiftSales", () => {
   });
 });
 
-// Jam layanan produk mitra (Owner 16 Nov 2026): 17.00–22.30 WIB. WIB = UTC+7.
+describe("partnerShiftCoverage (cek silang laporan shift ↔ setoran harian)", () => {
+  const cov = (over: Partial<PartnerShiftLine> & { orderId: string }) => ({ ...line(over), orderId: over.orderId });
+  it("baris wajib bayar di order shift = tercatat; di luar shift = muncul dengan sebab netral; belum siap diabaikan", () => {
+    const result = partnerShiftCoverage(
+      [
+        cov({ id: "a", orderId: "o-shift" }),
+        cov({ id: "b", orderId: "o-owner", orderNo: "ORD-OWN", orderPayment: "paid", qty: 1, fulfilledQty: 1 }),
+        cov({ id: "c", orderId: "o-unpaid", orderNo: "ORD-UNP", orderPayment: "pending", qty: 1, fulfilledQty: 1 }),
+        cov({ id: "d", orderId: "o-void", orderNo: "ORD-VOID", orderPayment: "cancelled", qty: 1, fulfilledQty: 1, salesVoided: true }),
+        cov({ id: "e", orderId: "o-wait", status: "queue", fulfilledQty: 0 }),
+      ],
+      new Set(["o-shift"]),
+    );
+    expect(result).toMatchObject({ totalPayable: 44_000 + 22_000 * 3, coveredPayable: 44_000, uncoveredPayable: 66_000 });
+    expect(result.missing.map((m) => m.orderNo)).toEqual(["ORD-OWN", "ORD-UNP", "ORD-VOID"]);
+    expect(result.missing[0].reason).toMatch(/luar shift kasir/);
+    expect(result.missing[1].reason).toMatch(/belum dibayar/);
+    expect(result.missing[2].reason).toMatch(/dibatalkan setelah mitra menyiapkan/);
+  });
+
+  it("penyesuaian kewajiban disetujui ikut dihitung: di order shift = tercatat, tanpa pesanan = selisih", () => {
+    const result = partnerShiftCoverage([cov({ id: "a", orderId: "o1" })], new Set(["o1"]), [
+      { partnerName: "Mitra Dimsum", orderId: "o1", orderNo: "ORD-1", liabilityDelta: -2_000, kind: "correction" },
+      { partnerName: "Mitra Dimsum", orderId: null, orderNo: null, liabilityDelta: 5_000, kind: "dispute" },
+    ]);
+    expect(result).toMatchObject({ totalPayable: 44_000 - 2_000 + 5_000, coveredPayable: 42_000, uncoveredPayable: 5_000 });
+    expect(result.missing).toEqual([expect.objectContaining({ payable: 5_000, reason: expect.stringMatching(/tanpa pesanan/) })]);
+  });
+
+  it("semua tercatat → selisih 0", () => {
+    expect(partnerShiftCoverage([cov({ id: "a", orderId: "o1" })], new Set(["o1"]))).toMatchObject({ uncoveredPayable: 0, missing: [] });
+  });
+});
+
+// Jam layanan produk mitra (Owner 16 Nov 2026): 17.00–22.30 WIB. WIB = UTC+7.// Jam layanan produk mitra (Owner 16 Nov 2026): 17.00–22.30 WIB. WIB = UTC+7.
 const wib = (hhmm: string, day = "2026-11-16") => new Date(`${day}T${hhmm}:00+07:00`);
 const HOURS = { open: "17:00", close: "22:30" };
 

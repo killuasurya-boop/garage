@@ -3,8 +3,8 @@
 // Pesanan Mitra (monitor kasir/Owner) + Ambil dari Mitra (waiter, papan 02). Klaim & antar memakai
 // endpoint waiter yang sudah ada (/api/waiter/tickets/[no]/claim|deliver): satu klaim sah, anti dobel.
 
-import { useCallback, useEffect, useState } from "react";
-import { Bike, Check, CheckCircle2, HandPlatter, MessageCircle, PackageCheck, Phone, Play, RefreshCw, TriangleAlert, Undo2, Users, XCircle } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Bike, Check, CheckCircle2, HandPlatter, MessageCircle, PackageCheck, Phone, Play, RefreshCw, TriangleAlert, Undo2, Users, WifiOff, XCircle } from "lucide-react";
 
 import { isPartnerPickupOrder, partnerDeskPlan, partnerDeskSteps, type PartnerDeskAction, type PartnerDeskViewer } from "@/lib/partner-cashier-rules";
 import { groupPickupByTable } from "@/lib/partner-hub-insights";
@@ -120,13 +120,23 @@ export function DeskOrders({
   const [busy, setBusy] = useState<string | null>(null);
   const [view, setView] = useState<"active" | "done">("active");
   const now = useNowTick();
+  // Koneksi putus / server gagal: kartu terakhir TETAP tampil (tidak dikosongkan) + banner "data belum diperbarui".
+  // Aksi tetap dikirim ke server dan divalidasi di sana.
+  const [sync, setSync] = useState<{ lastOkAt: number | null; failing: boolean }>({ lastOkAt: null, failing: false });
+  const loadedOnce = useRef(false);
 
   const load = useCallback(async () => {
     try {
       setOrders(await api<PartnerOrder[]>(view === "done" ? "/api/pos/partner-orders?scope=today" : "/api/pos/partner-orders"));
+      loadedOnce.current = true;
+      setSync({ lastOkAt: Date.now(), failing: false });
     } catch (error) {
-      setMessage({ tone: "error", text: (error as Error).message });
-      setOrders([]);
+      setSync((prev) => ({ ...prev, failing: true }));
+      // Belum pernah berhasil memuat → pesan + daftar kosong; sudah ada data → pertahankan kartu terakhir.
+      if (!loadedOnce.current) {
+        setMessage({ tone: "error", text: (error as Error).message });
+        setOrders([]);
+      }
     }
   }, [view]);
 
@@ -267,6 +277,11 @@ export function DeskOrders({
   return (
     <div className="grid gap-3">
       <Notice message={message} />
+      {sync.failing && sync.lastOkAt ? (
+        <p role="alert" data-testid="partner-orders-stale" className="flex items-center gap-2 rounded-lg border border-[#f5a742]/60 bg-[#3a2a10] px-3 py-2 text-sm font-semibold text-[#fde68a]">
+          <WifiOff className="size-4 shrink-0" aria-hidden /> Koneksi terputus — data terakhir pukul {timeWib(new Date(sync.lastOkAt).toISOString())}. Mencoba lagi otomatis; tombol tetap dicek ulang oleh server.
+        </p>
+      ) : null}
       {readyPickup.length && viewer.canHandleMoney ? (
         <p role="status" className="flex items-center gap-2 rounded-lg border border-[#22c55e]/50 bg-[#0f2a1a] px-3 py-2 text-sm font-semibold text-[#bbf7d0]">
           <HandPlatter className="size-4 shrink-0" aria-hidden /> {readyPickup.length} pesanan mitra take away siap — ambil di mitra, panggil pelanggan, lalu tekan &quot;Serahkan ke pelanggan&quot;.

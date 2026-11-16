@@ -507,6 +507,7 @@ export const API_ROUTE_CATALOG: ApiRouteEntry[] = [
   {"path":"/api/pos/member/register","methods":["POST"],"note":""},
   {"path":"/api/pos/member","methods":["GET","POST"],"note":""},
   {"path":"/api/pos/member/verify","methods":["POST"],"note":""},
+  {"path":"/api/pos/partner-finance/coverage","methods":["GET"],"note":""},
   {"path":"/api/pos/partner-finance","methods":["GET"],"note":""},
   {"path":"/api/pos/partner-orders/{ticketNo}/handover","methods":["POST"],"note":""},
   {"path":"/api/pos/partner-orders/{ticketNo}/refund","methods":["POST"],"note":""},

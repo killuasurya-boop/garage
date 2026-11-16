@@ -109,3 +109,12 @@ description: Aturan WAJIB Smart Partner Hub (mitra resmi, produk partner, portal
     - cashier accept checks against `orders.createdAt`;
     - `sweepPartnerServiceHours` (server sweeper) sets Buka/Jeda → Tutup once after close and sends an open reminder.
     Tests set the hours to "" when they are not testing them.
+  - Robustness (Owner 16 Nov 2026, no migration):
+    - Partner sweepers run through `runMonitoredJob` (`background-job-runner.ts`, pure rules in `background-job-health.ts`).
+      3 consecutive failures → one Owner notification (`system_alert`, 1×/hour), then one `system_recovered`. Messages never
+      carry raw error text. Status shows in Kesehatan mitra (`/api/partners/health` `jobs`).
+    - Daily cross-check "Cek silang laporan shift": `partnerShiftCoverage` / `partnerShiftCoverageForDay`,
+      `GET /api/pos/partner-finance/coverage`, card in Keuangan Mitra. It lists payable partner lines that are in no shift
+      report (e.g. Owner without shift). Read-only.
+    - Pesanan Mitra keeps the last cards and shows an offline banner when polling fails.
+    - E2E `e2e/partner-cashier.spec.ts` runs in release-check: own partner `KSR`, Owner QRIS without a shift, frozen at the end.

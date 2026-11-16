@@ -323,6 +323,86 @@ export function partnerShiftSales(lines: PartnerShiftLine[], adjustments: Partne
   return { partners, totals };
 }
 
+// ─── 3. Cek silang laporan shift ↔ setoran harian mitra ──────────────────────
+
+export type CoverageLine = PartnerShiftLine & { orderId: string };
+
+export type CoverageMissing = {
+  orderNo: string;
+  partnerName: string;
+  itemName: string;
+  variantLabel: string;
+  qty: number;
+  payable: number;
+  /** Penjelasan netral kenapa baris ini tidak ada di laporan shift mana pun. */
+  reason: string;
+};
+
+/**
+ * Setoran harian mitra dihitung dari SEMUA baris mitra hari itu, sedangkan laporan shift dari order milik shift.
+ * Baris wajib-bayar yang ordernya tidak termasuk shift mana pun (mis. pesanan Owner tanpa shift, bill pelanggan yang
+ * belum dibayar dan tidak dibuat kasir) membuat dua angka itu berbeda. Fungsi ini menunjukkan baris-baris itu.
+ * Hanya informasi — tidak mengubah data.
+ */
+export type CoverageAdjustment = {
+  partnerName: string;
+  /** Order baris yang disesuaikan; null = penyesuaian tingkat mitra (tanpa pesanan). */
+  orderId: string | null;
+  orderNo: string | null;
+  liabilityDelta: number;
+  kind: string;
+};
+
+export function partnerShiftCoverage(lines: CoverageLine[], coveredOrderIds: ReadonlySet<string>, adjustments: CoverageAdjustment[] = []) {
+  let totalPayable = 0;
+  let coveredPayable = 0;
+  const missing: CoverageMissing[] = [];
+  for (const line of lines) {
+    if (!isPayableLineStatus(line.status)) continue;
+    const f = partnerLineFinance(line);
+    if (f.liability <= 0) continue;
+    totalPayable += f.liability;
+    if (coveredOrderIds.has(line.orderId)) {
+      coveredPayable += f.liability;
+      continue;
+    }
+    missing.push({
+      orderNo: line.orderNo,
+      partnerName: line.partnerName,
+      itemName: line.itemName,
+      variantLabel: line.variantLabel,
+      qty: f.payableQty,
+      payable: f.liability,
+      reason:
+        line.orderPayment === "paid"
+          ? "Dibayar di luar shift kasir (mis. mode Owner tanpa shift)."
+          : line.orderPayment === "cancelled"
+            ? "Order dibatalkan setelah mitra menyiapkan — tetap wajib bayar ke mitra."
+            : "Bill belum dibayar dan tidak dibuat dari shift kasir mana pun.",
+    });
+  }
+  // Penyesuaian kewajiban yang disetujui ikut dihitung (sama dengan rekap setoran & laporan shift). Penyesuaian pada
+  // pesanan yang masuk shift = tercatat; penyesuaian tanpa pesanan / di pesanan luar shift = selisih yang ditampilkan.
+  for (const adj of adjustments) {
+    if (!adj.liabilityDelta) continue;
+    totalPayable += adj.liabilityDelta;
+    if (adj.orderId && coveredOrderIds.has(adj.orderId)) {
+      coveredPayable += adj.liabilityDelta;
+      continue;
+    }
+    missing.push({
+      orderNo: adj.orderNo ?? "-",
+      partnerName: adj.partnerName,
+      itemName: `Penyesuaian (${adj.kind})`,
+      variantLabel: "",
+      qty: 0,
+      payable: adj.liabilityDelta,
+      reason: adj.orderId ? "Penyesuaian kewajiban pada pesanan di luar shift kasir." : "Penyesuaian kewajiban tanpa pesanan — hanya ada di rekap setoran, tidak di laporan shift.",
+    });
+  }
+  return { totalPayable, coveredPayable, uncoveredPayable: totalPayable - coveredPayable, missing };
+}
+
 /**
  * Kalimat setoran untuk laporan: settlement mitra per hari kalender WIB (A7) — penjualan tanggal X dibayar paling
  * lambat X+1 pukul 12.00 WIB. Item yang siap lewat tengah malam masuk rekap hari berikutnya.

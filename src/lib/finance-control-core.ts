@@ -144,6 +144,8 @@ export type DayRaw = {
   settlementFees: number;
   capitalIn: number;
   capitalOut: number;
+  /** Pendapatan lain di luar penjualan: uang sponsor event (buku kas, bersih setelah pembatalan). */
+  otherIncome: number;
 };
 
 /** Angka keuangan satu hari setelah aturan finance diterapkan. */
@@ -174,6 +176,8 @@ export type DayFigure = {
   operatingExpense: number;
   operatingProfit: number;
   nonOperatingExpense: number;
+  /** Pendapatan lain (sponsor event). Menambah net profit, bukan omzet. */
+  otherIncome: number;
   netProfit: number;
   cashIn: number;
   cashOut: number;
@@ -215,6 +219,7 @@ const NUMERIC_KEYS = [
   "operatingExpense",
   "operatingProfit",
   "nonOperatingExpense",
+  "otherIncome",
   "netProfit",
   "cashIn",
   "cashOut",
@@ -537,6 +542,8 @@ export function computeDayFigure(raw: DayRaw, config: FinanceConfig): DayFigure 
   const operatingProfit = grossProfit - payroll - operatingExpense;
   const channels = { ...raw.payments };
   add(channels, "Modal", raw.capitalIn);
+  const otherIncome = raw.otherIncome ?? 0;
+  add(channels, "Sponsor", otherIncome);
 
   return {
     date: raw.date,
@@ -559,8 +566,9 @@ export function computeDayFigure(raw: DayRaw, config: FinanceConfig): DayFigure 
     operatingExpense,
     operatingProfit,
     nonOperatingExpense: nonOperating,
-    netProfit: operatingProfit - nonOperating,
-    cashIn: Object.values(raw.payments).reduce((sum, value) => sum + value, 0) + raw.capitalIn,
+    otherIncome,
+    netProfit: operatingProfit + otherIncome - nonOperating,
+    cashIn: Object.values(raw.payments).reduce((sum, value) => sum + value, 0) + raw.capitalIn + otherIncome,
     cashOut: expenseCashOut + raw.capitalOut,
     reserveAllocation,
     fixedCost: active ? opexAccrued + payrollBudgetDaily(config) : 0,

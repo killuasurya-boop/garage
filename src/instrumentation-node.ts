@@ -59,6 +59,17 @@ function startUnpaidOrderSweeper() {
           console.warn("[partner-settlement] gagal:", error instanceof Error ? error.message : error);
         }
       }
+      // Sponsor Event: pengingat cicilan & kewajiban ke HP Owner (H-3, hari H, terlambat 1/3/7 hari…).
+      // Tiap 15 menit; aman diulang karena tiap pengingat punya kunci dedup per Owner.
+      if (new Date().getMinutes() % 15 === 3) {
+        try {
+          const { sweepSponsorReminders } = await import("@/lib/event-sponsor-service");
+          const r = await sweepSponsorReminders();
+          if (r.sent) console.log(`[sponsor] ${r.sent} pengingat sponsor dikirim.`);
+        } catch (error) {
+          console.warn("[sponsor] gagal:", error instanceof Error ? error.message : error);
+        }
+      }
       // Sekali per jam: bersihkan feed notifikasi staf yang sudah lama (> 14 hari).
       if (new Date().getMinutes() === 7) {
         const { pruneStaffNotifications } = await import("@/lib/staff-notifications");

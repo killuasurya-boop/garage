@@ -5740,3 +5740,134 @@ export const partnerReports = pgTable(
     settlementIdx: index("partner_reports_settlement_idx").on(table.settlementId),
   }),
 );
+
+// ─── Sponsor Event (owner 16 Nov 2026, docs/sponsor-event/01-IMPLEMENTASI.md) ───────────────
+// Owner saja. Uang sponsor SELALU masuk Rekening Jago: tiap pembayaran = satu baris buku kas
+// external → bank_jago (`sponsor_income`), batal = baris pembalik (`sponsor_income_void`).
+// Laba rugi: "Pendapatan lain" (dibaca dari buku kas). Sponsor barang tidak masuk buku kas.
+
+export const eventSponsors = pgTable(
+  "event_sponsors",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    sponsorNo: text("sponsor_no").notNull(),
+    outletId: uuid("outlet_id").references(() => outlets.id, { onDelete: "set null" }),
+    eventId: uuid("event_id").references(() => events.id, { onDelete: "set null" }),
+    // Nama event tetap tersimpan (event GIGS hidup di platform terpisah).
+    eventName: text("event_name").notNull(),
+    eventDate: date("event_date"),
+    name: text("name").notNull(),
+    contactName: text("contact_name"),
+    contactPhone: text("contact_phone"),
+    packageName: text("package_name"),
+    // Nilai UANG yang disepakati (rupiah). Sponsor barang dicatat terpisah.
+    agreedAmount: integer("agreed_amount").notNull().default(0),
+    // aktif | selesai | batal
+    status: text("status").notNull().default("aktif"),
+    notes: text("notes"),
+    cancelReason: text("cancel_reason"),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    noIdx: uniqueIndex("event_sponsors_no_idx").on(table.sponsorNo),
+    eventIdx: index("event_sponsors_event_idx").on(table.eventName),
+    agreedCheck: check("event_sponsors_agreed_check", sql`${table.agreedAmount} >= 0`),
+  }),
+);
+
+export const eventSponsorInstallments = pgTable(
+  "event_sponsor_installments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    sponsorId: uuid("sponsor_id")
+      .notNull()
+      .references(() => eventSponsors.id, { onDelete: "cascade" }),
+    seq: integer("seq").notNull(),
+    label: text("label").notNull(),
+    amount: integer("amount").notNull(),
+    dueDate: date("due_date").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    seqIdx: uniqueIndex("event_sponsor_installments_seq_idx").on(table.sponsorId, table.seq),
+    amountCheck: check("event_sponsor_installments_amount_check", sql`${table.amount} > 0`),
+  }),
+);
+
+export const eventSponsorPayments = pgTable(
+  "event_sponsor_payments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    sponsorId: uuid("sponsor_id")
+      .notNull()
+      .references(() => eventSponsors.id, { onDelete: "restrict" }),
+    amount: integer("amount").notNull(),
+    receivedAt: timestamp("received_at", { withTimezone: true }).notNull(),
+    // Nomor referensi mutasi Rekening Jago.
+    reference: text("reference").notNull(),
+    proofPath: text("proof_path"),
+    note: text("note"),
+    // posted | void
+    status: text("status").notNull().default("posted"),
+    voidReason: text("void_reason"),
+    voidedBy: text("voided_by").references(() => user.id, { onDelete: "set null" }),
+    voidedAt: timestamp("voided_at", { withTimezone: true }),
+    idempotencyKey: text("idempotency_key").notNull(),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    idemIdx: uniqueIndex("event_sponsor_payments_idem_idx").on(table.idempotencyKey),
+    // Satu referensi bank hanya boleh tercatat sekali selama belum dibatalkan.
+    referenceIdx: uniqueIndex("event_sponsor_payments_ref_idx").on(table.reference).where(sql`status = 'posted'`),
+    sponsorIdx: index("event_sponsor_payments_sponsor_idx").on(table.sponsorId),
+    amountCheck: check("event_sponsor_payments_amount_check", sql`${table.amount} > 0`),
+  }),
+);
+
+export const eventSponsorObligations = pgTable(
+  "event_sponsor_obligations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    sponsorId: uuid("sponsor_id")
+      .notNull()
+      .references(() => eventSponsors.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    dueDate: date("due_date"),
+    doneAt: timestamp("done_at", { withTimezone: true }),
+    doneBy: text("done_by").references(() => user.id, { onDelete: "set null" }),
+    doneNote: text("done_note"),
+    proofPath: text("proof_path"),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    sponsorIdx: index("event_sponsor_obligations_sponsor_idx").on(table.sponsorId),
+  }),
+);
+
+export const eventSponsorInkind = pgTable(
+  "event_sponsor_inkind",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    sponsorId: uuid("sponsor_id")
+      .notNull()
+      .references(() => eventSponsors.id, { onDelete: "cascade" }),
+    item: text("item").notNull(),
+    qty: integer("qty").notNull().default(1),
+    unit: text("unit"),
+    // Perkiraan nilai (rupiah), hanya informasi — tidak masuk buku kas / laba rugi.
+    estimatedValue: integer("estimated_value").notNull().default(0),
+    receivedAt: date("received_at"),
+    note: text("note"),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    sponsorIdx: index("event_sponsor_inkind_sponsor_idx").on(table.sponsorId),
+    qtyCheck: check("event_sponsor_inkind_qty_check", sql`${table.qty} > 0 and ${table.estimatedValue} >= 0`),
+  }),
+);

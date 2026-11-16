@@ -413,7 +413,7 @@ Scroll direction:
   `POST /api/pos/partner-orders/[ticketNo]/refund` (existing refund/void approval, no new money path). `partnerSlaEscalateMinutes`
   = one urgent notify per ticket (cashier + management). Partner Web Push = `partner_push_subscriptions` (`sendPartnerPush`, sent
   after commit). Owner with 2FA must pass `totpCode` to approve a settlement. Payout proof photos reuse `storage/cash-receipts`.
-  Split bill moves/splits `partner_order_lines` (`movePartnerLineOnSplit`). Kasir never receives partner HPP/profit; session 7 days.
+  Split bill moves/splits `partner_order_lines` (`movePartnerLineOnSplit`). Kasir MAY see partner harga setor (HPP) and Garage profit in `/api/pos/partner-finance` (owner 15 Nov 2026, confirmed 16 Nov — same numbers as the partner settlement PDF); session 7 days.
   Public partner portal (11 Nov 2026, migration 0190): `/mitra` (Crystal V5, `partner-public/partner-landing.tsx`) → public
   `POST /api/partner-applications` (rate limit + honeypot, one active application per WhatsApp) → `partner_applications`; staff tab
   "Pendaftar Mitra" (`desk-applications.tsx`); Owner "Jadikan mitra" (`convertPartnerApplication`) = partner DRAFT + products INACTIVE.

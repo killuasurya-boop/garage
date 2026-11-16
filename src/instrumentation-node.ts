@@ -43,8 +43,11 @@ function startUnpaidOrderSweeper() {
       }
       // Smart Partner Hub: eskalasi SLA mitra (belum diterima / siap belum diambil) tanpa perlu layar POS terbuka.
       try {
-        const { sweepPartnerSla } = await import("@/lib/partner-hub-service");
+        const { sweepPartnerSla, sweepPartnerServiceHours } = await import("@/lib/partner-hub-service");
         await sweepPartnerSla();
+        // Jam layanan mitra (default 17.00–22.30): tutup otomatis + pengingat buka.
+        const hours = await sweepPartnerServiceHours();
+        if (hours.closed || hours.reminded) console.log(`[partner-hours] ${hours.closed} mitra ditutup otomatis, ${hours.reminded} pengingat buka.`);
       } catch (error) {
         console.warn("[partner-sla] gagal:", error instanceof Error ? error.message : error);
       }

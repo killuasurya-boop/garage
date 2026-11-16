@@ -20,6 +20,8 @@ type PartnerProduct = {
   priceFrom: number;
   multiPrice: boolean;
   availableNow: boolean;
+  /** "Tersedia sekarang" / "Buka 17.00" (di luar jam layanan mitra) / "Sedang tutup". */
+  statusText?: string;
 };
 
 const rupiah = (n: number) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n);
@@ -87,7 +89,7 @@ export function PartnerShowcase({ limit }: { limit?: number } = {}) {
                     <span className="gw-partner-badge">
                       <BadgeCheck className="size-3.5" aria-hidden /> Mitra resmi
                     </span>
-                    <span className={`gw-partner-status ${p.availableNow ? "is-open" : "is-closed"}`}>{p.availableNow ? "Tersedia sekarang" : "Sedang tutup"}</span>
+                    <span className={`gw-partner-status ${p.availableNow ? "is-open" : "is-closed"}`}>{p.statusText ?? (p.availableNow ? "Tersedia sekarang" : "Sedang tutup")}</span>
                   </span>
                   <span className="gw-partner-body">
                     <span className="gw-partner-brand">

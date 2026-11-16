@@ -40,6 +40,7 @@ import {
   OwnerFinalCard,
   ShiftReviewCard,
 } from "@/components/garage/shift-accountability-panel";
+import { PartnerShiftSalesCard } from "@/components/garage/partner-hub/partner-shift-sales";
 import { GarageApiError, garageApi } from "@/lib/api-client";
 import type { AppSettings } from "@/lib/garage-app-settings-types";
 import {
@@ -829,6 +830,9 @@ function ShiftDetailView({
               </CardContent>
             </Card>
           </div>
+
+          {/* Partner Hub: penjualan, modal mitra (wajib bayar) & profit Garage — tampil hanya bila ada produk mitra. */}
+          <PartnerShiftSalesCard sessionId={sessionId} title="Penjualan Mitra" hideWhenEmpty />
 
           {summary.cashMovements && summary.movements ? (
             <Card className="border-zinc-700 bg-zinc-900/40">

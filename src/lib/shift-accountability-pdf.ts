@@ -361,6 +361,56 @@ function statusTone(value: number | null) {
 }
 
 /** Bagian lengkap satu shift (urutan sesuai standar laporan owner). */
+/** Seksi "Penjualan Mitra": per mitra → per produk (qty, harga, penjualan, modal mitra, profit Garage) + catatan. */
+function renderPartnerSales(w: Writer, partners: NonNullable<ShiftAccountability["partners"]>) {
+  w.section(
+    "Penjualan Mitra (Partner Hub)",
+    "landscape",
+    "Produk mitra yang sudah SIAP dari mitra di order shift ini. Modal mitra = harga setor yang wajib dibayar Garage ke mitra; profit Garage = penjualan − modal mitra − refund. Uang mitra tidak dibayar dari laci.",
+  );
+  for (const partner of partners.partners) {
+    w.paragraph(`${partner.partnerName} · ${num(partner.orderCount)} order · ${num(partner.qty)} item siap`, { bold: true, size: 9.5 });
+    w.table(
+      [
+        { label: "Produk", width: 26 },
+        { label: "Varian", width: 12 },
+        { label: "Qty", width: 6, align: "right" },
+        { label: "Harga jual", width: 11, align: "right" },
+        { label: "Penjualan", width: 12, align: "right" },
+        { label: "Modal mitra (wajib bayar)", width: 15, align: "right" },
+        { label: "Profit Garage", width: 12, align: "right" },
+      ],
+      partner.products.map((p) => [p.itemName, p.variantLabel && p.variantLabel.toLowerCase() !== "regular" ? p.variantLabel : "-", num(p.qty), rp(p.unitPrice), rp(p.sales), rp(p.partnerCost), rp(p.garageProfit)]),
+      {
+        empty: "Belum ada produk mitra yang siap di shift ini.",
+        totals: ["TOTAL " + partner.partnerName, "", num(partner.qty), "", rp(partner.sales), rp(partner.partnerCost), rp(partner.sales - partner.partnerCost)],
+      },
+    );
+    const notes: Array<[string, string, boolean?]> = [];
+    if (partner.refunds) notes.push(["Refund pelanggan (mengurangi profit, tidak mengurangi wajib bayar)", `− ${rp(partner.refunds)}`]);
+    if (partner.payable !== partner.partnerCost) notes.push(["Penyesuaian kewajiban (disetujui)", rp(partner.payable - partner.partnerCost)]);
+    notes.push(["Wajib bayar ke mitra", rp(partner.payable), true]);
+    notes.push(["Profit Garage dari mitra ini", rp(partner.garageProfit), true]);
+    if (partner.unpaidBill.qty) notes.push([`Di bill yang BELUM dibayar pelanggan (${num(partner.unpaidBill.qty)} item) — tetap wajib bayar ke mitra`, rp(partner.unpaidBill.sales)]);
+    if (partner.pending.qty) notes.push([`Belum siap dari mitra (${num(partner.pending.qty)} item) — belum dihitung`, rp(partner.pending.sales)]);
+    if (partner.cancelled.qty) notes.push([`Ditolak / dibatalkan sebelum siap (${num(partner.cancelled.qty)} item) — Rp0 ke mitra`, rp(partner.cancelled.sales)]);
+    w.keyValues(notes, 0.65);
+  }
+  const t = partners.totals;
+  w.paragraph("Total semua mitra", { bold: true, size: 9.5 });
+  w.keyValues(
+    [
+      ["Penjualan mitra", rp(t.sales)],
+      ["Modal mitra (harga setor)", rp(t.partnerCost)],
+      ["Refund pelanggan produk mitra", t.refunds ? `− ${rp(t.refunds)}` : rp(0)],
+      ["Wajib bayar ke mitra", rp(t.payable), true],
+      ["Profit Garage dari mitra", rp(t.garageProfit), true],
+    ],
+    0.65,
+  );
+  w.paragraph(partners.payoutNote, { color: MUTED, size: 8 });
+}
+
 function renderShift(w: Writer, report: ShiftAccountability, opts: { cashOnly?: boolean; label?: string } = {}) {
   const { session: s, sales, cash } = report;
   const head = `${opts.label ? `${opts.label} · ` : ""}Shift ${s.shiftNumber} · ${s.cashierName ?? "-"} · ${s.code}`;
@@ -387,6 +437,19 @@ function renderShift(w: Writer, report: ShiftAccountability, opts: { cashOnly?: 
       ["Pembayaran diterima", rp(sales.paymentsReceived)],
       ["Rata-rata transaksi", rp(sales.averageTicket)],
     ]);
+    if (report.partners) {
+      const t = report.partners.totals;
+      w.paragraph("Produk mitra (Partner Hub) — sudah termasuk di penjualan di atas", { bold: true, size: 9 });
+      w.cards(
+        [
+          ["Penjualan mitra", rp(t.sales)],
+          ["Wajib bayar ke mitra", rp(t.payable), t.payable ? "warn" : undefined],
+          ["Profit Garage dari mitra", rp(t.garageProfit), t.garageProfit < 0 ? "bad" : undefined],
+          ["Item mitra siap", num(t.qty)],
+        ],
+        4,
+      );
+    }
   }
   w.paragraph("Aktivitas kas", { bold: true, size: 9 });
   w.cards([
@@ -488,9 +551,12 @@ function renderShift(w: Writer, report: ShiftAccountability, opts: { cashOnly?: 
         { label: "Harga jual", width: 10, align: "right" },
         { label: "Total penjualan", width: 12, align: "right" },
       ],
-      report.products.map((p) => [p.name, p.category, p.variant, p.unit, num(p.sold), num(p.cancelled), num(p.net), rp(p.price), rp(p.total)]),
+      report.products.map((p) => [p.partner ? `${p.name} (Mitra)` : p.name, p.category, p.variant, p.unit, num(p.sold), num(p.cancelled), num(p.net), rp(p.price), rp(p.total)]),
       { empty: "Belum ada produk terjual.", totals: ["TOTAL", "", "", "", num(productTotals.sold), num(productTotals.cancelled), num(productTotals.net), "", rp(productTotals.total)] },
     );
+
+    // 6b. Penjualan mitra (Partner Hub, Owner 16 Nov 2026)
+    if (report.partners) renderPartnerSales(w, report.partners);
 
     // 7. Metode pembayaran
     w.section("Rekap Metode Pembayaran", "portrait", "Pembayaran berstatus captured yang masuk ke sesi kas ini. Hanya Tunai yang masuk perhitungan uang fisik.");

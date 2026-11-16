@@ -1743,6 +1743,7 @@ export async function getMenuData(params?: {
     const links = await loadPartnerLinks(db, partnerRows.map((row) => row.id));
     const hubByOutlet = new Map<string, boolean>();
     const heartbeatByOutlet = new Map<string, number>();
+    const hoursByOutlet = new Map<string, { open: string; close: string }>();
     for (const row of partnerRows) {
       const link = links.get(row.id);
       if (!link) {
@@ -1753,6 +1754,7 @@ export async function getMenuData(params?: {
         const outletSettings = await getAppSettings(link.outletId);
         hubByOutlet.set(link.outletId, outletSettings.partnerHubEnabled);
         heartbeatByOutlet.set(link.outletId, outletSettings.partnerHeartbeatMinutes);
+        hoursByOutlet.set(link.outletId, { open: outletSettings.partnerServiceOpen, close: outletSettings.partnerServiceClose });
       }
       if (!hubByOutlet.get(link.outletId) || !link.linkActive || !["aktif", "dibekukan"].includes(link.partnerStatus)) {
         hiddenPartnerIds.add(row.id);
@@ -1770,6 +1772,7 @@ export async function getMenuData(params?: {
         linkActive: link.linkActive,
         productStock: row.stock,
         lastOrderByDay: link.lastOrderByDay,
+        serviceHours: hoursByOutlet.get(link.outletId) ?? null,
       };
       const label = partnerCardLabel(availability);
       // `label` = alasan tidak bisa dipesan; `note` = keterangan layanan (Jeda/Tutup/offline) — pesanan tetap boleh masuk.
@@ -9874,6 +9877,7 @@ async function createCustomerOrderImpl(input: CustomerOrderInput) {
       hubEnabled: settings.partnerHubEnabled,
       outletId: settingsOutlet?.id ?? "",
       customerSelfOrder: !input.staffOrder && !settings.partnerCustomerSelfOrder,
+      serviceHours: { open: settings.partnerServiceOpen, close: settings.partnerServiceClose },
     },
   );
   const { service, tax, grossTotal, regularGrossTotal } = calculateOrderBilling({ regularSubtotal, packageSubtotal }, settings);
@@ -10869,7 +10873,13 @@ async function updateCustomerOrderStatusImpl(
             .filter((row) => row.menuItemId && partnerLinks.has(row.menuItemId))
             .map((row) => ({ itemId: row.menuItemId!, itemName: row.itemName, productType: "partner", stock: stockById.get(row.menuItemId!) ?? null })),
           partnerLinks,
-          { hubEnabled: outletSettings.partnerHubEnabled, outletId: order.outletId ?? garage.profile.outlet.id },
+          {
+            hubEnabled: outletSettings.partnerHubEnabled,
+            outletId: order.outletId ?? garage.profile.outlet.id,
+            // Jam layanan dicek terhadap waktu pelanggan memesan: pesanan 22.29 tetap sah walau diterima 22.32.
+            serviceHours: { open: outletSettings.partnerServiceOpen, close: outletSettings.partnerServiceClose },
+            at: order.createdAt,
+          },
         );
       }
       const partnerTickets = await createPartnerTicketsForOrder(tx, {
@@ -11877,7 +11887,7 @@ async function createOrderOnce(
   assertPartnerItemsOrderable(
     lines.map((line) => ({ itemId: line.itemId, itemName: line.itemName, productType: line.productType, stock: line.stock })),
     partnerLinks,
-    { hubEnabled: settings.partnerHubEnabled, outletId: garage.profile.outlet.id },
+    { hubEnabled: settings.partnerHubEnabled, outletId: garage.profile.outlet.id, serviceHours: { open: settings.partnerServiceOpen, close: settings.partnerServiceClose } },
   );
   const subtotal = lines.reduce((sum, line) => sum + line.lineTotal, 0);
   const { service, tax, grossTotal } = calculateBillingTotals(subtotal, settings);
@@ -13174,6 +13184,41 @@ export class ProductionReopenError extends Error {
   }
 }
 
+/**
+ * Setelah satu tiket menjadi READY / DELIVERED: bila SEMUA tiket hidup order itu siap → tiket SELESAI dicetak +
+ * kabar "semua siap" ke pelanggan & kasir (sekali per order); bila semua sudah diserahkan → kabar "diserahkan".
+ * Dipakai Bar/Dapur (updateKitchenStatus) dan Partner Hub (mitra / staf a.n. mitra menandai Siap) — `garage` null
+ * bila yang menekan adalah mitra dari Portal Mitra. Tidak pernah melempar (non-blocking).
+ */
+export async function announceTicketsProgress(orderId: string, status: "ready" | "delivered", garage: GarageSession | null) {
+  try {
+    const siblings = await getDb()
+      .select({ status: kitchenTickets.status })
+      .from(kitchenTickets)
+      .where(eq(kitchenTickets.orderId, orderId));
+    const live = siblings.filter((row) => !["rejected", "canceled", "cancelled"].includes(row.status));
+    if (status === "ready" && live.length && live.every((row) => row.status === "ready" || row.status === "delivered")) {
+      // Production Hub V4: tiket SELESAI masuk antrean cetak (idempoten per order).
+      // V2 (F-14): dua stasiun READY bersamaan bisa sama-sama melihat "semua siap".
+      // Antrean cetak memakai advisory lock per order → hanya pemanggil yang MEMBUAT
+      // job yang mengumumkan (chat/push pelanggan sekali). Gagal enqueue → tetap umumkan.
+      let firstAllReady = true;
+      try {
+        const { enqueueOrderCompletionPrint } = await import("@/lib/production-completion-print");
+        const queued = await enqueueOrderCompletionPrint(orderId, garage);
+        if (queued && !queued.created) firstAllReady = false;
+      } catch (error) {
+        console.error("[completion-print] enqueue gagal", error);
+      }
+      if (firstAllReady) await announceOrderProgress(orderId, "all_ready");
+    } else if (status === "delivered" && live.length && live.every((row) => row.status === "delivered")) {
+      await announceOrderProgress(orderId, "handed");
+    }
+  } catch {
+    /* non-blocking */
+  }
+}
+
 async function updateKitchenStatusImpl(
   ticketNo: string,
   status: string,
@@ -13358,35 +13403,35 @@ async function updateKitchenStatusImpl(
     );
   }
 
+  // Partner Hub (Owner 16 Nov 2026): baris mitra ikut "Diserahkan" saat tiket mitra diantar/diserahkan.
+  // Kewajiban ke mitra tidak berubah (ready & delivered sama-sama wajib bayar, DEC-03).
+  if (ticket.partnerId && status === "delivered" && current.status !== "delivered") {
+    try {
+      await db
+        .update(partnerOrderLines)
+        .set({ status: "delivered", updatedAt: now })
+        .where(and(eq(partnerOrderLines.ticketId, ticket.id), inArray(partnerOrderLines.status, ["ready", "picked"])));
+      // "Siap diambil/diserahkan" & "menunggu diambil" selesai begitu pesanan sampai ke pelanggan.
+      await resolveStaffNotifications(
+        {
+          dedupKeys: [
+            `partner_ready:${ticket.ticketNo}`,
+            `partner_ready:cashier:${ticket.ticketNo}`,
+            `partner_ready_waiting:waiter:${ticket.ticketNo}`,
+            `partner_ready_waiting:management:${ticket.ticketNo}`,
+          ],
+        },
+        "Sudah diserahkan",
+      );
+    } catch (error) {
+      console.error("[partner-hub] status baris mitra gagal diperbarui", error);
+    }
+  }
+
   // Kabar ke pelanggan (chat + push) & kasir: SATU pesan per pesanan saat
   // semua station siap / semua sudah diserahkan — bukan per tiket Bar/Dapur.
   if (ticket.orderId && (status === "ready" || status === "delivered") && current.status !== status) {
-    try {
-      const siblings = await db
-        .select({ status: kitchenTickets.status })
-        .from(kitchenTickets)
-        .where(eq(kitchenTickets.orderId, ticket.orderId));
-      const live = siblings.filter((row) => !["rejected", "canceled", "cancelled"].includes(row.status));
-      if (status === "ready" && live.every((row) => row.status === "ready" || row.status === "delivered")) {
-        // Production Hub V4: tiket SELESAI masuk antrean cetak (idempoten per order).
-        // V2 (F-14): dua stasiun READY bersamaan bisa sama-sama melihat "semua siap".
-        // Antrean cetak memakai advisory lock per order → hanya pemanggil yang MEMBUAT
-        // job yang mengumumkan (chat/push pelanggan sekali). Gagal enqueue → tetap umumkan.
-        let firstAllReady = true;
-        try {
-          const { enqueueOrderCompletionPrint } = await import("@/lib/production-completion-print");
-          const queued = await enqueueOrderCompletionPrint(ticket.orderId, garage);
-          if (queued && !queued.created) firstAllReady = false;
-        } catch (error) {
-          console.error("[completion-print] enqueue gagal", error);
-        }
-        if (firstAllReady) await announceOrderProgress(ticket.orderId, "all_ready");
-      } else if (status === "delivered" && live.every((row) => row.status === "delivered")) {
-        await announceOrderProgress(ticket.orderId, "handed");
-      }
-    } catch {
-      /* non-blocking */
-    }
+    await announceTicketsProgress(ticket.orderId, status, garage);
   }
 
   await createAuditLog({

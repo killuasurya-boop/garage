@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { PartnerHubDesk } from "@/components/garage/partner-hub/partner-hub-desk";
 import { getAppSettings } from "@/lib/garage-service";
+import { canHandleMoney } from "@/lib/role-access";
 import { requireGarageSession } from "@/lib/server-auth";
 import { staffViewport } from "@/lib/staff-viewport";
 
@@ -30,6 +31,7 @@ export default async function PartnersPage() {
       userName={session.data.user.name}
       hubEnabled={settings.partnerHubEnabled}
       sla={{ accept: settings.partnerSlaAcceptWarnMinutes, ready: settings.partnerReadyWaitWarnMinutes }}
+      canHandleMoney={canHandleMoney(session.data.profile)}
     />
   );
 }

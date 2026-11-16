@@ -429,7 +429,7 @@ export function SettingsView({ me }: { me: GarageMe }) {
     ],
     branding: ["brandName", "brandTagline", "outletAddress", "outletPhone", "npwp", "receiptFooter"],
     notif: ["approvalPollIntervalSec", "qrSoundOn", "autoPrintReceipt"],
-    partners: ["partnerHubEnabled", "partnerSlaAcceptWarnMinutes", "partnerSlaEscalateMinutes", "partnerReadyWaitWarnMinutes", "partnerHeartbeatMinutes"],
+    partners: ["partnerHubEnabled", "partnerSlaAcceptWarnMinutes", "partnerSlaEscalateMinutes", "partnerReadyWaitWarnMinutes", "partnerHeartbeatMinutes", "partnerServiceOpen", "partnerServiceClose"],
     ai: [
       "aiAutopilotEnabled", "aiAutopilotStartHour", "aiAutopilotEndHour", "aiWhatsappHighAlerts",
       "aiWhatsappAlertTemplate", "aiWhatsappPhonesCashier", "aiWhatsappPhonesKitchen",
@@ -1329,6 +1329,40 @@ export function SettingsView({ me }: { me: GarageMe }) {
                     value={merged.partnerHeartbeatMinutes}
                     onChange={(e) => setField("partnerHeartbeatMinutes", Number(e.target.value))}
                     disabled={!canWrite}
+                    className="h-10 border-[#34343c] bg-white/[0.06]"
+                  />
+                </SettingsField>
+                <SettingsField
+                  label="Jam buka produk mitra (WIB)"
+                  description="Mulai jam ini produk mitra bisa dipesan lagi (POS, waiter, menu digital, website). Kosongkan jam buka & tutup = tanpa batas jam."
+                  defaultValue={defaults.partnerServiceOpen}
+                  currentValue={merged.partnerServiceOpen}
+                  onReset={() => resetField("partnerServiceOpen")}
+                  disabled={!canWrite}
+                >
+                  <Input
+                    type="time"
+                    value={merged.partnerServiceOpen}
+                    onChange={(e) => setField("partnerServiceOpen", e.target.value)}
+                    disabled={!canWrite}
+                    data-testid="partner-service-open"
+                    className="h-10 border-[#34343c] bg-white/[0.06]"
+                  />
+                </SettingsField>
+                <SettingsField
+                  label="Jam tutup produk mitra (WIB)"
+                  description="Setelah jam ini pesanan produk mitra ditolak dan status mitra Buka/Jeda otomatis Tutup. Pesanan yang sudah masuk tetap diselesaikan mitra."
+                  defaultValue={defaults.partnerServiceClose}
+                  currentValue={merged.partnerServiceClose}
+                  onReset={() => resetField("partnerServiceClose")}
+                  disabled={!canWrite}
+                >
+                  <Input
+                    type="time"
+                    value={merged.partnerServiceClose}
+                    onChange={(e) => setField("partnerServiceClose", e.target.value)}
+                    disabled={!canWrite}
+                    data-testid="partner-service-close"
                     className="h-10 border-[#34343c] bg-white/[0.06]"
                   />
                 </SettingsField>

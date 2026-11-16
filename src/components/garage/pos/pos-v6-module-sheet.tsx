@@ -7,12 +7,15 @@ import { Download, ExternalLink, Printer, X } from "lucide-react";
 import { useRef } from "react";
 
 import { CashierShiftReport } from "@/components/garage/cashier-shift-report";
+import { DeskFinance } from "@/components/garage/partner-hub/desk-finance";
+import { DeskOrders } from "@/components/garage/partner-hub/desk-orders";
 import { SalesHistoryView } from "@/components/garage/sales-history";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 
 export type PosModuleView =
   | { kind: "sales"; title: string }
   | { kind: "shift"; title: string; tab?: string }
+  | { kind: "partners"; title: string; tab: "orders" | "finance" }
   | { kind: "frame"; title: string; url: string };
 
 const SHIFT_TABS = ["active", "history", "sales", "full", "petty", "incident"];
@@ -32,6 +35,13 @@ export function moduleViewForPath(path: string, title = "Dokumen"): PosModuleVie
     const label = tab === "petty" ? "Petty Cash" : tab === "incident" ? "Catatan Kejadian" : "Riwayat & Laporan Shift";
     return { kind: "shift", title: label, tab: tab && SHIFT_TABS.includes(tab) ? tab : undefined };
   }
+  // Partner Hub (Owner 16 Nov 2026): Pesanan Mitra & Penjualan/Setoran Mitra tampil sebagai panel asli di POS
+  // (bukan iframe halaman /partners). Tab lain (Kelola/Pendaftar) tetap halaman penuh.
+  if (url.pathname === "/partners") {
+    const tab = url.searchParams.get("tab");
+    if (!tab || tab === "orders") return { kind: "partners", title: "Pesanan Mitra", tab: "orders" };
+    if (tab === "finance") return { kind: "partners", title: "Penjualan & Setoran Mitra", tab: "finance" };
+  }
   // PDF unduhan internal → tampil inline di popup.
   if (/^\/api\/(finance\/cash-sessions\/[^/]+\/report|orders\/[^/]+\/invoice)$/.test(url.pathname)) {
     url.searchParams.set("inline", "1");
@@ -43,10 +53,13 @@ export function PosV6ModuleSheet({
   view,
   onClose,
   role,
+  partner,
 }: {
   view: PosModuleView | null;
   onClose: () => void;
   role: string;
+  /** Data penampil Partner Hub (panel Pesanan Mitra di POS). */
+  partner?: { userId: string; canHandleMoney: boolean; slaAccept: number; slaReady: number };
 }) {
   const frameRef = useRef<HTMLIFrameElement>(null);
   const isOwner = role === "Owner";
@@ -91,6 +104,19 @@ export function PosV6ModuleSheet({
           ) : view?.kind === "shift" ? (
             <div className="mx-auto max-w-5xl px-3 py-4">
               <CashierShiftReport blindOpenShift={role === "Kasir"} canSupervise={canSupervise} isOwner={isOwner} initialTab={view.tab} />
+            </div>
+          ) : view?.kind === "partners" ? (
+            <div className="mx-auto max-w-7xl px-3 py-4 text-[#f4f4f5]" data-testid="pos-partner-panel">
+              {view.tab === "orders" ? (
+                <DeskOrders
+                  mode="monitor"
+                  slaWarnMinutes={partner?.slaAccept}
+                  readyWarnMinutes={partner?.slaReady}
+                  viewer={{ userId: partner?.userId ?? "", canHandleMoney: partner?.canHandleMoney ?? false, isManager: canSupervise }}
+                />
+              ) : (
+                <DeskFinance role={role} userId={partner?.userId ?? ""} />
+              )}
             </div>
           ) : view?.kind === "frame" ? (
             <iframe ref={frameRef} title={view.title} src={view.url} className="h-full w-full border-0 bg-white" />

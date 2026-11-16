@@ -31,6 +31,6 @@ Mulai dari titik ini dan seterusnya, pada setiap tugas yang saya berikan:
 - Sebelum menyentuh kode suatu modul, baca `.claude/skills/<skill-modul>/SKILL.md` sesuai tabel indeks di `CLAUDE.md`
   (garage-pos, garage-kas, garage-produksi, garage-produk-wms, garage-meja-menu, garage-member-cx, garage-approval,
   garage-ai-mcp, garage-partner-hub, garage-ops-deploy, garage-ui-tooling, garage-motion). Aturan di skill = aturan Owner, mengikat penuh.
-- Website/halaman/komponen React: Utama `ui-ux-pro-max` + `frontend-design`; Wajib `web-design-guidelines` +
-  `vercel-react-best-practices` (semua di `.claude/skills/`).
+- Website/halaman web: ikuti `.claude/skills/garage-website/SKILL.md` (Utama `ui-ux-pro-max` + `frontend-design`;
+  Wajib `web-design-guidelines` + `vercel-react-best-practices`).
 <!-- END:garage-token-rules -->

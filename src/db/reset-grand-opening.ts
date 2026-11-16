@@ -104,6 +104,8 @@ export const CLEAR_TABLES = [
   "partner_settlement_lines", "partner_payouts", "partner_reports",
   // Sponsor Event — uang masuk Rekening Jago (berpasangan dengan baris buku kas yang ikut dihapus)
   "event_sponsor_payments",
+  // Check-in tamu event (kehadiran saat acara = transaksi; undangan & tamu tetap)
+  "event_checkins",
   // kas & finance transaksional
   "cash_sessions", "cash_session_counts", "cash_session_final_snapshots", "cash_movements", "cash_ledger_entries", "cash_opening_certifications", "petty_cash_entries", "shift_incidents", "expenses", "supplier_invoices", "supplier_receivings",
   "supplier_receiving_items", "finance_daily_closings", "finance_monthly_closings", "financial_snapshots",

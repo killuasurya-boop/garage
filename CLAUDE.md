@@ -474,6 +474,12 @@ Scroll direction:
   reminders via `sweepSponsorReminders` (H-3, due day, late day 1/3/7 then weekly; neutral wording). The GIGS platform
   (separate stack, `/event`) is not changed by this module.
 
+- Event check-in (owner 16 Nov 2026, migration 0195, `docs/event-checkin/01-IMPLEMENTASI.md`): invitation page shows an entry QR
+  (= its own invitation URL); door screen `/checkin` for every logged-in staff role (`requireStaffSession`, agent keys refused).
+  One invitation = one active check-in (row lock + partial unique index); preview never writes; walk-ins idempotent via
+  `client_key`; undo = Owner/Manajer + reason (`undone_at`, never deleted). Search returns no phone numbers. Rules pure in
+  `event-checkin-rules.ts`, server `event-checkin-service.ts`.
+
 ## Product Management Rules
 
 - Product categories are dynamic (owner, Okt 2026): table `product_categories` (`src/lib/product-management.ts`),

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, PartyPopper } from "lucide-react";
+import { ScanLine, Loader2, PartyPopper } from "lucide-react";
 
 import { EventActivityPanel } from "@/components/garage/events/event-activity-panel";
 import { EventGuestsPanel } from "@/components/garage/events/event-guests-panel";
@@ -67,6 +67,13 @@ export function EventsView({ canExport }: { canExport: boolean }) {
             ))}
           </select>
         ) : null}
+        <a
+          href="/checkin"
+          className="inline-flex h-9 items-center gap-1.5 rounded-md border border-garage-line px-3 text-sm font-semibold text-garage-fg hover:bg-white/5"
+          data-testid="open-checkin"
+        >
+          <ScanLine className="size-4" aria-hidden /> Check-in pintu
+        </a>
         <EventCreateDialog template={selected} onCreated={(event) => { setEvents((current) => [...(current ?? []), event]); setSelectedId(event.id); setTab("menu"); }} />
         </div>
       </header>

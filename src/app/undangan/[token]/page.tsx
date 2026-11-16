@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { Permanent_Marker } from "next/font/google";
 import Image from "next/image";
 import Link from "next/link";
-import { CalendarDays, Clock, MapPin, MessageCircle, Shirt, ShieldCheck, Users } from "lucide-react";
+import QRCode from "qrcode";
+import { CalendarDays, CheckCircle2, Clock, MapPin, MessageCircle, QrCode, Shirt, ShieldCheck, Users } from "lucide-react";
 import type { CSSProperties } from "react";
 
 import { AgeGate, AgendaLive, InviteIntro, PosterCountdown } from "@/components/garage/events/event-live-parts";
@@ -58,6 +59,10 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
   };
 }
 
+function entryTime(iso: string) {
+  return new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" }).format(new Date(iso));
+}
+
 export default async function InvitationPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   const invitation = await getPublicInvitation(token).catch(() => null);
@@ -85,6 +90,12 @@ export default async function InvitationPage({ params }: { params: Promise<{ tok
   const zone = eventZoneLabel(event.timezone);
   const contactUrl = waLink(event.contactWhatsapp, `Halo Garage Coffee, saya ${invitation.guestName} ingin mengubah konfirmasi ${event.title}.`);
   const pageUrl = invitationUrl(token);
+  // QR kartu masuk = tautan undangan ini (dipindai petugas di /checkin). Gelap di atas pelat putih supaya mudah terbaca.
+  const entryQr = invitation.checkedInAt
+    ? ""
+    : await QRCode.toString(pageUrl, { type: "svg", margin: 1, errorCorrectionLevel: "M", color: { dark: "#111111", light: "#ffffff" } }).then((svg) =>
+        svg.replace("<svg ", '<svg width="208" height="208" '),
+      );
   const dressCode = event.faq.find((item) => /dress/i.test(item.q))?.a ?? "Smart casual.";
   const notes = [
     { key: "dress", icon: Shirt, title: "Dress code", body: dressCode },
@@ -178,6 +189,33 @@ export default async function InvitationPage({ params }: { params: Promise<{ tok
           <div className="mt-5">
             <RsvpForm token={token} maxPax={invitation.maxPax} initial={invitation.rsvp} canChange={invitation.canChange} contactUrl={contactUrl} />
           </div>
+        </section>
+
+        {/* Kartu masuk: QR = tautan undangan ini. Petugas pintu memindainya di /checkin (satu undangan, satu kali masuk). */}
+        <section aria-labelledby="entry-title" className="gp-invite-card gp-reveal flex flex-col items-center gap-4 p-6 text-center sm:p-8" data-testid="invitation-entry-qr">
+          <p className="gp-label text-[#7cff3a]">Kartu masuk</p>
+          <h2 id="entry-title" className="gp-display text-[30px] sm:text-[36px]" style={TIGHT}>
+            {invitation.checkedInAt ? "Sudah masuk" : "Tunjukkan di pintu"}
+          </h2>
+          {invitation.checkedInAt ? (
+            <p className="flex items-center gap-2 text-base font-bold">
+              <CheckCircle2 className="h-5 w-5 text-[#7cff3a]" aria-hidden /> Tercatat masuk pukul {entryTime(invitation.checkedInAt)} WIB. Selamat menikmati acara!
+            </p>
+          ) : (
+            <>
+              <div
+                className="rounded-2xl bg-white p-3"
+                role="img"
+                aria-label={`QR undangan ${invitation.guestName}`}
+                // SVG dibuat di server dari tautan undangan (tanpa skrip pihak ketiga).
+                dangerouslySetInnerHTML={{ __html: entryQr }}
+                style={{ width: 232, height: 232 }}
+              />
+              <p className="flex items-center gap-2 text-sm opacity-90">
+                <QrCode className="h-4 w-4" aria-hidden /> Berlaku untuk {invitation.guestName} · maksimal {invitation.maxPax} orang · satu kali masuk.
+              </p>
+            </>
+          )}
         </section>
 
         <section aria-labelledby="save-title" className="gp-reveal flex flex-col items-center gap-4 text-center">

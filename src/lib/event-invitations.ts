@@ -2,7 +2,7 @@ import { and, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { getDb } from "@/db";
-import { eventActivityLogs, eventGuests, eventInvitations, eventRsvps, events } from "@/db/schema";
+import { eventActivityLogs, eventCheckins, eventGuests, eventInvitations, eventRsvps, events } from "@/db/schema";
 import { parseImportFile, parseLocaleNumber, type ImportColumn } from "@/lib/bulk-import";
 import type { PublicEvent } from "@/lib/event-format";
 import {
@@ -450,6 +450,8 @@ export type PublicInvitation = {
   event: PublicEvent;
   rsvp: { response: RsvpResponse; pax: number; note: string | null; respondedAt: string } | null;
   canChange: boolean;
+  /** Kapan undangan ini dipakai masuk di pintu (null = belum). */
+  checkedInAt: string | null;
 };
 
 async function findInvitationByToken(token: string) {
@@ -480,7 +482,13 @@ export async function getPublicInvitation(token: string, now = new Date()): Prom
   const row = await findInvitationByToken(token);
   if (!row) return null;
   const [rsvp] = await getDb().select().from(eventRsvps).where(eq(eventRsvps.invitationId, row.invitation.id)).limit(1);
+  const [checkin] = await getDb()
+    .select({ at: eventCheckins.checkedInAt })
+    .from(eventCheckins)
+    .where(and(eq(eventCheckins.invitationId, row.invitation.id), isNull(eventCheckins.undoneAt)))
+    .limit(1);
   return {
+    checkedInAt: checkin ? checkin.at.toISOString() : null,
     guestName: row.guest.fullName,
     maxPax: row.guest.maxPax,
     event: toPublicEvent(row.event),

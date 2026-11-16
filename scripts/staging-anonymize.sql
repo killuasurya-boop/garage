@@ -46,6 +46,7 @@ UPDATE voucher_redemptions SET customer_phone = pg_temp.anon_phone(customer_phon
 UPDATE crm_campaign_logs SET customer_phone = pg_temp.anon_phone(customer_phone);
 UPDATE marketing_broadcast_deliveries SET recipient_name = pg_temp.anon_name(recipient_name, 'Penerima'), recipient_phone = pg_temp.anon_phone(recipient_phone);
 UPDATE event_guests SET full_name = pg_temp.anon_name(full_name, 'Tamu'), phone = pg_temp.anon_phone(phone), phone_normalized = pg_temp.anon_phone(phone_normalized);
+UPDATE event_checkins SET guest_name = CASE WHEN guest_name IS NULL THEN NULL ELSE pg_temp.anon_name(guest_name, 'Tamu') END, checked_in_by_name = NULL;
 UPDATE approvals SET requester_phone = pg_temp.anon_phone(requester_phone);
 
 -- Rekrutmen & data pribadi staf (email login staf di tabel "user" tetap)

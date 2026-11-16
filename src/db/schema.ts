@@ -5871,3 +5871,42 @@ export const eventSponsorInkind = pgTable(
     qtyCheck: check("event_sponsor_inkind_qty_check", sql`${table.qty} > 0 and ${table.estimatedValue} >= 0`),
   }),
 );
+
+// ─── Check-in tamu event (owner 16 Nov 2026, docs/event-checkin/01-IMPLEMENTASI.md) ───────────
+// Petugas pintu memindai QR undangan → tamu tercatat HADIR. Satu undangan hanya bisa check-in sekali
+// (indeks unik parsial selama belum dibatalkan). Tamu tanpa undangan = baris walk-in (tanpa undangan).
+// Pembatalan tidak menghapus: undone_at + alasan (Owner/Manajer).
+export const eventCheckins = pgTable(
+  "event_checkins",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    invitationId: uuid("invitation_id").references(() => eventInvitations.id, { onDelete: "set null" }),
+    guestId: uuid("guest_id").references(() => eventGuests.id, { onDelete: "set null" }),
+    // invited | walkin
+    kind: text("kind").notNull(),
+    // scan | manual | walkin
+    method: text("method").notNull(),
+    // Nama saat check-in (snapshot); walk-in boleh kosong.
+    guestName: text("guest_name"),
+    pax: integer("pax").notNull(),
+    note: text("note"),
+    // Kunci dari layar pintu (walk-in): tombol ditekan dua kali tidak menggandakan.
+    clientKey: text("client_key"),
+    checkedInAt: timestamp("checked_in_at", { withTimezone: true }).notNull().defaultNow(),
+    checkedInBy: text("checked_in_by").references(() => user.id, { onDelete: "set null" }),
+    checkedInByName: text("checked_in_by_name"),
+    undoneAt: timestamp("undone_at", { withTimezone: true }),
+    undoneBy: text("undone_by").references(() => user.id, { onDelete: "set null" }),
+    undoReason: text("undo_reason"),
+  },
+  (table) => ({
+    eventIdx: index("event_checkins_event_idx").on(table.eventId, table.checkedInAt),
+    // Satu undangan = satu check-in aktif.
+    clientKeyIdx: uniqueIndex("event_checkins_client_key_idx").on(table.clientKey).where(sql`client_key is not null`),
+    activeInvitationIdx: uniqueIndex("event_checkins_active_invitation_idx").on(table.invitationId).where(sql`undone_at is null and invitation_id is not null`),
+    paxCheck: check("event_checkins_pax_check", sql`${table.pax} > 0 and ${table.pax} <= 50`),
+  }),
+);

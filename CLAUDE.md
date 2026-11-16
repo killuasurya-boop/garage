@@ -465,6 +465,15 @@ Scroll direction:
   product approved, real photo, description ≥15, in digital menu, price > HPP) and the outlet hub is on. Owner panel "Media marketing
   website" in product settings. `/partner` login = Crystal V5 split layout (`partner-login.css`).
 
+- Sponsor Event (owner 16 Nov 2026, migration 0194, `docs/sponsor-event/01-IMPLEMENTASI.md`): Owner only (logged in; Manajer and
+  agent keys refused in `assertOwnerHuman`), UI `/control/sponsors`, API `/api/sponsors/**`. Sponsor money ALWAYS lands in
+  Rekening Jago: each payment = one `sponsor_income` ledger row external → bank_jago in the same tx (`recordSponsorPayment`,
+  idempotency key, bank reference unique while posted); void = `sponsor_income_void` reversal row, never an edit/delete.
+  P&L: `otherIncome` (from the ledger by business date) adds to net profit, never to net sales (ENGINE_VERSION 6). In-kind
+  sponsorship is a note only (no ledger, no P&L). Installments are allocated earliest-due-first (pure `event-sponsor-rules.ts`);
+  reminders via `sweepSponsorReminders` (H-3, due day, late day 1/3/7 then weekly; neutral wording). The GIGS platform
+  (separate stack, `/event`) is not changed by this module.
+
 ## Product Management Rules
 
 - Product categories are dynamic (owner, Okt 2026): table `product_categories` (`src/lib/product-management.ts`),

@@ -454,6 +454,7 @@ export function ProfitLossCard({ data }: { data: FinanceControlDashboard }) {
     { label: "Biaya tetap & operasional", value: -pnl.operatingExpense, minus: true },
     { label: "Operating profit", value: pnl.operatingProfit, strong: true },
     { label: "Non-operasional", value: -pnl.nonOperatingExpense, minus: true },
+    ...(pnl.otherIncome ? [{ label: "Pendapatan lain (sponsor event)", value: pnl.otherIncome }] : []),
     { label: "Net profit", value: pnl.netProfit, strong: true, note: pnl.netMarginPct !== null ? percent(pnl.netMarginPct) : undefined },
   ];
   return (

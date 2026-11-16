@@ -521,6 +521,7 @@ function MonthlyClosing({ overview, onChanged }: { overview: ClosingOverview; on
               <Money label="Upah & payroll" value={report.pnl.payroll} />
               <Money label="Biaya tetap & operasional" value={report.pnl.operatingExpense} />
               <Money label="Non-operasional" value={report.pnl.nonOperatingExpense} />
+              {report.pnl.otherIncome ? <Money label="Pendapatan lain (sponsor event)" value={report.pnl.otherIncome} /> : null}
               <Money label="Net profit" value={report.pnl.netProfit} strong />
               <p className="mt-2 text-xs text-zinc-400">
                 Net margin {percent(report.pnl.netMarginPct)} · Save Money {rupiah(report.pnl.reserveAllocation)}

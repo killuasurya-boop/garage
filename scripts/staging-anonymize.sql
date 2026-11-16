@@ -66,6 +66,10 @@ UPDATE partner_applications SET owner_name = pg_temp.anon_name(owner_name, 'Pemi
   email = pg_temp.anon_email(email), address = CASE WHEN address IS NULL THEN NULL ELSE 'Alamat disamarkan' END;
 DELETE FROM partner_push_subscriptions;
 
+-- Sponsor Event (16 Nov 2026): kontak sponsor disamarkan; nama sponsor & nilai tetap (data bisnis).
+UPDATE event_sponsors SET contact_name = CASE WHEN contact_name IS NULL THEN NULL ELSE pg_temp.anon_name(contact_name, 'Kontak') END,
+  contact_phone = CASE WHEN contact_phone IS NULL THEN NULL ELSE pg_temp.anon_phone(contact_phone) END;
+
 -- Token, sesi, kunci & antrean keluar: staging tidak boleh memakai akses produksi
 -- atau mengirim apa pun ke pelanggan/staf.
 DELETE FROM session;

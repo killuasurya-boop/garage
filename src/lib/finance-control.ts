@@ -13,6 +13,7 @@ import { getDb } from "@/db";
 import {
   auditLogs,
   capitalTransactions,
+  cashLedgerEntries,
   cashSessions,
   expenses,
   feePoolSplits,
@@ -383,6 +384,7 @@ export function emptyRaw(date: string): DayRaw {
     settlementFees: 0,
     capitalIn: 0,
     capitalOut: 0,
+    otherIncome: 0,
   };
 }
 
@@ -632,6 +634,25 @@ export async function loadDayRaws(fromKey: string, toKey: string, policy?: Busin
     const value = Math.round(Number(row.value));
     if (value) at(row.day).shrinkage += value;
   }
+  // Pendapatan lain = uang sponsor event dari buku kas (owner 16 Nov 2026): masuk pada tanggal operasional
+  // barisnya, pembatalan mengurangi pada tanggal pembatalan (hari lampau tidak diubah, sama seperti refund).
+  // business_date buku kas sudah teks "YYYY-MM-DD" (tanggal operasional saat diposting).
+  const sponsorDay = sql<string>`${cashLedgerEntries.businessDate}`;
+  const sponsorRows = await db
+    .select({
+      day: sponsorDay,
+      amount: sql<string>`coalesce(sum(case when ${cashLedgerEntries.sourceType} = 'sponsor_income' then ${cashLedgerEntries.amount} else -${cashLedgerEntries.amount} end), 0)::bigint`,
+    })
+    .from(cashLedgerEntries)
+    .where(
+      and(
+        inArray(cashLedgerEntries.sourceType, ["sponsor_income", "sponsor_income_void"]),
+        gte(cashLedgerEntries.businessDate, fromKey),
+        lte(cashLedgerEntries.businessDate, toKey),
+      ),
+    )
+    .groupBy(sponsorDay);
+  for (const row of sponsorRows) at(row.day).otherIncome += Number(row.amount);
   return map;
 }
 
@@ -645,7 +666,7 @@ const LIVE_WINDOW_DAYS = 7;
  * snapshot "locked" (Daily Closing) tidak pernah diubah.
  * v2: HPP aktual = resep + susut gudang (PRD §11).
  */
-const ENGINE_VERSION = 5; // v3: ongkir dipisah; v4: upah harian masuk P&L; v5: biaya bahan = belanja gudang
+const ENGINE_VERSION = 6; // v3: ongkir dipisah; v4: upah harian masuk P&L; v5: biaya bahan = belanja gudang; v6: pendapatan lain (sponsor)
 
 type SnapshotRow = typeof financialSnapshots.$inferSelect;
 
@@ -674,6 +695,7 @@ function figureFromSnapshot(row: SnapshotRow): DayFigure {
     operatingExpense: Number(row.operatingExpense),
     operatingProfit: Number(row.operatingProfit),
     nonOperatingExpense: Number(row.nonOperatingExpense),
+    otherIncome: Number(breakdown.otherIncome ?? 0),
     netProfit: Number(row.netProfit),
     cashIn: Number(row.cashIn),
     cashOut: Number(row.cashOut),
@@ -736,6 +758,7 @@ export function snapshotFromFigure(figure: DayFigure) {
       purchaseDapur: figure.purchaseDapur,
       purchaseUmum: figure.purchaseUmum,
       deliveryFees: figure.deliveryFees,
+      otherIncome: figure.otherIncome,
       engineVersion: ENGINE_VERSION,
     },
     status: "auto",
@@ -1244,6 +1267,7 @@ export async function getFinanceControlDashboard(input: {
       operatingExpense: totals.operatingExpense,
       operatingProfit: totals.operatingProfit,
       nonOperatingExpense: totals.nonOperatingExpense,
+      otherIncome: totals.otherIncome,
       netProfit: totals.netProfit,
       netMarginPct: ratioPct(totals.netProfit, totals.netSales),
       reserveAllocation: totals.reserveAllocation,

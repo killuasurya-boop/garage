@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 import {
+  HandCoins,
   Activity,
   Bot,
   TerminalSquare,
@@ -48,6 +49,7 @@ export const controlNav = [
   { href: "/control/profitmax", label: "ProfitMax", icon: ReceiptText },
   { href: "/control/cashflow", label: "Cash Flow", icon: Banknote },
   { href: "/control/cash-closing", label: "Cash Closing", icon: Lock },
+  { href: "/control/sponsors", label: "Sponsor Event", icon: HandCoins },
   { href: "/control/sales", label: "Penjualan", icon: TrendingUp },
   { href: "/control/menu-engineering", label: "Menu Eng.", icon: ChefHat },
   { href: "/control/kitchen-ops", label: "Kitchen Ops", icon: ChefHat },

@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS "partner_order_lines_order_idx" ON "partner_order_lines" USING btree ("order_id");

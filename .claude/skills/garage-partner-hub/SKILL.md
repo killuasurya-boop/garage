@@ -118,3 +118,4 @@ description: Aturan WAJIB Smart Partner Hub (mitra resmi, produk partner, portal
       report (e.g. Owner without shift). Read-only.
     - Pesanan Mitra keeps the last cards and shows an offline banner when polling fails.
     - E2E `e2e/partner-cashier.spec.ts` runs in release-check: own partner `KSR`, Owner QRIS without a shift, frozen at the end.
+  - Index `partner_order_lines_order_idx` (migration 0195, `CREATE INDEX IF NOT EXISTS`) serves per-order reads (shift report, cross-check).

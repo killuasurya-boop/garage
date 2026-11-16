@@ -52,12 +52,16 @@ for (const vp of viewports) {
     const errors = [];
     page.on("console", (m) => m.type() === "error" && errors.push(m.text().slice(0, 160)));
     page.on("pageerror", (e) => errors.push(String(e.message).slice(0, 160)));
+    // Sebut URL yang gagal (pesan console "Failed to load resource" tidak menyebut URL-nya).
+    page.on("response", (r) => r.status() >= 400 && errors.push(`HTTP ${r.status()} ${r.url().replace(base, "").slice(0, 120)}`));
 
     const url = /^(https?|file|data):/.test(path) ? path : `${base}${path.startsWith("/") ? "" : "/"}${path}`;
     let status = "?";
     try {
-      const res = await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
+      // "load" + jeda singkat: halaman dengan polling live (status meja, menu) tidak pernah "networkidle".
+      const res = await page.goto(url, { waitUntil: "load", timeout: 120000 });
       status = res?.status() ?? "?";
+      await page.waitForTimeout(2500);
     } catch (e) {
       console.log(`✗ ${vp.name} ${path} gagal dibuka: ${String(e.message).split("\n")[0]}`);
       problems++;
@@ -76,7 +80,7 @@ for (const vp of viewports) {
       const wide = [];
       for (const el of document.body.querySelectorAll("*")) {
         const r = el.getBoundingClientRect();
-        if (r.width === 0 || r.height === 0) continue;
+        if (r.width <= 1 || r.height <= 1) continue; // termasuk teks khusus screen reader (sr-only)
         const style = getComputedStyle(el);
         if (style.visibility === "hidden") continue;
         if (r.right > doc.clientWidth + 1 && wide.length < max && style.position !== "fixed") {
@@ -94,7 +98,8 @@ for (const vp of viewports) {
     }, MAX);
 
     const issues = [];
-    if (errors.length) issues.push(`console error (${errors.length}): ${errors.slice(0, 3).join(" | ")}`);
+    const shown = errors.filter((e) => !e.startsWith("Failed to load resource"));
+    if (errors.length) issues.push(`console error (${errors.length}): ${(shown.length ? shown : errors).slice(0, 4).join(" | ")}`);
     if (result.hOverflow > 0) issues.push(`overflow horizontal ${result.hOverflow}px: ${result.wide.slice(0, 4).join(", ")}`);
     if (result.clipped.length) issues.push(`teks terpotong: ${result.clipped.join(", ")}`);
 

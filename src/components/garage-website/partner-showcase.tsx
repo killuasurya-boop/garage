@@ -25,8 +25,10 @@ type PartnerProduct = {
 const rupiah = (n: number) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n);
 const menuHref = (name: string) => `/order?${new URLSearchParams({ source: "qr_takeaway", campaign: "landing_mitra", q: name }).toString()}`;
 
-export function PartnerShowcase() {
-  const [products, setProducts] = useState<PartnerProduct[] | null>(null);
+// `limit`: homepage menampilkan maks 4 produk mitra (owner 16 Nov 2026: kurangi foto produk); sisanya di /order.
+export function PartnerShowcase({ limit }: { limit?: number } = {}) {
+  const [allProducts, setProducts] = useState<PartnerProduct[] | null>(null);
+  const products = allProducts && limit ? allProducts.slice(0, limit) : allProducts;
   useEffect(() => {
     let cancelled = false;
     fetch("/api/site/partner-products", { cache: "no-store" })

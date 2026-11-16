@@ -5,7 +5,16 @@ import sharp from "sharp";
 
 import { fail, ok } from "@/lib/api-response";
 import { createAuditLog } from "@/lib/garage-service";
-import { getLandingHeroAsset, landingHeroSlot, saveSiteAsset } from "@/lib/site-assets";
+import {
+  atmosphereSlots,
+  deleteSiteAsset,
+  getAtmosphereAssets,
+  getSiteAsset,
+  isAtmosphereSlot,
+  landingHeroSlot,
+  parseUploadableSlot,
+  saveSiteAsset,
+} from "@/lib/site-assets";
 import { requireGarageSession } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
@@ -126,8 +135,43 @@ async function convertHeroImage(input: Buffer) {
   return best;
 }
 
-export async function GET() {
-  return ok(await getLandingHeroAsset());
+// GET            → hero landing (perilaku lama)
+// GET ?slot=X    → satu slot yang boleh diupload (landing_hero / suasana_1..4)
+// GET ?slot=suasana → semua foto suasana yang terisi
+export async function GET(request: Request) {
+  const slotParam = new URL(request.url).searchParams.get("slot");
+  if (slotParam === "suasana") {
+    return ok(await getAtmosphereAssets());
+  }
+  const slot = parseUploadableSlot(slotParam);
+  if (!slot) {
+    return fail(400, "SITE_ASSET_SLOT_INVALID", "Slot gambar tidak dikenal.");
+  }
+  return ok(await getSiteAsset(slot));
+}
+
+// DELETE ?slot=suasana_N → hapus foto suasana dari homepage (file lama tetap di disk, berversi).
+export async function DELETE(request: Request) {
+  const session = await requireGarageSession(["Owner", "Manajer"]);
+  if (session.response) {
+    return session.response;
+  }
+  const slot = new URL(request.url).searchParams.get("slot") ?? "";
+  if (!isAtmosphereSlot(slot)) {
+    return fail(400, "SITE_ASSET_SLOT_INVALID", `Hanya foto suasana (${atmosphereSlots.join(", ")}) yang bisa dihapus.`);
+  }
+  const removed = await deleteSiteAsset(slot);
+  if (removed) {
+    await createAuditLog({
+      actor: session.data.user.name ?? session.data.user.email,
+      action: "Website foto suasana dihapus",
+      object: removed.publicUrl,
+      device: session.data.profile.deviceLabel,
+      status: "removed",
+      metadata: { slot, publicUrl: removed.publicUrl },
+    }).catch(() => undefined);
+  }
+  return ok({ slot, removed: Boolean(removed) });
 }
 
 export async function POST(request: Request) {
@@ -145,6 +189,11 @@ export async function POST(request: Request) {
       "INVALID_MULTIPART_FORM",
       "Request harus multipart/form-data dengan field image.",
     );
+  }
+
+  const slot = parseUploadableSlot(formData.get("slot"));
+  if (!slot) {
+    return fail(400, "SITE_ASSET_SLOT_INVALID", "Slot gambar tidak dikenal.");
   }
 
   const image = formData.get("image");
@@ -187,7 +236,7 @@ export async function POST(request: Request) {
 
   const publicUrl = `/garage-uploads/landing/${target.fileName}`;
   const asset = await saveSiteAsset({
-    slot: landingHeroSlot,
+    slot,
     publicUrl,
     width: output.width,
     height: output.height,
@@ -200,12 +249,12 @@ export async function POST(request: Request) {
 
   await createAuditLog({
     actor: session.data.user.name ?? session.data.user.email,
-    action: "Website hero updated",
+    action: slot === landingHeroSlot ? "Website hero updated" : "Website foto suasana updated",
     object: `${target.fileName} (${Math.round(output.data.length / 1024)} KB)`,
     device: session.data.profile.deviceLabel,
     status: "uploaded",
     metadata: {
-      slot: landingHeroSlot,
+      slot,
       publicUrl,
       width: output.width,
       height: output.height,

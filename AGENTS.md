@@ -9,9 +9,28 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 <!-- END:nextjs-agent-rules -->
 
 <!-- BEGIN:garage-skill-rules -->
-# Wajib Gunakan Skill: UI/UX Pro Max & Superpowers
+# Wajib Gunakan Skill: UI/UX Pro Max & Superpowers (versi hemat token, Owner Nov 2026)
 
 Mulai dari titik ini dan seterusnya, pada setiap tugas yang saya berikan:
-1. **SUPERPOWERS**: Wajib terapkan *Superpowers methodology*. Saya harus selalu memulai dengan bertanya dan memperjelas spesifikasi (*spec*), membuat *implementation plan* yang rapi (TDD, YAGNI, DRY), dan menggunakan sistem subagen apabila tugas sudah disetujui. Dilarang langsung melakukan coding bar-bar tanpa perencanaan yang matang.
-2. **UI/UX PRO MAX**: Wajib jalankan instruksi dari `ui-ux-pro-max-skill`. Semua antarmuka yang dibuat atau diperbarui harus mematuhi panduan desain tertinggi (premium, modern, standar UX yang ketat) sesuai aturan skill tersebut.
+1. **SUPERPOWERS (proporsional)**: Pahami dan perjelas spesifikasi (*spec*) sebelum coding; tanya hanya bila
+   keputusannya benar-benar milik Owner. Tugas besar/berisiko (uang, stok, skema DB, banyak modul) → *implementation
+   plan* rapi dulu (TDD, YAGNI, DRY) dan minta persetujuan. Tugas kecil yang jelas → langsung kerjakan dengan rencana
+   singkat. Dilarang coding bar-bar tanpa memahami aturan modul (skill modul di `CLAUDE.md`).
+2. **SUBAGEN HEMAT**: Subagen hanya untuk tugas besar yang sudah disetujui dan bisa dipecah jadi bagian independen,
+   atau bila Owner memintanya. Jangan memakai subagen untuk pencarian/edit yang bisa dikerjakan langsung (subagen
+   mulai dari nol dan membaca ulang konteks = boros token).
+3. **UI/UX PRO MAX**: Untuk pekerjaan antarmuka, jalankan instruksi `ui-ux-pro-max` (premium, modern, standar UX
+   ketat), tetap tunduk pada palet Garage, `design-system/MASTER.md`, dan Crystal V5. Tugas non-UI tidak perlu memuatnya.
 <!-- END:garage-skill-rules -->
+
+<!-- BEGIN:garage-token-rules -->
+# Wajib untuk semua agent (Claude Code, Codex, Cursor, Copilot, subagent)
+
+- Baca `CLAUDE.md` (ringkas) lalu ikuti bagian **"WAJIB: Skill Modul & Hemat Token"**.
+- Di awal setiap tugas baca `.claude/skills/hemat-token/SKILL.md` dan bekerja dengan cara itu.
+- Sebelum menyentuh kode suatu modul, baca `.claude/skills/<skill-modul>/SKILL.md` sesuai tabel indeks di `CLAUDE.md`
+  (garage-pos, garage-kas, garage-produksi, garage-produk-wms, garage-meja-menu, garage-member-cx, garage-approval,
+  garage-ai-mcp, garage-partner-hub, garage-ops-deploy, garage-ui-tooling, garage-motion). Aturan di skill = aturan Owner, mengikat penuh.
+- Website/halaman web: ikuti `.claude/skills/garage-website/SKILL.md` (Utama `ui-ux-pro-max` + `frontend-design`;
+  Wajib `web-design-guidelines` + `vercel-react-best-practices`).
+<!-- END:garage-token-rules -->

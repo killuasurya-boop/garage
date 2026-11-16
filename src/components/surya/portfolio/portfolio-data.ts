@@ -32,12 +32,46 @@ export const PORTFOLIO_PROJECTS: PortfolioProject[] = [
     category: "Website · Menu digital · Garage OS",
     summary:
       "Website coffee shop dengan menu digital, status meja live, member, dan Garage OS untuk kasir, Bar, Dapur, sampai laporan Owner.",
+    // Screenshot garagecoffee.id live (16 Nov 2026).
     image: { src: "/surya-dev/portfolio/garagecoffee.webp", width: 1200, height: 750 },
   },
-  { id: "suryadev", name: "SURYA.dev", url: "https://suryadev.click/", domain: "suryadev.click" },
-  { id: "killuasurya", name: "KILLUASURYA.TECH", url: "https://killuasurya.tech/", domain: "killuasurya.tech" },
-  { id: "desainajadulu", name: "Desain Aja Dulu", url: "https://www.desainajadulu.com/", domain: "desainajadulu.com" },
-  { id: "tm87farm", name: "TM 87 Farm", url: "https://tm87farm.site/", domain: "tm87farm.site" },
+  // Deskripsi di bawah diambil dari meta/hero website masing-masing (dicek 16 Nov 2026), bukan karangan.
+  {
+    id: "suryadev",
+    name: "SURYA.dev",
+    url: "https://suryadev.click/",
+    domain: "suryadev.click",
+    category: "Portofolio · Desain · Product building",
+    summary: "Portofolio SURYA: desain, motion, 3D, website, dan sistem bisnis.",
+    image: { src: "/surya-dev/portfolio/suryadev.webp", width: 1200, height: 750 },
+  },
+  {
+    id: "killuasurya",
+    name: "KILLUASURYA.TECH",
+    url: "https://killuasurya.tech/",
+    domain: "killuasurya.tech",
+    category: "Digital growth agency",
+    summary: "Digital agency untuk UMKM: digital marketing, konten kreatif, website, dan sistem bisnis.",
+    image: { src: "/surya-dev/portfolio/killuasurya.webp", width: 1200, height: 750 },
+  },
+  {
+    id: "desainajadulu",
+    name: "Desain Aja Dulu",
+    url: "https://www.desainajadulu.com/",
+    domain: "desainajadulu.com",
+    category: "Workshop · Printshop · Branding",
+    summary: "Workshop & printshop di Tebing Tinggi: percetakan, branding usaha, gerobak custom, dan packaging.",
+    image: { src: "/surya-dev/portfolio/desainajadulu.webp", width: 1200, height: 750 },
+  },
+  {
+    id: "tm87farm",
+    name: "TM 87 Farm",
+    url: "https://tm87farm.site/",
+    domain: "tm87farm.site",
+    category: "Peternakan · Company profile",
+    summary: "Peternakan ayam kampung dengan pengelolaan terencana dan pencatatan yang disiplin.",
+    image: { src: "/surya-dev/portfolio/tm87farm.webp", width: 1200, height: 750 },
+  },
 ];
 
 /** Tautan eksternal portofolio selalu dibuka di tab baru tanpa akses ke window Garage. */

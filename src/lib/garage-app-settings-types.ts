@@ -101,6 +101,10 @@ export type AppSettings = {
   partnerPrepTargetMinutes: number;
   // Portal Mitra tidak terhubung lebih dari N menit → produk mitra tidak bisa dijual. 0 = tidak dicek.
   partnerHeartbeatMinutes: number;
+  // Jam layanan produk mitra (WIB, "HH:MM"; Owner 16 Nov 2026). Di luar jam ini pesanan produk mitra DITOLAK
+  // dan status mitra Buka/Jeda otomatis ditutup saat jam tutup. Kosong = tanpa batas jam.
+  partnerServiceOpen: string;
+  partnerServiceClose: string;
   // Nomor WhatsApp Garage (format 62…) — tombol bukti bayar & chat pelanggan.
   garageWhatsapp: string;
   // Rekening transfer untuk pelanggan, satu per baris: "BANK | NOMOR | ATAS NAMA".
@@ -290,6 +294,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   partnerReadyWaitWarnMinutes: 3,
   partnerPrepTargetMinutes: 15,
   partnerHeartbeatMinutes: 5,
+  partnerServiceOpen: "17:00",
+  partnerServiceClose: "22:30",
   garageWhatsapp: "6285121552341",
   bankAccountsText: "BNI | 2114194027 | Suryadi\nBANK JAGO | 507300982382 | Suryadi\nDANA | 081396186251 | Suryadi",
   wifiEnabled: false,

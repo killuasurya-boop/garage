@@ -110,7 +110,59 @@ export type PartnerAvailabilityInput = {
   linkActive: boolean;
   productStock: string | null | undefined;
   lastOrderByDay?: Record<string, string | null> | null;
+  /** Jam layanan produk mitra per outlet (Owner 16 Nov 2026). Null/absen = tanpa batas jam. */
+  serviceHours?: PartnerServiceHours | null;
+  /** Waktu acuan jam layanan (default sekarang). Saat kasir menerima order = waktu order dibuat. */
+  at?: Date;
 };
+
+// ─── Jam layanan produk mitra (Owner 16 Nov 2026) ───────────────────────────
+// Satu setelan per outlet untuk semua mitra (default 17.00–22.30 WIB). Di luar jam ini pesanan produk mitra DITOLAK
+// (pengecualian dari aturan "Buka/Jeda/Tutup tidak menolak"); status mitra Buka/Jeda ditutup otomatis saat jam tutup.
+
+export type PartnerServiceHours = { open: string | null | undefined; close: string | null | undefined };
+
+/** Jam layanan berlaku? Kosong / tidak valid / buka = tutup → tanpa batas jam. */
+export function partnerServiceHoursActive(hours: PartnerServiceHours | null | undefined) {
+  const open = parseClock(hours?.open);
+  const close = parseClock(hours?.close);
+  return open !== null && close !== null && open !== close;
+}
+
+/** Sekarang di dalam jam layanan? Jam tutup tidak termasuk (22.30 = sudah tutup). Mendukung jendela lewat tengah malam. */
+export function isWithinPartnerServiceHours(hours: PartnerServiceHours | null | undefined, at = new Date()) {
+  if (!partnerServiceHoursActive(hours)) return true;
+  const open = parseClock(hours!.open)!;
+  const close = parseClock(hours!.close)!;
+  const { minute } = jakartaDayMinute(at);
+  return open < close ? minute >= open && minute < close : minute >= open || minute < close;
+}
+
+/** "17.00" — format jam Indonesia. */
+export function clockLabel(value: string | null | undefined) {
+  const minutes = parseClock(value);
+  if (minutes === null) return "";
+  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}.${String(minutes % 60).padStart(2, "0")}`;
+}
+
+/** "17.00–22.30" atau null bila tanpa batas jam. */
+export function partnerServiceHoursText(hours: PartnerServiceHours | null | undefined) {
+  return partnerServiceHoursActive(hours) ? `${clockLabel(hours!.open)}–${clockLabel(hours!.close)}` : null;
+}
+
+/**
+ * Menit sejak tengah malam WIB untuk jam tutup yang SUDAH lewat hari ini dan kunci harinya — dipakai sweeper supaya
+ * penutupan otomatis berjalan sekali per hari operasional. Null = belum waktunya / tanpa batas jam.
+ */
+export function partnerServiceClosedSince(hours: PartnerServiceHours | null | undefined, at = new Date()) {
+  if (!partnerServiceHoursActive(hours) || isWithinPartnerServiceHours(hours, at)) return null;
+  const close = parseClock(hours!.close)!;
+  // Waktu tutup terakhir (hari ini atau kemarin bila sekarang setelah tengah malam sebelum jam tutup).
+  const local = new Date(at.getTime() + 7 * 3_600_000);
+  const todayClose = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()) + close * 60_000 - 7 * 3_600_000;
+  const closedAt = todayClose <= at.getTime() ? todayClose : todayClose - 86_400_000;
+  return new Date(closedAt);
+}
 
 /**
  * Bolehkah produk mitra dipesan sekarang? Null = boleh; teks = alasan (untuk kasir/waiter).
@@ -124,6 +176,9 @@ export function partnerOrderBlockReason(input: PartnerAvailabilityInput): string
   if (input.partnerStatus !== "aktif") return "Mitra belum aktif / sedang dihentikan.";
   if (!input.linkActive) return "Produk mitra belum disetujui Owner.";
   if (input.productStock === "sold_out") return "Produk sedang habis (Sold Out).";
+  if (!isWithinPartnerServiceHours(input.serviceHours, input.at)) {
+    return `Di luar jam layanan mitra (${partnerServiceHoursText(input.serviceHours)}). Bisa dipesan lagi pukul ${clockLabel(input.serviceHours?.open)}.`;
+  }
   return null;
 }
 
@@ -132,6 +187,7 @@ export function partnerCardLabel(input: PartnerAvailabilityInput): string | null
   if (!partnerOrderBlockReason(input)) return null;
   if (input.partnerStatus !== "aktif") return "Mitra nonaktif";
   if (input.productStock === "sold_out") return "Habis";
+  if (!isWithinPartnerServiceHours(input.serviceHours, input.at)) return `Tutup · buka ${clockLabel(input.serviceHours?.open)}`;
   return "Tidak tersedia";
 }
 
@@ -178,6 +234,7 @@ export const PARTNER_TICKET_STATUS_LABEL: Record<string, string> = {
   cooking: "Diproses",
   ready: "Siap Antar",
   served: "Diantar",
+  delivered: "Diserahkan",
   rejected: "Ditolak",
   cancelled: "Dibatalkan",
 };
@@ -201,6 +258,7 @@ export function lineStatusForTicket(ticketStatus: string): string {
     case "ready":
       return "ready";
     case "served":
+    case "delivered":
       return "delivered";
     case "rejected":
       return "rejected";

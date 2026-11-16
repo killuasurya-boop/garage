@@ -15,7 +15,23 @@ import { DeskOrders } from "./desk-orders";
 
 type TabId = "orders" | "pickup" | "finance" | "manage" | "applications";
 
-export function PartnerHubDesk({ role, userId, userName, hubEnabled, sla }: { role: string; userId: string; userName: string; hubEnabled: boolean; sla: { accept: number; ready: number } }) {
+export function PartnerHubDesk({
+  role,
+  userId,
+  userName,
+  hubEnabled,
+  sla,
+  canHandleMoney = false,
+}: {
+  role: string;
+  userId: string;
+  userName: string;
+  hubEnabled: boolean;
+  sla: { accept: number; ready: number };
+  /** Pemegang uang (kasir/Owner/Manajer): menyerahkan take away & menyelesaikan bill item ditolak. */
+  canHandleMoney?: boolean;
+}) {
+  const viewer = { userId, canHandleMoney, isManager: role === "Owner" || role === "Manajer" };
   const tabs: Array<{ id: TabId; label: string }> = [
     { id: "orders", label: "Pesanan Mitra" },
     { id: "pickup", label: "Ambil dari Mitra" },
@@ -74,8 +90,8 @@ export function PartnerHubDesk({ role, userId, userName, hubEnabled, sla }: { ro
           ))}
         </nav>
         <div role="tabpanel">
-          {tab === "orders" ? <DeskOrders mode="monitor" slaWarnMinutes={sla.accept} readyWarnMinutes={sla.ready} /> : null}
-          {tab === "pickup" ? <DeskOrders mode="pickup" slaWarnMinutes={sla.accept} readyWarnMinutes={sla.ready} /> : null}
+          {tab === "orders" ? <DeskOrders mode="monitor" slaWarnMinutes={sla.accept} readyWarnMinutes={sla.ready} viewer={viewer} /> : null}
+          {tab === "pickup" ? <DeskOrders mode="pickup" slaWarnMinutes={sla.accept} readyWarnMinutes={sla.ready} viewer={viewer} /> : null}
           {tab === "finance" ? <DeskFinance role={role} userId={userId} /> : null}
           {tab === "manage" ? <DeskManage role={role} /> : null}
           {tab === "applications" ? <DeskApplications role={role} /> : null}

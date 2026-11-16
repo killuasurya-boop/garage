@@ -35,7 +35,12 @@ const partnerSession = (partner: { id: string; code: string }, name = "Mitra"): 
 async function setHub(enabled: boolean) {
   const d = t.getDb();
   await d.delete(t.schema.appSettings);
-  await d.insert(t.schema.appSettings).values({ outletId, key: "partnerHubEnabled", valueJson: enabled });
+  await d.insert(t.schema.appSettings).values([
+    { outletId, key: "partnerHubEnabled", valueJson: enabled },
+    // Jam layanan mitra (default 17.00–22.30) dikosongkan supaya tes jalan jam berapa pun; aturannya diuji terpisah.
+    { outletId, key: "partnerServiceOpen", valueJson: "" },
+    { outletId, key: "partnerServiceClose", valueJson: "" },
+  ]);
 }
 
 /** Tambah/ubah satu pengaturan outlet tanpa menghapus yang lain (setHub mengosongkan semua). */

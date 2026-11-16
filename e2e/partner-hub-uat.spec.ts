@@ -79,7 +79,8 @@ test("UAT-A: Owner & Manajer menyiapkan mitra pilot; aktivasi tidak bisa dilompa
   const manager = await as(browser, "manajer@garage.id");
 
   // Modul mati = halaman lama tidak berubah; nyalakan untuk outlet ini.
-  await call(owner.api, "PATCH", "/api/settings", { partnerHubEnabled: true });
+  // Jam layanan mitra dikosongkan supaya UAT bisa jalan jam berapa pun (aturan jam diuji di vitest).
+  await call(owner.api, "PATCH", "/api/settings", { partnerHubEnabled: true, partnerServiceOpen: "", partnerServiceClose: "" });
 
   const created = await call<{ id: string }>(manager.api, "POST", "/api/partners", {
     code: "PAU",

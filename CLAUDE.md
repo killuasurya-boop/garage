@@ -413,7 +413,8 @@ Scroll direction:
   `POST /api/pos/partner-orders/[ticketNo]/refund` (existing refund/void approval, no new money path). `partnerSlaEscalateMinutes`
   = one urgent notify per ticket (cashier + management). Partner Web Push = `partner_push_subscriptions` (`sendPartnerPush`, sent
   after commit). Owner with 2FA must pass `totpCode` to approve a settlement. Payout proof photos reuse `storage/cash-receipts`.
-  Split bill moves/splits `partner_order_lines` (`movePartnerLineOnSplit`). Kasir never receives partner HPP/profit; session 7 days.
+  Split bill moves/splits `partner_order_lines` (`movePartnerLineOnSplit`). Kasir MAY see partner HPP/profit (Owner 15 Nov 2026, A3;
+  Excel export, dashboard, internal PDF stay Owner/Manajer); session 7 days.
   Public partner portal (11 Nov 2026, migration 0190): `/mitra` (Crystal V5, `partner-public/partner-landing.tsx`) → public
   `POST /api/partner-applications` (rate limit + honeypot, one active application per WhatsApp) → `partner_applications`; staff tab
   "Pendaftar Mitra" (`desk-applications.tsx`); Owner "Jadikan mitra" (`convertPartnerApplication`) = partner DRAFT + products INACTIVE.
@@ -464,6 +465,24 @@ Scroll direction:
   "Promo Website", max 8, `setPartnerWebsitePromotion`) AND it still passes `partnerMarketingBlockers` (partner aktif + verified bank,
   product approved, real photo, description ≥15, in digital menu, price > HPP) and the outlet hub is on. Owner panel "Media marketing
   website" in product settings. `/partner` login = Crystal V5 split layout (`partner-login.css`).
+  Kasir (Owner 16 Nov 2026, no migration, guide `docs/partner-hub/03-PANDUAN-KASIR.md`):
+  - POS "Pesanan Mitra" / "Penjualan Mitra Hari Ini" open as native panels in `PosV6ModuleSheet` (kind `partners`), not an iframe.
+  - Card buttons come from pure `partnerDeskPlan` / `partnerDeskSteps` (`src/lib/partner-cashier-rules.ts`): one primary action per
+    status. Take away/delivery (`isPartnerPickupOrder`) + money holder = "Serahkan ke pelanggan" → `POST /api/pos/partner-orders/[no]/handover`
+    (`handoverPartnerTicket`: READY only, never skips the partner like `serve_direct`; claimed by someone else = Owner/Manajer only).
+  - Partner "Siap" runs `announceTicketsProgress` (garage-service, shared with Bar/Dapur): completion print + "semua siap" once per order.
+    `partner_ready` also goes to the cashier for pickup orders.
+  - A delivered partner ticket sets its `partner_order_lines` to `delivered` and resolves the partner_ready notifications.
+  - Shift report "Penjualan Mitra" = `partnerShiftSales` over the shift's order ids (`partnerSalesForOrders`): sales, modal mitra
+    (= wajib bayar), profit Garage, plus pending / rejected / unpaid-bill / refund. Shown in the PDF (`renderPartnerSales`), the POS
+    card and the shift detail via `GET /api/finance/cash-sessions/[id]/partner-sales`. Open shift is allowed: no drawer cash.
+    Read-only; payment to partners stays the daily settlement.
+  - Service hours `partnerServiceOpen`/`partnerServiceClose` (default 17:00–22:30 WIB, empty = no limit) are an exception to
+    "status never refuses":
+    - outside the window `partnerOrderBlockReason` refuses (card label "Tutup · buka 17.00");
+    - cashier accept checks against `orders.createdAt`;
+    - `sweepPartnerServiceHours` (server sweeper) sets Buka/Jeda → Tutup once after close and sends an open reminder.
+    Tests set the hours to "" when they are not testing them.
 
 ## Product Management Rules
 

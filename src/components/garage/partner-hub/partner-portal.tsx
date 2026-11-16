@@ -41,6 +41,10 @@ type Overview = {
   unpaid: number;
   settlements: Array<{ id: string; settlementNo: string; status: string; liabilityTotal: number; paidAmount: number; periodFrom: string; periodTo: string; pendingAmount?: number }>;
   slaWarnMinutes?: number;
+  /** "17.00–22.30" (null = tanpa batas jam) · di dalam jam sekarang · jam buka berikutnya. */
+  serviceHours?: string | null;
+  serviceOpenNow?: boolean;
+  serviceOpensAt?: string | null;
   profile?: PartnerProfile | null;
   payouts?: PartnerPayout[];
 };
@@ -193,6 +197,17 @@ export function PartnerPortal() {
               {op === "buka" ? "BUKA" : op === "jeda" ? "JEDA" : "TUTUP"}
             </span>
           </div>
+          {overview.serviceHours ? (
+            <p
+              role={overview.serviceOpenNow ? undefined : "status"}
+              data-testid="partner-service-hours"
+              className={`mt-2 rounded-lg border px-3 py-2 text-sm font-semibold ${overview.serviceOpenNow ? "border-[#34343c] bg-white/[0.04] text-[#e4e4e8]" : "border-[#f59e0b]/60 bg-[#3a2a10] text-[#fde68a]"}`}
+            >
+              {overview.serviceOpenNow
+                ? `Jam layanan Garage: ${overview.serviceHours} WIB. Pesanan baru tidak masuk setelah jam tutup.`
+                : `Di luar jam layanan (${overview.serviceHours} WIB). Pesanan baru belum masuk sampai pukul ${overview.serviceOpensAt}. Pesanan yang masih berjalan tetap diselesaikan.`}
+            </p>
+          ) : null}
           <p className="mt-2 text-sm text-[#d4d4d8]">
             {op === "buka"
               ? "Anda buka. Pesanan baru masuk di bawah — terima atau tolak."

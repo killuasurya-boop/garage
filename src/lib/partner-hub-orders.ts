@@ -22,7 +22,7 @@ import {
   partners,
   productionTicketItems,
 } from "@/db/schema";
-import { PARTNER_STATION, effectiveOperationalStatus, partnerOrderBlockReason } from "@/lib/partner-hub-rules";
+import { PARTNER_STATION, effectiveOperationalStatus, partnerOrderBlockReason, type PartnerServiceHours } from "@/lib/partner-hub-rules";
 
 type GarageDb = ReturnType<typeof getDb>;
 type GarageTx = Parameters<Parameters<GarageDb["transaction"]>[0]>[0];
@@ -93,7 +93,15 @@ export async function loadPartnerLinks(db: DbLike, menuItemIds: string[], option
 export function assertPartnerItemsOrderable(
   lines: Array<{ itemId: string; itemName: string; productType?: string | null; stock?: string | null }>,
   links: Map<string, PartnerLinkInfo>,
-  options: { hubEnabled: boolean; outletId: string; customerSelfOrder?: boolean },
+  options: {
+    hubEnabled: boolean;
+    outletId: string;
+    customerSelfOrder?: boolean;
+    /** Jam layanan produk mitra outlet (Owner 16 Nov 2026). */
+    serviceHours?: PartnerServiceHours | null;
+    /** Acuan jam layanan; saat kasir menerima order pelanggan = waktu order dibuat. */
+    at?: Date;
+  },
 ) {
   for (const line of lines) {
     const link = links.get(line.itemId);
@@ -111,6 +119,8 @@ export function assertPartnerItemsOrderable(
       linkActive: link.linkActive,
       productStock: line.stock,
       lastOrderByDay: link.lastOrderByDay,
+      serviceHours: options.serviceHours,
+      at: options.at,
     });
     if (reason) throw new PartnerOrderError(`${line.itemName}: ${reason}`);
   }

@@ -72,6 +72,8 @@ const patchSchema = z.object({
   partnerReadyWaitWarnMinutes: z.number().int().min(1).max(30).optional(),
   partnerPrepTargetMinutes: z.number().int().min(1).max(120).optional(),
   partnerHeartbeatMinutes: z.number().int().min(0).max(120).optional(),
+  partnerServiceOpen: z.string().trim().regex(/^$|^([01]\d|2[0-3]):[0-5]\d$/, "Format jam JJ:MM (mis. 17:00)").optional(),
+  partnerServiceClose: z.string().trim().regex(/^$|^([01]\d|2[0-3]):[0-5]\d$/, "Format jam JJ:MM (mis. 22:30)").optional(),
   garageWhatsapp: z.string().trim().regex(/^(\+?62|0)8\d{7,12}$/, "Nomor WhatsApp tidak valid").optional(),
   bankAccountsText: z.string().max(1000).optional(),
   wifiEnabled: z.boolean().optional(),

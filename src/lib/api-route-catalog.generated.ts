@@ -453,6 +453,7 @@ export const API_ROUTE_CATALOG: ApiRouteEntry[] = [
   {"path":"/api/partners/{id}/products","methods":["GET","POST"],"note":""},
   {"path":"/api/partners/{id}","methods":["PATCH"],"note":""},
   {"path":"/api/partners/{id}/status","methods":["POST"],"note":""},
+  {"path":"/api/partners/{id}/status-action","methods":["POST"],"note":""},
   {"path":"/api/partners/accounts/{accountId}","methods":["PATCH"],"note":""},
   {"path":"/api/partners/applications/{id}/convert","methods":["POST"],"note":""},
   {"path":"/api/partners/applications/{id}","methods":["PATCH"],"note":""},

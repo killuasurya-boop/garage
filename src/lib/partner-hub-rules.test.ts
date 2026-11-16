@@ -320,3 +320,27 @@ describe("A7 — settlement harian & pengingat (aturan murni)", () => {
     expect(late).not.toMatch(/Owner|draft|Dijadwalkan/i);
   });
 });
+
+describe("partnerStatusActions (kontrol status dari daftar mitra)", () => {
+  it("menu sesuai status & peran; jalur aktivasi selalu transisi yang sah", async () => {
+    const { partnerStatusActions, canChangePartnerStatus } = await import("@/lib/partner-hub-rules");
+    const kinds = (status: string, role: string) => partnerStatusActions(status, role).map((a) => a.kind);
+    expect(kinds("draft", "Owner")).toEqual(["activate", "deactivate"]);
+    expect(kinds("aktif", "Owner")).toEqual(["freeze", "deactivate"]);
+    expect(kinds("dibekukan", "Owner")).toEqual(["activate", "deactivate"]);
+    expect(kinds("nonaktif", "Owner")).toEqual(["reopen"]);
+    // Manajer: hanya bekukan & buka ulang; aktifkan/nonaktifkan = Owner.
+    expect(kinds("aktif", "Manajer")).toEqual(["freeze"]);
+    expect(kinds("draft", "Manajer")).toEqual([]);
+    expect(kinds("nonaktif", "Manajer")).toEqual(["reopen"]);
+    for (const status of ["draft", "verifikasi", "disetujui", "aktif", "dibekukan", "nonaktif"]) {
+      for (const a of partnerStatusActions(status, "Owner")) {
+        let from = status;
+        for (const to of a.path) {
+          expect(canChangePartnerStatus(from, to), `${status} ${a.kind}: ${from}→${to}`).toBe(true);
+          from = to;
+        }
+      }
+    }
+  });
+});

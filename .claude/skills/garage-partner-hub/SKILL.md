@@ -85,3 +85,8 @@ description: Aturan WAJIB Smart Partner Hub (mitra resmi, produk partner, portal
   "Promo Website", max 8, `setPartnerWebsitePromotion`) AND it still passes `partnerMarketingBlockers` (partner aktif + verified bank,
   product approved, real photo, description ≥15, in digital menu, price > HPP) and the outlet hub is on. Owner panel "Media marketing
   website" in product settings. `/partner` login = Crystal V5 split layout (`partner-login.css`).
+  Status control (15 Nov 2026, no migration): Kelola Mitra list row = clickable status chip → `PartnerStatusControl`
+  (`partner-status-control.tsx`) with actions from pure `partnerStatusActions(status, role)` → dialog (effect, active orders,
+  missing activation requirements, reason) → `POST /api/partners/[id]/status-action` → `applyPartnerStatusAction` (checks
+  activation requirements BEFORE the path so status never stops halfway, pushes the partner). Aktif/disetujui/nonaktif = Owner
+  (`partnerStatusNeedsOwner`); freeze/draft/verifikasi = Owner or Manajer. `listPartners` returns `readiness`, `activeOrders`.

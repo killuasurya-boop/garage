@@ -1,0 +1,29 @@
+{
+  "enabledPlugins": {
+    "agent-estimate@anthropic-plugin-directory": false,
+    "animation-studio@anthropic-plugin-directory": false,
+    "atlassian@anthropic-plugin-directory": false,
+    "cowork-plugin-management@anthropic-plugin-directory": false,
+    "data@anthropic-plugin-directory": false,
+    "design@anthropic-plugin-directory": false,
+    "eddyter@anthropic-plugin-directory": false,
+    "engineering@anthropic-plugin-directory": false,
+    "expo@anthropic-plugin-directory": false,
+    "finance@anthropic-plugin-directory": false,
+    "greenhouse@anthropic-plugin-directory": false,
+    "hostinger@anthropic-plugin-directory": false,
+    "legal@anthropic-plugin-directory": false,
+    "marketing@anthropic-plugin-directory": false,
+    "netsuite-suiteskills@anthropic-plugin-directory": false,
+    "operations@anthropic-plugin-directory": false,
+    "playcanvas@anthropic-plugin-directory": false,
+    "product-management@anthropic-plugin-directory": false,
+    "productivity@anthropic-plugin-directory": false,
+    "remotion@anthropic-plugin-directory": false,
+    "sales@anthropic-plugin-directory": false,
+    "small-business@anthropic-plugin-directory": false,
+    "vercel@anthropic-plugin-directory": false,
+    "verisk-underwriting-intelligence@anthropic-plugin-directory": false,
+    "postiz@knowledge-work-plugins": false
+  }
+}

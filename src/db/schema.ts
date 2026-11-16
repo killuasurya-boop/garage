@@ -5873,3 +5873,94 @@ export const eventSponsorInkind = pgTable(
     qtyCheck: check("event_sponsor_inkind_qty_check", sql`${table.qty} > 0 and ${table.estimatedValue} >= 0`),
   }),
 );
+
+// =============================================================================
+// Lineup & Panitia Event (owner 16 Nov 2026, migration 0196). Owner saja (login langsung).
+// Event GIGS hidup di platform terpisah → nama event disimpan sebagai teks (seperti Sponsor Event).
+// Tidak ada uang di sini (honor/pembayaran penampil tetap lewat modul keuangan bila diperlukan).
+// =============================================================================
+
+export const eventPerformers = pgTable(
+  "event_performers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventName: text("event_name").notNull(),
+    eventDate: date("event_date"),
+    name: text("name").notNull(),
+    // band | standup | akustik | dj | kreator
+    kind: text("kind").notNull(),
+    genre: text("genre"),
+    contactName: text("contact_name"),
+    contactPhone: text("contact_phone"),
+    instagram: text("instagram"),
+    memberCount: integer("member_count"),
+    // calon | konfirmasi | batal
+    status: text("status").notNull().default("calon"),
+    slotOrder: integer("slot_order"),
+    // Jam tampil lokal event "HH:MM" + durasi menit (rundown).
+    setStart: text("set_start"),
+    setMinutes: integer("set_minutes"),
+    techRider: text("tech_rider"),
+    notes: text("notes"),
+    // Ditampilkan di website (beranda GIGS) bila status konfirmasi.
+    showOnWebsite: boolean("show_on_website").notNull().default(true),
+    cancelReason: text("cancel_reason"),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    eventIdx: index("event_performers_event_idx").on(table.eventName),
+    kindCheck: check("event_performers_kind_check", sql`${table.kind} in ('band','standup','akustik','dj','kreator')`),
+    statusCheck: check("event_performers_status_check", sql`${table.status} in ('calon','konfirmasi','batal')`),
+    minutesCheck: check("event_performers_minutes_check", sql`${table.setMinutes} is null or (${table.setMinutes} > 0 and ${table.setMinutes} <= 600)`),
+  }),
+);
+
+export const eventCrew = pgTable(
+  "event_crew",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventName: text("event_name").notNull(),
+    name: text("name").notNull(),
+    // ketua | sekretaris | bendahara | lineup | stage | sound | keamanan | dokumentasi | humas | konsumsi | tiket | lo | lainnya
+    role: text("role").notNull(),
+    phone: text("phone"),
+    duties: text("duties"),
+    // aktif | nonaktif
+    status: text("status").notNull().default("aktif"),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    eventIdx: index("event_crew_event_idx").on(table.eventName),
+    statusCheck: check("event_crew_status_check", sql`${table.status} in ('aktif','nonaktif')`),
+  }),
+);
+
+export const eventCrewTasks = pgTable(
+  "event_crew_tasks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventName: text("event_name").notNull(),
+    title: text("title").notNull(),
+    crewId: uuid("crew_id").references(() => eventCrew.id, { onDelete: "set null" }),
+    dueDate: date("due_date"),
+    // rendah | normal | tinggi
+    priority: text("priority").notNull().default("normal"),
+    // todo | proses | selesai | batal
+    status: text("status").notNull().default("todo"),
+    notes: text("notes"),
+    doneAt: timestamp("done_at", { withTimezone: true }),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    eventIdx: index("event_crew_tasks_event_idx").on(table.eventName),
+    crewIdx: index("event_crew_tasks_crew_idx").on(table.crewId),
+    statusCheck: check("event_crew_tasks_status_check", sql`${table.status} in ('todo','proses','selesai','batal')`),
+    priorityCheck: check("event_crew_tasks_priority_check", sql`${table.priority} in ('rendah','normal','tinggi')`),
+  }),
+);

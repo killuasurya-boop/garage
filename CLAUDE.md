@@ -119,7 +119,8 @@ adanya, Nov 2026, agar tiap sesi hemat ±20 ribu token). Aturan di skill sama me
 | MCP ChatGPT, owner-ai, tool agen R0–R3, AYA | `garage-ai-mcp` (+ `garage-problem-solver`) |
 | Mitra/partner, `/partner`, `/mitra`, settlement, payout | `garage-partner-hub` |
 | Route API baru, staging, deploy, CI/E2E, backup | `garage-ops-deploy` |
-| UI/desain/animasi, Crystal V5, MCP UI | `garage-ui-tooling` + `design-system/MASTER.md` |
+| UI/desain, Crystal V5, MCP UI | `garage-ui-tooling` + `design-system/MASTER.md` |
+| Animasi/motion apa pun (CSS, Framer, GSAP, SVG, transisi) | `garage-motion` |
 
 Invarian lintas modul (ringkas; detail di skill):
 - Uang: setiap rupiah yang bergerak = baris immutable `cash_ledger_entries`; koreksi = reversal, tidak pernah

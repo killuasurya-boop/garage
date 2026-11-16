@@ -21,11 +21,10 @@ spec `docs/crystal-v5/01-DESIGN-SYSTEM.md`, tokens `--gc-*` (`src/lib/crystal-to
 AA-tested), components `src/components/crystal/` (CrystalCard/Button/Chip/Badge/Sheet/LaserBorder/StatusDot). It replaces the
 older Menu V5 boards and member palette as the visual target; behaviour, data and ordering rules stay (self-order kept).
 Skill `garage-menu-v5` still applies for menu data rules (no fake options/badges, real photos, Daftar Pilihan wording).
-Animation skills (owner, Nov 2026: customer surfaces = cinematic, operational screens = fast and restrained):
-`animate`, `emil-design-eng`, `review-animations`, `improve-animations`, `animation-vocabulary` (Emil Kowalski, craft rules);
-`motion-design` (LottieFiles, choreography/timing tables); `micro-interaction`, `page-transition-animation`,
-`60fps-animation`, `accessible-animation`, `svg-animation`, `lottie-animation` (iart-ai); `gsap-core`, `gsap-timeline`,
-`gsap-scrolltrigger`, `gsap-react`, `gsap-performance`, `gsap-plugins`, `gsap-utils` (official GreenSock).
+Animation skills (owner, Nov 2026: customer surfaces = cinematic, operational screens = fast and restrained): ONE entry
+skill `garage-motion` (router + Garage motion rules). The 19 original skills (Emil Kowalski craft, LottieFiles motion-design,
+iart-ai web animation, official GreenSock gsap-*) live unchanged in `.claude/skills/garage-motion/ref/<name>/` (licenses in
+`ref/_licenses/`); read only the one file the router points to.
 Use `framer-motion` (installed) and CSS first. GSAP (`gsap@3.15.0`, pinned) was added with owner approval (Nov 2026) for the
 website Cinematic Laser UI (`src/components/garage-website/cinematic/`: hero, laser border, ScrollTrigger progress, site
 SFX default OFF in `site-sfx.ts`); Lottie is still NOT a dependency: ask the owner before adding it.

@@ -101,6 +101,17 @@ beforeAll(async () => {
     ])
     .onConflictDoNothing();
   await d.update(t.schema.staffProfiles).set({ role: "Owner" }).where(eq(t.schema.staffProfiles.userId, OWNER));
+  const base = { category: "Makanan", section: "Dapur", prep: "5m", status: "active" } as any;
+  await d
+    .insert(t.schema.menuItems)
+    .values([
+      { ...base, id: "foto-ng", name: "Nasi Goreng" },
+      { ...base, id: "foto-ngs", name: "Nasi Goreng Spesial" },
+      { ...base, id: "foto-ks", name: "Kopi Susu Aren", category: "Coffee" },
+      { ...base, id: "foto-old", name: "Kopi Tubruk Lama", category: "Coffee", status: "archived" },
+      { ...base, id: "foto-mitra", name: "Es Krim Pokat", productType: "partner" },
+    ])
+    .onConflictDoNothing();
 }, 90_000);
 
 afterEach(async () => {
@@ -226,5 +237,42 @@ describe("pasang_foto", () => {
   it("Manajer ditolak", async () => {
     stubFetch();
     await expect(call(as(MANAJER, "Manajer"), "pasang_foto", { fotoId: "a".repeat(32), tujuan: "hero_website", alasan: "coba" })).rejects.toMatchObject({ status: 403 });
+  });
+});
+
+describe("pasang_foto produk menu berdasarkan nama", () => {
+  async function stage() {
+    return (await call(owner(), "siapkan_foto", { foto: { download_url: SRC } })).fotoId as string;
+  }
+
+  it("nama persis menang (Nasi Goreng ≠ Nasi Goreng Spesial), lalu dipasang ke id itu", async () => {
+    stubFetch();
+    const fotoId = await stage();
+    const args = { fotoId, tujuan: "produk_menu", nama: "nasi goreng", alasan: "foto produk" };
+    const preview = await call(owner(), "pasang_foto", args);
+    expect(preview.ringkasan.produk).toBe("Nasi Goreng (id foto-ng)");
+    const done = await call(owner(), "pasang_foto", { ...args, konfirmasi: preview.konfirmasi });
+    expect(done.hasil.terpasang).toContain("Nasi Goreng");
+    expect(seen.find((s) => s.method === "POST")?.url).toBe("/api/menu/foto-ng/image");
+  });
+
+  it("sebagian nama yang unik cukup (\"kopi susu\")", async () => {
+    stubFetch();
+    const fotoId = await stage();
+    const preview = await call(owner(), "pasang_foto", { fotoId, tujuan: "produk_menu", nama: "kopi susu", alasan: "foto" });
+    expect(preview.ringkasan.produk).toBe("Kopi Susu Aren (id foto-ks)");
+  });
+
+  it("nama ambigu meminta pilihan; produk arsip & produk mitra tidak ikut dicari", async () => {
+    stubFetch();
+    const fotoId = await stage();
+    await expect(call(owner(), "pasang_foto", { fotoId, tujuan: "produk_menu", nama: "Nasi", alasan: "foto" })).rejects.toMatchObject({
+      code: "PRODUK_AMBIGU",
+      message: expect.stringContaining("Nasi Goreng Spesial"),
+    });
+    await expect(call(owner(), "pasang_foto", { fotoId, tujuan: "produk_menu", nama: "Kopi Tubruk", alasan: "foto" })).rejects.toMatchObject({ code: "PRODUK_TIDAK_DITEMUKAN" });
+    await expect(call(owner(), "pasang_foto", { fotoId, tujuan: "produk_menu", nama: "Es Krim", alasan: "foto" })).rejects.toMatchObject({ code: "PRODUK_TIDAK_DITEMUKAN" });
+    await expect(call(owner(), "pasang_foto", { fotoId, tujuan: "produk_menu", nama: "%", alasan: "foto" })).rejects.toMatchObject({ code: expect.stringMatching(/PRODUK_|VALIDATION/) });
+    expect(seen.filter((s) => s.method === "POST")).toHaveLength(0);
   });
 });

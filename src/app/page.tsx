@@ -4,6 +4,8 @@ import { getAtmosphereAssets, getLandingHeroAsset } from "@/lib/site-assets";
 import { getBusinessInfo } from "@/lib/garage-service";
 import { getHomeFeaturedEvent } from "@/lib/event-service";
 import { getGigsPromo } from "@/lib/gigs-promo";
+import { mergeLineup } from "@/lib/gigs-lineup";
+import { publicLineupFor } from "@/lib/event-lineup-service";
 
 export const dynamic = "force-dynamic";
 
@@ -49,8 +51,13 @@ export default async function Home() {
     getAtmosphereAssets().catch(() => []),
   ]);
 
+  // Lineup GIGS: penampil terkonfirmasi dari modul Lineup & Panitia (Garage OS) menggantikan daftar platform event.
+  const gigs = gigsPromo
+    ? { ...gigsPromo, promo: { ...gigsPromo.promo, lineup: mergeLineup(gigsPromo.promo.lineup, await publicLineupFor(gigsPromo.name).catch(() => [])) } }
+    : null;
+
   // Hero hanya butuh tanda "ada foto hero"; teks alt lama (brand "Coffee & Motor") tidak dikirim ke klien.
   const hero = landingHero ? { ...landingHero, alt: "Garage Coffee Tebing Tinggi" } : null;
-  return <GarageWebsite landingHero={hero} businessInfo={businessInfo} featuredEvent={featuredEvent} gigsPromo={gigsPromo}
+  return <GarageWebsite landingHero={hero} businessInfo={businessInfo} featuredEvent={featuredEvent} gigsPromo={gigs}
     atmosphere={atmosphere.map((a) => ({ url: a.publicUrl, width: a.width, height: a.height, alt: a.alt }))} />;
 }

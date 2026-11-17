@@ -118,6 +118,7 @@ adanya, Nov 2026, agar tiap sesi hemat ±20 ribu token). Aturan di skill sama me
 | Smart Approval, Decision Center, AI Governance | `garage-approval` |
 | MCP ChatGPT, owner-ai, tool agen R0–R3, AYA | `garage-ai-mcp` (+ `garage-problem-solver`) |
 | Mitra/partner, `/partner`, `/mitra`, settlement, payout | `garage-partner-hub` |
+| Lineup & panitia event (band/stand-up, rundown, tugas), lineup GIGS di beranda | `garage-event-lineup` |
 | Route API baru, staging, deploy, CI/E2E, backup | `garage-ops-deploy` |
 | UI/desain, Crystal V5, MCP UI | `garage-ui-tooling` + `design-system/MASTER.md` |
 | Website/halaman web baru atau dirombak (homepage, landing, halaman publik, section) | `garage-website` (memandu `ui-ux-pro-max` + `frontend-design` utama, `web-design-guidelines` + `vercel-react-best-practices` wajib) |

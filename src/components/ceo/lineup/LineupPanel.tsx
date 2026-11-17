@@ -109,9 +109,17 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
   );
 }
 
-export function LineupPanel({ initialEvent = null, initialTab = "lineup" }: { initialEvent?: string | null; initialTab?: LineupTab }) {
+/** Kunci pilihan event: `id:<uuid>` (master) atau `name:<nama lama>`. Judul master boleh dobel, jadi ID yang dipakai. */
+const boardKey = (data: Pick<Board, "eventId" | "eventName">) => (data.eventId ? `id:${data.eventId}` : data.eventName ? `name:${data.eventName}` : null);
+const boardUrl = (key: string | null) => {
+  if (!key) return "/api/event-lineup";
+  return key.startsWith("id:") ? `/api/event-lineup?eventId=${encodeURIComponent(key.slice(3))}` : `/api/event-lineup?event=${encodeURIComponent(key.slice(5))}`;
+};
+
+export function LineupPanel({ initialEvent = null, initialEventId = null, initialTab = "lineup" }: { initialEvent?: string | null; initialEventId?: string | null; initialTab?: LineupTab }) {
   const [board, setBoard] = useState<Board | null>(null);
-  const [event, setEvent] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
+  const event = board?.eventName ?? null;
   const [tab, setTab] = useState<LineupTab>(initialTab);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -123,13 +131,13 @@ export function LineupPanel({ initialEvent = null, initialTab = "lineup" }: { in
     | null
   >(null);
 
-  const load = useCallback(async (name: string | null) => {
+  const load = useCallback(async (key: string | null) => {
     setLoading(true);
     setError(null);
     try {
-      const data = await garageApi.get<Board>(`/api/event-lineup${name ? `?event=${encodeURIComponent(name)}` : ""}`, { cache: "no-store" });
+      const data = await garageApi.get<Board>(boardUrl(key), { cache: "no-store" });
       setBoard(data);
-      setEvent(data.eventName);
+      setSelected(boardKey(data));
     } catch (e) {
       setError(errText(e));
     } finally {
@@ -141,24 +149,24 @@ export function LineupPanel({ initialEvent = null, initialTab = "lineup" }: { in
   useEffect(() => {
     let alive = true;
     garageApi
-      .get<Board>(`/api/event-lineup${initialEvent ? `?event=${encodeURIComponent(initialEvent)}` : ""}`, { cache: "no-store" })
+      .get<Board>(boardUrl(initialEventId ? `id:${initialEventId}` : initialEvent ? `name:${initialEvent}` : null), { cache: "no-store" })
       .then((data) => {
         if (!alive) return;
         setBoard(data);
-        setEvent(data.eventName);
+        setSelected(boardKey(data));
       })
       .catch((e) => alive && setError(errText(e)))
       .finally(() => alive && setLoading(false));
     return () => {
       alive = false;
     };
-  }, [initialEvent]);
+  }, [initialEvent, initialEventId]);
 
   const run = async (action: () => Promise<unknown>) => {
     setError(null);
     try {
       await action();
-      await load(event);
+      await load(selected);
       return true;
     } catch (e) {
       setError(errText(e));
@@ -181,7 +189,7 @@ export function LineupPanel({ initialEvent = null, initialTab = "lineup" }: { in
             <a className={ghostBtn} href={`/event-day${board?.eventId ? `?event=${board.eventId}` : ""}`}>
               <Mic2 size={16} /> Mode hari-H
             </a>
-            <button type="button" className={ghostBtn} onClick={() => void load(event)} disabled={loading}>
+            <button type="button" className={ghostBtn} onClick={() => void load(selected)} disabled={loading}>
               <RefreshCw size={16} className={loading ? "animate-spin motion-reduce:animate-none" : ""} /> Muat ulang
             </button>
           </div>
@@ -191,12 +199,15 @@ export function LineupPanel({ initialEvent = null, initialTab = "lineup" }: { in
       {/* Pilih / buat event */}
       <div className={`${cardClass} grid gap-3 lg:grid-cols-[18rem_minmax(0,1fr)] lg:items-start`}>
         <Field label="Event">
-          <select className={inputClass} value={event ?? ""} onChange={(e) => void load(e.target.value || null)}>
+          <select className={inputClass} value={selected ?? ""} onChange={(e) => void load(e.target.value || null)}>
             {!board?.events.length ? <option value="">Belum ada event</option> : null}
+            {board?.eventId && !board.masterEvents.some((m) => m.id === board.eventId) ? (
+              <option value={`id:${board.eventId}`}>{board.eventName} (arsip)</option>
+            ) : null}
             {board?.masterEvents.length ? (
               <optgroup label="Event (master)">
                 {board.masterEvents.map((m) => (
-                  <option key={m.id} value={m.title}>
+                  <option key={m.id} value={`id:${m.id}`}>
                     {m.title} · {m.date}
                   </option>
                 ))}
@@ -205,7 +216,7 @@ export function LineupPanel({ initialEvent = null, initialTab = "lineup" }: { in
             {board?.legacyEvents.length ? (
               <optgroup label="Nama lama — belum tertaut">
                 {board.legacyEvents.map((name) => (
-                  <option key={name} value={name}>
+                  <option key={name} value={`name:${name}`}>
                     {name}
                   </option>
                 ))}
@@ -287,7 +298,7 @@ export function LineupPanel({ initialEvent = null, initialTab = "lineup" }: { in
               onEdit={(row) => setDialog({ kind: "performer", row })}
               onCancel={(row) => setDialog({ kind: "cancel", row })}
               onStatus={(row, status) => void run(() => garageApi.patch(`/api/event-lineup/performers/${row.id}`, { status }))}
-              onMove={(ids) => void run(() => garageApi.post("/api/event-lineup/reorder", { eventName: event, ids }))}
+              onMove={(ids) => void run(() => garageApi.post("/api/event-lineup/reorder", { eventId: board?.eventId ?? null, eventName: event, ids }))}
             />
           ) : null}
           {tab === "rundown" ? <RundownTab board={board} /> : null}

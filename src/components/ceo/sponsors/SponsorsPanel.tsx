@@ -361,10 +361,15 @@ function SponsorForm({
       : masterEvents[0]
         ? `id:${masterEvents[0].id}`
         : "";
+  // Sponsor lama yang tertaut ke event arsip / di luar daftar teratas tetap memegang event-nya (tidak berpindah diam-diam).
+  const options: Array<Pick<MasterEvent, "id" | "title"> & { date: string; current?: boolean }> =
+    initial?.eventId && !masterEvents.some((m) => m.id === initial.eventId)
+      ? [{ id: initial.eventId, title: initial.eventName, date: initial.eventDate ?? "", current: true }, ...masterEvents]
+      : masterEvents;
   const [pickedChoice, setEventChoice] = useState("");
   // Daftar event bisa datang setelah form terbuka: pilihan default dihitung ulang sampai Owner memilih sendiri.
   const eventChoice = pickedChoice || initialChoice;
-  const chosenMaster = eventChoice.startsWith("id:") ? masterEvents.find((m) => m.id === eventChoice.slice(3)) ?? null : null;
+  const chosenMaster = eventChoice.startsWith("id:") ? options.find((m) => m.id === eventChoice.slice(3)) ?? null : null;
   const eventName = chosenMaster ? chosenMaster.title : eventChoice.startsWith("name:") ? eventChoice.slice(5) : "";
   const [eventDate, setEventDate] = useState(initial?.eventDate ?? "");
   const [name, setName] = useState(initial?.name ?? "");
@@ -410,12 +415,13 @@ function SponsorForm({
     >
       <Field label="Event" hint="Event dibuat di menu Event (Garage OS). Nama lama yang belum tertaut tetap bisa dipilih.">
         <select value={eventChoice} onChange={(e) => setEventChoice(e.target.value)} required className={inputClass}>
-          {!masterEvents.length && !legacyNames.length ? <option value="">Belum ada event — buat di menu Event</option> : null}
-          {masterEvents.length ? (
+          {!options.length && !legacyNames.length ? <option value="">Belum ada event — buat di menu Event</option> : null}
+          {options.length ? (
             <optgroup label="Event (master)">
-              {masterEvents.map((m) => (
+              {options.map((m) => (
                 <option key={m.id} value={`id:${m.id}`}>
-                  {m.title} · {m.date}
+                  {m.title}
+                  {m.current ? " (event saat ini)" : m.date ? ` · ${m.date}` : ""}
                 </option>
               ))}
             </optgroup>

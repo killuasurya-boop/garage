@@ -23,7 +23,7 @@ description: Aturan WAJIB modul Lineup & Panitia Event (band/stand-up, rundown, 
 - Crew task reminders (owner 17 Nov 2026): pure `taskReminders(tasks, todayWib)` → stage `h-1`, `hari-h`, `terlambat-1/3/7`
   (only `todo`/`proses` with a due date; `tinggi` or overdue = warning). `sweepLineupTaskReminders` sends `notifyStaff`
   kind `lineup_task_reminder` to every active Owner, dedupKey `lineup-task:{taskId}:{stage}:{ownerUserId}`, url
-  `/control/lineup?event=…&tab=tugas` (page reads `event`/`tab`). Runs every 15 min (minute % 15 === 8) via
+  `/control/lineup?eventId=…&tab=tugas` (`?event=nama` hanya untuk data lama tanpa master; page reads `eventId`/`event`/`tab`). Runs every 15 min (minute % 15 === 8) via
   `runMonitoredJob("event_lineup_tasks")`. No automatic WhatsApp to crew (crew are not accounts; no messaging provider).
 
 ## GIGS EO (Owner 17 Nov 2026) — acuan kerja `docs/gigs-eo/00-CHECKLIST.md`
@@ -32,6 +32,9 @@ description: Aturan WAJIB modul Lineup & Panitia Event (band/stand-up, rundown, 
   lewat `resolveEventRef` (eventId → nama = judul master; nama sama persis dengan satu master ikut ditautkan; selain itu nama
   lama tanpa master). Ubah judul event → `renameEventReferences` dalam tx `updateEvent`. Event baru dibuat di menu Event,
   bukan dengan mengetik nama di Lineup/Sponsor.
+- **Identitas event = `event_id`, bukan judul** (judul master boleh dobel). Papan Lineup (`getLineupBoard({ eventId })`),
+  cek PIC tugas (`assertCrewInEvent`), dan urut lineup membandingkan `event_id`; nama hanya untuk baris lama `event_id IS
+  NULL`. Event arsip tetap bisa dibuka/diedit lewat ID-nya (form Sponsor menambah opsi "event saat ini").
 - `events.platform_slug` (unik bila diisi) = slug event di platform GIGS; `publicLineupFor({ slug, name })` mencari master via
   slug dulu, lalu nama.
 - `/api/website-events` hanya event `published` yang belum selesai dari master; tidak pernah data contoh.

@@ -76,7 +76,7 @@ export function EventDayPanel({ initialEventId = null }: { initialEventId?: stri
       setView(data);
       setEventId(data.event?.id ?? null);
       if (data.event) {
-        const board = await garageApi.get<{ tasks: Task[] }>(`/api/event-lineup?event=${encodeURIComponent(data.event.title)}`, { cache: "no-store" }).catch(() => null);
+        const board = await garageApi.get<{ tasks: Task[] }>(`/api/event-lineup?eventId=${encodeURIComponent(data.event.id)}`, { cache: "no-store" }).catch(() => null);
         setTasks(board?.tasks ?? []);
       }
     } catch (e) {

@@ -22,6 +22,7 @@ import {
 import { PageHeader } from "@/components/ceo/layout/PageHeader";
 import { Badge } from "@/components/ceo/ui/Badge";
 import { LogoUpload } from "@/components/ceo/ui/LogoUpload";
+import { FormSection, ReadinessChips, SponsorCardPreview } from "@/components/ceo/ui/WebsitePreview";
 import { garageApi, GarageApiError } from "@/lib/api-client";
 import { INSTALLMENT_STATE_LABEL, OBLIGATION_STATE_LABEL, SPONSOR_STATUS_LABEL, type InstallmentState, type ObligationState } from "@/lib/event-sponsor-rules";
 import type { SponsorView } from "@/lib/event-sponsor-service";
@@ -230,6 +231,19 @@ export function SponsorsPanel() {
                     </p>
                   </div>
                   <Badge tone={s.status === "aktif" ? "chrome" : s.status === "selesai" ? "success" : "muted"}>{SPONSOR_STATUS_LABEL[s.status]}</Badge>
+                </div>
+                <div className="mt-2">
+                  {s.status === "batal" ? null : s.showOnWebsite ? (
+                    <ReadinessChips
+                      items={[
+                        { label: "Tampil di web", ok: true },
+                        { label: "Logo", ok: Boolean(s.logoUrl) },
+                        { label: "Instagram", ok: Boolean(s.instagram || s.websiteUrl) },
+                      ]}
+                    />
+                  ) : (
+                    <p className="text-xs text-zinc-300">Tidak tampil di website</p>
+                  )}
                 </div>
                 <div className="mt-2 flex items-baseline justify-between gap-2 text-sm">
                   <span className="text-zinc-400">Masuk</span>
@@ -455,19 +469,28 @@ function SponsorForm({
       <Field label="Nama sponsor">
         <input value={name} onChange={(e) => setName(e.target.value)} required minLength={2} maxLength={120} className={inputClass} />
       </Field>
-      <Field label="Instagram sponsor">
-        <input value={instagram} onChange={(e) => setInstagram(e.target.value)} maxLength={80} placeholder="@brand atau instagram.com/brand" className={inputClass} />
-      </Field>
-      <Field label="Tautan lain (opsional, dipakai bila Instagram kosong)">
-        <input value={websiteUrl} onChange={(e) => setWebsiteUrl(e.target.value)} maxLength={300} inputMode="url" placeholder="https://instagram.com/brand" className={inputClass} />
-      </Field>
-      <label className="flex items-start gap-2 text-sm text-zinc-200">
-        <input type="checkbox" className="mt-1" checked={showOnWebsite} onChange={(e) => setShowOnWebsite(e.target.checked)} />
-        <span>
-          Tampilkan di website event (bagian “Didukung oleh”)
-          <span className="block text-xs text-zinc-400">Yang tampil hanya nama, logo, paket, dan tautan — nilai uang & kontak tidak pernah tampil.</span>
-        </span>
-      </label>
+      <FormSection
+        tone="public"
+        title="Tampil di website"
+        hint="Terlihat pengunjung di bagian “Didukung oleh”: nama, logo, paket, Instagram. Nilai uang & kontak TIDAK PERNAH tampil."
+      >
+        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+          <div className="grid min-w-0 gap-3">
+            <Field label="Instagram sponsor">
+              <input value={instagram} onChange={(e) => setInstagram(e.target.value)} maxLength={80} placeholder="@brand atau instagram.com/brand" className={inputClass} />
+            </Field>
+            <Field label="Tautan lain (opsional, dipakai bila Instagram kosong)">
+              <input value={websiteUrl} onChange={(e) => setWebsiteUrl(e.target.value)} maxLength={300} inputMode="url" placeholder="https://brand.com" className={inputClass} />
+            </Field>
+            <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm text-zinc-100">
+              <input type="checkbox" className="size-4" checked={showOnWebsite} onChange={(e) => setShowOnWebsite(e.target.checked)} />
+              Tampilkan di website event
+            </label>
+            <p className="text-xs text-zinc-300">Logo diunggah setelah disimpan: buka sponsor → bagian “Logo sponsor”.</p>
+          </div>
+          <SponsorCardPreview name={name} packageName={packageName} instagram={instagram} logo={initial?.logoUrl ?? null} hidden={!showOnWebsite} />
+        </div>
+      </FormSection>
       <Field label="Nilai uang yang disepakati" hint={`${agreed ? idr(Number(agreed)) : "Rp0"} · sponsor barang dicatat terpisah, tidak termasuk di sini.`}>
         <input inputMode="numeric" value={agreed} onChange={(e) => setAgreed(digits(e.target.value))} placeholder="5000000" className={`${inputClass} font-mono`} />
       </Field>

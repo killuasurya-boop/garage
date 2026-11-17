@@ -76,7 +76,7 @@ test("Lineup & Sponsor: impor platform → kustom talent & sponsor → tampil di
     // 2) Kustom kartu talent: tagline, Instagram (tautan penuh dirapikan), unggah logo.
     await card.getByRole("button", { name: "Ubah" }).click();
     const dialog = page.getByRole("dialog", { name: `Ubah ${band}` });
-    await dialog.getByLabel("Tagline di kartu website").fill("Heavy / Metallic Roster");
+    await dialog.getByLabel("Tagline (baris kecil di bawah nama)").fill("Heavy / Metallic Roster");
     await dialog.getByLabel("Instagram").fill(`https://www.instagram.com/${ig}/`);
     await dialog.getByLabel(`Pilih logo ${band}`).setInputFiles({ name: "logo.png", mimeType: "image/png", buffer: PNG });
     await expect(dialog.getByRole("button", { name: /Ganti logo/ })).toBeVisible({ timeout: 60_000 });

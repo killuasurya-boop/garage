@@ -42,15 +42,21 @@ Aturan modul yang berlaku: skill `garage-event-lineup` (bagian "GIGS EO"), `gara
 
 ## Fase 2 — Uang event (PR `claude/gigs-eo-fase2`, base fase1)
 
-- [ ] **2. Anggaran & biaya event.** Tabel `event_budget_lines` (kategori: honor, sound, venue, dekorasi, promosi,
+- [x] **2. Anggaran & biaya event.** *(selesai, PR fase2 — `event-finance-service.ts`, migrasi 0198, `/control/event-finance`)* Tabel `event_budget_lines` (kategori: honor, sound, venue, dekorasi, promosi,
   konsumsi, keamanan, perizinan, transport, lain), rencana (rupiah), catatan, penanggung jawab. Realisasi = pembayaran
   `event_expense_payments` yang **selalu** menulis satu baris buku kas (`event_expense`, akun asal pilih: rekening
   Jago / kas besar — ikuti akun yang sudah ada di `garage-kas`), foto bukti non-publik, idempotency key, pembatalan =
   baris pembalik (`event_expense_void`). Honor penampil = baris anggaran kategori honor yang menunjuk `performer_id`.
   Owner saja + login manusia. Laba rugi: biaya event = beban non-operasional (`nonOperating`) per `business_date`.
-- [ ] **3. Laporan untung/rugi per event.** Gabung: penjualan menu event (`event-sales-report`), uang sponsor masuk,
+  *Implementasi:* sumber bayar `bank_jago` / `bank_bni` (baris buku kas `event_expense`) atau `external` (uang pribadi
+  Owner, tanpa baris kas). Laba rugi membaca tabel pembayaran (bukan buku kas) supaya uang pribadi ikut: kategori
+  `Biaya Event` (non_operating) pada tanggal bayar, pembatalan mengurangi pada tanggal batal. `ENGINE_VERSION` 7.
+- [x] **3. Laporan untung/rugi per event.** *(selesai, PR fase2; tiket menunggu platform — lihat catatan)* Gabung: penjualan menu event (`event-sales-report`), uang sponsor masuk,
   tiket (input manual ringkasan dari platform sampai integrasi ada), biaya (realisasi), sponsor barang (info). Layar
   tab "Untung/Rugi" + PDF. Anggaran vs realisasi per kategori, selisih.
+  *Implementasi:* `getEventFinance` — saat ini (uang masuk − keluar) & proyeksi (sponsor lunas, sisa anggaran dibayar);
+  margin menu hanya bila HPP lengkap (kalau tidak, ditandai). PDF = "Cetak / PDF" (cetak browser, kontrol disembunyikan).
+  **Tiket belum dihitung** (platform GIGS di luar repo) — tambahkan setelah repo platform tersedia.
 
 ## Fase 3 — Hari-H (PR `claude/gigs-eo-fase3`, base fase2)
 
@@ -83,4 +89,5 @@ Aturan modul yang berlaku: skill `garage-event-lineup` (bagian "GIGS EO"), `gara
 | Tanggal | Fase/Item | PR | Catatan |
 |---|---|---|---|
 | 17 Nov 2026 | Dokumen acuan dibuat | fase1 | Belum ada yang di-merge/deploy (perintah Owner). |
+| 17 Nov 2026 | Item 2 & 3 selesai | fase2 | Migrasi 0198 (2 tabel + kategori P&L). Tes `event-finance*.test.ts`. |
 | 17 Nov 2026 | Item 1 & 4 selesai | fase1 | Migrasi 0197 (kolom saja + backfill nama sama). Tes `event-master.integration.test.ts`. |

@@ -14,6 +14,7 @@ import {
   auditLogs,
   capitalTransactions,
   cashLedgerEntries,
+  eventExpensePayments,
   cashSessions,
   expenses,
   feePoolSplits,
@@ -139,7 +140,12 @@ const DEFAULT_CATEGORIES: FinanceExpenseCategory[] = [
   { name: "Transport", groupKey: "opex", costClass: "variable", costItemCode: null },
   { name: "Konsumsi Staff", groupKey: "opex", costClass: "variable", costItemCode: null },
   { name: "Lain-lain", groupKey: "opex", costClass: "variable", costItemCode: null },
+  // GIGS EO (Owner 17 Nov 2026): biaya event berpasangan dengan pendapatan lain (sponsor) — di bawah laba operasional.
+  { name: "Biaya Event", groupKey: "non_operating", costClass: "variable", costItemCode: null },
 ];
+
+/** Kategori laba rugi untuk pembayaran biaya event (GIGS EO Fase 2). */
+export const EVENT_COST_CATEGORY = "Biaya Event";
 
 const INITIAL_CAPITAL = 500_000_000;
 
@@ -653,6 +659,30 @@ export async function loadDayRaws(fromKey: string, toKey: string, policy?: Busin
     )
     .groupBy(sponsorDay);
   for (const row of sponsorRows) at(row.day).otherIncome += Number(row.amount);
+  // Biaya event (GIGS EO Fase 2, Owner 17 Nov 2026): kategori "Biaya Event" (non-operasional) pada tanggal operasional
+  // pembayaran; pembatalan mengurangi pada tanggal pembatalan (hari lampau tidak diubah). Termasuk uang pribadi Owner.
+  const paidDay = wibDay(eventExpensePayments.paidAt);
+  const voidDay = wibDay(eventExpensePayments.voidedAt);
+  const [eventPaidRows, eventVoidRows] = await Promise.all([
+    db
+      .select({ day: paidDay, amount: sql<string>`coalesce(sum(${eventExpensePayments.amount}), 0)::bigint` })
+      .from(eventExpensePayments)
+      .where(and(gte(eventExpensePayments.paidAt, start), lt(eventExpensePayments.paidAt, end)))
+      .groupBy(paidDay),
+    db
+      .select({ day: voidDay, amount: sql<string>`coalesce(sum(${eventExpensePayments.amount}), 0)::bigint` })
+      .from(eventExpensePayments)
+      .where(and(eq(eventExpensePayments.status, "void"), gte(eventExpensePayments.voidedAt, start), lt(eventExpensePayments.voidedAt, end)))
+      .groupBy(voidDay),
+  ]);
+  for (const row of eventPaidRows) {
+    const raw = at(row.day);
+    raw.expenses[EVENT_COST_CATEGORY] = (raw.expenses[EVENT_COST_CATEGORY] ?? 0) + Number(row.amount);
+  }
+  for (const row of eventVoidRows) {
+    const raw = at(row.day);
+    raw.expenses[EVENT_COST_CATEGORY] = (raw.expenses[EVENT_COST_CATEGORY] ?? 0) - Number(row.amount);
+  }
   return map;
 }
 
@@ -666,7 +696,7 @@ const LIVE_WINDOW_DAYS = 7;
  * snapshot "locked" (Daily Closing) tidak pernah diubah.
  * v2: HPP aktual = resep + susut gudang (PRD §11).
  */
-const ENGINE_VERSION = 6; // v3: ongkir dipisah; v4: upah harian masuk P&L; v5: biaya bahan = belanja gudang; v6: pendapatan lain (sponsor)
+const ENGINE_VERSION = 7; // v3: ongkir dipisah; v4: upah harian masuk P&L; v5: biaya bahan = belanja gudang; v6: pendapatan lain (sponsor); v7: biaya event
 
 type SnapshotRow = typeof financialSnapshots.$inferSelect;
 

@@ -5976,3 +5976,75 @@ export const eventCrewTasks = pgTable(
     priorityCheck: check("event_crew_tasks_priority_check", sql`${table.priority} in ('rendah','normal','tinggi')`),
   }),
 );
+
+// ─── GIGS EO Fase 2: anggaran & biaya event (Owner 17 Nov 2026, docs/gigs-eo/00-CHECKLIST.md item 2-3) ───
+// Anggaran = rencana per pos biaya (bukan uang). Pembayaran = uang keluar nyata: rekening bank → satu baris buku kas
+// `event_expense` (bank_jago/bank_bni → external) dalam tx yang sama; uang pribadi Owner (external) tanpa baris kas.
+// Batal = status void + baris pembalik `event_expense_void`, tidak pernah diedit/dihapus.
+export const eventBudgetLines = pgTable(
+  "event_budget_lines",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "restrict" }),
+    // honor | sound | venue | dekorasi | promosi | konsumsi | keamanan | perizinan | transport | lain
+    category: text("category").notNull(),
+    title: text("title").notNull(),
+    plannedAmount: integer("planned_amount").notNull().default(0),
+    // Honor penampil: tautan ke penampil lineup (opsional).
+    performerId: uuid("performer_id").references(() => eventPerformers.id, { onDelete: "set null" }),
+    notes: text("notes"),
+    // aktif | arsip
+    status: text("status").notNull().default("aktif"),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    eventIdx: index("event_budget_lines_event_idx").on(table.eventId),
+    plannedCheck: check("event_budget_lines_planned_check", sql`${table.plannedAmount} >= 0`),
+    statusCheck: check("event_budget_lines_status_check", sql`${table.status} in ('aktif','arsip')`),
+    categoryCheck: check(
+      "event_budget_lines_category_check",
+      sql`${table.category} in ('honor','sound','venue','dekorasi','promosi','konsumsi','keamanan','perizinan','transport','lain')`,
+    ),
+  }),
+);
+
+export const eventExpensePayments = pgTable(
+  "event_expense_payments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "restrict" }),
+    budgetLineId: uuid("budget_line_id")
+      .notNull()
+      .references(() => eventBudgetLines.id, { onDelete: "restrict" }),
+    amount: integer("amount").notNull(),
+    paidAt: timestamp("paid_at", { withTimezone: true }).notNull(),
+    // bank_jago | bank_bni | external (uang pribadi Owner, tanpa baris buku kas)
+    source: text("source").notNull(),
+    payee: text("payee").notNull(),
+    reference: text("reference"),
+    proofPath: text("proof_path"),
+    note: text("note"),
+    // posted | void
+    status: text("status").notNull().default("posted"),
+    voidReason: text("void_reason"),
+    voidedBy: text("voided_by").references(() => user.id, { onDelete: "set null" }),
+    voidedAt: timestamp("voided_at", { withTimezone: true }),
+    idempotencyKey: text("idempotency_key").notNull(),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    idemIdx: uniqueIndex("event_expense_payments_idem_idx").on(table.idempotencyKey),
+    eventIdx: index("event_expense_payments_event_idx").on(table.eventId),
+    lineIdx: index("event_expense_payments_line_idx").on(table.budgetLineId),
+    amountCheck: check("event_expense_payments_amount_check", sql`${table.amount} > 0`),
+    sourceCheck: check("event_expense_payments_source_check", sql`${table.source} in ('bank_jago','bank_bni','external')`),
+    statusCheck: check("event_expense_payments_status_check", sql`${table.status} in ('posted','void')`),
+  }),
+);

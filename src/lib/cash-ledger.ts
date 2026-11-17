@@ -60,6 +60,8 @@ export const CASH_SOURCE_TYPES = [
   "partner_payout_void",
   "sponsor_income",
   "sponsor_income_void",
+  "event_expense",
+  "event_expense_void",
 ] as const;
 export type CashSourceType = (typeof CASH_SOURCE_TYPES)[number];
 
@@ -90,6 +92,8 @@ export const CASH_SOURCE_LABEL: Record<CashSourceType, string> = {
   partner_payout_void: "Pembatalan pembayaran mitra",
   sponsor_income: "Uang sponsor masuk",
   sponsor_income_void: "Pembatalan uang sponsor",
+  event_expense: "Biaya event",
+  event_expense_void: "Pembatalan biaya event",
 };
 
 /**

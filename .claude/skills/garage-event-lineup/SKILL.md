@@ -35,3 +35,8 @@ description: Aturan WAJIB modul Lineup & Panitia Event (band/stand-up, rundown, 
 - `events.platform_slug` (unik bila diisi) = slug event di platform GIGS; `publicLineupFor({ slug, name })` mencari master via
   slug dulu, lalu nama.
 - `/api/website-events` hanya event `published` yang belum selesai dari master; tidak pernah data contoh.
+- Keuangan Event (Fase 2, `/control/event-finance`, `event-finance-service.ts` + `-rules.ts`, migrasi 0198): Owner manusia
+  saja. Pos anggaran (`event_budget_lines`, kategori tetap, honor bisa menunjuk penampil event yang sama; arsip, tidak
+  dihapus) dan pembayaran (`event_expense_payments`, idempoten): bank → baris buku kas `event_expense` dalam tx yang sama,
+  `external` (uang pribadi Owner) tanpa baris kas; batal = status void + `event_expense_void`. Laba rugi: kategori
+  `Biaya Event` (non_operating) dibaca dari tabel pembayaran per tanggal bayar/batal (`EVENT_COST_CATEGORY`).

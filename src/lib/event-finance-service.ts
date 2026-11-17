@@ -157,7 +157,8 @@ export async function getEventFinance(garage: GarageSession, eventId: string | n
   try {
     const { getEventSalesReport } = await import("@/lib/event-sales-report");
     const report = await getEventSalesReport({ eventId: id, outletId: event.outletId ?? garage.profile.outlet.id, from: wibDay(event.startsAt), to: wibDay(event.endsAt) });
-    const noSales = report.summary.netSales === 0;
+    // Tidak ada komponen terjual = HPP 0. Ada komponen (walau diskon 100%) = pakai HPP snapshot apa adanya.
+    const noSales = report.summary.componentUnits === 0;
     menu = {
       available: true,
       netSales: report.summary.netSales,
@@ -258,6 +259,18 @@ export async function updateBudgetLine(id: string, patch: z.infer<typeof budgetL
 
 // ─── Tulis: pembayaran biaya ───────────────────────────────────────────────
 
+/**
+ * Laba rugi memakai snapshot harian otomatis untuk hari > 7 hari lalu. Biaya bertanggal mundur harus menghapus snapshot
+ * otomatis hari itu supaya dihitung ulang (snapshot locked Daily Closing tidak disentuh).
+ */
+async function invalidateEventCostDays(dates: Date[]) {
+  const { businessDateOf } = await import("@/lib/cash-ledger");
+  const { loadBusinessDayPolicy } = await import("@/lib/business-date-policy");
+  const { invalidateAutoSnapshotDays } = await import("@/lib/finance-control");
+  const policy = await loadBusinessDayPolicy(getDb());
+  await invalidateAutoSnapshotDays(dates.map((d) => businessDateOf(d, policy)));
+}
+
 function isUniqueViolation(error: unknown): boolean {
   for (let current: unknown = error, depth = 0; current && depth < 4; depth += 1) {
     const code = (current as { code?: unknown }).code;
@@ -328,6 +341,7 @@ export async function recordExpensePayment(input: z.infer<typeof expensePaymentS
     if (isUniqueViolation(error)) throw new EventFinanceError("DUPLICATE_REQUEST", "Pembayaran ini sudah tercatat.", 409);
     throw error;
   }
+  await invalidateEventCostDays([payment.paidAt]);
   await audit(garage, "Bayar biaya event", line.title, {
     eventId: event.id,
     lineId: line.id,
@@ -379,6 +393,7 @@ export async function voidExpensePayment(paymentId: string, reason: string, gara
       }
     }
   });
+  await invalidateEventCostDays([new Date()]);
   await audit(garage, "Batalkan biaya event", paymentId, { eventId: payment.eventId, paymentId, amount: payment.amount, reason: reason.trim() });
   return { id: paymentId, status: "void" as const };
 }

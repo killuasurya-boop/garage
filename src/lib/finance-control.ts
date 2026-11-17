@@ -923,6 +923,18 @@ export async function getDayFigures(fromKey: string, toKey: string, config: Fina
   return days.map((day) => usable.get(day) ?? computed.get(day)!);
 }
 
+/**
+ * Hapus snapshot otomatis (bukan locked) untuk hari tertentu — dipakai setelah transaksi bertanggal mundur
+ * (mis. biaya event dicatat untuk hari > 7 hari lalu) supaya laba rugi hari itu dihitung ulang. Locked tetap.
+ */
+export async function invalidateAutoSnapshotDays(days: string[]) {
+  const unique = [...new Set(days.filter(Boolean))];
+  if (!unique.length) return;
+  await getDb()
+    .delete(financialSnapshots)
+    .where(and(eq(financialSnapshots.status, "auto"), inArray(financialSnapshots.date, unique)));
+}
+
 /** Hapus snapshot otomatis (bukan locked) — dipakai setelah master data berubah. */
 export async function invalidateAutoSnapshots() {
   await getDb().delete(financialSnapshots).where(eq(financialSnapshots.status, "auto"));

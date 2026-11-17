@@ -61,7 +61,10 @@ export function budgetSummary(lines: BudgetLineInput[], payments: PaymentInput[]
   }).filter((c) => c.planned || c.paid);
   const planned = rows.reduce((s, r) => s + r.plannedAmount, 0);
   const paid = rows.reduce((s, r) => s + r.paid, 0);
-  return { rows, categories, totals: { planned, paid, remaining: Math.max(0, planned - paid), over: Math.max(0, paid - planned) } };
+  // Sisa = jumlah sisa per pos (lebih bayar di satu pos tidak menutup pos lain yang belum dibayar).
+  const remaining = rows.reduce((s, r) => s + r.remaining, 0);
+  const over = rows.reduce((s, r) => s + r.over, 0);
+  return { rows, categories, totals: { planned, paid, remaining, over } };
 }
 
 export type EventProfitInput = {

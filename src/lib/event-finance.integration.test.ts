@@ -122,6 +122,21 @@ describe("Keuangan event", () => {
     expect(view.payments.find((p: any) => p.id === bankPaymentId)).toMatchObject({ status: "void", voidReason: "Salah nominal" });
   });
 
+  it("biaya bertanggal mundur (> 7 hari) menghapus snapshot otomatis hari itu → laba rugi ikut berubah", async () => {
+    const fin = await import("@/lib/finance-control");
+    const config = await fin.loadFinanceConfig();
+    const today = new Date(Date.now() + 7 * 3_600_000).toISOString().slice(0, 10);
+    const day = new Date(Date.parse(`${today}T00:00:00Z`) - 20 * 86_400_000).toISOString().slice(0, 10);
+    const before = await fin.getDayFigures(day, day, config, today);
+    const snapshots = (await t.getDb().select().from(t.schema.financialSnapshots)).filter((r: any) => String(r.date) === day);
+    expect(snapshots).toHaveLength(1); // snapshot otomatis tersimpan
+    const line = await svc.createBudgetLine({ eventId, category: "promosi", title: "Iklan mundur", plannedAmount: 300_000 }, owner());
+    await svc.recordExpensePayment({ budgetLineId: line.id, amount: 300_000, paidAt: day, source: "external", payee: "Meta", idempotencyKey: "evfin-backdated-1" }, owner());
+    const after = await fin.getDayFigures(day, day, config, today);
+    const nonOp = (rows: any) => (Array.isArray(rows) ? rows[0] : rows.get?.(day) ?? rows[day])?.nonOperatingExpense ?? 0;
+    expect(nonOp(after) - nonOp(before)).toBe(300_000);
+  });
+
   it("pos diarsipkan tidak bisa dibayar lagi", async () => {
     await svc.updateBudgetLine(lineId, { status: "arsip" }, owner());
     await expect(

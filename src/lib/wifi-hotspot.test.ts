@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildRouterScript, dailyWifiPassword, safeHotspotLoginUrl, wifiDateKey } from "@/lib/wifi-hotspot";
+import { buildRouterScript, dailyWifiPassword, routerSyncState, safeHotspotLoginUrl, wifiDateKey, wifiJoinQrPayload } from "@/lib/wifi-hotspot";
 
 describe("wifi hotspot", () => {
   it("password harian deterministik per tanggal WIB & berbeda tiap hari", () => {
@@ -30,5 +30,24 @@ describe("wifi hotspot", () => {
     expect(safeHotspotLoginUrl("javascript:alert(1)")).toBeNull();
     expect(safeHotspotLoginUrl("http://wifi.garage/login", "wifi.garage")).toBe("http://wifi.garage/login");
     expect(safeHotspotLoginUrl(null)).toBeNull();
+  });
+});
+
+describe("QR sambung WiFi", () => {
+  it("format standar tanpa password; karakter khusus di-escape", () => {
+    expect(wifiJoinQrPayload("GARAGE Free WiFi")).toBe("WIFI:T:nopass;S:GARAGE Free WiFi;;");
+    expect(wifiJoinQrPayload(' Garage;Kopi:"VIP",\\ ')).toBe('WIFI:T:nopass;S:Garage\\;Kopi\\:\\"VIP\\"\\,\\\\;;');
+    expect(wifiJoinQrPayload("x")).not.toMatch(/P:/);
+  });
+});
+
+describe("status sinkron router", () => {
+  const now = new Date("2026-11-17T03:00:00Z"); // 10.00 WIB
+  it("sinkron hari ini (WIB) = aman; kemarin / belum pernah + lewat 00.30 = peringatan", () => {
+    expect(routerSyncState("2026-11-16T17:01:00Z", now)).toMatchObject({ syncedToday: true, late: false }); // 00.01 WIB 17 Nov
+    expect(routerSyncState("2026-11-16T16:59:00Z", now)).toMatchObject({ syncedToday: false, late: true }); // 23.59 WIB 16 Nov
+    expect(routerSyncState(null, now)).toMatchObject({ lastSync: null, syncedToday: false, late: true });
+    // 00.10 WIB: belum lewat batas 00.30 → belum peringatan.
+    expect(routerSyncState("2026-11-15T17:01:00Z", new Date("2026-11-16T17:10:00Z"))).toMatchObject({ syncedToday: false, late: false });
   });
 });

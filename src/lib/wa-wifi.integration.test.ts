@@ -95,6 +95,21 @@ describe("WiFi member", () => {
     const usage = await wifi.getWifiUsage(now);
     expect(usage.recent[0]?.name).toBe("Rina Member");
   });
+
+  it("router menarik skrip harian → sinkron terakhir tercatat (tanpa password/key); dicatat ulang tanpa dobel", async () => {
+    const wifi = await import("@/lib/wifi-hotspot");
+    const day1 = new Date("2026-11-16T17:01:00Z");
+    expect(await wifi.getRouterSync(day1)).toMatchObject({ lastSync: null, syncedToday: false });
+    await wifi.recordRouterSync(day1);
+    expect(await wifi.getRouterSync(new Date("2026-11-17T03:00:00Z"))).toMatchObject({ lastSync: day1.toISOString(), syncedToday: true });
+    const day2 = new Date("2026-11-17T17:01:00Z");
+    await wifi.recordRouterSync(day2);
+    const rows = (await t.getDb().select().from(t.schema.appSettings)).filter((r: any) => r.key === "wifi_router_last_sync");
+    expect(rows).toHaveLength(1);
+    expect(JSON.stringify(rows[0].valueJson)).not.toMatch(/password|key/i);
+    // Kunci asing tidak mengubah setelan aplikasi.
+    expect((await wifi.getWifiSettings()).enabled).toBe(true);
+  });
 });
 
 describe("CRM WA aktif", () => {

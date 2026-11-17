@@ -9,10 +9,10 @@
 
 import { createHmac } from "node:crypto";
 
-import { and, count, desc, eq, gte } from "drizzle-orm";
+import { and, count, desc, eq, gte, isNull } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { customers, outlets, wifiAccessLogs } from "@/db/schema";
+import { appSettings, customers, outlets, wifiAccessLogs } from "@/db/schema";
 import { getAppSettings } from "@/lib/garage-service";
 
 export const WIFI_HOTSPOT_USER = "garage-member";
@@ -35,6 +35,24 @@ export function dailyWifiPassword(secret: string, dateKey: string): string {
   let out = "";
   for (let i = 0; i < 10; i += 1) out += alphabet[digest[i] % alphabet.length];
   return out;
+}
+
+/**
+ * Isi QR "gabung WiFi" standar (dibaca kamera iPhone/Android): jaringan tamu terbuka, jadi tanpa password.
+ * Keamanan tetap di login hotspot (password harian per hari, tidak pernah ada di QR). Karakter khusus di-escape.
+ */
+export function wifiJoinQrPayload(ssid: string): string {
+  const escaped = ssid.trim().replace(/([\\;,:"])/g, "\\$1");
+  return `WIFI:T:nopass;S:${escaped};;`;
+}
+
+/** Status sinkron router: password harian dianggap sudah dipasang bila router menarik skrip hari ini (WIB). */
+export function routerSyncState(lastSyncIso: string | null, now = new Date()) {
+  if (!lastSyncIso || Number.isNaN(Date.parse(lastSyncIso))) return { lastSync: null, syncedToday: false, late: true };
+  const syncedToday = wifiDateKey(new Date(lastSyncIso)) === wifiDateKey(now);
+  // Scheduler router jalan 00:01 WIB; lewat 00:30 belum sinkron = peringatan.
+  const minutesIntoDay = (now.getTime() - Date.parse(`${wifiDateKey(now)}T00:00:00+07:00`)) / 60_000;
+  return { lastSync: lastSyncIso, syncedToday, late: !syncedToday && minutesIntoDay >= 30 };
 }
 
 /** Nilai RouterOS dalam tanda kutip — hanya karakter aman yang lolos. */
@@ -167,4 +185,30 @@ export async function getWifiUsage(now = new Date()) {
     todayLogins: Number(today?.total ?? 0),
     recent: recent.map((row) => ({ ...row, createdAt: row.createdAt.toISOString() })),
   };
+}
+
+// ---------- Sinkron router (tanpa migrasi: baris app_settings global) ----------
+
+const ROUTER_SYNC_KEY = "wifi_router_last_sync";
+
+/** Dicatat setiap router menarik skrip harian (waktu saja, tanpa password/key). */
+export async function recordRouterSync(now = new Date()) {
+  const db = getDb();
+  const value = { at: now.toISOString() };
+  const updated = await db
+    .update(appSettings)
+    .set({ valueJson: value, updatedAt: now, updatedBy: "router" })
+    .where(and(eq(appSettings.key, ROUTER_SYNC_KEY), isNull(appSettings.outletId)))
+    .returning({ id: appSettings.id });
+  if (!updated.length) await db.insert(appSettings).values({ key: ROUTER_SYNC_KEY, outletId: null, valueJson: value, updatedBy: "router" });
+}
+
+export async function getRouterSync(now = new Date()) {
+  const [row] = await getDb()
+    .select({ valueJson: appSettings.valueJson })
+    .from(appSettings)
+    .where(and(eq(appSettings.key, ROUTER_SYNC_KEY), isNull(appSettings.outletId)))
+    .limit(1);
+  const at = (row?.valueJson as { at?: unknown } | undefined)?.at;
+  return routerSyncState(typeof at === "string" ? at : null, now);
 }

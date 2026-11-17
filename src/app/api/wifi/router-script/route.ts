@@ -1,7 +1,7 @@
 import { fail } from "@/lib/api-response";
 import { rateLimit } from "@/lib/rate-limit";
 import { secretsMatch } from "@/lib/secret-compare";
-import { buildRouterScript, dailyWifiPassword, getWifiSettings, wifiDateKey, wifiSecret } from "@/lib/wifi-hotspot";
+import { buildRouterScript, dailyWifiPassword, getWifiSettings, recordRouterSync, wifiDateKey, wifiSecret } from "@/lib/wifi-hotspot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,6 +28,8 @@ export async function GET(request: Request) {
         dateKey,
       })
     : `# Garage OS - WiFi member nonaktif\n:if ([:len [/ip hotspot user find name="garage-member"]] > 0) do={ /ip hotspot user set [find name="garage-member"] disabled=yes }\n`;
+  // Owner bisa melihat "sinkron terakhir" di panel WiFi. Gagal mencatat tidak boleh menggagalkan skrip router.
+  await recordRouterSync().catch(() => undefined);
   return new Response(script, {
     headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" },
   });

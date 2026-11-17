@@ -33,6 +33,7 @@ type Draft = {
   sponsorName: string;
   ageGate: boolean;
   featuredOnHome: boolean;
+  platformSlug: string;
   defaultMaxPax: number;
 };
 
@@ -56,6 +57,7 @@ function toDraft(event: AdminEvent): Draft {
     sponsorName: event.sponsorName ?? "",
     ageGate: event.ageGate,
     featuredOnHome: event.featuredOnHome,
+    platformSlug: event.platformSlug ?? "",
     defaultMaxPax: event.defaultMaxPax,
   };
 }
@@ -127,6 +129,7 @@ export function EventSettingsPanel({
           sponsorName: draft.sponsorName.trim() || null,
           ageGate: draft.ageGate,
           featuredOnHome: draft.featuredOnHome,
+          platformSlug: draft.platformSlug.trim() || null,
           defaultMaxPax: draft.defaultMaxPax,
         }),
       });
@@ -365,6 +368,9 @@ export function EventSettingsPanel({
         </Field>
         <Field label="Sponsor (opsional)" hint="Tampil sebagai teks 'Supported by …' tanpa logo produk.">
           <Input className={inputClass} value={draft.sponsorName} onChange={(e) => patch("sponsorName", e.target.value)} />
+        </Field>
+        <Field label="Slug di platform GIGS (opsional)" hint="Mis. gigs-akhir-tahun (bagian URL /event/…). Menghubungkan lineup & sponsor event ini ke beranda GIGS.">
+          <Input className={inputClass} value={draft.platformSlug} onChange={(e) => patch("platformSlug", e.target.value.toLowerCase())} />
         </Field>
 
         <label className="flex items-center gap-3 md:col-span-2">

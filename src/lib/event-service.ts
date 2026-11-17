@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getDb } from "@/db";
 import { auditLogs, eventMenuEntries, events } from "@/db/schema";
 import { AGENDA_TIME, toZonedInputValue, type PublicEvent } from "@/lib/event-format";
+import { renameEventReferences } from "@/lib/event-master";
 import { normalizeWaNumber } from "@/lib/whatsapp-link";
 
 // =============================================================================
@@ -33,6 +34,7 @@ export type AdminEvent = PublicEvent & {
   bannerUrl: string | null;
   status: EventStatus;
   featuredOnHome: boolean;
+  platformSlug: string | null;
   defaultMaxPax: number;
   contentVersion: number;
   updatedAt: string;
@@ -113,6 +115,7 @@ function toAdminEvent(row: EventRow): AdminEvent {
     bannerUrl: row.bannerUrl,
     status: (EVENT_STATUSES as readonly string[]).includes(row.status) ? (row.status as EventStatus) : "draft",
     featuredOnHome: row.featuredOnHome,
+    platformSlug: row.platformSlug,
     defaultMaxPax: row.defaultMaxPax,
     contentVersion: row.contentVersion,
     updatedAt: row.updatedAt.toISOString(),
@@ -211,6 +214,14 @@ export const eventUpdateSchema = z
     sponsorName: z.string().trim().max(60).nullable().optional(),
     ageGate: z.boolean().optional(),
     featuredOnHome: z.boolean(),
+    // Slug event yang sama di platform GIGS (mis. "gigs-akhir-tahun"): menghubungkan beranda & lineup.
+    platformSlug: z
+      .string()
+      .trim()
+      .max(80)
+      .refine((value) => !value || /^[a-z0-9]+(-[a-z0-9]+)*$/.test(value), "Slug platform: huruf kecil, angka, tanda hubung.")
+      .nullable()
+      .optional(),
     rsvpDeadline: isoDate.nullable().optional(),
     defaultMaxPax: z.number().int().min(1).max(10),
   })
@@ -271,6 +282,7 @@ export async function updateEvent(id: string, input: EventUpdateInput, userId: s
     sponsorName: input.sponsorName === undefined ? current.sponsorName : input.sponsorName || null,
     ageGate: input.ageGate ?? current.ageGate,
     featuredOnHome: input.featuredOnHome,
+    platformSlug: input.platformSlug === undefined ? current.platformSlug : input.platformSlug || null,
     rsvpDeadline: input.rsvpDeadline ? new Date(input.rsvpDeadline) : null,
     defaultMaxPax: input.defaultMaxPax,
   };
@@ -283,6 +295,10 @@ export async function updateEvent(id: string, input: EventUpdateInput, userId: s
       : before !== after;
   });
 
+  if (next.platformSlug && next.platformSlug !== current.platformSlug) {
+    const [taken] = await db.select({ id: events.id }).from(events).where(and(eq(events.platformSlug, next.platformSlug), ne(events.id, id))).limit(1);
+    if (taken) throw new EventError(409, "PLATFORM_SLUG_TAKEN", "Slug platform GIGS sudah dipakai event lain.");
+  }
   const [row] = await db
     .update(events)
     .set({
@@ -301,6 +317,8 @@ export async function updateEvent(id: string, input: EventUpdateInput, userId: s
       .set({ endsAt: next.endsAt, updatedAt: new Date() })
       .where(and(eq(eventMenuEntries.eventId, id), eq(eventMenuEntries.endsAt, current.endsAt), ne(eventMenuEntries.status, "archived")));
   }
+  // Master event: judul baru ikut dipakai sponsor, lineup, panitia, dan tugas yang tertaut.
+  if (row.title !== current.title) await renameEventReferences(db, id, row.title);
   await db.insert(auditLogs).values({ time: new Date().toISOString(), actor: userId, action: "Update event configuration", object: row.title, device: "Event Manager", status: "recorded", metadata: { eventId: id, before: current, after: row } });
   return { event: toAdminEvent(row), changedFacts: [...changedFacts] };
   });

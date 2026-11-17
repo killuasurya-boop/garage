@@ -1,63 +1,45 @@
+import { and, asc, eq, gte } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
-// ── Default seeded events (fallback saat belum ada di DB) ──
-const DEFAULT_EVENTS = [
-  {
-    id: "evt-001",
-    day: "JUM",
-    date: "13 JUN",
-    time: "19:00",
-    title: "Creative Supper Club",
-    tag: "Komunitas",
-    desc: "Desainer, builder, dan satu meja panjang. Kopi, makanan, dan kerja bareng.",
-    capacity: "30 KURSI",
-    rsvpCount: 0,
-  },
-  {
-    id: "evt-002",
-    day: "SAB",
-    date: "20 JUN",
-    time: "20:00",
-    title: "Slow Bar — Live Set",
-    tag: "Live Musik",
-    desc: "Trio akustik. Dua kopi. Satu malam panjang. Hanya untuk yang reservasi.",
-    capacity: "40 KURSI",
-    rsvpCount: 0,
-  },
-  {
-    id: "evt-003",
-    day: "RAB",
-    date: "25 JUN",
-    time: "18:30",
-    title: "Workshop Manual Brew",
-    tag: "Workshop",
-    desc: "V60, Aeropress, dan sains di balik ekstraksi. Dipandu Head Barista Ardi.",
-    capacity: "12 KURSI",
-    rsvpCount: 0,
-  },
-];
+import { getDb } from "@/db";
+import { events } from "@/db/schema";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+// Daftar event publik untuk website: HANYA event terbit dari master event (tabel `events`).
+// Tidak ada data contoh/palsu (GIGS EO Fase 1, item 4): tanpa event terbit → daftar kosong.
 export async function GET() {
   try {
-    // Coba ambil dari DB (jika seeded)
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3001"}/api/admin/events`,
-      { cache: "no-store" }
-    ).catch(() => null);
-
-    if (res?.ok) {
-      const data = await res.json();
-      return NextResponse.json({
-        events: data.events ?? data,
+    const rows = await getDb()
+      .select({
+        slug: events.slug,
+        title: events.title,
+        tagline: events.tagline,
+        startsAt: events.startsAt,
+        endsAt: events.endsAt,
+        venueName: events.venueName,
+      })
+      .from(events)
+      .where(and(eq(events.status, "published"), gte(events.endsAt, new Date())))
+      .orderBy(asc(events.startsAt))
+      .limit(12);
+    return NextResponse.json(
+      {
+        events: rows.map((r) => ({
+          slug: r.slug,
+          title: r.title,
+          tagline: r.tagline,
+          startsAt: r.startsAt.toISOString(),
+          endsAt: r.endsAt.toISOString(),
+          venueName: r.venueName,
+        })),
         source: "db",
-      });
-    }
+      },
+      { headers: { "Cache-Control": "public, max-age=60" } },
+    );
   } catch {
-    // Fallback ke default
+    // Database tidak terjangkau: daftar kosong (bukan contoh palsu).
+    return NextResponse.json({ events: [], source: "unavailable" }, { status: 503 });
   }
-
-  return NextResponse.json({
-    events: DEFAULT_EVENTS,
-    source: "default",
-  });
 }

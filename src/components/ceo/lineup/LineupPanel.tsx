@@ -46,9 +46,13 @@ import type { CrewView, PerformerView, TaskView } from "@/lib/event-lineup-servi
 // Lineup & Panitia Event (owner 16 Nov 2026): Owner saja. Semua data & aturan (rundown, kesiapan, tugas terlambat)
 // dihitung di server; layar ini hanya menampilkan dan mengirim perubahan.
 
+type MasterEvent = { id: string; title: string; date: string; status: string; platformSlug: string | null };
 type Board = {
   today: string;
   events: string[];
+  masterEvents: MasterEvent[];
+  legacyEvents: string[];
+  eventId: string | null;
   eventName: string | null;
   performers: PerformerView[];
   rundown: RundownRow[];
@@ -105,13 +109,20 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
   );
 }
 
-export function LineupPanel({ initialEvent = null, initialTab = "lineup" }: { initialEvent?: string | null; initialTab?: LineupTab }) {
+/** Kunci pilihan event: `id:<uuid>` (master) atau `name:<nama lama>`. Judul master boleh dobel, jadi ID yang dipakai. */
+const boardKey = (data: Pick<Board, "eventId" | "eventName">) => (data.eventId ? `id:${data.eventId}` : data.eventName ? `name:${data.eventName}` : null);
+const boardUrl = (key: string | null) => {
+  if (!key) return "/api/event-lineup";
+  return key.startsWith("id:") ? `/api/event-lineup?eventId=${encodeURIComponent(key.slice(3))}` : `/api/event-lineup?event=${encodeURIComponent(key.slice(5))}`;
+};
+
+export function LineupPanel({ initialEvent = null, initialEventId = null, initialTab = "lineup" }: { initialEvent?: string | null; initialEventId?: string | null; initialTab?: LineupTab }) {
   const [board, setBoard] = useState<Board | null>(null);
-  const [event, setEvent] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
+  const event = board?.eventName ?? null;
   const [tab, setTab] = useState<LineupTab>(initialTab);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [newEvent, setNewEvent] = useState("");
   const [dialog, setDialog] = useState<
     | { kind: "performer"; row: PerformerView | null }
     | { kind: "cancel"; row: PerformerView }
@@ -120,13 +131,13 @@ export function LineupPanel({ initialEvent = null, initialTab = "lineup" }: { in
     | null
   >(null);
 
-  const load = useCallback(async (name: string | null) => {
+  const load = useCallback(async (key: string | null) => {
     setLoading(true);
     setError(null);
     try {
-      const data = await garageApi.get<Board>(`/api/event-lineup${name ? `?event=${encodeURIComponent(name)}` : ""}`, { cache: "no-store" });
+      const data = await garageApi.get<Board>(boardUrl(key), { cache: "no-store" });
       setBoard(data);
-      setEvent(data.eventName);
+      setSelected(boardKey(data));
     } catch (e) {
       setError(errText(e));
     } finally {
@@ -138,24 +149,24 @@ export function LineupPanel({ initialEvent = null, initialTab = "lineup" }: { in
   useEffect(() => {
     let alive = true;
     garageApi
-      .get<Board>(`/api/event-lineup${initialEvent ? `?event=${encodeURIComponent(initialEvent)}` : ""}`, { cache: "no-store" })
+      .get<Board>(boardUrl(initialEventId ? `id:${initialEventId}` : initialEvent ? `name:${initialEvent}` : null), { cache: "no-store" })
       .then((data) => {
         if (!alive) return;
         setBoard(data);
-        setEvent(data.eventName);
+        setSelected(boardKey(data));
       })
       .catch((e) => alive && setError(errText(e)))
       .finally(() => alive && setLoading(false));
     return () => {
       alive = false;
     };
-  }, [initialEvent]);
+  }, [initialEvent, initialEventId]);
 
   const run = async (action: () => Promise<unknown>) => {
     setError(null);
     try {
       await action();
-      await load(event);
+      await load(selected);
       return true;
     } catch (e) {
       setError(errText(e));
@@ -174,7 +185,7 @@ export function LineupPanel({ initialEvent = null, initialTab = "lineup" }: { in
         title="Lineup & Panitia"
         subtitle="Band, stand-up, rundown tampil, panitia, dan tugas per event. Penampil terkonfirmasi tampil di website GIGS."
         actions={
-          <button type="button" className={ghostBtn} onClick={() => void load(event)} disabled={loading}>
+          <button type="button" className={ghostBtn} onClick={() => void load(selected)} disabled={loading}>
             <RefreshCw size={16} className={loading ? "animate-spin motion-reduce:animate-none" : ""} /> Muat ulang
           </button>
         }
@@ -183,33 +194,44 @@ export function LineupPanel({ initialEvent = null, initialTab = "lineup" }: { in
       {/* Pilih / buat event */}
       <div className={`${cardClass} grid gap-3 lg:grid-cols-[18rem_minmax(0,1fr)] lg:items-start`}>
         <Field label="Event">
-          <select className={inputClass} value={event ?? ""} onChange={(e) => void load(e.target.value || null)}>
+          <select className={inputClass} value={selected ?? ""} onChange={(e) => void load(e.target.value || null)}>
             {!board?.events.length ? <option value="">Belum ada event</option> : null}
-            {board?.events.map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
+            {board?.eventId && !board.masterEvents.some((m) => m.id === board.eventId) ? (
+              <option value={`id:${board.eventId}`}>{board.eventName} (arsip)</option>
+            ) : null}
+            {board?.masterEvents.length ? (
+              <optgroup label="Event (master)">
+                {board.masterEvents.map((m) => (
+                  <option key={m.id} value={`id:${m.id}`}>
+                    {m.title} · {m.date}
+                  </option>
+                ))}
+              </optgroup>
+            ) : null}
+            {board?.legacyEvents.length ? (
+              <optgroup label="Nama lama — belum tertaut">
+                {board.legacyEvents.map((name) => (
+                  <option key={name} value={`name:${name}`}>
+                    {name}
+                  </option>
+                ))}
+              </optgroup>
+            ) : null}
           </select>
         </Field>
-        <form
-          className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const name = newEvent.trim();
-            if (name.length < 2) return;
-            setNewEvent("");
-            // Selalu muat dari server: nama yang sudah ada menampilkan datanya, nama baru mendapat papan & kesiapan kosong.
-            void load(name);
-          }}
-        >
-          <Field label="Event baru" hint="Pakai nama persis seperti di platform event (mis. GIGS AKHIR TAHUN 2026) agar lineup tampil di website.">
-            <input className={inputClass} value={newEvent} onChange={(e) => setNewEvent(e.target.value)} placeholder="Nama event" maxLength={120} />
-          </Field>
-          <button type="submit" className={`${ghostBtn} sm:mt-[1.375rem]`}>
-            <Plus size={16} /> Pakai
-          </button>
-        </form>
+        <div className="grid min-w-0 gap-1 text-sm text-zinc-300">
+          {board?.eventName && !board.eventId ? (
+            <p className="flex items-start gap-2 text-amber-200">
+              <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+              “{board.eventName}” belum tertaut ke master event. Buat event dengan judul yang sama di menu Event (Undangan
+              Digital) agar sponsor, lineup, dan beranda GIGS memakai satu identitas.
+            </p>
+          ) : null}
+          <p>
+            Event baru dibuat di menu <strong className="text-zinc-100">Event</strong> (Garage OS) lalu otomatis muncul di sini.
+            Isi “Slug di platform GIGS” di pengaturan event agar lineup tampil di beranda.
+          </p>
+        </div>
       </div>
 
       {error ? (
@@ -271,7 +293,7 @@ export function LineupPanel({ initialEvent = null, initialTab = "lineup" }: { in
               onEdit={(row) => setDialog({ kind: "performer", row })}
               onCancel={(row) => setDialog({ kind: "cancel", row })}
               onStatus={(row, status) => void run(() => garageApi.patch(`/api/event-lineup/performers/${row.id}`, { status }))}
-              onMove={(ids) => void run(() => garageApi.post("/api/event-lineup/reorder", { eventName: event, ids }))}
+              onMove={(ids) => void run(() => garageApi.post("/api/event-lineup/reorder", { eventId: board?.eventId ?? null, eventName: event, ids }))}
             />
           ) : null}
           {tab === "rundown" ? <RundownTab board={board} /> : null}
@@ -293,20 +315,20 @@ export function LineupPanel({ initialEvent = null, initialTab = "lineup" }: { in
           ) : null}
         </>
       ) : !loading ? (
-        <div className={`${cardClass} text-sm text-zinc-300`}>Belum ada event. Isi “Event baru” di atas untuk mulai menyusun lineup dan panitia.</div>
+        <div className={`${cardClass} text-sm text-zinc-300`}>Belum ada event. Buat event di menu Event (Garage OS) untuk mulai menyusun lineup dan panitia.</div>
       ) : null}
 
       {dialog?.kind === "performer" && event ? (
-        <PerformerForm event={event} row={dialog.row} onClose={() => setDialog(null)} onSave={(body) => run(() => (dialog.row ? garageApi.patch(`/api/event-lineup/performers/${dialog.row.id}`, body) : garageApi.post("/api/event-lineup", { ...body, eventName: event })))} />
+        <PerformerForm event={event} row={dialog.row} onClose={() => setDialog(null)} onSave={(body) => run(() => (dialog.row ? garageApi.patch(`/api/event-lineup/performers/${dialog.row.id}`, body) : garageApi.post("/api/event-lineup", { ...body, eventId: board?.eventId ?? null, eventName: event })))} />
       ) : null}
       {dialog?.kind === "cancel" ? (
         <CancelForm row={dialog.row} onClose={() => setDialog(null)} onSave={(reason) => run(() => garageApi.patch(`/api/event-lineup/performers/${dialog.row.id}`, { status: "batal", cancelReason: reason }))} />
       ) : null}
       {dialog?.kind === "crew" && event ? (
-        <CrewForm row={dialog.row} onClose={() => setDialog(null)} onSave={(body) => run(() => (dialog.row ? garageApi.patch(`/api/event-lineup/crew/${dialog.row.id}`, body) : garageApi.post("/api/event-lineup/crew", { ...body, eventName: event })))} />
+        <CrewForm row={dialog.row} onClose={() => setDialog(null)} onSave={(body) => run(() => (dialog.row ? garageApi.patch(`/api/event-lineup/crew/${dialog.row.id}`, body) : garageApi.post("/api/event-lineup/crew", { ...body, eventId: board?.eventId ?? null, eventName: event })))} />
       ) : null}
       {dialog?.kind === "task" && event && board ? (
-        <TaskForm row={dialog.row} crew={board.crew.filter((c) => c.status === "aktif" || c.id === dialog.row?.crewId)} onClose={() => setDialog(null)} onSave={(body) => run(() => (dialog.row ? garageApi.patch(`/api/event-lineup/tasks/${dialog.row.id}`, body) : garageApi.post("/api/event-lineup/tasks", { ...body, eventName: event })))} />
+        <TaskForm row={dialog.row} crew={board.crew.filter((c) => c.status === "aktif" || c.id === dialog.row?.crewId)} onClose={() => setDialog(null)} onSave={(body) => run(() => (dialog.row ? garageApi.patch(`/api/event-lineup/tasks/${dialog.row.id}`, body) : garageApi.post("/api/event-lineup/tasks", { ...body, eventId: board?.eventId ?? null, eventName: event })))} />
       ) : null}
     </div>
   );

@@ -28,10 +28,12 @@ import type { SponsorView } from "@/lib/event-sponsor-service";
 // Sponsor Event (owner 16 Nov 2026): Owner saja. Uang sponsor selalu masuk Rekening Jago dan tercatat di buku kas;
 // sponsor barang hanya catatan. Semua angka dari server — layar ini tidak menghitung uang sendiri.
 
+type MasterEvent = { id: string; title: string; date: string };
 type ListData = {
   today: string;
   sponsors: SponsorView[];
   events: string[];
+  masterEvents: MasterEvent[];
   totals: { sponsors: number; agreed: number; paid: number; remaining: number; overdue: number; inkind: number; obligationsLate: number };
 };
 
@@ -275,6 +277,7 @@ export function SponsorsPanel() {
           <SponsorForm
             initial={form.mode === "edit" ? form.sponsor : null}
             eventNames={data?.events ?? []}
+            masterEvents={data?.masterEvents ?? []}
             onSaved={(view) => {
               setForm(null);
               replaceSponsor(view);
@@ -335,8 +338,39 @@ function Drawer({ title, subtitle, onClose, children, narrow = false }: { title:
 
 // ─── Form kesepakatan ──────────────────────────────────────────────────────
 
-function SponsorForm({ initial, eventNames, onSaved }: { initial: SponsorView | null; eventNames: string[]; onSaved: (view: SponsorView) => void }) {
-  const [eventName, setEventName] = useState(initial?.eventName ?? eventNames[0] ?? "");
+function SponsorForm({
+  initial,
+  eventNames,
+  masterEvents,
+  onSaved,
+}: {
+  initial: SponsorView | null;
+  eventNames: string[];
+  masterEvents: MasterEvent[];
+  onSaved: (view: SponsorView) => void;
+}) {
+  // Pilihan event: master (id:<uuid>) atau nama lama yang belum tertaut (name:<teks>).
+  const masterTitles = new Set(masterEvents.map((m) => m.title.toLowerCase()));
+  const legacyNames = eventNames.filter((n) => !masterTitles.has(n.toLowerCase()));
+  const initialChoice = initial?.eventId
+    ? `id:${initial.eventId}`
+    : initial?.eventName
+      ? masterEvents.find((m) => m.title.toLowerCase() === initial.eventName.toLowerCase())
+        ? `id:${masterEvents.find((m) => m.title.toLowerCase() === initial.eventName.toLowerCase())!.id}`
+        : `name:${initial.eventName}`
+      : masterEvents[0]
+        ? `id:${masterEvents[0].id}`
+        : "";
+  // Sponsor lama yang tertaut ke event arsip / di luar daftar teratas tetap memegang event-nya (tidak berpindah diam-diam).
+  const options: Array<Pick<MasterEvent, "id" | "title"> & { date: string; current?: boolean }> =
+    initial?.eventId && !masterEvents.some((m) => m.id === initial.eventId)
+      ? [{ id: initial.eventId, title: initial.eventName, date: initial.eventDate ?? "", current: true }, ...masterEvents]
+      : masterEvents;
+  const [pickedChoice, setEventChoice] = useState("");
+  // Daftar event bisa datang setelah form terbuka: pilihan default dihitung ulang sampai Owner memilih sendiri.
+  const eventChoice = pickedChoice || initialChoice;
+  const chosenMaster = eventChoice.startsWith("id:") ? options.find((m) => m.id === eventChoice.slice(3)) ?? null : null;
+  const eventName = chosenMaster ? chosenMaster.title : eventChoice.startsWith("name:") ? eventChoice.slice(5) : "";
   const [eventDate, setEventDate] = useState(initial?.eventDate ?? "");
   const [name, setName] = useState(initial?.name ?? "");
   const [packageName, setPackageName] = useState(initial?.packageName ?? "");
@@ -351,6 +385,7 @@ function SponsorForm({ initial, eventNames, onSaved }: { initial: SponsorView | 
     setBusy(true);
     setError(null);
     const body = {
+      eventId: chosenMaster?.id ?? null,
       eventName: eventName.trim(),
       eventDate: eventDate || null,
       name: name.trim(),
@@ -378,13 +413,29 @@ function SponsorForm({ initial, eventNames, onSaved }: { initial: SponsorView | 
         void submit();
       }}
     >
-      <Field label="Nama event" hint="Contoh: GIGS AKHIR TAHUN 2026. Pilih dari daftar atau ketik baru.">
-        <input list="sponsor-event-names" value={eventName} onChange={(e) => setEventName(e.target.value)} required minLength={2} maxLength={120} className={inputClass} />
-        <datalist id="sponsor-event-names">
-          {eventNames.map((n) => (
-            <option key={n} value={n} />
-          ))}
-        </datalist>
+      <Field label="Event" hint="Event dibuat di menu Event (Garage OS). Nama lama yang belum tertaut tetap bisa dipilih.">
+        <select value={eventChoice} onChange={(e) => setEventChoice(e.target.value)} required className={inputClass}>
+          {!options.length && !legacyNames.length ? <option value="">Belum ada event — buat di menu Event</option> : null}
+          {options.length ? (
+            <optgroup label="Event (master)">
+              {options.map((m) => (
+                <option key={m.id} value={`id:${m.id}`}>
+                  {m.title}
+                  {m.current ? " (event saat ini)" : m.date ? ` · ${m.date}` : ""}
+                </option>
+              ))}
+            </optgroup>
+          ) : null}
+          {legacyNames.length ? (
+            <optgroup label="Nama lama — belum tertaut">
+              {legacyNames.map((n) => (
+                <option key={n} value={`name:${n}`}>
+                  {n}
+                </option>
+              ))}
+            </optgroup>
+          ) : null}
+        </select>
       </Field>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Tanggal event">

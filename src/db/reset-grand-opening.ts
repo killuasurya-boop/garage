@@ -86,6 +86,8 @@ export const KEEP_TABLES = [
   "events", "event_guests", "event_invitations", "event_rsvps", "event_activity_logs",
   // Sponsor Event: kesepakatan, jadwal, kewajiban & sponsor barang = master (pembayaran ikut buku kas → CLEAR)
   "event_sponsors", "event_sponsor_installments", "event_sponsor_obligations", "event_sponsor_inkind",
+  // Lineup & Panitia Event: penampil, panitia & tugas = data persiapan acara (bukan transaksi), tidak dihapus saat reset H-1
+  "event_performers", "event_crew", "event_crew_tasks",
   // Smart Partner Hub — master mitra resmi, akun, rekening, produk & histori harga
   "partners", "partner_bank_accounts", "partner_accounts", "partner_push_subscriptions", "partner_applications", "partner_product_links", "partner_price_history",
   "partner_price_proposals",

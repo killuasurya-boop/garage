@@ -8,6 +8,7 @@ import {
   Ban,
   CheckCircle2,
   ClipboardList,
+  Download,
   Clock3,
   ListOrdered,
   MessageCircle,
@@ -125,6 +126,8 @@ export function LineupPanel({ initialEvent = null, initialEventId = null, initia
   const event = board?.eventName ?? null;
   const [tab, setTab] = useState<LineupTab>(initialTab);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [dialog, setDialog] = useState<
     | { kind: "performer"; row: PerformerView | null }
@@ -242,6 +245,15 @@ export function LineupPanel({ initialEvent = null, initialEventId = null, initia
         </div>
       </div>
 
+      {notice ? (
+        <p role="status" className="flex items-start gap-2 rounded-md border border-amber-300/40 bg-amber-300/10 px-3 py-2 text-sm text-amber-100">
+          <CheckCircle2 size={16} className="mt-0.5 shrink-0" /> <span className="min-w-0">{notice}</span>
+          <button type="button" className="ml-auto shrink-0 text-amber-200 hover:text-white" aria-label="Tutup pesan" onClick={() => setNotice(null)}>
+            <X size={15} />
+          </button>
+        </p>
+      ) : null}
+
       {error ? (
         <p role="alert" className="flex items-start gap-2 rounded-md border border-[color-mix(in_srgb,var(--garage-red)_50%,transparent)] bg-[color-mix(in_srgb,var(--garage-red)_14%,transparent)] px-3 py-2 text-sm text-[#ffc4c4]">
           <AlertTriangle size={16} className="mt-0.5 shrink-0" /> {error}
@@ -298,6 +310,23 @@ export function LineupPanel({ initialEvent = null, initialEventId = null, initia
             <LineupTab
               board={board}
               onAdd={() => setDialog({ kind: "performer", row: null })}
+              importing={importing}
+              onImport={() => {
+                setImporting(true);
+                setNotice(null);
+                void run(async () => {
+                  const res = await garageApi.post<{ platformName: string; created: string[]; logoFilled: string[]; skipped: string[] }>(
+                    "/api/event-lineup/import-platform",
+                    { eventId: board?.eventId ?? null, eventName: event },
+                  );
+                  const parts = [
+                    res.created.length ? `${res.created.length} penampil baru (${res.created.join(", ")})` : null,
+                    res.logoFilled.length ? `logo diisi untuk ${res.logoFilled.join(", ")}` : null,
+                    res.skipped.length ? `${res.skipped.length} sudah ada, tidak diubah` : null,
+                  ].filter(Boolean);
+                  setNotice(parts.length ? `Impor dari “${res.platformName}”: ${parts.join(" · ")}. Semua tetap bisa diubah lewat tombol Ubah.` : `Platform “${res.platformName}” belum punya lineup.`);
+                }).finally(() => setImporting(false));
+              }}
               onEdit={(row) => setDialog({ kind: "performer", row })}
               onCancel={(row) => setDialog({ kind: "cancel", row })}
               onStatus={(row, status) => void run(() => garageApi.patch(`/api/event-lineup/performers/${row.id}`, { status }))}
@@ -362,6 +391,8 @@ function Stat({ label, value, sub, tone }: { label: string; value: string; sub: 
 function LineupTab({
   board,
   onAdd,
+  onImport,
+  importing,
   onEdit,
   onCancel,
   onStatus,
@@ -369,6 +400,8 @@ function LineupTab({
 }: {
   board: Board;
   onAdd: () => void;
+  onImport: () => void;
+  importing: boolean;
   onEdit: (row: PerformerView) => void;
   onCancel: (row: PerformerView) => void;
   onStatus: (row: PerformerView, status: PerformerStatus) => void;
@@ -390,9 +423,14 @@ function LineupTab({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-zinc-400">Urutan slot mengikuti rundown. Naik/turun mengubah urutan tampil.</p>
-        <button type="button" className={primaryBtn} onClick={onAdd}>
-          <Plus size={16} /> Tambah penampil
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className={ghostBtn} onClick={onImport} disabled={importing} title="Ambil band/talent yang sudah tayang di platform GIGS (nama, jenis, logo)">
+            <Download size={16} /> {importing ? "Mengimpor…" : "Impor dari platform GIGS"}
+          </button>
+          <button type="button" className={primaryBtn} onClick={onAdd}>
+            <Plus size={16} /> Tambah penampil
+          </button>
+        </div>
       </div>
       {!groups.length ? <div className={`${cardClass} text-sm text-zinc-300`}>Belum ada penampil di event ini.</div> : null}
       {groups.map(({ kind, items }) => {

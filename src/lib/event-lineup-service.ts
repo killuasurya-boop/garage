@@ -26,6 +26,7 @@ import {
 import { OPS_CHECK_TEMPLATE } from "@/lib/event-day-rules";
 import { wibDate } from "@/lib/event-sponsor-rules";
 import { parseInstagramHandle } from "@/lib/gigs-lineup";
+import { fetchPlatformLineup } from "@/lib/gigs-promo";
 import { EventRefError, findEventForPlatform, listMasterEvents, resolveEventRef } from "@/lib/event-master";
 import { createAuditLog } from "@/lib/garage-service";
 import type { GarageSession } from "@/lib/server-auth";
@@ -120,6 +121,8 @@ export const performerPatchSchema = performerInputSchema
     // GIGS EO #14: tombol "Kirim jadwal" menandai jadwal sudah dikirim (false = belum).
     scheduleSent: z.boolean().optional(),
   });
+
+export const importPlatformSchema = z.object({ ...eventRef });
 
 export const reorderSchema = z.object({ eventId: z.string().uuid().nullable().optional(), eventName, ids: z.array(z.string().uuid()).min(1).max(200) });
 
@@ -480,6 +483,78 @@ export async function reorderPerformers(input: z.infer<typeof reorderSchema>, ga
   // Audit setelah transaksi selesai (koneksi terpisah; jangan di dalam tx).
   await audit(garage, "Atur urutan lineup", input.eventName, { eventName: input.eventName, order: input.ids });
   return result;
+}
+
+/**
+ * Impor lineup yang sudah tayang di platform GIGS ke Garage OS (sekali klik, agar tidak input 2x).
+ * - Nama yang belum ada → penampil baru: terkonfirmasi, tampil di website, logo platform, urutan di belakang.
+ * - Nama yang sudah ada (tanpa peduli huruf, status apa pun) → TIDAK diubah, kecuali logo masih kosong → diisi logo platform.
+ * Setelah impor, semua data adalah data Garage OS biasa: nama, jenis, logo, tagline, IG, jadwal bebas diubah.
+ */
+export async function importPlatformLineup(input: z.infer<typeof importPlatformSchema>, garage: GarageSession) {
+  assertOwnerHuman(garage);
+  const ref = await eventFor(input);
+  const db = getDb();
+  const [master] = ref.eventId ? await db.select({ platformSlug: events.platformSlug }).from(events).where(eq(events.id, ref.eventId)).limit(1) : [];
+  let platform: Awaited<ReturnType<typeof fetchPlatformLineup>>;
+  try {
+    platform = await fetchPlatformLineup({ slug: master?.platformSlug ?? null, name: ref.eventName });
+  } catch {
+    throw new LineupError("PLATFORM_UNREACHABLE", "Platform GIGS tidak bisa dihubungi. Coba lagi beberapa saat.", 502);
+  }
+  if (!platform) {
+    throw new LineupError(
+      "PLATFORM_EVENT_NOT_FOUND",
+      "Event ini tidak ditemukan di platform GIGS. Isi slug platform di menu Event, atau samakan judul event.",
+      404,
+    );
+  }
+  if (!platform.lineup.length) return { platformName: platform.name, created: [] as string[], logoFilled: [] as string[], skipped: [] as string[] };
+
+  const result = await db.transaction(async (tx) => {
+    const existing = await tx
+      .select({ id: eventPerformers.id, name: eventPerformers.name, logoUrl: eventPerformers.logoUrl, slotOrder: eventPerformers.slotOrder })
+      .from(eventPerformers)
+      .where(ref.eventId ? eq(eventPerformers.eventId, ref.eventId) : and(isNull(eventPerformers.eventId), eq(eventPerformers.eventName, ref.eventName)))
+      .for("update");
+    const byName = new Map(existing.map((r) => [r.name.trim().toLowerCase(), r]));
+    let slot = existing.reduce((max, r) => Math.max(max, r.slotOrder ?? 0), 0);
+    const created: string[] = [];
+    const logoFilled: string[] = [];
+    const skipped: string[] = [];
+    for (const item of platform.lineup) {
+      const key = item.name.trim().toLowerCase();
+      const found = byName.get(key);
+      if (found) {
+        if (!found.logoUrl && item.logo) {
+          await tx.update(eventPerformers).set({ logoUrl: item.logo, updatedAt: new Date() }).where(eq(eventPerformers.id, found.id));
+          logoFilled.push(found.name);
+        } else {
+          skipped.push(found.name);
+        }
+        continue;
+      }
+      slot += 1;
+      await tx.insert(eventPerformers).values({
+        eventId: ref.eventId,
+        eventName: ref.eventName,
+        name: item.name,
+        kind: item.kind ?? "band",
+        logoUrl: item.logo,
+        status: "konfirmasi",
+        slotOrder: slot,
+        showOnWebsite: true,
+        notes: "Diimpor dari platform GIGS.",
+        createdBy: garage.user.id,
+      });
+      byName.set(key, { id: "", name: item.name, logoUrl: item.logo, slotOrder: slot });
+      created.push(item.name);
+    }
+    return { created, logoFilled, skipped };
+  });
+  // Audit setelah transaksi (PGlite satu koneksi).
+  await audit(garage, "Impor lineup dari platform GIGS", ref.eventName, { eventName: ref.eventName, platform: platform.slug, ...result });
+  return { platformName: platform.name, ...result };
 }
 
 // ─── Panitia ────────────────────────────────────────────────────────────────

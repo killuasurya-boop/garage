@@ -198,6 +198,7 @@ export const API_ROUTE_CATALOG: ApiRouteEntry[] = [
   {"path":"/api/event-finance","methods":["GET","POST"],"note":""},
   {"path":"/api/event-lineup/crew/{id}","methods":["PATCH"],"note":""},
   {"path":"/api/event-lineup/crew","methods":["POST"],"note":""},
+  {"path":"/api/event-lineup/import-platform","methods":["POST"],"note":""},
   {"path":"/api/event-lineup/performers/{id}/logo","methods":["POST","DELETE"],"note":""},
   {"path":"/api/event-lineup/performers/{id}","methods":["PATCH"],"note":""},
   {"path":"/api/event-lineup/reorder","methods":["POST"],"note":""},

@@ -111,6 +111,53 @@ describe("Lineup & Panitia — alur", () => {
     expect(board.events).toEqual(expect.arrayContaining([EVENT, "Event Lain"]));
   });
 
+  it("impor lineup platform GIGS: penampil baru dibuat, yang sudah ada tidak ditimpa (hanya logo kosong diisi)", async () => {
+    const platformEvents = {
+      events: [
+        { slug: "lain", name: "Event Lain", promo: { lineup: [{ name: "Jangan Masuk", type: "band" }] } },
+        {
+          slug: "gigs-akhir-tahun-2026",
+          name: "Gigs Akhir Tahun 2026",
+          promo: {
+            lineup: [
+              { name: "SURAI", logo: "/event/uploads/surai.png", type: "band" },
+              { name: "Lost Side", logo: "/event/uploads/lost-side.png", type: "band" },
+              { name: "Komika Baru", type: "komika" },
+              { name: "Logo Jahat", logo: "https://evil.test/x.png", type: "band" },
+            ],
+          },
+        },
+      ],
+    };
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(platformEvents), { status: 200 })));
+    try {
+      const res = await svc.importPlatformLineup({ eventName: EVENT }, owner());
+      expect(res.created).toEqual(["Lost Side", "Komika Baru", "Logo Jahat"]);
+      expect(res.logoFilled).toEqual(["Surai"]);
+      const board = await svc.getLineupBoard(owner(), EVENT);
+      const lost = board.performers.find((p: any) => p.name === "Lost Side");
+      expect(lost).toMatchObject({ status: "konfirmasi", kind: "band", logoUrl: "/event/uploads/lost-side.png", showOnWebsite: true });
+      expect(board.performers.find((p: any) => p.name === "Komika Baru")).toMatchObject({ kind: "standup", logoUrl: null });
+      // Logo dari luar /event/ tidak pernah dipakai.
+      expect(board.performers.find((p: any) => p.name === "Logo Jahat").logoUrl).toBeNull();
+      // Bebas diubah setelah impor; impor ulang tidak menimpa perubahan Owner.
+      await svc.updatePerformer(lost.id, { name: "LOST SIDE", tagline: "Heavy / Metallic Roster" }, owner());
+      const again = await svc.importPlatformLineup({ eventName: EVENT }, owner());
+      expect(again.created).toEqual([]);
+      const after = (await svc.getLineupBoard(owner(), EVENT)).performers.find((p: any) => p.id === lost.id);
+      expect(after).toMatchObject({ name: "LOST SIDE", tagline: "Heavy / Metallic Roster" });
+      await expect(svc.importPlatformLineup({ eventName: "Event Tidak Ada" }, owner())).rejects.toMatchObject({ code: "PLATFORM_EVENT_NOT_FOUND" });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("fetch failed"); }));
+    try {
+      await expect(svc.importPlatformLineup({ eventName: EVENT }, owner())).rejects.toMatchObject({ code: "PLATFORM_UNREACHABLE" });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("setiap perubahan tercatat di audit log", async () => {
     const rows = await t.getDb().select().from(t.schema.auditLogs);
     const lineup = rows.filter((r: any) => (r.metadata as any)?.module === "event-lineup");

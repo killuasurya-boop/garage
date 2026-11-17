@@ -73,6 +73,36 @@ const safePath = (value: unknown) =>
 const text = (value: unknown, max = 400) => (typeof value === "string" && value.trim() ? value.trim().slice(0, max) : null);
 const num = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : null);
 
+/** Lineup dari platform: nama wajib, logo hanya jalur /event/..., jenis hanya nilai yang dikenal. Maks 16. */
+function parsePlatformLineup(lineup: unknown): LineupItem[] {
+  return (Array.isArray(lineup) ? (lineup as Array<Record<string, unknown> | null>) : [])
+    .map((x) => ({
+      name: text(x?.name, 40) ?? "",
+      logo: safePath(x?.logo),
+      kind: parseLineupKind(x?.type ?? x?.kind ?? x?.category),
+    }))
+    .filter((x) => x.name)
+    .slice(0, 16);
+}
+
+/**
+ * Lineup platform GIGS untuk SATU event (cocok slug dulu, lalu nama tanpa peduli huruf), apa pun status/tanggalnya.
+ * Dipakai tombol "Impor dari platform" di modul Lineup. Platform tidak terjangkau → Error (pemanggil memberi pesan).
+ */
+export async function fetchPlatformLineup(ref: { slug: string | null; name: string }): Promise<{ slug: string; name: string; lineup: LineupItem[] } | null> {
+  const api = process.env.GARAGE_EVENT_API || DEFAULT_API;
+  const res = await fetch(api, { cache: "no-store", signal: AbortSignal.timeout(4000) });
+  if (!res.ok) throw new Error(`Platform GIGS membalas ${res.status}.`);
+  const json = (await res.json()) as { events?: PlatformEvent[] };
+  const events = Array.isArray(json?.events) ? json.events : [];
+  const name = ref.name.trim().toLowerCase();
+  const match =
+    (ref.slug ? events.find((ev) => ev.slug === ref.slug) : undefined) ??
+    events.find((ev) => typeof ev.name === "string" && ev.name.trim().toLowerCase() === name);
+  if (!match?.slug || !match.name) return null;
+  return { slug: match.slug, name: match.name, lineup: parsePlatformLineup(match.promo?.lineup) };
+}
+
 export async function getGigsPromo(now = Date.now()): Promise<GigsPromo | null> {
   const api = process.env.GARAGE_EVENT_API || DEFAULT_API;
   const res = await fetch(api, { cache: "no-store", signal: AbortSignal.timeout(1500) });
@@ -109,14 +139,7 @@ export async function getGigsPromo(now = Date.now()): Promise<GigsPromo | null> 
           .map((p) => text(p, 40))
           .filter((p): p is string => Boolean(p))
           .slice(0, 8),
-        lineup: (Array.isArray(promo.lineup) ? promo.lineup : [])
-          .map((x) => ({
-            name: text(x?.name, 40) ?? "",
-            logo: safePath(x?.logo),
-            kind: parseLineupKind(x?.type ?? x?.kind ?? x?.category),
-          }))
-          .filter((x) => x.name)
-          .slice(0, 16),
+        lineup: parsePlatformLineup(promo.lineup),
         instagram:
           typeof promo.instagram === "string" && /^https:\/\/(www\.)?instagram\.com\/[A-Za-z0-9._/]+$/.test(promo.instagram)
             ? promo.instagram

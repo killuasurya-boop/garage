@@ -70,3 +70,10 @@ description: Aturan WAJIB modul Lineup & Panitia Event (band/stand-up, rundown, 
   migrasi 0201) ikut data publik — akun IG adalah profil publik, bukan kontak. Normalisasi murni `parseInstagramHandle`
   (`@akun` / tautan instagram.com → `akun`), tautan hanya lewat `instagramUrl` (akun valid saja). Website: seluruh kartu
   penampil = tautan ke Instagram (tab baru); kartu sponsor → Instagram dulu, lalu `website_url`. Nomor WA tetap tidak publik.
+- Impor lineup platform (Owner 17 Nov 2026, "jangan kerja 2x"): tombol "Impor dari platform GIGS" di tab Lineup →
+  `POST /api/event-lineup/import-platform` (`importPlatformLineup`, `fetchPlatformLineup` di `gigs-promo.ts`: event platform
+  dicocokkan `events.platform_slug` dulu, lalu nama). Nama baru → penampil `konfirmasi` + tampil website + logo platform
+  (hanya jalur `/event/...`), urutan di belakang. Nama yang sudah ada (tanpa peduli huruf) TIDAK ditimpa; hanya logo kosong
+  diisi. Setelah impor semua bebas diubah. Satu audit per impor. Sponsor belum bisa diimpor: API platform hanya kirim jumlah.
+- Arah "1 kontrol 1 komando" (saran ke Owner, menunggu repo platform `garage-event`): Garage OS = master data event, lineup,
+  sponsor, panitia, uang; platform GIGS = etalase + form pendaftaran yang membuat data `calon` di Garage OS.

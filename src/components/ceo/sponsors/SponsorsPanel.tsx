@@ -474,7 +474,7 @@ function SponsorForm({
         title="Tampil di website"
         hint="Terlihat pengunjung di bagian “Didukung oleh”: nama, logo, paket, Instagram. Nilai uang & kontak TIDAK PERNAH tampil."
       >
-        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+        <div className="grid gap-3">
           <div className="grid min-w-0 gap-3">
             <Field label="Instagram sponsor">
               <input value={instagram} onChange={(e) => setInstagram(e.target.value)} maxLength={80} placeholder="@brand atau instagram.com/brand" className={inputClass} />

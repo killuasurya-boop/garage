@@ -174,7 +174,20 @@ export function GigsSpotlight({ promo }: { promo: GigsPromo }) {
                           {performer.kind ? <span className="gigs-spot__kind">{LINEUP_KIND_LABEL[performer.kind]}</span> : null}
                         </div>
                         <div className="gigs-spot__band-logo">
-                          {performer.logo ? <img src={performer.logo} alt={`Logo ${performer.name}`} loading="lazy" decoding="async" /> : null}
+                          {performer.logo ? (
+                            <img src={performer.logo} alt={`Logo ${performer.name}`} loading="lazy" decoding="async" />
+                          ) : (
+                            // Tanpa logo: inisial nama, bukan kotak kosong yang terlihat seperti gambar rusak.
+                            <span className="gigs-spot__band-initials" aria-hidden>
+                              {performer.name
+                                .split(/\s+/)
+                                .filter(Boolean)
+                                .slice(0, 2)
+                                .map((word) => word[0])
+                                .join("")
+                                .toUpperCase()}
+                            </span>
+                          )}
                         </div>
                         <strong>{performer.name}</strong>
                         {performer.tagline ? <span className="gigs-spot__tagline">{performer.tagline}</span> : null}

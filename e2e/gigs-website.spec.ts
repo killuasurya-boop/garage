@@ -160,3 +160,26 @@ test("Beranda HP: kartu lineup & sponsor tidak terpotong / tidak bergeser @mobil
     await platform.close();
   }
 });
+
+test("Kontrol Event: satu bar menautkan semua menu event dengan event yang sama", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop-1366", "alur Owner diuji di desktop");
+  test.setTimeout(400_000);
+  const check = failOnPageErrors(page);
+  await login(page, "owner@garage.id");
+  const event = await masterEvent(page);
+  await page.goto(`/control/lineup?eventId=${event.id}`);
+  const nav = page.getByRole("navigation", { name: "Kontrol event" });
+  await expect(nav.getByRole("link", { name: /Lineup & Panitia/ })).toHaveAttribute("aria-current", "page", { timeout: 90_000 });
+
+  await nav.getByRole("link", { name: /Keuangan Event/ }).click();
+  await expect(page).toHaveURL(new RegExp(`/control/event-finance\\?eventId=${event.id}`));
+  await expect(page.getByRole("heading", { name: "Keuangan Event" })).toBeVisible({ timeout: 90_000 });
+  await expect(page.getByRole("heading", { name: event.title, exact: false }).first()).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Kontrol event" }).getByRole("link", { name: /Keuangan Event/ })).toHaveAttribute("aria-current", "page");
+
+  await page.getByRole("navigation", { name: "Kontrol event" }).getByRole("link", { name: /Hari-H/ }).click();
+  await expect(page).toHaveURL(new RegExp(`/event-day\\?event=${event.id}`));
+  await expect(page.getByRole("heading", { name: "Hari-H Event" })).toBeVisible({ timeout: 90_000 });
+  await expect(page.getByRole("navigation", { name: "Kontrol event" }).getByRole("link", { name: /Sponsor/ })).toHaveAttribute("href", "/control/sponsors");
+  check();
+});

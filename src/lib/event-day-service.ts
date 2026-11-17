@@ -62,7 +62,8 @@ const performerOfEvent = (event: { id: string; title: string }) =>
 
 export async function getEventDay(garage: GarageSession, eventId: string | null, now = new Date()) {
   assertEventCrew(garage);
-  const masterEvents = await listMasterEvents();
+  // Manajer: daftar & default hanya event outletnya (event outlet lain tidak bisa dibuka → jangan jadi default).
+  const masterEvents = await listMasterEvents({ outletId: garage.profile.role === "Manajer" ? garage.profile.outlet.id : null });
   const id = eventId ?? masterEvents[0]?.id ?? null;
   if (!id) return { masterEvents, event: null };
   const event = await loadEvent(id, garage);
@@ -210,21 +211,24 @@ export async function setSlotState(performerId: string, action: "start" | "end" 
   if (!performer) throw new EventDayError("NOT_FOUND", "Penampil tidak ditemukan.", 404);
   if (performer.status !== "konfirmasi") throw new EventDayError("NOT_CONFIRMED", "Hanya penampil terkonfirmasi yang bisa tampil.", 409);
   if (performer.eventId) await loadEvent(performer.eventId, garage);
-  if (action === "start") {
-    await db.transaction(async (tx) => {
+  // Satu event = satu panggung: transisi diserialkan per event agar dua HP panitia tidak membuat dua penampil "live".
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`event_stage:${performer.eventId ?? performer.eventName.toLowerCase()}`}))`);
+    const [fresh] = await tx.select().from(eventPerformers).where(eq(eventPerformers.id, performerId)).limit(1);
+    if (action === "start") {
       const sameEvent = performer.eventId ? eq(eventPerformers.eventId, performer.eventId) : eq(eventPerformers.eventName, performer.eventName);
       await tx
         .update(eventPerformers)
         .set({ actualEnd: now, updatedAt: now })
         .where(and(sameEvent, isNotNull(eventPerformers.actualStart), isNull(eventPerformers.actualEnd), ne(eventPerformers.id, performerId)));
       await tx.update(eventPerformers).set({ actualStart: now, actualEnd: null, updatedAt: now }).where(eq(eventPerformers.id, performerId));
-    });
-  } else if (action === "end") {
-    if (!performer.actualStart) throw new EventDayError("NOT_STARTED", "Penampil ini belum mulai.", 409);
-    await db.update(eventPerformers).set({ actualEnd: now, updatedAt: now }).where(eq(eventPerformers.id, performerId));
-  } else {
-    await db.update(eventPerformers).set({ actualStart: null, actualEnd: null, updatedAt: now }).where(eq(eventPerformers.id, performerId));
-  }
+    } else if (action === "end") {
+      if (!fresh?.actualStart) throw new EventDayError("NOT_STARTED", "Penampil ini belum mulai.", 409);
+      await tx.update(eventPerformers).set({ actualEnd: now, updatedAt: now }).where(eq(eventPerformers.id, performerId));
+    } else {
+      await tx.update(eventPerformers).set({ actualStart: null, actualEnd: null, updatedAt: now }).where(eq(eventPerformers.id, performerId));
+    }
+  });
   await audit(garage, action === "start" ? "Penampil mulai tampil" : action === "end" ? "Penampil selesai tampil" : "Batalkan jam tampil nyata", performer.name, {
     performerId,
     eventId: performer.eventId,

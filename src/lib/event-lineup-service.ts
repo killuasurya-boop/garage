@@ -375,7 +375,8 @@ export async function reorderPerformers(input: z.infer<typeof reorderSchema>, ga
   const db = getDb();
   const result = await db.transaction(async (tx) => {
     const rows = await tx.select({ id: eventPerformers.id, eventId: eventPerformers.eventId, eventName: eventPerformers.eventName }).from(eventPerformers).where(inArray(eventPerformers.id, input.ids)).for("update");
-    const sameEvent = (r: { eventId: string | null; eventName: string }) => (input.eventId ? r.eventId === input.eventId : r.eventId === null && r.eventName === input.eventName);
+    // ID master bila dikirim (judul boleh dobel); tanpa ID: nama (klien lama / data tanpa master).
+    const sameEvent = (r: { eventId: string | null; eventName: string }) => (input.eventId ? r.eventId === input.eventId : r.eventName === input.eventName);
     if (rows.length !== new Set(input.ids).size || rows.some((r) => !sameEvent(r))) {
       throw new LineupError("REORDER_MISMATCH", "Daftar penampil tidak cocok dengan event ini. Muat ulang lalu coba lagi.", 409);
     }

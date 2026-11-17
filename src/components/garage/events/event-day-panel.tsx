@@ -263,7 +263,19 @@ function CheckinTab({ view, onAct }: { view: DayView; onAct: (action: () => Prom
     },
     [eventId, onAct, pax],
   );
-  const scanner = useCodeScanner({ videoRef, enabled: scanning, onCode: (value) => void submitCode(value) });
+  // Satu scan = satu check-in: kamera berhenti begitu kode terbaca. QR yang tetap di depan kamera tidak menambah
+  // check-in lagi; petugas menekan "Scan tamu berikutnya" untuk tamu berikutnya.
+  const [scannedOnce, setScannedOnce] = useState(false);
+  const scanner = useCodeScanner({
+    videoRef,
+    enabled: scanning,
+    onCode: (value) => {
+      if (busy.current) return;
+      setScanning(false);
+      setScannedOnce(true);
+      void submitCode(value);
+    },
+  });
 
   return (
     <div className="space-y-3">
@@ -278,7 +290,7 @@ function CheckinTab({ view, onAct }: { view: DayView; onAct: (action: () => Prom
         {scanner.error && scanning ? <p className="text-sm text-[#ffc4c4]">Kamera tidak bisa dibuka. Ketik kode di bawah.</p> : null}
         <div className="flex flex-wrap gap-2">
           <button type="button" className={scanning ? ghostBtn : primaryBtn} onClick={() => setScanning((v) => !v)}>
-            <Camera size={16} /> {scanning ? "Tutup kamera" : "Buka kamera"}
+            <Camera size={16} /> {scanning ? "Tutup kamera" : scannedOnce ? "Scan tamu berikutnya" : "Buka kamera"}
           </button>
           <label className="flex items-center gap-2 text-sm text-zinc-300">
             Orang

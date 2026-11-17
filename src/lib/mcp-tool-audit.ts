@@ -7,9 +7,27 @@ import { splitConfirmation } from "@/lib/mcp-confirmation";
 
 const ARGS_PREVIEW_LIMIT = 2_000;
 
+/** URL unduhan bertanda tangan (file unggahan ChatGPT) tidak boleh masuk audit: simpan host-nya saja. */
+function redactSignedUrls(value: unknown, depth = 0): unknown {
+  if (depth > 6 || value === null || typeof value !== "object") return value;
+  if (Array.isArray(value)) return value.map((item) => redactSignedUrls(item, depth + 1));
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([key, item]) => {
+      if (/^(download_?url|signed_?url)$/i.test(key) && typeof item === "string") {
+        let host = "?";
+        try {
+          host = new URL(item).hostname;
+        } catch {}
+        return [key, `[url disamarkan · ${host}]`];
+      }
+      return [key, redactSignedUrls(item, depth + 1)];
+    }),
+  );
+}
+
 export function toolArgsPreview(args: unknown) {
   try {
-    const text = JSON.stringify(args ?? {});
+    const text = JSON.stringify(redactSignedUrls(args ?? {}));
     return text.length > ARGS_PREVIEW_LIMIT ? `${text.slice(0, ARGS_PREVIEW_LIMIT)}…` : text;
   } catch {
     return "[tidak bisa diserialisasi]";

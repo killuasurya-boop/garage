@@ -47,8 +47,8 @@ describe("mergeLineup", () => {
       { name: "Standup Indo Tebing Tinggi", kind: "standup" },
     ]);
     expect(merged).toEqual([
-      { name: "Surai", kind: "band", logo: "/event/surai.png", time: "20.00–20.30" },
-      { name: "Standup Indo Tebing Tinggi", kind: "standup", logo: null, time: null },
+      { name: "Surai", kind: "band", logo: "/event/surai.png", time: "20.00–20.30", live: false },
+      { name: "Standup Indo Tebing Tinggi", kind: "standup", logo: null, time: null, live: false },
     ]);
   });
 });

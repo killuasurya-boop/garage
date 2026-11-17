@@ -49,6 +49,12 @@ function assertOwnerHuman(garage: GarageSession) {
   if (garage.profile.agentKey) throw new LineupError("HUMAN_SESSION_REQUIRED", "Lineup & panitia hanya untuk Owner yang login langsung.", 403);
 }
 
+/** GIGS EO Fase 3 (#9): Ketua/Stage Manager = Manajer (login langsung) boleh melihat papan & mengubah STATUS tugas. */
+function assertCrewHuman(garage: GarageSession) {
+  if (garage.profile.role !== "Owner" && garage.profile.role !== "Manajer") throw new LineupError("FORBIDDEN", "Lineup & panitia hanya untuk Owner dan Manajer.", 403);
+  if (garage.profile.agentKey) throw new LineupError("HUMAN_SESSION_REQUIRED", "Lineup & panitia hanya untuk staf yang login langsung.", 403);
+}
+
 async function audit(garage: GarageSession, action: string, object: string, metadata: Record<string, unknown>) {
   await createAuditLog({
     actor: garage.user.name ?? "Owner",
@@ -205,7 +211,7 @@ async function knownEvents(): Promise<string[]> {
 export type LineupBoardRequest = string | { eventId?: string | null; eventName?: string | null } | null;
 
 export async function getLineupBoard(garage: GarageSession, requested: LineupBoardRequest) {
-  assertOwnerHuman(garage);
+  assertCrewHuman(garage);
   const db = getDb();
   const req = typeof requested === "string" ? { eventName: requested } : (requested ?? {});
   const [legacyEvents, masterEvents] = await Promise.all([knownEvents(), listMasterEvents()]);
@@ -369,7 +375,8 @@ export async function reorderPerformers(input: z.infer<typeof reorderSchema>, ga
   const db = getDb();
   const result = await db.transaction(async (tx) => {
     const rows = await tx.select({ id: eventPerformers.id, eventId: eventPerformers.eventId, eventName: eventPerformers.eventName }).from(eventPerformers).where(inArray(eventPerformers.id, input.ids)).for("update");
-    const sameEvent = (r: { eventId: string | null; eventName: string }) => (input.eventId ? r.eventId === input.eventId : r.eventId === null && r.eventName === input.eventName);
+    // ID master bila dikirim (judul boleh dobel); tanpa ID: nama (klien lama / data tanpa master).
+    const sameEvent = (r: { eventId: string | null; eventName: string }) => (input.eventId ? r.eventId === input.eventId : r.eventName === input.eventName);
     if (rows.length !== new Set(input.ids).size || rows.some((r) => !sameEvent(r))) {
       throw new LineupError("REORDER_MISMATCH", "Daftar penampil tidak cocok dengan event ini. Muat ulang lalu coba lagi.", 409);
     }
@@ -449,7 +456,10 @@ export async function createTask(input: z.infer<typeof taskInputSchema>, garage:
 }
 
 export async function updateTask(id: string, patch: z.infer<typeof taskPatchSchema>, garage: GarageSession) {
-  assertOwnerHuman(garage);
+  assertCrewHuman(garage);
+  if (garage.profile.role !== "Owner" && Object.keys(patch).some((key) => key !== "status")) {
+    throw new LineupError("FORBIDDEN", "Manajer hanya bisa mengubah status tugas.", 403);
+  }
   const before = await findTask(id);
   if (patch.crewId !== undefined) await assertCrewInEvent(patch.crewId, before);
   const values: Partial<typeof eventCrewTasks.$inferInsert> = { updatedAt: new Date() };
@@ -473,7 +483,7 @@ export async function updateTask(id: string, patch: z.infer<typeof taskPatchSche
 
 // ─── Website (publik) ───────────────────────────────────────────────────────
 
-export type PublicLineupItem = { name: string; kind: LineupKind; time: string | null };
+export type PublicLineupItem = { name: string; kind: LineupKind; time: string | null; live: boolean };
 
 /**
  * Lineup terkonfirmasi untuk website (tanpa kontak/catatan). Dicocokkan dengan nama event GIGS tanpa
@@ -495,6 +505,8 @@ export async function publicLineupFor(platform: string | { slug: string; name: s
       slotOrder: eventPerformers.slotOrder,
       setStart: eventPerformers.setStart,
       setMinutes: eventPerformers.setMinutes,
+      actualStart: eventPerformers.actualStart,
+      actualEnd: eventPerformers.actualEnd,
     })
     .from(eventPerformers)
     .where(
@@ -511,7 +523,9 @@ export async function publicLineupFor(platform: string | { slug: string; name: s
   const rundown = buildRundown(
     rows.map((r) => ({ ...r, kind: r.kind as LineupKind, status: r.status as PerformerStatus })),
   );
-  return rundown.map((r) => ({ name: r.name, kind: r.kind, time: publicSetTime(r) }));
+  // "Sedang tampil" = mode stage manager (Fase 3): sudah mulai, belum selesai.
+  const live = new Set(rows.filter((r) => r.actualStart && !r.actualEnd).map((r) => r.id));
+  return rundown.map((r) => ({ name: r.name, kind: r.kind, time: publicSetTime(r), live: live.has(r.id) }));
 }
 
 // ─── Pengingat tugas panitia (otomatis, ke HP Owner) ────────────────────────

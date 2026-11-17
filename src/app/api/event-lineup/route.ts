@@ -5,9 +5,9 @@ import { requireGarageSession } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
 
-/** Papan lineup + rundown + panitia + tugas + kesiapan satu event (Owner). `?eventId=` (master) atau `?event=` (nama lama). */
+/** Papan lineup + rundown + panitia + tugas + kesiapan satu event (Owner; Manajer baca — GIGS EO #9). `?eventId=` (master) atau `?event=` (nama lama). */
 export async function GET(request: Request) {
-  const session = await requireGarageSession(["Owner"]);
+  const session = await requireGarageSession(["Owner", "Manajer"]);
   if (session.response) return session.response;
   const params = new URL(request.url).searchParams;
   const eventId = params.get("eventId");

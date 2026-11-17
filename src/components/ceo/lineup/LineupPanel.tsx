@@ -185,9 +185,14 @@ export function LineupPanel({ initialEvent = null, initialEventId = null, initia
         title="Lineup & Panitia"
         subtitle="Band, stand-up, rundown tampil, panitia, dan tugas per event. Penampil terkonfirmasi tampil di website GIGS."
         actions={
-          <button type="button" className={ghostBtn} onClick={() => void load(selected)} disabled={loading}>
-            <RefreshCw size={16} className={loading ? "animate-spin motion-reduce:animate-none" : ""} /> Muat ulang
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <a className={ghostBtn} href={`/event-day${board?.eventId ? `?event=${board.eventId}` : ""}`}>
+              <Mic2 size={16} /> Mode hari-H
+            </a>
+            <button type="button" className={ghostBtn} onClick={() => void load(selected)} disabled={loading}>
+              <RefreshCw size={16} className={loading ? "animate-spin motion-reduce:animate-none" : ""} /> Muat ulang
+            </button>
+          </div>
         }
       />
 

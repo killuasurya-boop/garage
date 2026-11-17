@@ -91,6 +91,9 @@ export type RundownRow = RundownInput & {
   overlap: boolean;
   /** Jeda dari penampil sebelumnya (menit), null bila salah satu jam belum diisi. */
   gapMinutes: number | null;
+  /** Menit sejak 00:00 hari event (lewat tengah malam > 1440); null bila jam belum diisi. */
+  startAbs: number | null;
+  endAbs: number | null;
 };
 
 /**
@@ -135,6 +138,8 @@ export function buildRundown(items: RundownInput[]): RundownRow[] {
       end: endMin !== null ? minutesToClock(endMin) : null,
       overlap,
       gapMinutes,
+      startAbs: startMin,
+      endAbs: endMin,
     };
   });
 }

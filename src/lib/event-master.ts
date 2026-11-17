@@ -1,4 +1,4 @@
-import { asc, desc, eq, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, ne, or, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { eventCrew, eventCrewTasks, eventPerformers, events, eventSponsors } from "@/db/schema";
@@ -16,11 +16,13 @@ type Executor = Pick<ReturnType<typeof getDb>, "select" | "update">;
 const wibDay = (d: Date) => new Date(d.getTime() + 7 * 3_600_000).toISOString().slice(0, 10);
 
 /** Daftar master event untuk pilihan di layar (arsip tidak ditampilkan), terbaru di atas. */
-export async function listMasterEvents(): Promise<MasterEvent[]> {
+export async function listMasterEvents(opts: { outletId?: string | null } = {}): Promise<MasterEvent[]> {
+  // `outletId`: hanya event outlet itu + event tanpa outlet (untuk Manajer).
+  const scope = opts.outletId ? and(ne(events.status, "archived"), or(isNull(events.outletId), eq(events.outletId, opts.outletId))) : ne(events.status, "archived");
   const rows = await getDb()
     .select({ id: events.id, title: events.title, startsAt: events.startsAt, status: events.status, platformSlug: events.platformSlug })
     .from(events)
-    .where(ne(events.status, "archived"))
+    .where(scope)
     .orderBy(desc(events.startsAt), asc(events.title))
     .limit(50);
   return rows.map((r) => ({ id: r.id, title: r.title, date: wibDay(r.startsAt), status: r.status, platformSlug: r.platformSlug }));

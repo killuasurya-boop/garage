@@ -5085,6 +5085,8 @@ export const events = pgTable(
     featuredOnHome: boolean("featured_on_home").notNull().default(true),
     // Slug event yang sama di platform GIGS (/event/<slug>); menghubungkan beranda & lineup ke master event ini.
     platformSlug: text("platform_slug"),
+    // Kapasitas orang di lokasi (GIGS EO Fase 3); null = tanpa batas. Check-in ditolak bila terlampaui.
+    capacity: integer("capacity"),
     rsvpDeadline: timestamp("rsvp_deadline", { withTimezone: true }),
     defaultMaxPax: integer("default_max_pax").notNull().default(2),
     contentVersion: integer("content_version").notNull().default(1),
@@ -5909,6 +5911,9 @@ export const eventPerformers = pgTable(
     notes: text("notes"),
     // Ditampilkan di website (beranda GIGS) bila status konfirmasi.
     showOnWebsite: boolean("show_on_website").notNull().default(true),
+    // Mode stage manager (GIGS EO Fase 3): jam mulai/selesai nyata; jadwal rencana (setStart) tidak diubah.
+    actualStart: timestamp("actual_start", { withTimezone: true }),
+    actualEnd: timestamp("actual_end", { withTimezone: true }),
     cancelReason: text("cancel_reason"),
     createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -6046,5 +6051,37 @@ export const eventExpensePayments = pgTable(
     amountCheck: check("event_expense_payments_amount_check", sql`${table.amount} > 0`),
     sourceCheck: check("event_expense_payments_source_check", sql`${table.source} in ('bank_jago','bank_bni','external')`),
     statusCheck: check("event_expense_payments_status_check", sql`${table.status} in ('posted','void')`),
+  }),
+);
+
+// ─── GIGS EO Fase 3: check-in pintu ───
+// Append-only: koreksi = status batal + alasan (baris tidak dihapus). Undangan: satu baris per scan, total pax per
+// undangan tidak boleh melebihi maks tamu; walk-in tanpa undangan. Kapasitas event dicek atas total aktif.
+export const eventCheckins = pgTable(
+  "event_checkins",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "restrict" }),
+    invitationId: uuid("invitation_id").references(() => eventInvitations.id, { onDelete: "set null" }),
+    guestName: text("guest_name").notNull(),
+    pax: integer("pax").notNull(),
+    // undangan | walkin
+    kind: text("kind").notNull(),
+    // aktif | batal
+    status: text("status").notNull().default("aktif"),
+    voidReason: text("void_reason"),
+    voidedBy: text("voided_by").references(() => user.id, { onDelete: "set null" }),
+    voidedAt: timestamp("voided_at", { withTimezone: true }),
+    checkedBy: text("checked_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    eventIdx: index("event_checkins_event_idx").on(table.eventId, table.createdAt),
+    invitationIdx: index("event_checkins_invitation_idx").on(table.invitationId),
+    paxCheck: check("event_checkins_pax_check", sql`${table.pax} > 0 and ${table.pax} <= 50`),
+    kindCheck: check("event_checkins_kind_check", sql`${table.kind} in ('undangan','walkin')`),
+    statusCheck: check("event_checkins_status_check", sql`${table.status} in ('aktif','batal')`),
   }),
 );

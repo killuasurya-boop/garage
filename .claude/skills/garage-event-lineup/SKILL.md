@@ -43,3 +43,10 @@ description: Aturan WAJIB modul Lineup & Panitia Event (band/stand-up, rundown, 
   dihapus) dan pembayaran (`event_expense_payments`, idempoten): bank → baris buku kas `event_expense` dalam tx yang sama,
   `external` (uang pribadi Owner) tanpa baris kas; batal = status void + `event_expense_void`. Laba rugi: kategori
   `Biaya Event` (non_operating) dibaca dari tabel pembayaran per tanggal bayar/batal (`EVENT_COST_CATEGORY`).
+- Hari-H (Fase 3, `/event-day` HP panitia, `event-day-service.ts` + `-rules.ts`, migrasi 0199): Owner & Manajer (login
+  langsung; Manajer hanya event outletnya). Check-in `event_checkins` append-only (batal = status + alasan): QR undangan =
+  tautan `/undangan/<token>` (`extractInvitationToken`), total pax per undangan ≤ `maxPax`, total aktif ≤ `events.capacity`,
+  advisory lock per event; walk-in tanpa undangan. Mode stage: `actual_start/actual_end` (mulai baru menutup yang tampil),
+  rencana tidak diubah; telat > 12 jam dianggap di luar hari event (tidak dihitung). Beranda `live` = sudah mulai & belum
+  selesai. "Salin rundown ke agenda" (Owner) mengisi `events.agenda` dari rundown terkonfirmasi. Manajer di Lineup: baca papan +
+  ubah STATUS tugas saja (`assertCrewHuman`); data penampil/panitia/uang tetap Owner.

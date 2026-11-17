@@ -34,7 +34,10 @@ afterAll(async () => {
 
 describe("Lineup & Panitia — akses", () => {
   it("Manajer dan API key agent ditolak", async () => {
-    await expect(svc.getLineupBoard(session("Manajer" as Role), EVENT)).rejects.toMatchObject({ code: "FORBIDDEN" });
+    // GIGS EO #9: Manajer boleh melihat papan, tetapi tidak menambah/mengubah data selain status tugas.
+    await expect(svc.getLineupBoard(session("Manajer" as Role), EVENT)).resolves.toBeTruthy();
+    await expect(svc.createPerformer({ eventName: EVENT, name: "X Band", kind: "band" }, session("Manajer" as Role))).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(svc.getLineupBoard(session("Kasir" as Role), EVENT)).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(svc.createPerformer({ eventName: EVENT, name: "X Band", kind: "band" }, session("Owner" as Role, { agentKey: { id: "k" } }))).rejects.toMatchObject({ code: "HUMAN_SESSION_REQUIRED" });
   });
 });
@@ -76,11 +79,11 @@ describe("Lineup & Panitia — alur", () => {
     await svc.updatePerformer(surai, { showOnWebsite: true }, owner());
     const items = await svc.publicLineupFor("gigs akhir tahun 2026");
     expect(items).toEqual([
-      { name: "Standup Indo Tebing Tinggi", kind: "standup", time: "19.30–20.00" },
-      { name: "Surai", kind: "band", time: "20.00–20.30" },
+      { name: "Standup Indo Tebing Tinggi", kind: "standup", time: "19.30–20.00", live: false },
+      { name: "Surai", kind: "band", time: "20.00–20.30", live: false },
     ]);
     // Data publik tanpa kontak/catatan.
-    expect(Object.keys(items[0]).sort()).toEqual(["kind", "name", "time"]);
+    expect(Object.keys(items[0]).sort()).toEqual(["kind", "live", "name", "time"]);
     await svc.updatePerformer(surai, { showOnWebsite: false }, owner());
     expect((await svc.publicLineupFor(EVENT)).map((i: any) => i.name)).toEqual(["Standup Indo Tebing Tinggi"]);
   });

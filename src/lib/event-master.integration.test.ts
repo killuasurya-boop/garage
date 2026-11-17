@@ -115,7 +115,7 @@ describe("Master event", () => {
   it("beranda: slug platform menemukan lineup walau nama di platform berbeda", async () => {
     const lineup = await import("@/lib/event-lineup-service");
     const items = await lineup.publicLineupFor({ slug: "gigs-akhir-tahun", name: "GIGS Akhir Tahun (nama platform beda)" });
-    expect(items).toEqual([{ name: "Surai", kind: "band", time: "20.00–20.30" }]);
+    expect(items).toEqual([{ name: "Surai", kind: "band", time: "20.00–20.30", live: false }]);
     expect(await lineup.publicLineupFor({ slug: "slug-lain", name: "Tidak Ada" })).toEqual([]);
   });
 

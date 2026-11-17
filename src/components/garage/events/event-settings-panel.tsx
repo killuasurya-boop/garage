@@ -34,6 +34,7 @@ type Draft = {
   ageGate: boolean;
   featuredOnHome: boolean;
   platformSlug: string;
+  capacity: string;
   defaultMaxPax: number;
 };
 
@@ -58,6 +59,7 @@ function toDraft(event: AdminEvent): Draft {
     ageGate: event.ageGate,
     featuredOnHome: event.featuredOnHome,
     platformSlug: event.platformSlug ?? "",
+    capacity: event.capacity ? String(event.capacity) : "",
     defaultMaxPax: event.defaultMaxPax,
   };
 }
@@ -130,6 +132,7 @@ export function EventSettingsPanel({
           ageGate: draft.ageGate,
           featuredOnHome: draft.featuredOnHome,
           platformSlug: draft.platformSlug.trim() || null,
+          capacity: draft.capacity ? Number(draft.capacity) : null,
           defaultMaxPax: draft.defaultMaxPax,
         }),
       });
@@ -371,6 +374,9 @@ export function EventSettingsPanel({
         </Field>
         <Field label="Slug di platform GIGS (opsional)" hint="Mis. gigs-akhir-tahun (bagian URL /event/…). Menghubungkan lineup & sponsor event ini ke beranda GIGS.">
           <Input className={inputClass} value={draft.platformSlug} onChange={(e) => patch("platformSlug", e.target.value.toLowerCase())} />
+        </Field>
+        <Field label="Kapasitas lokasi (opsional)" hint="Jumlah orang maksimal di lokasi. Check-in hari-H ditolak bila penuh. Kosong = tanpa batas.">
+          <Input className={inputClass} inputMode="numeric" value={draft.capacity} onChange={(e) => patch("capacity", e.target.value.replace(/\D/g, ""))} />
         </Field>
 
         <label className="flex items-center gap-3 md:col-span-2">

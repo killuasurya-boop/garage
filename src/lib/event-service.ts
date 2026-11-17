@@ -35,6 +35,7 @@ export type AdminEvent = PublicEvent & {
   status: EventStatus;
   featuredOnHome: boolean;
   platformSlug: string | null;
+  capacity: number | null;
   defaultMaxPax: number;
   contentVersion: number;
   updatedAt: string;
@@ -116,6 +117,7 @@ function toAdminEvent(row: EventRow): AdminEvent {
     status: (EVENT_STATUSES as readonly string[]).includes(row.status) ? (row.status as EventStatus) : "draft",
     featuredOnHome: row.featuredOnHome,
     platformSlug: row.platformSlug,
+    capacity: row.capacity,
     defaultMaxPax: row.defaultMaxPax,
     contentVersion: row.contentVersion,
     updatedAt: row.updatedAt.toISOString(),
@@ -223,6 +225,8 @@ export const eventUpdateSchema = z
       .nullable()
       .optional(),
     rsvpDeadline: isoDate.nullable().optional(),
+    // Kapasitas orang di lokasi (check-in hari-H); null = tanpa batas.
+    capacity: z.number().int().min(1).max(100_000).nullable().optional(),
     defaultMaxPax: z.number().int().min(1).max(10),
   })
   .refine((value) => new Date(value.endsAt).getTime() > new Date(value.startsAt).getTime(), {
@@ -283,6 +287,7 @@ export async function updateEvent(id: string, input: EventUpdateInput, userId: s
     ageGate: input.ageGate ?? current.ageGate,
     featuredOnHome: input.featuredOnHome,
     platformSlug: input.platformSlug === undefined ? current.platformSlug : input.platformSlug || null,
+    capacity: input.capacity === undefined ? current.capacity : input.capacity ?? null,
     rsvpDeadline: input.rsvpDeadline ? new Date(input.rsvpDeadline) : null,
     defaultMaxPax: input.defaultMaxPax,
   };

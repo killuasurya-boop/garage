@@ -5,7 +5,7 @@
 export type LineupKind = "band" | "standup" | "akustik" | "dj" | "kreator";
 
 /** `time` = jam tampil (mis. "20.00–20.45") dari rundown Garage OS; platform event tidak mengirimnya. */
-export type LineupItem = { name: string; logo: string | null; kind: LineupKind | null; time?: string | null };
+export type LineupItem = { name: string; logo: string | null; kind: LineupKind | null; time?: string | null; live?: boolean };
 
 export type LineupGroup = { kind: LineupKind | null; label: string; items: LineupItem[] };
 
@@ -75,7 +75,7 @@ export function lineupSummary(groups: LineupGroup[]): string {
  */
 export function mergeLineup(
   platform: LineupItem[],
-  garage: Array<{ name: string; kind: LineupKind; time?: string | null }>,
+  garage: Array<{ name: string; kind: LineupKind; time?: string | null; live?: boolean }>,
 ): LineupItem[] {
   if (!garage.length) return platform;
   const logoByName = new Map(platform.map((item) => [item.name.trim().toLowerCase(), item.logo]));
@@ -84,5 +84,6 @@ export function mergeLineup(
     kind: item.kind,
     logo: logoByName.get(item.name.trim().toLowerCase()) ?? null,
     time: item.time ?? null,
+    live: item.live ?? false,
   }));
 }

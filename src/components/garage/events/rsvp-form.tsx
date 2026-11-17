@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { CheckCircle2, Loader2 } from "lucide-react";
 
@@ -22,6 +23,7 @@ export function RsvpForm({
   canChange: boolean;
   contactUrl: string | null;
 }) {
+  const router = useRouter();
   const [saved, setSaved] = useState<Rsvp | null>(initial);
   const [editing, setEditing] = useState(!initial && canChange);
   const [response, setResponse] = useState<Rsvp["response"] | null>(initial?.response ?? null);
@@ -47,6 +49,8 @@ export function RsvpForm({
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.data) throw new Error(json?.error?.message ?? "RSVP gagal disimpan. Coba lagi.");
       setSaved(json.data.rsvp);
+      // Data server (QR tiket masuk di halaman undangan) ikut diperbarui tanpa muat ulang manual.
+      router.refresh();
       setEditing(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "RSVP gagal disimpan. Coba lagi.");

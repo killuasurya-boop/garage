@@ -169,6 +169,7 @@ export function GigsSpotlight({ promo }: { promo: GigsPromo }) {
                       <li key={performer.name} className={`gigs-spot__band${performer.kind ? ` is-${performer.kind}` : ""}`}>
                         <div className="gigs-spot__card-head">
                           <span className="gigs-spot__slot">#{String(slot).padStart(2, "0")}</span>
+                          {performer.live ? <span className="gigs-spot__live">Sedang tampil</span> : null}
                           {performer.kind ? <span className="gigs-spot__kind">{LINEUP_KIND_LABEL[performer.kind]}</span> : null}
                         </div>
                         <div className="gigs-spot__band-logo">

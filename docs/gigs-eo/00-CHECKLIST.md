@@ -60,15 +60,15 @@ Aturan modul yang berlaku: skill `garage-event-lineup` (bagian "GIGS EO"), `gara
 
 ## Fase 3 — Hari-H (PR `claude/gigs-eo-fase3`, base fase2)
 
-- [ ] **6. Check-in pintu.** Undangan punya QR (token) → `POST /api/events/[id]/checkin` (scan / ketik kode) mencatat
+- [x] **6. Check-in pintu.** *(selesai, PR fase3 — `/event-day`, `event-day-service.ts`, migrasi 0199; QR "Tiket masuk" di halaman undangan setelah RSVP hadir)* Undangan punya QR (token) → `POST /api/events/[id]/checkin` (scan / ketik kode) mencatat
   `event_checkins` (jumlah orang, waktu, petugas); tolak undangan dicabut/dobel melebihi pax; counter live + kapasitas
   (`events.capacity`). Layar HP panitia `/control/event-day?event=…` tab Check-in.
-- [ ] **7. Rundown tunggal.** Rundown Lineup = sumber. `events.agenda` (undangan) bisa diisi otomatis dari rundown
+- [x] **7. Rundown tunggal.** *(selesai, PR fase3 — tombol "Salin rundown ke agenda undangan" di tab Panggung, Owner)* Rundown Lineup = sumber. `events.agenda` (undangan) bisa diisi otomatis dari rundown
   ("Salin dari rundown"); website "LIVE" memakai slot yang sedang berjalan (lihat 8).
-- [ ] **8. Mode stage manager.** Tabel/kolom status slot (`actual_start`, `actual_end`, `delay_minutes`), tombol
+- [x] **8. Mode stage manager.** *(selesai, PR fase3 — `actual_start/actual_end`, telat >12 jam diabaikan; beranda "Sedang tampil")* Tabel/kolom status slot (`actual_start`, `actual_end`, `delay_minutes`), tombol
   Mulai/Selesai, "sekarang / berikutnya", geser jadwal sisa (+N menit) tanpa mengubah jadwal rencana; publik: "Sedang
   tampil" di beranda.
-- [ ] **9. Akses panitia.** Peran ringan untuk Ketua/Stage Manager: Manajer (login manusia) boleh baca board, ubah tugas
+- [x] **9. Akses panitia.** *(selesai, PR fase3 — Manajer: papan lineup baca, status tugas, check-in, panggung; uang tetap Owner)* Peran ringan untuk Ketua/Stage Manager: Manajer (login manusia) boleh baca board, ubah tugas
   & status slot, check-in; uang (sponsor/biaya/honor) tetap Owner. Diatur di guard service, bukan UI saja.
 
 ## Fase 4 — Penyempurnaan (PR `claude/gigs-eo-fase4`, base fase3)
@@ -89,5 +89,6 @@ Aturan modul yang berlaku: skill `garage-event-lineup` (bagian "GIGS EO"), `gara
 | Tanggal | Fase/Item | PR | Catatan |
 |---|---|---|---|
 | 17 Nov 2026 | Dokumen acuan dibuat | fase1 | Belum ada yang di-merge/deploy (perintah Owner). |
+| 17 Nov 2026 | Item 6–9 selesai | fase3 | Migrasi 0199 (`event_checkins`, `events.capacity`, jam tampil nyata). Tes `event-day*.test.ts`. |
 | 17 Nov 2026 | Item 2 & 3 selesai | fase2 | Migrasi 0198 (2 tabel + kategori P&L). Tes `event-finance*.test.ts`. |
 | 17 Nov 2026 | Item 1 & 4 selesai | fase1 | Migrasi 0197 (kolom saja + backfill nama sama). Tes `event-master.integration.test.ts`. |

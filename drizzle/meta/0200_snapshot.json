@@ -1,5 +1,5 @@
 {
-  "id": "dfa8cbe5-db5c-44c0-9fa9-ad756ce0abd8",
+  "id": "2137c41d-68c6-4fd5-805f-8e2dfbfb6db1",
   "prevId": "b904a30a-ef23-449b-af12-f78993dc8a11",
   "version": "7",
   "dialect": "postgresql",
@@ -9634,6 +9634,131 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.event_ops_checks": {
+      "name": "event_ops_checks",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "event_id": {
+          "name": "event_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "label": {
+          "name": "label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pic": {
+          "name": "pic",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "done_at": {
+          "name": "done_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "done_by": {
+          "name": "done_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "event_ops_checks_event_key_idx": {
+          "name": "event_ops_checks_event_key_idx",
+          "columns": [
+            {
+              "expression": "event_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "event_ops_checks_event_id_events_id_fk": {
+          "name": "event_ops_checks_event_id_events_id_fk",
+          "tableFrom": "event_ops_checks",
+          "tableTo": "events",
+          "columnsFrom": [
+            "event_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "event_ops_checks_done_by_user_id_fk": {
+          "name": "event_ops_checks_done_by_user_id_fk",
+          "tableFrom": "event_ops_checks",
+          "tableTo": "user",
+          "columnsFrom": [
+            "done_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.event_performers": {
       "name": "event_performers",
       "schema": "",
@@ -9677,18 +9802,6 @@
         },
         "genre": {
           "name": "genre",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "logo_url": {
-          "name": "logo_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "tagline": {
-          "name": "tagline",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -9745,6 +9858,24 @@
         "tech_rider": {
           "name": "tech_rider",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "hospitality": {
+          "name": "hospitality",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "contract_url": {
+          "name": "contract_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "schedule_sent_at": {
+          "name": "schedule_sent_at",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
@@ -9875,6 +10006,123 @@
         "event_performers_minutes_check": {
           "name": "event_performers_minutes_check",
           "value": "\"event_performers\".\"set_minutes\" is null or (\"event_performers\".\"set_minutes\" > 0 and \"event_performers\".\"set_minutes\" <= 600)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.event_reviews": {
+      "name": "event_reviews",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "event_id": {
+          "name": "event_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rating": {
+          "name": "rating",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "highlights": {
+          "name": "highlights",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "issues": {
+          "name": "issues",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "incidents": {
+          "name": "incidents",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "next_time": {
+          "name": "next_time",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "event_reviews_event_idx": {
+          "name": "event_reviews_event_idx",
+          "columns": [
+            {
+              "expression": "event_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "event_reviews_event_id_events_id_fk": {
+          "name": "event_reviews_event_id_events_id_fk",
+          "tableFrom": "event_reviews",
+          "tableTo": "events",
+          "columnsFrom": [
+            "event_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "event_reviews_updated_by_user_id_fk": {
+          "name": "event_reviews_updated_by_user_id_fk",
+          "tableFrom": "event_reviews",
+          "tableTo": "user",
+          "columnsFrom": [
+            "updated_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "event_reviews_rating_check": {
+          "name": "event_reviews_rating_check",
+          "value": "\"event_reviews\".\"rating\" is null or (\"event_reviews\".\"rating\" between 1 and 5)"
         }
       },
       "isRLSEnabled": false
@@ -10270,6 +10518,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "slot_performer_id": {
+          "name": "slot_performer_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -10315,6 +10569,19 @@
           "tableTo": "user",
           "columnsFrom": [
             "done_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "event_sponsor_obligations_slot_performer_id_event_performers_id_fk": {
+          "name": "event_sponsor_obligations_slot_performer_id_event_performers_id_fk",
+          "tableFrom": "event_sponsor_obligations",
+          "tableTo": "event_performers",
+          "columnsFrom": [
+            "slot_performer_id"
           ],
           "columnsTo": [
             "id"
@@ -10585,31 +10852,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
-        },
-        "logo_url": {
-          "name": "logo_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "website_url": {
-          "name": "website_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "instagram": {
-          "name": "instagram",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "show_on_website": {
-          "name": "show_on_website",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
         },
         "agreed_amount": {
           "name": "agreed_amount",

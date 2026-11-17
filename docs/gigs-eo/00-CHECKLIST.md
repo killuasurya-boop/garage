@@ -73,14 +73,14 @@ Aturan modul yang berlaku: skill `garage-event-lineup` (bagian "GIGS EO"), `gara
 
 ## Fase 4 — Penyempurnaan (PR `claude/gigs-eo-fase4`, base fase3)
 
-- [ ] **10. Data penampil lengkap:** honor (lihat 2), status bayar, technical rider, hospitality, tautan kontrak.
-- [ ] **11. Checklist operasional & keselamatan** per event (izin keramaian, keamanan, P3K, kapasitas, listrik cadangan,
+- [x] **10. Data penampil lengkap:** *(selesai, PR fase4 — `hospitality`, `contract_url` (https), honor & status bayar di kartu Lineup dari Keuangan Event, Owner saja)* honor (lihat 2), status bayar, technical rider, hospitality, tautan kontrak.
+- [x] **11. Checklist operasional & keselamatan** *(selesai, PR fase4 — `event_ops_checks`, 10 item bawaan, tab Kesiapan di `/event-day`, masuk skor kesiapan Lineup)* per event (izin keramaian, keamanan, P3K, kapasitas, listrik cadangan,
   rencana hujan, jalur evakuasi) — item bisa dicentang + PIC, masuk skor kesiapan.
-- [ ] **12. PDF laporan ke sponsor** (kewajiban terpenuhi + foto bukti, dukungan uang/barang).
-- [ ] **13. Kewajiban sponsor ↔ slot rundown** (mis. "disebut MC 21.00" muncul di rundown MC).
-- [ ] **14. Pengingat jadwal penampil H-1** (daftar belum dikirimi jadwal → notifikasi Owner).
-- [ ] **15. Evaluasi pasca-event** (catatan insiden, evaluasi, banding event sebelumnya).
-- [ ] **16. E2E** alur Sponsor, Lineup, Biaya, Check-in di `e2e/` + `release-check.sh`.
+- [x] **12. PDF laporan ke sponsor** *(selesai, PR fase4 — `/control/sponsors/report/[id]`, cetak/PDF, logo versi kertas putih)* (kewajiban terpenuhi + foto bukti, dukungan uang/barang).
+- [x] **13. Kewajiban sponsor ↔ slot rundown** *(selesai, PR fase4 — `slot_performer_id`, tampil di tab Rundown)* (mis. "disebut MC 21.00" muncul di rundown MC).
+- [x] **14. Pengingat jadwal penampil H-1** *(selesai, PR fase4 — `schedule_sent_at` ditandai tombol Kirim jadwal; `scheduleReminders` H-1 & hari H lewat sweeper tugas)* (daftar belum dikirimi jadwal → notifikasi Owner).
+- [x] **15. Evaluasi pasca-event** *(selesai, PR fase4 — `event_reviews`, kartu Evaluasi + banding antar event di Keuangan Event)* (catatan insiden, evaluasi, banding event sebelumnya).
+- [x] **16. E2E** *(selesai, PR fase4 — `e2e/gigs-eo.spec.ts`, ikut `release-check.sh`)* alur Sponsor, Lineup, Biaya, Check-in di `e2e/` + `release-check.sh`.
 - [ ] **17. Audit platform GIGS** (pendaftaran, tiket, pembayaran, 21+, keamanan) — *BLOKIR: repo platform belum
   terhubung.*
 
@@ -89,6 +89,7 @@ Aturan modul yang berlaku: skill `garage-event-lineup` (bagian "GIGS EO"), `gara
 | Tanggal | Fase/Item | PR | Catatan |
 |---|---|---|---|
 | 17 Nov 2026 | Dokumen acuan dibuat | fase1 | Belum ada yang di-merge/deploy (perintah Owner). |
+| 17 Nov 2026 | Item 10–16 selesai | fase4 | Migrasi 0200. Tes `event-eo-fase4.integration.test.ts`, E2E `gigs-eo.spec.ts`. Sisa BLOKIR: 5, 17, tiket. |
 | 17 Nov 2026 | Item 6–9 selesai | fase3 | Migrasi 0199 (`event_checkins`, `events.capacity`, jam tampil nyata). Tes `event-day*.test.ts`. |
 | 17 Nov 2026 | Item 2 & 3 selesai | fase2 | Migrasi 0198 (2 tabel + kategori P&L). Tes `event-finance*.test.ts`. |
 | 17 Nov 2026 | Item 1 & 4 selesai | fase1 | Migrasi 0197 (kolom saja + backfill nama sama). Tes `event-master.integration.test.ts`. |

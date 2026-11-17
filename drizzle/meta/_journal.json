@@ -1405,8 +1405,15 @@
     {
       "idx": 200,
       "version": "7",
-      "when": 1794930324324,
-      "tag": "0200_event_public_branding",
+      "when": 1794898565586,
+      "tag": "0200_gigs_eo_polish",
+      "breakpoints": true
+    },
+    {
+      "idx": 201,
+      "version": "7",
+      "when": 1794930884059,
+      "tag": "0201_event_public_branding",
       "breakpoints": true
     }
   ]

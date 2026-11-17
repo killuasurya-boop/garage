@@ -5853,6 +5853,8 @@ export const eventSponsorObligations = pgTable(
     doneNote: text("done_note"),
     proofPath: text("proof_path"),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
+    // GIGS EO Fase 4 (#13): kewajiban yang terjadi di panggung (mis. "disebut MC") ditempel ke slot penampil.
+    slotPerformerId: uuid("slot_performer_id").references((): AnyPgColumn => eventPerformers.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
@@ -5916,6 +5918,10 @@ export const eventPerformers = pgTable(
     setStart: text("set_start"),
     setMinutes: integer("set_minutes"),
     techRider: text("tech_rider"),
+    // GIGS EO Fase 4 (#10): kebutuhan hospitality & tautan kontrak; #14: kapan jadwal dikirim ke penampil.
+    hospitality: text("hospitality"),
+    contractUrl: text("contract_url"),
+    scheduleSentAt: timestamp("schedule_sent_at", { withTimezone: true }),
     notes: text("notes"),
     // Ditampilkan di website (beranda GIGS) bila status konfirmasi.
     showOnWebsite: boolean("show_on_website").notNull().default(true),
@@ -6091,5 +6097,50 @@ export const eventCheckins = pgTable(
     paxCheck: check("event_checkins_pax_check", sql`${table.pax} > 0 and ${table.pax} <= 50`),
     kindCheck: check("event_checkins_kind_check", sql`${table.kind} in ('undangan','walkin')`),
     statusCheck: check("event_checkins_status_check", sql`${table.status} in ('aktif','batal')`),
+  }),
+);
+
+// ─── GIGS EO Fase 4: checklist operasional & keselamatan (#11) dan evaluasi pasca-event (#15) ───
+export const eventOpsChecks = pgTable(
+  "event_ops_checks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    // Kunci item bawaan (izin, keamanan, p3k, …) atau "custom-<n>".
+    key: text("key").notNull(),
+    label: text("label").notNull(),
+    pic: text("pic"),
+    note: text("note"),
+    doneAt: timestamp("done_at", { withTimezone: true }),
+    doneBy: text("done_by").references(() => user.id, { onDelete: "set null" }),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    eventKeyIdx: uniqueIndex("event_ops_checks_event_key_idx").on(table.eventId, table.key),
+  }),
+);
+
+export const eventReviews = pgTable(
+  "event_reviews",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    // 1–5 penilaian keseluruhan Owner.
+    rating: integer("rating"),
+    highlights: text("highlights"),
+    issues: text("issues"),
+    incidents: text("incidents"),
+    nextTime: text("next_time"),
+    updatedBy: text("updated_by").references(() => user.id, { onDelete: "set null" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    eventIdx: uniqueIndex("event_reviews_event_idx").on(table.eventId),
+    ratingCheck: check("event_reviews_rating_check", sql`${table.rating} is null or (${table.rating} between 1 and 5)`),
   }),
 );

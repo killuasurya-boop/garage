@@ -50,8 +50,14 @@ description: Aturan WAJIB modul Lineup & Panitia Event (band/stand-up, rundown, 
   rencana tidak diubah; telat > 12 jam dianggap di luar hari event (tidak dihitung). Beranda `live` = sudah mulai & belum
   selesai. "Salin rundown ke agenda" (Owner) mengisi `events.agenda` dari rundown terkonfirmasi. Manajer di Lineup: baca papan +
   ubah STATUS tugas saja (`assertCrewHuman`); data penampil/panitia/uang tetap Owner.
+- Fase 4 (migrasi 0200): penampil `hospitality`, `contract_url` (https saja), `schedule_sent_at` (tombol "Kirim jadwal" menandai;
+  pengingat H-1/hari H `scheduleReminders` untuk yang belum). Papan Lineup: `honor` per penampil (Owner saja, dari pos
+  anggaran honor tertaut) dan `sponsorNotes` (kewajiban sponsor ber-`slot_performer_id`, harus penampil event sponsor itu).
+  Checklist operasional `event_ops_checks` (10 item bawaan `OPS_CHECK_TEMPLATE`, Owner/Manajer centang, tambah item Owner)
+  masuk kesiapan sebagai item "operasional". Evaluasi `event_reviews` (1 per event, upsert) + banding antar event di
+  Keuangan Event. Laporan ke sponsor: `/control/sponsors/report/[id]` (cetak/PDF). E2E `e2e/gigs-eo.spec.ts`.
 
-## Kustom kartu talent & sponsor di website (Owner 17 Nov 2026, migrasi 0200)
+## Kustom kartu talent & sponsor di website (Owner 17 Nov 2026, migrasi 0201)
 - Penampil: `tagline` (≤40, baris kecil di bawah nama, mis. "Heavy / Metallic Roster") + `logo_url` (unggah
   `POST/DELETE /api/event-lineup/performers/[id]/logo`, webp ≤200 KB di `/garage-uploads/event-lineup`, `setPerformerLogo`,
   diaudit). `publicLineupFor` mengirim `{ name, kind, time, live, logo, tagline }`; `mergeLineup`: logo Garage OS dulu,
@@ -61,6 +67,6 @@ description: Aturan WAJIB modul Lineup & Panitia Event (band/stand-up, rundown, 
   saja (TIDAK PERNAH nilai uang/kontak/catatan), sponsor `batal` tidak tampil. Beranda: bagian "Didukung oleh" di
   `gigs-spotlight.tsx` (`promo.partners`). Tidak menyentuh buku kas.
 - Instagram (Owner 17 Nov 2026): akun Instagram penampil (`instagram`, sudah ada) dan sponsor (`event_sponsors.instagram`,
-  migrasi 0200) ikut data publik — akun IG adalah profil publik, bukan kontak. Normalisasi murni `parseInstagramHandle`
+  migrasi 0201) ikut data publik — akun IG adalah profil publik, bukan kontak. Normalisasi murni `parseInstagramHandle`
   (`@akun` / tautan instagram.com → `akun`), tautan hanya lewat `instagramUrl` (akun valid saja). Website: seluruh kartu
   penampil = tautan ke Instagram (tab baru); kartu sponsor → Instagram dulu, lalu `website_url`. Nomor WA tetap tidak publik.

@@ -77,3 +77,11 @@ description: Aturan WAJIB modul Lineup & Panitia Event (band/stand-up, rundown, 
   diisi. Setelah impor semua bebas diubah. Satu audit per impor. Sponsor belum bisa diimpor: API platform hanya kirim jumlah.
 - Arah "1 kontrol 1 komando" (saran ke Owner, menunggu repo platform `garage-event`): Garage OS = master data event, lineup,
   sponsor, panitia, uang; platform GIGS = etalase + form pendaftaran yang membuat data `calon` di Garage OS.
+- Impor RAB platform (Owner 17 Nov 2026): tombol "Impor RAB dari platform GIGS" di Keuangan Event →
+  `POST /api/event-finance/import-platform` (`importPlatformBudget`, `fetchPlatformBudget` membaca
+  `/event/<slug>/api/public/config`). Pos baru = RENCANA saja (tanpa buku kas); judul yang ada tidak ditimpa; pos cadangan
+  (`isReserveBudgetLine`: "Save Money", "bukan biaya") dilewati karena bukan biaya; kategori dari nama (`platformBudgetCategory`).
+- Data platform GIGS AKHIR TAHUN 2026 (dibaca 17 Nov 2026, publik): slug `gigs-akhir-tahun-2026`, 31 Des 2026 19.00 WIB,
+  4 talent (LOST SIDE, SURAU, DIVISIVE, STAND OUT; tagline hanya di app.js halaman, tidak di API), RAB 9 pos = Rp21.300.000
+  (termasuk Save Money Rp1.500.000), 1 sponsor berkomitmen tanpa nama publik. Daftar slot panitia memakai ejaan lain
+  ("SURAI HC", "LOSTSIDE") — konfirmasi ke Owner sebelum disamakan.

@@ -82,6 +82,9 @@ description: Aturan WAJIB modul Lineup & Panitia Event (band/stand-up, rundown, 
   `/event/<slug>/api/public/config`). Pos baru = RENCANA saja (tanpa buku kas); judul yang ada tidak ditimpa; pos cadangan
   (`isReserveBudgetLine`: "Save Money", "bukan biaya") dilewati karena bukan biaya; kategori dari nama (`platformBudgetCategory`).
 - Data platform GIGS AKHIR TAHUN 2026 (dibaca 17 Nov 2026, publik): slug `gigs-akhir-tahun-2026`, 31 Des 2026 19.00 WIB,
-  4 talent (LOST SIDE, SURAU, DIVISIVE, STAND OUT; tagline hanya di app.js halaman, tidak di API), RAB 9 pos = Rp21.300.000
-  (termasuk Save Money Rp1.500.000), 1 sponsor berkomitmen tanpa nama publik. Daftar slot panitia memakai ejaan lain
-  ("SURAI HC", "LOSTSIDE") — konfirmasi ke Owner sebelum disamakan.
+  4 talent (LOST SIDE, SURAI, DIVISIVE, STAND OUT; tagline hanya di app.js halaman, tidak di API), RAB 9 pos = Rp21.300.000
+  (termasuk Save Money Rp1.500.000), 1 sponsor berkomitmen tanpa nama publik. Nama resmi = **SURAI** (Owner 17 Nov 2026);
+  kartu website platform masih menulis "SURAU" dan slot panitia "SURAI HC" → perbaiki di repo platform. "LOSTSIDE" di slot
+  panitia = ejaan lain LOST SIDE.
+- Impor lineup mengingat nama asli platform (`event_performers.platform_name`, migrasi 0201): dicocokkan lewat
+  `platform_name` dulu, lalu nama sekarang, jadi talent yang diganti nama (SURAU → SURAI) tidak dibuat dobel saat impor ulang.

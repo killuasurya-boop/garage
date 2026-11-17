@@ -1,5 +1,5 @@
 {
-  "id": "34d220f7-a069-4cfb-be1a-0d048a9db369",
+  "id": "460a1f52-9e59-4d73-b2b2-406fa9580008",
   "prevId": "2137c41d-68c6-4fd5-805f-8e2dfbfb6db1",
   "version": "7",
   "dialect": "postgresql",
@@ -9814,6 +9814,12 @@
         },
         "tagline": {
           "name": "tagline",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "platform_name": {
+          "name": "platform_name",
           "type": "text",
           "primaryKey": false,
           "notNull": false

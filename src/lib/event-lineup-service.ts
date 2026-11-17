@@ -513,25 +513,39 @@ export async function importPlatformLineup(input: z.infer<typeof importPlatformS
 
   const result = await db.transaction(async (tx) => {
     const existing = await tx
-      .select({ id: eventPerformers.id, name: eventPerformers.name, logoUrl: eventPerformers.logoUrl, slotOrder: eventPerformers.slotOrder })
+      .select({
+        id: eventPerformers.id,
+        name: eventPerformers.name,
+        platformName: eventPerformers.platformName,
+        logoUrl: eventPerformers.logoUrl,
+        slotOrder: eventPerformers.slotOrder,
+      })
       .from(eventPerformers)
       .where(ref.eventId ? eq(eventPerformers.eventId, ref.eventId) : and(isNull(eventPerformers.eventId), eq(eventPerformers.eventName, ref.eventName)))
       .for("update");
-    const byName = new Map(existing.map((r) => [r.name.trim().toLowerCase(), r]));
+    type Existing = (typeof existing)[number];
+    // Kenali talent lewat nama asli di platform dulu (tetap cocok walau Owner sudah mengganti nama, mis. SURAU → SURAI),
+    // lalu lewat nama sekarang.
+    const byPlatform = new Map<string, Existing>(existing.filter((r) => r.platformName).map((r) => [r.platformName!.trim().toLowerCase(), r]));
+    const byName = new Map<string, Existing>(existing.map((r) => [r.name.trim().toLowerCase(), r]));
     let slot = existing.reduce((max, r) => Math.max(max, r.slotOrder ?? 0), 0);
     const created: string[] = [];
     const logoFilled: string[] = [];
     const skipped: string[] = [];
     for (const item of platform.lineup) {
       const key = item.name.trim().toLowerCase();
-      const found = byName.get(key);
+      const found = byPlatform.get(key) ?? byName.get(key);
       if (found) {
-        if (!found.logoUrl && item.logo) {
-          await tx.update(eventPerformers).set({ logoUrl: item.logo, updatedAt: new Date() }).where(eq(eventPerformers.id, found.id));
-          logoFilled.push(found.name);
-        } else {
-          skipped.push(found.name);
+        const values: Partial<typeof eventPerformers.$inferInsert> = {};
+        // Tautkan baris lama (dibuat manual / impor sebelum kolom ini) ke nama platformnya; tidak mengubah nama.
+        if (!found.platformName) values.platformName = item.name;
+        if (!found.logoUrl && item.logo) values.logoUrl = item.logo;
+        if (Object.keys(values).length) {
+          await tx.update(eventPerformers).set({ ...values, updatedAt: new Date() }).where(eq(eventPerformers.id, found.id));
+          byPlatform.set(key, { ...found, ...values } as Existing);
         }
+        if (values.logoUrl) logoFilled.push(found.name);
+        else skipped.push(found.name);
         continue;
       }
       slot += 1;
@@ -545,9 +559,10 @@ export async function importPlatformLineup(input: z.infer<typeof importPlatformS
         slotOrder: slot,
         showOnWebsite: true,
         notes: "Diimpor dari platform GIGS.",
+        platformName: item.name,
         createdBy: garage.user.id,
       });
-      byName.set(key, { id: "", name: item.name, logoUrl: item.logo, slotOrder: slot });
+      byPlatform.set(key, { id: "", name: item.name, platformName: item.name, logoUrl: item.logo, slotOrder: slot });
       created.push(item.name);
     }
     return { created, logoFilled, skipped };

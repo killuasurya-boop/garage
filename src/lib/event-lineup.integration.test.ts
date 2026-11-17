@@ -140,12 +140,14 @@ describe("Lineup & Panitia — alur", () => {
       expect(board.performers.find((p: any) => p.name === "Komika Baru")).toMatchObject({ kind: "standup", logoUrl: null });
       // Logo dari luar /event/ tidak pernah dipakai.
       expect(board.performers.find((p: any) => p.name === "Logo Jahat").logoUrl).toBeNull();
-      // Bebas diubah setelah impor; impor ulang tidak menimpa perubahan Owner.
-      await svc.updatePerformer(lost.id, { name: "LOST SIDE", tagline: "Heavy / Metallic Roster" }, owner());
+      // Bebas diubah setelah impor (termasuk ganti nama, mis. SURAU → SURAI); impor ulang tidak menimpa dan tidak dobel.
+      await svc.updatePerformer(lost.id, { name: "LOST SIDE OFFICIAL", tagline: "Heavy / Metallic Roster" }, owner());
       const again = await svc.importPlatformLineup({ eventName: EVENT }, owner());
       expect(again.created).toEqual([]);
+      expect(again.skipped).toContain("LOST SIDE OFFICIAL");
+      expect((await svc.getLineupBoard(owner(), EVENT)).performers.filter((p: any) => /lost side/i.test(p.name))).toHaveLength(1);
       const after = (await svc.getLineupBoard(owner(), EVENT)).performers.find((p: any) => p.id === lost.id);
-      expect(after).toMatchObject({ name: "LOST SIDE", tagline: "Heavy / Metallic Roster" });
+      expect(after).toMatchObject({ name: "LOST SIDE OFFICIAL", tagline: "Heavy / Metallic Roster", platformName: "Lost Side" });
       await expect(svc.importPlatformLineup({ eventName: "Event Tidak Ada" }, owner())).rejects.toMatchObject({ code: "PLATFORM_EVENT_NOT_FOUND" });
     } finally {
       vi.unstubAllGlobals();

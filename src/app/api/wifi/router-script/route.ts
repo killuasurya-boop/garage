@@ -28,8 +28,9 @@ export async function GET(request: Request) {
         dateKey,
       })
     : `# Garage OS - WiFi member nonaktif\n:if ([:len [/ip hotspot user find name="garage-member"]] > 0) do={ /ip hotspot user set [find name="garage-member"] disabled=yes }\n`;
-  // Owner bisa melihat "sinkron terakhir" di panel WiFi. Gagal mencatat tidak boleh menggagalkan skrip router.
-  await recordRouterSync().catch(() => undefined);
+  // Owner bisa melihat "password terakhir diambil router" di panel WiFi. Hanya dicatat bila skrip berisi password
+  // hari ini (bukan skrip nonaktif). Ini = skrip diambil, bukan bukti terpasang. Gagal mencatat tidak menggagalkan skrip.
+  if (settings.enabled) await recordRouterSync().catch(() => undefined);
   return new Response(script, {
     headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" },
   });

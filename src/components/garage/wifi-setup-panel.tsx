@@ -125,10 +125,10 @@ export function WifiSetupPanel() {
                 data-testid="wifi-router-sync"
               >
                 <p className="font-bold">
-                  {usage.routerSync.syncedToday ? "Password hari ini sudah dipasang router" : "Router belum mengambil password hari ini"}
+                  {usage.routerSync.syncedToday ? "Router sudah mengambil password hari ini" : "Router belum mengambil password hari ini"}
                 </p>
                 <p>
-                  Sinkron terakhir:{" "}
+                  Terakhir diambil:{" "}
                   {usage.routerSync.lastSync
                     ? new Date(usage.routerSync.lastSync).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" })
                     : "belum pernah"}

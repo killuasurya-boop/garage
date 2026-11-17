@@ -46,7 +46,7 @@ export function wifiJoinQrPayload(ssid: string): string {
   return `WIFI:T:nopass;S:${escaped};;`;
 }
 
-/** Status sinkron router: password harian dianggap sudah dipasang bila router menarik skrip hari ini (WIB). */
+/** Status sinkron router: router sudah mengambil skrip berisi password hari ini (WIB) — bukti pengambilan, bukan pemasangan. */
 export function routerSyncState(lastSyncIso: string | null, now = new Date()) {
   if (!lastSyncIso || Number.isNaN(Date.parse(lastSyncIso))) return { lastSync: null, syncedToday: false, late: true };
   const syncedToday = wifiDateKey(new Date(lastSyncIso)) === wifiDateKey(now);
@@ -191,7 +191,7 @@ export async function getWifiUsage(now = new Date()) {
 
 const ROUTER_SYNC_KEY = "wifi_router_last_sync";
 
-/** Dicatat setiap router menarik skrip harian (waktu saja, tanpa password/key). */
+/** Dicatat saat router menarik skrip berisi password harian (WiFi aktif). Waktu saja, tanpa password/key. */
 export async function recordRouterSync(now = new Date()) {
   const db = getDb();
   const value = { at: now.toISOString() };

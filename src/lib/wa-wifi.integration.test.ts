@@ -110,6 +110,24 @@ describe("WiFi member", () => {
     // Kunci asing tidak mengubah setelan aplikasi.
     expect((await wifi.getWifiSettings()).enabled).toBe(true);
   });
+
+  it("route router-script: hanya skrip berisi password (WiFi aktif) yang dicatat sebagai diambil", async () => {
+    process.env.GARAGE_WIFI_ROUTER_KEY = "router-key-0123456789abcdef";
+    const { eq } = await import("drizzle-orm");
+    const route = await import("@/app/api/wifi/router-script/route");
+    const db = t.getDb();
+    const syncAt = async () =>
+      ((await db.select().from(t.schema.appSettings)).find((r: any) => r.key === "wifi_router_last_sync")?.valueJson as any)?.at ?? null;
+    const before = await syncAt();
+    await db.update(t.schema.appSettings).set({ valueJson: false } as any).where(eq(t.schema.appSettings.key, "wifiEnabled"));
+    const off = await route.GET(new Request("http://x/api/wifi/router-script?key=router-key-0123456789abcdef"));
+    expect(await off.text()).toContain("nonaktif");
+    expect(await syncAt()).toBe(before);
+    await db.update(t.schema.appSettings).set({ valueJson: true } as any).where(eq(t.schema.appSettings.key, "wifiEnabled"));
+    const on = await route.GET(new Request("http://x/api/wifi/router-script?key=router-key-0123456789abcdef"));
+    expect(await on.text()).toContain("password=");
+    expect(await syncAt()).not.toBe(before);
+  });
 });
 
 describe("CRM WA aktif", () => {

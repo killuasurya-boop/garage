@@ -5770,6 +5770,7 @@ export const eventSponsors = pgTable(
     // Tampilan publik (owner 17 Nov 2026): logo + tautan, tampil di website event hanya bila dicentang.
     logoUrl: text("logo_url"),
     websiteUrl: text("website_url"),
+    instagram: text("instagram"),
     showOnWebsite: boolean("show_on_website").notNull().default(false),
     // Nilai UANG yang disepakati (rupiah). Sponsor barang dicatat terpisah.
     agreedAmount: integer("agreed_amount").notNull().default(0),

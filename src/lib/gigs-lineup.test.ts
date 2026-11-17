@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { groupLineup, lineupSummary, mergeLineup, parseLineupKind, type LineupItem } from "@/lib/gigs-lineup";
+import { groupLineup, instagramUrl, lineupSummary, mergeLineup, parseInstagramHandle, parseLineupKind, type LineupItem } from "@/lib/gigs-lineup";
 
 const item = (name: string, kind: LineupItem["kind"] = null): LineupItem => ({ name, logo: null, kind });
 
@@ -47,8 +47,8 @@ describe("mergeLineup", () => {
       { name: "Standup Indo Tebing Tinggi", kind: "standup" },
     ]);
     expect(merged).toEqual([
-      { name: "Surai", kind: "band", logo: "/event/surai.png", time: "20.00–20.30", live: false, tagline: null },
-      { name: "Standup Indo Tebing Tinggi", kind: "standup", logo: null, time: null, live: false, tagline: null },
+      { name: "Surai", kind: "band", logo: "/event/surai.png", time: "20.00–20.30", live: false, tagline: null, instagram: null },
+      { name: "Standup Indo Tebing Tinggi", kind: "standup", logo: null, time: null, live: false, tagline: null, instagram: null },
     ]);
   });
   it("logo unggahan Garage OS & tagline menang atas logo platform", () => {
@@ -56,5 +56,19 @@ describe("mergeLineup", () => {
       { name: "Lost Side", kind: "band", logo: "/garage-uploads/event-lineup/x.webp", tagline: "Heavy / Metallic Roster" },
     ]);
     expect(merged[0]).toMatchObject({ logo: "/garage-uploads/event-lineup/x.webp", tagline: "Heavy / Metallic Roster" });
+  });
+});
+
+describe("instagram", () => {
+  it("menerima @akun, akun, atau tautan profil", () => {
+    expect(parseInstagramHandle("@lostside.band")).toBe("lostside.band");
+    expect(parseInstagramHandle("https://www.instagram.com/surau_official/?igsh=abc")).toBe("surau_official");
+    expect(parseInstagramHandle("  ")).toBeNull();
+    expect(() => parseInstagramHandle("bukan akun!")).toThrow();
+  });
+  it("tautan hanya untuk akun valid", () => {
+    expect(instagramUrl("standout")).toBe("https://www.instagram.com/standout/");
+    expect(instagramUrl("javascript:alert(1)")).toBeNull();
+    expect(instagramUrl(null)).toBeNull();
   });
 });

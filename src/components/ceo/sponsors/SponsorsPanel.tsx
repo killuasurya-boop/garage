@@ -380,6 +380,7 @@ function SponsorForm({
   const [contactPhone, setContactPhone] = useState(initial?.contactPhone ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [websiteUrl, setWebsiteUrl] = useState(initial?.websiteUrl ?? "");
+  const [instagram, setInstagram] = useState(initial?.instagram ?? "");
   const [showOnWebsite, setShowOnWebsite] = useState(initial?.showOnWebsite ?? false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -398,6 +399,7 @@ function SponsorForm({
       contactPhone: contactPhone.trim() || null,
       notes: notes.trim() || null,
       websiteUrl: websiteUrl.trim() || null,
+      instagram: instagram.trim() || null,
       showOnWebsite,
     };
     try {
@@ -453,7 +455,10 @@ function SponsorForm({
       <Field label="Nama sponsor">
         <input value={name} onChange={(e) => setName(e.target.value)} required minLength={2} maxLength={120} className={inputClass} />
       </Field>
-      <Field label="Tautan sponsor di website (opsional)">
+      <Field label="Instagram sponsor">
+        <input value={instagram} onChange={(e) => setInstagram(e.target.value)} maxLength={80} placeholder="@brand atau instagram.com/brand" className={inputClass} />
+      </Field>
+      <Field label="Tautan lain (opsional, dipakai bila Instagram kosong)">
         <input value={websiteUrl} onChange={(e) => setWebsiteUrl(e.target.value)} maxLength={300} inputMode="url" placeholder="https://instagram.com/brand" className={inputClass} />
       </Field>
       <label className="flex items-start gap-2 text-sm text-zinc-200">

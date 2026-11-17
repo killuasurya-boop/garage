@@ -1,5 +1,5 @@
 {
-  "id": "c51ff246-e137-473c-bf47-84cb7b978932",
+  "id": "dfa8cbe5-db5c-44c0-9fa9-ad756ce0abd8",
   "prevId": "b904a30a-ef23-449b-af12-f78993dc8a11",
   "version": "7",
   "dialect": "postgresql",
@@ -10594,6 +10594,12 @@
         },
         "website_url": {
           "name": "website_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "instagram": {
+          "name": "instagram",
           "type": "text",
           "primaryKey": false,
           "notNull": false

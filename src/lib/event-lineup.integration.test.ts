@@ -79,15 +79,15 @@ describe("Lineup & Panitia — alur", () => {
     await svc.updatePerformer(surai, { showOnWebsite: true }, owner());
     const items = await svc.publicLineupFor("gigs akhir tahun 2026");
     expect(items).toEqual([
-      { name: "Standup Indo Tebing Tinggi", kind: "standup", time: "19.30–20.00", live: false, logo: null, tagline: null },
-      { name: "Surai", kind: "band", time: "20.00–20.30", live: false, logo: null, tagline: null },
+      { name: "Standup Indo Tebing Tinggi", kind: "standup", time: "19.30–20.00", live: false, logo: null, tagline: null, instagram: null },
+      { name: "Surai", kind: "band", time: "20.00–20.30", live: false, logo: null, tagline: null, instagram: "surai.band" },
     ]);
     // Data publik tanpa kontak/catatan.
-    expect(Object.keys(items[0]).sort()).toEqual(["kind", "live", "logo", "name", "tagline", "time"]);
+    expect(Object.keys(items[0]).sort()).toEqual(["instagram", "kind", "live", "logo", "name", "tagline", "time"]);
     // Kustom kartu website: tagline + logo unggahan (hapus logo = null lagi).
-    await svc.updatePerformer(surai, { tagline: "Underground Stage Unit" }, owner());
+    await svc.updatePerformer(surai, { tagline: "Underground Stage Unit", instagram: "https://instagram.com/surai.band" }, owner());
     await svc.setPerformerLogo(surai, "/garage-uploads/event-lineup/surai.webp", owner());
-    expect((await svc.publicLineupFor(EVENT)).find((i: any) => i.name === "Surai")).toMatchObject({ tagline: "Underground Stage Unit", logo: "/garage-uploads/event-lineup/surai.webp" });
+    expect((await svc.publicLineupFor(EVENT)).find((i: any) => i.name === "Surai")).toMatchObject({ tagline: "Underground Stage Unit", instagram: "surai.band", logo: "/garage-uploads/event-lineup/surai.webp" });
     await svc.setPerformerLogo(surai, null, owner());
     expect((await svc.publicLineupFor(EVENT)).find((i: any) => i.name === "Surai")?.logo).toBeNull();
     await svc.updatePerformer(surai, { showOnWebsite: false }, owner());

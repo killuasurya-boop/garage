@@ -418,6 +418,11 @@ function LineupTab({
                       <div className="min-w-0">
                         <strong className="block break-words text-lg font-black uppercase text-zinc-50">{row.name}</strong>
                         {row.tagline ? <span className="block break-words text-sm text-zinc-300">{row.tagline}</span> : null}
+                        {row.instagram ? (
+                          <a className="block break-all text-sm text-amber-300 underline-offset-2 hover:underline" href={`https://www.instagram.com/${row.instagram}/`} target="_blank" rel="noreferrer">
+                            @{row.instagram}
+                          </a>
+                        ) : null}
                       </div>
                     </div>
                     <p className="text-sm text-zinc-300">
@@ -807,8 +812,8 @@ function PerformerForm({
           <input className={inputClass} inputMode="tel" value={f.contactPhone} onChange={set("contactPhone")} placeholder="08…" maxLength={24} />
         </Field>
         <div className="sm:col-span-2">
-          <Field label="Instagram">
-            <input className={inputClass} value={f.instagram} onChange={set("instagram")} placeholder="@akun" maxLength={60} />
+          <Field label="Instagram" hint="Di website, klik kartu penampil membuka profil Instagram ini.">
+            <input className={inputClass} value={f.instagram} onChange={set("instagram")} placeholder="@akun atau tautan instagram.com/akun" maxLength={60} />
           </Field>
         </div>
         <div className="sm:col-span-2">

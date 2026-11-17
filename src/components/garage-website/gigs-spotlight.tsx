@@ -2,9 +2,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowRight, CalendarDays, Clock3, MapPin, Mic2, Music2, Share2, ShieldCheck, Store, Users } from "lucide-react";
+import { ArrowRight, CalendarDays, AtSign, Clock3, MapPin, Mic2, Music2, Share2, ShieldCheck, Store, Users } from "lucide-react";
 
-import { groupLineup, LINEUP_KIND_LABEL, lineupSummary } from "@/lib/gigs-lineup";
+import { groupLineup, instagramUrl, LINEUP_KIND_LABEL, lineupSummary } from "@/lib/gigs-lineup";
 import type { GigsPromo } from "@/lib/gigs-promo";
 
 // Section promosi utama GIGS di beranda (#gigs). Semua isi dari platform event:
@@ -165,8 +165,9 @@ export function GigsSpotlight({ promo }: { promo: GigsPromo }) {
                 <ol className="gigs-spot__lineup">
                   {group.items.map((performer) => {
                     const slot = promo.promo.lineup.indexOf(performer) + 1;
+                    const igUrl = instagramUrl(performer.instagram);
                     return (
-                      <li key={performer.name} className={`gigs-spot__band${performer.kind ? ` is-${performer.kind}` : ""}`}>
+                      <li key={performer.name} className={`gigs-spot__band${performer.kind ? ` is-${performer.kind}` : ""}${igUrl ? " has-link" : ""}`}>
                         <div className="gigs-spot__card-head">
                           <span className="gigs-spot__slot">#{String(slot).padStart(2, "0")}</span>
                           {performer.live ? <span className="gigs-spot__live">Sedang tampil</span> : null}
@@ -177,6 +178,13 @@ export function GigsSpotlight({ promo }: { promo: GigsPromo }) {
                         </div>
                         <strong>{performer.name}</strong>
                         {performer.tagline ? <span className="gigs-spot__tagline">{performer.tagline}</span> : null}
+                        {igUrl ? (
+                          // Seluruh kartu bisa diklik (tautan merentang), teks @akun tetap terlihat.
+                          <a className="gigs-spot__ig" href={igUrl} target="_blank" rel="noopener noreferrer" aria-label={`Instagram ${performer.name} (@${performer.instagram})`}>
+                            <AtSign aria-hidden size={13} />
+                            <span>{performer.instagram}</span>
+                          </a>
+                        ) : null}
                         {performer.time ? (
                           <span className="gigs-spot__time">
                             <Clock3 aria-hidden size={12} />
@@ -222,12 +230,19 @@ export function GigsSpotlight({ promo }: { promo: GigsPromo }) {
                     </span>
                     <strong>{partner.name}</strong>
                     {partner.packageName ? <span className="gigs-spot__partner-tier">{partner.packageName}</span> : null}
+                    {partner.instagram ? (
+                      <span className="gigs-spot__partner-ig">
+                        <AtSign aria-hidden size={13} /> {partner.instagram}
+                      </span>
+                    ) : null}
                   </>
                 );
+                // Instagram dulu (permintaan Owner), lalu tautan website sponsor.
+                const href = instagramUrl(partner.instagram) ?? partner.url;
                 return (
                   <li key={partner.name}>
-                    {partner.url ? (
-                      <a className="gigs-spot__partner" href={partner.url} target="_blank" rel="noopener noreferrer sponsored">
+                    {href ? (
+                      <a className="gigs-spot__partner" href={href} target="_blank" rel="noopener noreferrer sponsored">
                         {body}
                       </a>
                     ) : (

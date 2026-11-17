@@ -425,3 +425,29 @@
 @media (prefers-reduced-motion: reduce) {
   .garage-website a.gigs-spot__partner { transition: none; transform: none; }
 }
+/* Kartu penampil dengan Instagram: seluruh kartu jadi tautan (::after merentang), @akun tetap terbaca. */
+.garage-website .gigs-spot__ig {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: #ffb020;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.garage-website .gigs-spot__ig::after { content: ""; position: absolute; inset: 0; }
+.garage-website .gigs-spot__band.has-link { cursor: pointer; }
+.garage-website .gigs-spot__band.has-link:hover .gigs-spot__ig span { text-decoration: underline; }
+.garage-website .gigs-spot__ig:focus-visible { outline: none; }
+.garage-website .gigs-spot__band.has-link:focus-within { outline: 2px solid #ffb020; outline-offset: 2px; }
+.garage-website .gigs-spot__partner-ig {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: #ffb020;
+  overflow-wrap: anywhere;
+}

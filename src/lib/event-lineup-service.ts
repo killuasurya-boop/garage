@@ -23,6 +23,7 @@ import {
   type TaskStatus,
 } from "@/lib/event-lineup-rules";
 import { wibDate } from "@/lib/event-sponsor-rules";
+import { parseInstagramHandle } from "@/lib/gigs-lineup";
 import { EventRefError, findEventForPlatform, listMasterEvents, resolveEventRef } from "@/lib/event-master";
 import { createAuditLog } from "@/lib/garage-service";
 import type { GarageSession } from "@/lib/server-auth";
@@ -158,10 +159,11 @@ function phoneOrThrow(value: string | null | undefined, field: string): string |
 }
 
 const instagramHandle = (value: string | null | undefined) => {
-  if (!value) return null;
-  const handle = value.trim().replace(/^@/, "").replace(/^https?:\/\/(www\.)?instagram\.com\//, "").replace(/\/+$/, "");
-  if (!/^[A-Za-z0-9._]{1,30}$/.test(handle)) throw new LineupError("INVALID_INSTAGRAM", "Akun Instagram tidak valid.");
-  return handle;
+  try {
+    return parseInstagramHandle(value);
+  } catch {
+    throw new LineupError("INVALID_INSTAGRAM", "Akun Instagram tidak valid.");
+  }
 };
 
 const emptyToNull = (value: string | null | undefined) => (value === undefined ? undefined : value && value.trim() ? value.trim() : null);
@@ -512,6 +514,7 @@ export type PublicLineupItem = {
   live: boolean;
   logo: string | null;
   tagline: string | null;
+  instagram: string | null;
 };
 
 /**
@@ -532,6 +535,7 @@ export async function publicLineupFor(platform: string | { slug: string; name: s
       kind: eventPerformers.kind,
       logoUrl: eventPerformers.logoUrl,
       tagline: eventPerformers.tagline,
+      instagram: eventPerformers.instagram,
       status: eventPerformers.status,
       slotOrder: eventPerformers.slotOrder,
       setStart: eventPerformers.setStart,
@@ -564,6 +568,7 @@ export async function publicLineupFor(platform: string | { slug: string; name: s
     live: live.has(r.id),
     logo: extra.get(r.id)?.logoUrl ?? null,
     tagline: extra.get(r.id)?.tagline ?? null,
+    instagram: extra.get(r.id)?.instagram ?? null,
   }));
 }
 

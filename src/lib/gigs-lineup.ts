@@ -13,7 +13,31 @@ export type LineupItem = {
   time?: string | null;
   live?: boolean;
   tagline?: string | null;
+  /** Akun Instagram tanpa "@" (diisi Owner); kartu website jadi tautan ke profilnya. */
+  instagram?: string | null;
 };
+
+/**
+ * "@akun", "akun", atau tautan instagram.com/akun → "akun". Kosong → null. Format salah → Error
+ * (pemanggil memetakan ke error modulnya). Aturan murni, dipakai lineup & sponsor.
+ */
+export function parseInstagramHandle(value: string | null | undefined): string | null {
+  if (!value || !value.trim()) return null;
+  const handle = value
+    .trim()
+    .replace(/^@/, "")
+    .replace(/^https?:\/\/(www\.)?instagram\.com\//i, "")
+    .replace(/[?#].*$/, "")
+    .replace(/\/+$/, "");
+  if (!/^[A-Za-z0-9._]{1,30}$/.test(handle)) throw new Error("Akun Instagram tidak valid.");
+  return handle;
+}
+
+/** Tautan profil publik; null bila akun kosong/tidak valid (tidak pernah membuat tautan sembarang). */
+export function instagramUrl(handle: string | null | undefined): string | null {
+  if (!handle || !/^[A-Za-z0-9._]{1,30}$/.test(handle)) return null;
+  return `https://www.instagram.com/${handle}/`;
+}
 
 export type LineupGroup = { kind: LineupKind | null; label: string; items: LineupItem[] };
 
@@ -84,7 +108,15 @@ export function lineupSummary(groups: LineupGroup[]): string {
  */
 export function mergeLineup(
   platform: LineupItem[],
-  garage: Array<{ name: string; kind: LineupKind; time?: string | null; live?: boolean; logo?: string | null; tagline?: string | null }>,
+  garage: Array<{
+    name: string;
+    kind: LineupKind;
+    time?: string | null;
+    live?: boolean;
+    logo?: string | null;
+    tagline?: string | null;
+    instagram?: string | null;
+  }>,
 ): LineupItem[] {
   if (!garage.length) return platform;
   const logoByName = new Map(platform.map((item) => [item.name.trim().toLowerCase(), item.logo]));
@@ -95,5 +127,6 @@ export function mergeLineup(
     time: item.time ?? null,
     live: item.live ?? false,
     tagline: item.tagline ?? null,
+    instagram: item.instagram ?? null,
   }));
 }

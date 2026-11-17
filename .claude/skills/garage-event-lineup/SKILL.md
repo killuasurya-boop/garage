@@ -60,3 +60,7 @@ description: Aturan WAJIB modul Lineup & Panitia Event (band/stand-up, rundown, 
   `show_on_website` (default **false**, Owner mencentang). `publicSponsorsFor({slug,name})` = nama, logo, tautan, paket
   saja (TIDAK PERNAH nilai uang/kontak/catatan), sponsor `batal` tidak tampil. Beranda: bagian "Didukung oleh" di
   `gigs-spotlight.tsx` (`promo.partners`). Tidak menyentuh buku kas.
+- Instagram (Owner 17 Nov 2026): akun Instagram penampil (`instagram`, sudah ada) dan sponsor (`event_sponsors.instagram`,
+  migrasi 0200) ikut data publik — akun IG adalah profil publik, bukan kontak. Normalisasi murni `parseInstagramHandle`
+  (`@akun` / tautan instagram.com → `akun`), tautan hanya lewat `instagramUrl` (akun valid saja). Website: seluruh kartu
+  penampil = tautan ke Instagram (tab baru); kartu sponsor → Instagram dulu, lalu `website_url`. Nomor WA tetap tidak publik.

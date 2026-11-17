@@ -478,8 +478,11 @@ export async function sweepLineupTaskReminders(now = new Date()) {
     .where(and(eq(staffProfiles.role, "Owner"), eq(staffProfiles.status, "active")));
   const { notifyStaff } = await import("@/lib/staff-notifications");
   let sent = 0;
+  let failed = 0;
+  let lastError: unknown = null;
   for (const reminder of reminders) {
     for (const owner of owners) {
+      // Gagal simpan ≠ sudah terkirim (dedup): dicatat, penerima lain tetap dicoba, lalu dilempar ke runMonitoredJob.
       const row = await notifyStaff({
         outletId: owner.outletId,
         audience: "user",
@@ -490,9 +493,16 @@ export async function sweepLineupTaskReminders(now = new Date()) {
         body: reminder.body,
         url: `/control/lineup?event=${encodeURIComponent(reminder.eventName)}&tab=tugas`,
         dedupKey: `${reminder.key}:${owner.userId}`,
-      }).catch(() => null);
+      }).catch((error: unknown) => {
+        failed += 1;
+        lastError = error;
+        return null;
+      });
       if (row) sent += 1;
     }
+  }
+  if (failed) {
+    throw new Error(`${failed} pengingat tugas panitia gagal disimpan (${sent} terkirim): ${lastError instanceof Error ? lastError.message : "galat"}`);
   }
   return { sent };
 }

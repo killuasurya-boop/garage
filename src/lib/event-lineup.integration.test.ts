@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { Role } from "@/lib/garage-data";
 import type { GarageSession } from "@/lib/server-auth";
@@ -129,5 +129,21 @@ describe("Lineup & Panitia — pengingat tugas panitia", () => {
     expect(forOpen[0].url).toBe(`/control/lineup?event=${encodeURIComponent(EVENT)}&tab=tugas`);
     expect(rows.some((r: any) => r.dedupKey?.includes(finished.id))).toBe(false);
     expect(first.sent).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("Lineup & Panitia — pengingat gagal disimpan", () => {
+  it("kegagalan notifikasi dilempar (bukan dianggap dobel) supaya runMonitoredJob mencatatnya", async () => {
+    await svc.createTask({ eventName: EVENT, title: "Briefing kru", dueDate: "2026-11-20" }, owner());
+    vi.doMock("@/lib/staff-notifications", () => ({
+      notifyStaff: async () => {
+        throw new Error("db down");
+      },
+    }));
+    try {
+      await expect(svc.sweepLineupTaskReminders(new Date("2026-11-20T03:00:00Z"))).rejects.toThrow(/gagal disimpan.*db down/);
+    } finally {
+      vi.doUnmock("@/lib/staff-notifications");
+    }
   });
 });

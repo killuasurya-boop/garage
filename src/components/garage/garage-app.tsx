@@ -814,6 +814,13 @@ function GarageWorkspace({
       const raw = (event as CustomEvent<string>).detail;
       if (!raw) return;
       const url = new URL(raw, window.location.origin);
+      // Tautan ke halaman lain (mis. /control/lineup, /partners, /warehouse/…) → pindah halaman.
+      // /os, /dashboard, /pos = shell yang sama; ditangani di sini lewat ?module=.
+      const inShell = ["/os", "/dashboard", "/pos", window.location.pathname].includes(url.pathname);
+      if (url.origin === window.location.origin && !inShell) {
+        window.location.assign(`${url.pathname}${url.search}`);
+        return;
+      }
       const target = url.searchParams.get("module") as ModuleId | null;
       if (target && canAccessModuleAs(data?.me ?? { role: "Kasir" }, target)) {
         setActiveModule(target);

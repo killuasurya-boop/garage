@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import Link from "next/link";
 import { AlertTriangle, ArrowLeft, Ban, Camera, CheckCircle2, ClipboardList, Mic2, Play, RefreshCw, RotateCcw, ShieldCheck, Square, UserPlus, Users } from "lucide-react";
 
+import { EventControlNav } from "@/components/ceo/ui/EventControlNav";
 import { garageApi, GarageApiError } from "@/lib/api-client";
 import { useCodeScanner } from "@/lib/use-code-scanner";
 
@@ -133,6 +134,8 @@ export function EventDayPanel({ initialEventId = null }: { initialEventId?: stri
         </button>
       </div>
       <h1 className="text-2xl font-black uppercase tracking-wide">Hari-H Event</h1>
+      {/* Owner: pindah cepat ke menu event lain (Manajer hanya memakai layar ini). */}
+      {view?.role === "Owner" ? <EventControlNav current="harih" eventId={eventId} compact /> : null}
 
       <label className="grid gap-1 text-xs font-semibold text-zinc-300">
         Event

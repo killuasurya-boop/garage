@@ -27,6 +27,7 @@ import {
 
 import { PageHeader } from "@/components/ceo/layout/PageHeader";
 import { Badge } from "@/components/ceo/ui/Badge";
+import { EventControlNav } from "@/components/ceo/ui/EventControlNav";
 import { LogoUpload } from "@/components/ceo/ui/LogoUpload";
 import { FormSection, ReadinessChips, TalentCardPreview } from "@/components/ceo/ui/WebsitePreview";
 import { garageApi, GarageApiError } from "@/lib/api-client";
@@ -202,6 +203,8 @@ export function LineupPanel({ initialEvent = null, initialEventId = null, initia
           </div>
         }
       />
+
+      <EventControlNav current="lineup" eventId={board?.eventId ?? null} />
 
       {/* Pilih / buat event */}
       <div className={`${cardClass} grid gap-3 lg:grid-cols-[18rem_minmax(0,1fr)] lg:items-start`}>

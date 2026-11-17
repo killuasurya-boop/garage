@@ -21,6 +21,7 @@ import {
 
 import { PageHeader } from "@/components/ceo/layout/PageHeader";
 import { Badge } from "@/components/ceo/ui/Badge";
+import { EventControlNav, StepHint } from "@/components/ceo/ui/EventControlNav";
 import { LogoUpload } from "@/components/ceo/ui/LogoUpload";
 import { FormSection, ReadinessChips, SponsorCardPreview } from "@/components/ceo/ui/WebsitePreview";
 import { garageApi, GarageApiError } from "@/lib/api-client";
@@ -156,6 +157,15 @@ export function SponsorsPanel() {
             </button>
           </>
         }
+      />
+      <EventControlNav current="sponsor" />
+      <StepHint
+        label="Cara pakai sponsor"
+        steps={[
+          "Sponsor baru: pilih event, nama, paket, nilai yang disepakati",
+          "Buka sponsor → Catat uang masuk saat mutasi Jago terlihat (otomatis ke buku kas)",
+          "Unggah logo + centang “Tampilkan di website” → muncul di “Didukung oleh”",
+        ]}
       />
 
       {error ? (

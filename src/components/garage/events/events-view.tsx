@@ -13,6 +13,7 @@ import { EventSalesPanel } from "@/components/garage/events/event-sales-panel";
 import { EventMainMenuPanel } from "@/components/garage/events/event-main-menu-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { AdminEvent } from "@/lib/event-service";
+import { EventControlNav } from "@/components/ceo/ui/EventControlNav";
 
 // Modul "Undangan Digital" (PRD GC-PRD-EVENT-001): Owner + Manajer.
 export function EventsView({ canExport }: { canExport: boolean }) {
@@ -70,6 +71,8 @@ export function EventsView({ canExport }: { canExport: boolean }) {
         <EventCreateDialog template={selected} onCreated={(event) => { setEvents((current) => [...(current ?? []), event]); setSelectedId(event.id); setTab("menu"); }} />
         </div>
       </header>
+
+      {canExport ? <EventControlNav current="event" eventId={selectedId ?? null} /> : null}
 
       {error ? <p className="rounded-md border border-garage-red/50 p-4 text-garage-red-bright">{error}</p> : null}
       {!events && !error ? (

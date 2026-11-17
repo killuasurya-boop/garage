@@ -83,6 +83,12 @@ describe("Fase 4", () => {
     expect(hariH).toHaveLength(0);
   });
 
+  it("#11 kesiapan: checklist keselamatan yang belum pernah dibuka dihitung 0/10, bukan dilewati", async () => {
+    lineup ??= await import("@/lib/event-lineup-service");
+    const board = await lineup.getLineupBoard(owner(), { eventId });
+    expect(board.readiness.items.find((i: any) => i.key === "operasional")).toMatchObject({ done: false, detail: "0/10 selesai" });
+  });
+
   it("#11 checklist operasional: bawaan dibuat sekali, Manajer centang, masuk kesiapan; tambah item hanya Owner", async () => {
     const day = await import("@/lib/event-day-service");
     const first = await day.getOpsChecklist(eventId, manajer());

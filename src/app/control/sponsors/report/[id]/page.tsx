@@ -29,7 +29,14 @@ export default async function SponsorReportPage({ params }: { params: Promise<{ 
   const obligations = sponsor.obligations;
   const done = obligations.filter((o) => o.doneAt);
   return (
-    <main className="mx-auto max-w-3xl bg-white px-6 py-8 text-zinc-900 print:max-w-none print:p-0">
+    <main className="sponsor-report mx-auto max-w-3xl bg-white px-6 py-8 text-zinc-900 print:max-w-none print:p-0">
+      {/* Aturan cetak global (globals.css) menyembunyikan semua isi kecuali struk `.garage-print-root` di kertas 58 mm.
+          Laporan ini dokumen A4: tampilkan isinya dan pakai ukuran kertas A4. */}
+      <style>{`@media print {
+  @page { size: A4; margin: 14mm; }
+  .sponsor-report, .sponsor-report * { visibility: visible !important; }
+  .sponsor-report { position: static; width: auto; }
+}`}</style>
       <div className="mb-6 flex items-start justify-between gap-4">
         {/* eslint-disable-next-line @next/next/no-img-element -- logo resmi di atas kertas putih */}
         <img src="/garage-brand/garage-coffee-logo-dark.png" alt="Garage Coffee" className="h-14 w-auto object-contain" />

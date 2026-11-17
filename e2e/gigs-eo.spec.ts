@@ -46,5 +46,15 @@ test("GIGS EO: lineup master → keuangan event → hari-H (check-in, panggung, 
   await page.getByRole("tab", { name: "Kesiapan" }).click();
   await expect(page.getByText(/Checklist operasional/)).toBeVisible();
   await post(`/api/event-day/slots/${performer.id}`, { action: "undo" });
+
+  // Laporan sponsor (#12): saat dicetak isinya tetap terlihat (aturan cetak struk global tidak menyembunyikannya).
+  const sponsor = await post("/api/sponsors", { eventId, eventName: finance.event.title, name: `Sponsor E2E ${tag}`, agreedAmount: 1000000 });
+  await page.goto(`/control/sponsors/report/${sponsor.id}`);
+  await expect(page.getByRole("heading", { name: "Laporan Sponsor" })).toBeVisible({ timeout: 90_000 });
+  await page.emulateMedia({ media: "print" });
+  const visibility = await page.getByRole("heading", { name: "Laporan Sponsor" }).evaluate((el) => getComputedStyle(el).visibility);
+  expect(visibility).toBe("visible");
+  await expect(page.getByText(`Sponsor E2E ${tag}`)).toBeVisible();
+  await page.emulateMedia({ media: "screen" });
   check();
 });

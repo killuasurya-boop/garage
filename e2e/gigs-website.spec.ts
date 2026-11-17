@@ -255,7 +255,17 @@ test("Tempel daftar talent (UI) + Ruang Panitia: akun waiter ditautkan sebagai k
   const wp = await ctx.newPage();
   const wcheck = failOnPageErrors(wp);
   await login(wp, "waiter@garage.id");
-  await wp.goto("/panitia");
+  // Shell /os waiter masih memuat & bisa berpindah sendiri; tunggu tenang dulu agar navigasi ke /panitia tidak terpotong.
+  await wp.waitForLoadState("networkidle").catch(() => null);
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await wp.goto("/panitia");
+      break;
+    } catch (error) {
+      if (attempt >= 2 || !String(error).includes("ERR_ABORTED")) throw error;
+      await wp.waitForTimeout(2_000);
+    }
+  }
   const ws = wp.getByTestId("panitia-workspace");
   await expect(ws.getByRole("heading", { name: "Ruang Panitia" })).toBeVisible({ timeout: 90_000 });
   const section = ws.getByRole("region", { name: event.title });

@@ -13,4 +13,9 @@ CREATE UNIQUE INDEX "events_platform_slug_unique" ON "events" USING btree ("plat
 UPDATE "event_performers" p SET "event_id" = e."id" FROM "events" e WHERE p."event_id" IS NULL AND lower(trim(p."event_name")) = lower(trim(e."title")) AND (SELECT count(*) FROM "events" e2 WHERE lower(trim(e2."title")) = lower(trim(e."title"))) = 1;--> statement-breakpoint
 UPDATE "event_crew" c SET "event_id" = e."id" FROM "events" e WHERE c."event_id" IS NULL AND lower(trim(c."event_name")) = lower(trim(e."title")) AND (SELECT count(*) FROM "events" e2 WHERE lower(trim(e2."title")) = lower(trim(e."title"))) = 1;--> statement-breakpoint
 UPDATE "event_crew_tasks" t SET "event_id" = e."id" FROM "events" e WHERE t."event_id" IS NULL AND lower(trim(t."event_name")) = lower(trim(e."title")) AND (SELECT count(*) FROM "events" e2 WHERE lower(trim(e2."title")) = lower(trim(e."title"))) = 1;--> statement-breakpoint
-UPDATE "event_sponsors" s SET "event_id" = e."id" FROM "events" e WHERE s."event_id" IS NULL AND lower(trim(s."event_name")) = lower(trim(e."title")) AND (SELECT count(*) FROM "events" e2 WHERE lower(trim(e2."title")) = lower(trim(e."title"))) = 1;
+UPDATE "event_sponsors" s SET "event_id" = e."id" FROM "events" e WHERE s."event_id" IS NULL AND lower(trim(s."event_name")) = lower(trim(e."title")) AND (SELECT count(*) FROM "events" e2 WHERE lower(trim(e2."title")) = lower(trim(e."title"))) = 1;;--> statement-breakpoint
+-- Nama di baris tertaut disamakan dengan judul master (mis. "GIGS AKHIR TAHUN" → "Gigs Akhir Tahun"), agar validasi & tampilan konsisten.
+UPDATE "event_performers" p SET "event_name" = e."title" FROM "events" e WHERE p."event_id" = e."id" AND p."event_name" <> e."title";--> statement-breakpoint
+UPDATE "event_crew" c SET "event_name" = e."title" FROM "events" e WHERE c."event_id" = e."id" AND c."event_name" <> e."title";--> statement-breakpoint
+UPDATE "event_crew_tasks" t SET "event_name" = e."title" FROM "events" e WHERE t."event_id" = e."id" AND t."event_name" <> e."title";--> statement-breakpoint
+UPDATE "event_sponsors" s SET "event_name" = e."title" FROM "events" e WHERE s."event_id" = e."id" AND s."event_name" <> e."title";

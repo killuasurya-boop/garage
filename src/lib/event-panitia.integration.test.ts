@@ -4,6 +4,7 @@ import type { Role } from "@/lib/garage-data";
 import type { GarageSession } from "@/lib/server-auth";
 import { seedGarageBasics, setupGarageTestDb, teardownGarageTestDb, type GarageTestDb } from "@/lib/test-helpers/garage-test-db";
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // Ruang Panitia (Owner 17 Nov 2026): akun staf yang ditautkan sebagai panitia event melihat event itu saja;
 // hak per jabatan dicek di server; tidak ada uang/kontak.
 

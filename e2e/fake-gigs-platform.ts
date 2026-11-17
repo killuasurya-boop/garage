@@ -1,0 +1,46 @@
+// Platform GIGS palsu untuk E2E: melayani GET /event/api/events dengan SATU event online yang judulnya sama dengan
+// master event Garage OS. Isi lineup bisa diganti per tes (setEvent). Port tetap 3198 (lihat e2e/start-server.mjs).
+import { createServer, type Server } from "node:http";
+
+export const FAKE_GIGS_PORT = 3198;
+
+export type FakeGigsEvent = {
+  slug: string;
+  name: string;
+  lineup: Array<{ name: string; type: string; logo?: string }>;
+};
+
+export function startFakeGigsPlatform(initial: FakeGigsEvent) {
+  let current = initial;
+  const server: Server = createServer((req, res) => {
+    if (req.method !== "GET" || !req.url?.startsWith("/event/api/events")) {
+      res.writeHead(404).end();
+      return;
+    }
+    const start = new Date(Date.now() + 3 * 24 * 3_600_000);
+    const body = {
+      events: [
+        {
+          slug: current.slug,
+          name: current.name,
+          venue: "Garage Coffee Tebing Tinggi",
+          date: start.toISOString(),
+          endsAt: new Date(start.getTime() + 5 * 3_600_000).toISOString(),
+          status: "segera",
+          online: true,
+          url: `/event/${current.slug}`,
+          promo: { headline: `${current.name} *E2E*`, programs: ["Band lokal"], lineup: current.lineup },
+          links: { daftarSponsor: `/event/${current.slug}/daftar?tipe=sponsor`, daftarKreator: `/event/${current.slug}/daftar?tipe=kreator` },
+        },
+      ],
+    };
+    res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(body));
+  });
+  return {
+    setEvent: (next: FakeGigsEvent) => {
+      current = next;
+    },
+    listen: () => new Promise<void>((resolve) => server.listen(FAKE_GIGS_PORT, "127.0.0.1", () => resolve())),
+    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+  };
+}

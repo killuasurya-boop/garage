@@ -1387,6 +1387,13 @@
       "when": 1794896391750,
       "tag": "0197_gigs_master_event",
       "breakpoints": true
+    },
+    {
+      "idx": 198,
+      "version": "7",
+      "when": 1794897060775,
+      "tag": "0198_gigs_event_budget",
+      "breakpoints": true
     }
   ]
 }

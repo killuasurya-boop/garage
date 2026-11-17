@@ -88,6 +88,8 @@ export const KEEP_TABLES = [
   "event_sponsors", "event_sponsor_installments", "event_sponsor_obligations", "event_sponsor_inkind",
   // Lineup & Panitia Event: penampil, panitia & tugas = data persiapan acara (bukan transaksi), tidak dihapus saat reset H-1
   "event_performers", "event_crew", "event_crew_tasks",
+  // GIGS EO: anggaran event = rencana (bukan uang), tidak dihapus
+  "event_budget_lines",
   // Smart Partner Hub — master mitra resmi, akun, rekening, produk & histori harga
   "partners", "partner_bank_accounts", "partner_accounts", "partner_push_subscriptions", "partner_applications", "partner_product_links", "partner_price_history",
   "partner_price_proposals",
@@ -106,6 +108,8 @@ export const CLEAR_TABLES = [
   "partner_settlement_lines", "partner_payouts", "partner_reports",
   // Sponsor Event — uang masuk Rekening Jago (berpasangan dengan baris buku kas yang ikut dihapus)
   "event_sponsor_payments",
+  // GIGS EO — pembayaran biaya event (berpasangan dengan baris buku kas yang ikut dihapus)
+  "event_expense_payments",
   // kas & finance transaksional
   "cash_sessions", "cash_session_counts", "cash_session_final_snapshots", "cash_movements", "cash_ledger_entries", "cash_opening_certifications", "petty_cash_entries", "shift_incidents", "expenses", "supplier_invoices", "supplier_receivings",
   "supplier_receiving_items", "finance_daily_closings", "finance_monthly_closings", "financial_snapshots",

@@ -126,6 +126,10 @@ description: Aturan WAJIB uang/kas Garage OS: shift & laci, Kas Keluar/Masuk, bu
   sponsorship is a note only (no ledger, no P&L). Installments are allocated earliest-due-first (pure `event-sponsor-rules.ts`);
   reminders via `sweepSponsorReminders` (H-3, due day, late day 1/3/7 then weekly; neutral wording). The GIGS platform
   (separate stack, `/event`) is not changed by this module.
+- Biaya Event (GIGS EO Fase 2, owner 17 Nov 2026, migration 0198): event costs are paid from bank_jago/bank_bni (one
+  `event_expense` ledger row bank → external in the same tx) or `external` (Owner personal money, no ledger row). Void =
+  `event_expense_void` reversal. P&L reads `event_expense_payments` (paid date +, void date −) as category `Biaya Event`
+  (`non_operating`, ENGINE_VERSION 7) — never omzet. Details: skill `garage-event-lineup`.
 
 ## Finance Rules
 

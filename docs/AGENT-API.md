@@ -189,7 +189,8 @@ Selama `GARAGE_MCP_CHATGPT_ENABLED` bukan `true`: tidak ada endpoint OAuth, `/.w
      `_meta["openai/fileParams"]`). Server mengunduh **hanya** dari host unggahan ChatGPT (https, tanpa IP,
      redirect dicek ulang), maks 8 MB, isi wajib JPG/PNG/WebP asli, lalu di-encode ulang (EXIF dibuang) dan
      disimpan sementara 30 menit (non-publik, terikat Owner). Belum mengubah data; balasannya `fotoId`.
-  2. `pasang_foto` (R2, preview → konfirmasi): pasang `fotoId` ke tujuan tetap — `produk_menu` (id),
+  2. `pasang_foto` (R2, preview → konfirmasi): pasang `fotoId` ke tujuan tetap — `produk_menu` (cukup `nama` produk,
+     mis. "Nasi Goreng": nama persis menang, nama ambigu → `PRODUK_AMBIGU` + daftar pilihan; atau `id`),
      `produk_mitra` (id link), `bahan_gudang` (id), `hero_website`, `suasana_website` (slot 1–4). Diteruskan ke
      endpoint unggah yang sudah ada (kompresi & audit route itu tetap jalan).
   - Bukti uang (struk kas, bukti transfer, dokumen) tidak bisa lewat jalur ini. URL unduhan tidak pernah

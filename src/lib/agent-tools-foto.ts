@@ -77,9 +77,42 @@ const pasangInput = z.object({
   fotoId: z.string().regex(/^[a-f0-9]{32}$/, "fotoId berasal dari siapkan_foto."),
   tujuan: z.enum(PHOTO_TARGETS),
   id: z.string().trim().max(80).optional(),
+  /** produk_menu: cukup nama produk (mis. "Nasi Goreng"); dicari di menu aktif. */
+  nama: z.string().trim().min(2).max(120).optional(),
   slot: z.number().int().min(1).max(4).optional(),
   alasan: z.string().trim().min(3, "Tulis alasan singkat.").max(300),
 });
+
+/**
+ * produk_menu dengan `nama`: cari produk menu AKTIF milik Garage (bukan produk mitra). Nama persis (tanpa beda
+ * huruf besar/kecil) menang; selain itu harus tepat satu yang mengandung kata itu, kalau tidak Owner diminta memilih.
+ */
+export async function resolveMenuProductId(nama: string) {
+  const { and, eq, ilike, ne } = await import("drizzle-orm");
+  const { getDb } = await import("@/db");
+  const { menuItems } = await import("@/db/schema");
+  const pattern = `%${nama.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+  const rows = await getDb()
+    .select({ id: menuItems.id, name: menuItems.name })
+    .from(menuItems)
+    .where(and(eq(menuItems.status, "active"), ne(menuItems.productType, "partner"), ilike(menuItems.name, pattern)))
+    .limit(20);
+  const exact = rows.filter((row) => row.name.trim().toLowerCase() === nama.trim().toLowerCase());
+  const pick = exact.length === 1 ? exact : rows.length === 1 ? rows : [];
+  if (pick.length === 1) return pick[0];
+  if (!rows.length) {
+    throw new AgentToolError("PRODUK_TIDAK_DITEMUKAN", `Tidak ada produk menu aktif bernama "${nama}". Cek ejaan atau sebut nama lain.`, 404);
+  }
+  const pilihan = rows.slice(0, 8).map((row) => `${row.name} (id ${row.id})`).join("; ");
+  throw new AgentToolError("PRODUK_AMBIGU", `Ada ${rows.length} produk yang cocok dengan "${nama}": ${pilihan}. Tanyakan Owner produk yang mana, lalu kirim \`id\`-nya.`, 409);
+}
+
+/** produk_menu: `nama` → `id` (bila id belum diisi). Tujuan lain tidak berubah. */
+async function withResolvedId(args: Record<string, unknown>) {
+  if (args.tujuan !== "produk_menu" || args.id || typeof args.nama !== "string") return { id: args.id as string | undefined, nama: null };
+  const found = await resolveMenuProductId(args.nama);
+  return { id: found.id, nama: found.name };
+}
 
 /** Nama & foto sekarang dari respons GET (bentuk `{data:{...}}` atau langsung) — hanya untuk preview. */
 function currentInfo(json: unknown) {
@@ -124,7 +157,7 @@ export const fotoTools: AgentTool[] = [
     name: "pasang_foto",
     title: "Pasang foto ke Garage OS",
     description:
-      "Langkah 2 unggah foto: pasang foto dari siapkan_foto ke tujuan tetap — `produk_menu` (id produk), `produk_mitra` (id link produk mitra), `bahan_gudang` (id produk gudang), `hero_website`, atau `suasana_website` (slot 1–4, foto suasana outlet di homepage). Mengganti foto yang ada. Selalu preview + konfirmasi Owner. Bukti uang (struk, bukti transfer, dokumen) tidak lewat sini. Menghapus foto suasana: ubah_data_garage DELETE /api/site/landing-hero?slot=suasana_N.",
+      "Langkah 2 unggah foto: pasang foto dari siapkan_foto ke tujuan tetap — `produk_menu` (isi `nama` produk, mis. \"Nasi Goreng\", atau `id`), `produk_mitra` (id link produk mitra), `bahan_gudang` (id produk gudang), `hero_website`, atau `suasana_website` (slot 1–4, foto suasana outlet di homepage). Mengganti foto yang ada. Selalu preview + konfirmasi Owner. Bukti uang (struk, bukti transfer, dokumen) tidak lewat sini. Menghapus foto suasana: ubah_data_garage DELETE /api/site/landing-hero?slot=suasana_N.",
     write: true,
     domain: "sistem",
     risk: "R2",
@@ -133,11 +166,13 @@ export const fotoTools: AgentTool[] = [
     input: pasangInput,
     async preview(session, args) {
       assertOwnerViaChat(session);
-      const route = photoRoute(args.tujuan as PhotoTarget, args.id as string | undefined, args.slot as number | undefined);
+      const resolved = await withResolvedId(args);
+      const route = photoRoute(args.tujuan as PhotoTarget, resolved.id, args.slot as number | undefined);
       const { loadStagedPhoto } = await import("@/lib/mcp-photo-staging");
       const staged = await loadStagedPhoto(String(args.fotoId), session.user.id);
       const base: Record<string, unknown> = {
         aksi: `${route.label} → POST ${route.path}`,
+        ...(resolved.nama ? { produk: `${resolved.nama} (id ${resolved.id})` } : {}),
         alasan: args.alasan,
         foto: staged ? stagedSummary(staged.meta) : "TIDAK DITEMUKAN / kedaluwarsa — jalankan siapkan_foto lagi.",
         catatan: "Foto lama di tujuan ini akan diganti.",
@@ -162,7 +197,8 @@ export const fotoTools: AgentTool[] = [
       if (!ctx.confirmedOperationId) {
         throw new AgentToolError("CONFIRMATION_REQUIRED", "pasang_foto hanya berjalan lewat konfirmasi Owner.", 403);
       }
-      const route = photoRoute(args.tujuan as PhotoTarget, args.id as string | undefined, args.slot as number | undefined);
+      const resolved = await withResolvedId(args);
+      const route = photoRoute(args.tujuan as PhotoTarget, resolved.id, args.slot as number | undefined);
       const { discardStagedPhoto, loadStagedPhoto } = await import("@/lib/mcp-photo-staging");
       const staged = await loadStagedPhoto(String(args.fotoId), session.user.id);
       if (!staged) {
@@ -184,7 +220,7 @@ export const fotoTools: AgentTool[] = [
       await discardStagedPhoto(staged.meta.fotoId);
       const data = (response.json as { data?: Record<string, unknown> } | null)?.data ?? {};
       const url = typeof data.imageUrl === "string" ? data.imageUrl : typeof data.publicUrl === "string" ? data.publicUrl : null;
-      return { terpasang: route.label, endpoint: `POST ${route.path}`, alasan: args.alasan, fotoBaru: url, sidik: staged.meta.sha256.slice(0, 16) };
+      return { terpasang: resolved.nama ? `${route.label}: ${resolved.nama}` : route.label, endpoint: `POST ${route.path}`, alasan: args.alasan, fotoBaru: url, sidik: staged.meta.sha256.slice(0, 16) };
     },
   },
 ];

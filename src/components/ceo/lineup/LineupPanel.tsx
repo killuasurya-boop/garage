@@ -8,6 +8,7 @@ import {
   Ban,
   CheckCircle2,
   ClipboardList,
+  ClipboardPaste,
   Download,
   Clock3,
   ListOrdered,
@@ -29,6 +30,8 @@ import { PageHeader } from "@/components/ceo/layout/PageHeader";
 import { Badge } from "@/components/ceo/ui/Badge";
 import { EventControlNav } from "@/components/ceo/ui/EventControlNav";
 import { LogoUpload } from "@/components/ceo/ui/LogoUpload";
+import { PasteListDialog, type PasteResult } from "@/components/ceo/ui/PasteListDialog";
+import { CREW_COLUMNS, parseCrewRows, parseTalentRows, TALENT_COLUMNS } from "@/lib/paste-list";
 import { FormSection, ReadinessChips, TalentCardPreview } from "@/components/ceo/ui/WebsitePreview";
 import { garageApi, GarageApiError } from "@/lib/api-client";
 import {
@@ -129,6 +132,8 @@ export function LineupPanel({ initialEvent = null, initialEventId = null, initia
   const [tab, setTab] = useState<LineupTab>(initialTab);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [paste, setPaste] = useState<null | "performer" | "crew">(null);
+  const [pasteConfirmed, setPasteConfirmed] = useState(true);
   const [importing, setImporting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [dialog, setDialog] = useState<
@@ -315,6 +320,7 @@ export function LineupPanel({ initialEvent = null, initialEventId = null, initia
               board={board}
               onAdd={() => setDialog({ kind: "performer", row: null })}
               importing={importing}
+              onPaste={() => setPaste("performer")}
               onImport={() => {
                 setImporting(true);
                 setNotice(null);
@@ -342,6 +348,7 @@ export function LineupPanel({ initialEvent = null, initialEventId = null, initia
             <CrewTab
               board={board}
               onAdd={() => setDialog({ kind: "crew", row: null })}
+              onPaste={() => setPaste("crew")}
               onEdit={(row) => setDialog({ kind: "crew", row })}
               onToggle={(row) => void run(() => garageApi.patch(`/api/event-lineup/crew/${row.id}`, { status: row.status === "aktif" ? "nonaktif" : "aktif" }))}
             />
@@ -357,6 +364,51 @@ export function LineupPanel({ initialEvent = null, initialEventId = null, initia
         </>
       ) : !loading ? (
         <div className={`${cardClass} text-sm text-zinc-300`}>Belum ada event. Buat event di menu Event (Garage OS) untuk mulai menyusun lineup dan panitia.</div>
+      ) : null}
+
+      {paste === "performer" && event ? (
+        <PasteListDialog
+          title={`Tempel daftar talent · ${event}`}
+          intro="Salin baris dari Excel, Google Sheets, atau chat WhatsApp, lalu tempel. Talent yang namanya sudah ada di event ini dilewati."
+          columns={TALENT_COLUMNS}
+          example={"Nama\tJenis\tTagline\tInstagram\tJam\tDurasi\tWA\nLOST SIDE\tband\tHeavy / Metallic Roster\t@lostside\t20:00\t40\t081234567890\nSTAND OUT\tstand-up\tHigh-Energy Performer\t\t21:30\t30\t"}
+          parse={parseTalentRows}
+          options={
+            <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm text-zinc-100">
+              <input type="checkbox" className="size-4" checked={pasteConfirmed} onChange={(e) => setPasteConfirmed(e.target.checked)} />
+              Langsung terkonfirmasi (tampil di website). Tidak dicentang = masuk sebagai calon.
+            </label>
+          }
+          onSubmit={async (rows) => {
+            const res = await garageApi.post<PasteResult>("/api/event-lineup/bulk", {
+              kind: "performer",
+              eventId: board?.eventId ?? null,
+              eventName: event,
+              status: pasteConfirmed ? "konfirmasi" : "calon",
+              rows,
+            });
+            await load(selected);
+            return res;
+          }}
+          onClose={() => setPaste(null)}
+          onDone={setNotice}
+        />
+      ) : null}
+      {paste === "crew" && event ? (
+        <PasteListDialog
+          title={`Tempel daftar panitia · ${event}`}
+          intro="Salin daftar panitia dari Excel atau WhatsApp, lalu tempel. Jabatan dikenali dari namanya (Ketua, Sekretaris, Bendahara, Stage Manager, SM, LO, …); kosong = Lainnya."
+          columns={CREW_COLUMNS}
+          example={"Ace - Ketua - 081211112222 - Lineup & honor band\nRafly - Sound - 081233334444 - Sound, lighting, konsumsi\nAress - Dokumentasi - 081255556666 - Foto & video"}
+          parse={parseCrewRows}
+          onSubmit={async (rows) => {
+            const res = await garageApi.post<PasteResult>("/api/event-lineup/bulk", { kind: "crew", eventId: board?.eventId ?? null, eventName: event, rows });
+            await load(selected);
+            return res;
+          }}
+          onClose={() => setPaste(null)}
+          onDone={setNotice}
+        />
       ) : null}
 
       {dialog?.kind === "performer" && event ? (
@@ -396,6 +448,7 @@ function LineupTab({
   board,
   onAdd,
   onImport,
+  onPaste,
   importing,
   onEdit,
   onCancel,
@@ -405,6 +458,7 @@ function LineupTab({
   board: Board;
   onAdd: () => void;
   onImport: () => void;
+  onPaste: () => void;
   importing: boolean;
   onEdit: (row: PerformerView) => void;
   onCancel: (row: PerformerView) => void;
@@ -434,6 +488,9 @@ function LineupTab({
         <div className="flex flex-wrap gap-2">
           <button type="button" className={ghostBtn} onClick={onImport} disabled={importing} title="Ambil band/talent yang sudah tayang di platform GIGS (nama, jenis, logo)">
             <Download size={16} /> {importing ? "Mengimpor…" : "Impor dari platform GIGS"}
+          </button>
+          <button type="button" className={ghostBtn} onClick={onPaste} title="Tempel daftar talent dari Excel, Google Sheets, atau WhatsApp">
+            <ClipboardPaste size={16} /> Tempel daftar
           </button>
           <button type="button" className={primaryBtn} onClick={onAdd}>
             <Plus size={16} /> Tambah penampil
@@ -634,15 +691,32 @@ function RundownTab({ board }: { board: Board }) {
 
 // ─── Panitia ───────────────────────────────────────────────────────────────
 
-function CrewTab({ board, onAdd, onEdit, onToggle }: { board: Board; onAdd: () => void; onEdit: (row: CrewView) => void; onToggle: (row: CrewView) => void }) {
+function CrewTab({
+  board,
+  onAdd,
+  onPaste,
+  onEdit,
+  onToggle,
+}: {
+  board: Board;
+  onAdd: () => void;
+  onPaste: () => void;
+  onEdit: (row: CrewView) => void;
+  onToggle: (row: CrewView) => void;
+}) {
   const roles = CREW_ROLES.filter((role) => board.crew.some((c) => c.role === role));
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-zinc-400">Panitia dikelompokkan per peran. Nonaktif tidak dihapus agar riwayat tugas tetap ada.</p>
-        <button type="button" className={primaryBtn} onClick={onAdd}>
-          <UserPlus size={16} /> Tambah panitia
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className={ghostBtn} onClick={onPaste} title="Tempel daftar panitia dari Excel, Google Sheets, atau WhatsApp">
+            <ClipboardPaste size={16} /> Tempel daftar
+          </button>
+          <button type="button" className={primaryBtn} onClick={onAdd}>
+            <UserPlus size={16} /> Tambah panitia
+          </button>
+        </div>
       </div>
       {!roles.length ? <div className={`${cardClass} text-sm text-zinc-300`}>Belum ada panitia. Mulai dari Ketua Panitia dan Stage Manager.</div> : null}
       <div className="grid gap-3 md:grid-cols-2">

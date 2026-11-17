@@ -100,6 +100,27 @@ export type SponsorInput = z.infer<typeof sponsorInputSchema>;
 
 export const sponsorUpdateSchema = sponsorInputSchema.partial();
 
+// "Tempel daftar" (Owner 17 Nov 2026): banyak sponsor sekaligus untuk satu event.
+export const sponsorBulkSchema = z.object({
+  eventId: z.string().uuid().nullable().optional(),
+  eventName: z.string().trim().min(2, "Nama event wajib diisi.").max(120),
+  showOnWebsite: z.boolean().default(false),
+  rows: z
+    .array(
+      z.object({
+        line: z.number().int().min(1).max(100_000).optional(),
+        name: sponsorInputSchema.shape.name,
+        packageName: sponsorInputSchema.shape.packageName,
+        agreedAmount: sponsorInputSchema.shape.agreedAmount,
+        instagram: sponsorInputSchema.shape.instagram,
+        contactName: sponsorInputSchema.shape.contactName,
+        contactPhone: sponsorInputSchema.shape.contactPhone,
+      }),
+    )
+    .min(1, "Tidak ada baris untuk disimpan.")
+    .max(100, "Maksimal 100 baris sekali tempel."),
+});
+
 export const installmentsSchema = z.object({
   installments: z
     .array(z.object({ label: z.string().trim().min(1).max(40), amount: z.number().int().positive(), dueDate: dateString }))
@@ -347,6 +368,62 @@ export async function createSponsor(input: SponsorInput, garage: GarageSession, 
   });
   await audit(garage, "Sponsor dibuat", row.sponsorNo, { sponsorId: row.id, name: row.name, eventName: row.eventName, agreedAmount: row.agreedAmount });
   return getSponsor(row.id, garage, now);
+}
+
+/**
+ * Simpan banyak sponsor sekaligus. Semua baris divalidasi dulu (WA, Instagram); satu salah = tidak ada yang disimpan.
+ * Nama yang sudah ada di event (selain yang batal) dilewati. Hanya KESEPAKATAN: tidak ada uang masuk / baris buku kas
+ * (uang tetap dicatat per pembayaran di detail sponsor). Tiap baris lewat createSponsor (audit per baris).
+ */
+export async function bulkCreateSponsors(input: z.infer<typeof sponsorBulkSchema>, garage: GarageSession, now = new Date()) {
+  assertOwnerHuman(garage);
+  const errors: string[] = [];
+  input.rows.forEach((row, index) => {
+    try {
+      cleanInput({ contactPhone: row.contactPhone, instagram: row.instagram });
+    } catch (error) {
+      errors.push(`Baris ${row.line ?? index + 1}: ${error instanceof Error ? error.message : "tidak valid"}`);
+    }
+  });
+  if (errors.length) throw new SponsorError("ROWS_INVALID", `Belum disimpan. Perbaiki dulu: ${errors.slice(0, 8).join(" · ")}`, 400);
+  const target = await withEventRef({}, { eventId: input.eventId ?? null, eventName: input.eventName });
+  const existing = await getDb()
+    .select({ name: eventSponsors.name })
+    .from(eventSponsors)
+    .where(
+      and(
+        target.eventId ? eq(eventSponsors.eventId, target.eventId) : and(isNull(eventSponsors.eventId), eq(eventSponsors.eventName, target.eventName!)),
+        sql`${eventSponsors.status} <> 'batal'`,
+      ),
+    );
+  const names = new Set(existing.map((r) => r.name.trim().toLowerCase()));
+  const created: string[] = [];
+  const skipped: string[] = [];
+  for (const row of input.rows) {
+    const key = row.name.trim().toLowerCase();
+    if (names.has(key)) {
+      skipped.push(row.name);
+      continue;
+    }
+    await createSponsor(
+      {
+        eventId: target.eventId ?? null,
+        eventName: target.eventName!,
+        name: row.name,
+        packageName: row.packageName,
+        agreedAmount: row.agreedAmount,
+        instagram: row.instagram,
+        contactName: row.contactName,
+        contactPhone: row.contactPhone,
+        showOnWebsite: input.showOnWebsite,
+      },
+      garage,
+      now,
+    );
+    names.add(key);
+    created.push(row.name);
+  }
+  return { created, skipped };
 }
 
 export async function updateSponsor(id: string, input: Partial<SponsorInput>, garage: GarageSession) {

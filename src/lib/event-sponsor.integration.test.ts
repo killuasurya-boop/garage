@@ -212,4 +212,26 @@ describe("Sponsor Event — pengingat", () => {
     await sp.setSponsorStatus(shown.id, "batal", "Mundur", owner());
     expect(await sp.publicSponsorsFor({ slug: "", name: "GIGS AKHIR TAHUN 2026" })).toEqual([]);
   });
+
+  it("tempel daftar sponsor: kesepakatan saja, tanpa buku kas; satu salah = tidak ada yang disimpan", async () => {
+    const ledgerBefore = await t.getDb().select().from(t.schema.cashLedgerEntries);
+    await expect(
+      sp.bulkCreateSponsors({ eventName: base.eventName, showOnWebsite: false, rows: [{ name: "Tempel A", agreedAmount: 1 }, { name: "Tempel B", agreedAmount: 1, contactPhone: "99" }] }, owner()),
+    ).rejects.toMatchObject({ code: "ROWS_INVALID" });
+    const res = await sp.bulkCreateSponsors(
+      {
+        eventName: base.eventName,
+        showOnWebsite: true,
+        rows: [
+          { line: 2, name: "Tempel A", packageName: "Gold", agreedAmount: 1_000_000, instagram: "@tempela", contactPhone: "081234567890" },
+          { line: 3, name: "brand diam", agreedAmount: 500_000 },
+        ],
+      },
+      owner(),
+    );
+    expect(res).toEqual({ created: ["Tempel A"], skipped: ["brand diam"] });
+    const list = await sp.publicSponsorsFor({ slug: "", name: base.eventName });
+    expect(list.find((x: any) => x.name === "Tempel A")).toMatchObject({ instagram: "tempela", packageName: "Gold" });
+    expect((await t.getDb().select().from(t.schema.cashLedgerEntries)).length).toBe(ledgerBefore.length);
+  });
 });

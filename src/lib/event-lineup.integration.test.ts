@@ -160,6 +160,38 @@ describe("Lineup & Panitia — alur", () => {
     }
   });
 
+  it("tempel daftar: satu baris salah = tidak ada yang disimpan; nama yang ada dilewati; panitia ikut", async () => {
+    const before = (await svc.getLineupBoard(owner(), EVENT)).performers.length;
+    await expect(
+      svc.bulkPaste(
+        { kind: "performer", eventName: EVENT, status: "konfirmasi", rows: [{ line: 2, name: "Band Baru A", kind: "band" }, { line: 3, name: "Band Baru B", kind: "band", contactPhone: "12" }] },
+        owner(),
+      ),
+    ).rejects.toMatchObject({ code: "ROWS_INVALID" });
+    expect((await svc.getLineupBoard(owner(), EVENT)).performers.length).toBe(before);
+
+    const res = await svc.bulkPaste(
+      {
+        kind: "performer",
+        eventName: EVENT,
+        status: "konfirmasi",
+        rows: [
+          { line: 2, name: "Band Baru A", kind: "band", tagline: "Pop Punk", instagram: "@bandbarua", setStart: "22:00", setMinutes: 30 },
+          { line: 3, name: "surai", kind: "band" },
+        ],
+      },
+      owner(),
+    );
+    expect(res).toEqual({ created: ["Band Baru A"], skipped: ["surai"] });
+    const a = (await svc.getLineupBoard(owner(), EVENT)).performers.find((p: any) => p.name === "Band Baru A");
+    expect(a).toMatchObject({ status: "konfirmasi", tagline: "Pop Punk", instagram: "bandbarua", setStart: "22:00", setMinutes: 30, showOnWebsite: true });
+
+    const crew = await svc.bulkPaste({ kind: "crew", eventName: EVENT, rows: [{ name: "Aress", role: "dokumentasi", phone: "081255556666" }, { name: "Raka", role: "ketua" }] }, owner());
+    expect(crew.created).toEqual(["Aress"]);
+    expect(crew.skipped).toEqual(["Raka"]);
+    await expect(svc.bulkPaste({ kind: "crew", eventName: EVENT, rows: [{ name: "Siapa", role: "lainnya" }] }, session("Manajer" as Role))).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
   it("setiap perubahan tercatat di audit log", async () => {
     const rows = await t.getDb().select().from(t.schema.auditLogs);
     const lineup = rows.filter((r: any) => (r.metadata as any)?.module === "event-lineup");

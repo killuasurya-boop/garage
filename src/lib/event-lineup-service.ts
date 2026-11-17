@@ -124,6 +124,7 @@ export const performerPatchSchema = performerInputSchema
 
 export const importPlatformSchema = z.object({ ...eventRef });
 
+
 export const reorderSchema = z.object({ eventId: z.string().uuid().nullable().optional(), eventName, ids: z.array(z.string().uuid()).min(1).max(200) });
 
 const crewFields = {
@@ -140,6 +141,39 @@ export const crewPatchSchema = z.object({
   duties: crewFields.duties,
   status: z.enum(["aktif", "nonaktif"]).optional(),
 });
+
+// ─── Tempel daftar (Owner 17 Nov 2026) ──────────────────────────────────────
+const bulkLine = z.number().int().min(1).max(100_000).optional();
+export const bulkPasteSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("performer"),
+    ...eventRef,
+    status: z.enum(["calon", "konfirmasi"]).default("konfirmasi"),
+    rows: z
+      .array(
+        z.object({
+          line: bulkLine,
+          name: performerFields.name,
+          kind: performerFields.kind,
+          tagline: performerFields.tagline,
+          instagram: performerFields.instagram,
+          setStart: performerFields.setStart,
+          setMinutes: performerFields.setMinutes,
+          contactPhone: performerFields.contactPhone,
+        }),
+      )
+      .min(1, "Tidak ada baris untuk disimpan.")
+      .max(100, "Maksimal 100 baris sekali tempel."),
+  }),
+  z.object({
+    kind: z.literal("crew"),
+    ...eventRef,
+    rows: z
+      .array(z.object({ line: bulkLine, name: crewFields.name, role: crewFields.role, phone: crewFields.phone, duties: crewFields.duties }))
+      .min(1, "Tidak ada baris untuk disimpan.")
+      .max(100, "Maksimal 100 baris sekali tempel."),
+  }),
+]);
 
 export const taskInputSchema = z.object({
   ...eventRef,
@@ -570,6 +604,82 @@ export async function importPlatformLineup(input: z.infer<typeof importPlatformS
   // Audit setelah transaksi (PGlite satu koneksi).
   await audit(garage, "Impor lineup dari platform GIGS", ref.eventName, { eventName: ref.eventName, platform: platform.slug, ...result });
   return { platformName: platform.name, ...result };
+}
+
+/**
+ * Simpan banyak talent / panitia sekaligus dari "Tempel daftar". Semua baris divalidasi DULU (WA, Instagram); satu salah
+ * = tidak ada yang disimpan (pesan per baris). Nama yang sudah ada di event (tanpa peduli huruf) dilewati, tidak ditimpa.
+ * Tiap baris disimpan lewat createPerformer/createCrew yang sama (audit per baris).
+ */
+export async function bulkPaste(input: z.infer<typeof bulkPasteSchema>, garage: GarageSession) {
+  assertOwnerHuman(garage);
+  const ref = await eventFor(input);
+  const errors: string[] = [];
+  input.rows.forEach((row, index) => {
+    const label = `Baris ${row.line ?? index + 1}`;
+    try {
+      if ("contactPhone" in row) phoneOrThrow(row.contactPhone, "WA");
+      if ("phone" in row) phoneOrThrow(row.phone, "WA");
+      if ("instagram" in row) instagramHandle(row.instagram);
+    } catch (error) {
+      errors.push(`${label}: ${error instanceof Error ? error.message : "tidak valid"}`);
+    }
+  });
+  if (errors.length) throw new LineupError("ROWS_INVALID", `Belum disimpan. Perbaiki dulu: ${errors.slice(0, 8).join(" · ")}`, 400);
+
+  const db = getDb();
+  const sameEvent = (table: typeof eventPerformers | typeof eventCrew) =>
+    ref.eventId ? eq(table.eventId, ref.eventId) : and(isNull(table.eventId), eq(table.eventName, ref.eventName));
+  const created: string[] = [];
+  const skipped: string[] = [];
+  if (input.kind === "performer") {
+    const existing = await db
+      .select({ name: eventPerformers.name, platformName: eventPerformers.platformName, slotOrder: eventPerformers.slotOrder })
+      .from(eventPerformers)
+      .where(sameEvent(eventPerformers));
+    const names = new Set(existing.flatMap((r) => [r.name, r.platformName ?? ""]).filter(Boolean).map((n) => n.trim().toLowerCase()));
+    let slot = existing.reduce((max, r) => Math.max(max, r.slotOrder ?? 0), 0);
+    for (const row of input.rows) {
+      const key = row.name.trim().toLowerCase();
+      if (names.has(key)) {
+        skipped.push(row.name);
+        continue;
+      }
+      slot += 1;
+      await createPerformer(
+        {
+          eventId: ref.eventId,
+          eventName: ref.eventName,
+          name: row.name,
+          kind: row.kind,
+          tagline: row.tagline,
+          instagram: row.instagram,
+          setStart: row.setStart,
+          setMinutes: row.setMinutes,
+          contactPhone: row.contactPhone,
+          status: input.status,
+          slotOrder: slot,
+        },
+        garage,
+      );
+      names.add(key);
+      created.push(row.name);
+    }
+  } else {
+    const existing = await db.select({ name: eventCrew.name }).from(eventCrew).where(and(sameEvent(eventCrew), eq(eventCrew.status, "aktif")));
+    const names = new Set(existing.map((r) => r.name.trim().toLowerCase()));
+    for (const row of input.rows) {
+      const key = row.name.trim().toLowerCase();
+      if (names.has(key)) {
+        skipped.push(row.name);
+        continue;
+      }
+      await createCrew({ eventId: ref.eventId, eventName: ref.eventName, name: row.name, role: row.role, phone: row.phone, duties: row.duties }, garage);
+      names.add(key);
+      created.push(row.name);
+    }
+  }
+  return { created, skipped };
 }
 
 // ─── Panitia ────────────────────────────────────────────────────────────────

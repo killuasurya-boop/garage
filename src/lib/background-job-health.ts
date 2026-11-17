@@ -14,6 +14,7 @@ export const BACKGROUND_JOBS = {
   partner_sla: "Eskalasi pesanan mitra (belum diterima / siap belum diambil)",
   partner_hours: "Jam layanan mitra (tutup & buka otomatis)",
   partner_settlement: "Pengingat setoran mitra harian",
+  event_lineup_tasks: "Pengingat tugas panitia event",
 } as const;
 
 export type BackgroundJob = keyof typeof BACKGROUND_JOBS;

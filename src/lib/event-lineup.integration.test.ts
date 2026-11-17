@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { Role } from "@/lib/garage-data";
 import type { GarageSession } from "@/lib/server-auth";
@@ -76,9 +76,11 @@ describe("Lineup & Panitia — alur", () => {
     await svc.updatePerformer(surai, { showOnWebsite: true }, owner());
     const items = await svc.publicLineupFor("gigs akhir tahun 2026");
     expect(items).toEqual([
-      { name: "Standup Indo Tebing Tinggi", kind: "standup" },
-      { name: "Surai", kind: "band" },
+      { name: "Standup Indo Tebing Tinggi", kind: "standup", time: "19.30–20.00" },
+      { name: "Surai", kind: "band", time: "20.00–20.30" },
     ]);
+    // Data publik tanpa kontak/catatan.
+    expect(Object.keys(items[0]).sort()).toEqual(["kind", "name", "time"]);
     await svc.updatePerformer(surai, { showOnWebsite: false }, owner());
     expect((await svc.publicLineupFor(EVENT)).map((i: any) => i.name)).toEqual(["Standup Indo Tebing Tinggi"]);
   });
@@ -105,5 +107,43 @@ describe("Lineup & Panitia — alur", () => {
     const lineup = rows.filter((r: any) => (r.metadata as any)?.module === "event-lineup");
     expect(lineup.some((r: any) => /Status penampil → batal/.test(r.action) && (r.metadata as any).reason === "Bentrok jadwal")).toBe(true);
     expect(lineup.some((r: any) => r.action === "Atur urutan lineup")).toBe(true);
+  });
+});
+
+describe("Lineup & Panitia — pengingat tugas panitia", () => {
+  it("tenggat besok → 1 pengingat ke Owner aktif, diulang tidak dobel; selesai tidak diingatkan", async () => {
+    const now = new Date("2026-11-20T03:00:00Z"); // 10.00 WIB, 20 Nov
+    await t.getDb().insert(t.schema.staffProfiles).values({ userId: OWNER, role: "Owner", outletId, shiftLabel: "Pagi", deviceLabel: "Laptop Owner" } as any).onConflictDoNothing();
+    const crew = (await svc.createCrew({ eventName: EVENT, name: "Sinta", role: "logistik" }, owner())).id;
+    const open = await svc.createTask({ eventName: EVENT, title: "Sewa genset", crewId: crew, dueDate: "2026-11-21" }, owner());
+    const finished = await svc.createTask({ eventName: EVENT, title: "Cetak banner", dueDate: "2026-11-21" }, owner());
+    await svc.updateTask(finished.id, { status: "selesai" }, owner());
+    const first = await svc.sweepLineupTaskReminders(now);
+    const again = await svc.sweepLineupTaskReminders(now);
+    expect(again.sent).toBe(0);
+    const rows = (await t.getDb().select().from(t.schema.staffNotifications)).filter((r: any) => r.kind === "lineup_task_reminder");
+    const forOpen = rows.filter((r: any) => r.dedupKey?.includes(open.id));
+    expect(forOpen).toHaveLength(1);
+    expect(forOpen[0]).toMatchObject({ audience: "user", userId: OWNER, title: "Tugas panitia tenggat besok: Sewa genset" });
+    expect(forOpen[0].body).toContain("PIC Sinta");
+    expect(forOpen[0].url).toBe(`/control/lineup?event=${encodeURIComponent(EVENT)}&tab=tugas`);
+    expect(rows.some((r: any) => r.dedupKey?.includes(finished.id))).toBe(false);
+    expect(first.sent).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("Lineup & Panitia — pengingat gagal disimpan", () => {
+  it("kegagalan notifikasi dilempar (bukan dianggap dobel) supaya runMonitoredJob mencatatnya", async () => {
+    await svc.createTask({ eventName: EVENT, title: "Briefing kru", dueDate: "2026-11-20" }, owner());
+    vi.doMock("@/lib/staff-notifications", () => ({
+      notifyStaff: async () => {
+        throw new Error("db down");
+      },
+    }));
+    try {
+      await expect(svc.sweepLineupTaskReminders(new Date("2026-11-20T03:00:00Z"))).rejects.toThrow(/gagal disimpan.*db down/);
+    } finally {
+      vi.doUnmock("@/lib/staff-notifications");
+    }
   });
 });

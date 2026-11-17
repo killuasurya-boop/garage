@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildRundown, cleanCrewPhone, clockToMinutes, eventReadiness, isTaskOverdue, minutesToClock, performerScheduleMessage } from "@/lib/event-lineup-rules";
+import { buildRundown, cleanCrewPhone, clockToMinutes, eventReadiness, isTaskOverdue, minutesToClock, performerScheduleMessage, publicSetTime, taskReminders } from "@/lib/event-lineup-rules";
 
 const p = (id: string, over: Partial<Parameters<typeof buildRundown>[0][number]> = {}) => ({
   id,
@@ -81,5 +81,59 @@ describe("buildRundown lewat tengah malam", () => {
     ]);
     expect(rows[1]).toMatchObject({ start: "00:00", end: "00:30", overlap: false, gapMinutes: 0 });
     expect(rows[2]).toMatchObject({ start: "00:20", overlap: true, gapMinutes: -10 });
+  });
+});
+
+describe("publicSetTime", () => {
+  it("jam website pakai titik; tanpa jam → null", () => {
+    expect(publicSetTime({ start: "20:00", end: "20:45" })).toBe("20.00–20.45");
+    expect(publicSetTime({ start: "23:30", end: null })).toBe("23.30");
+    expect(publicSetTime({ start: null, end: null })).toBeNull();
+  });
+});
+
+describe("taskReminders", () => {
+  const task = (id: string, dueDate: string | null, over: Record<string, unknown> = {}) => ({
+    id,
+    eventName: "GIGS",
+    title: `Tugas ${id}`,
+    status: "todo" as const,
+    priority: "normal" as const,
+    dueDate,
+    crewName: "Raka",
+    ...over,
+  });
+  const today = "2026-11-20";
+
+  it("H-1, hari H, terlambat 1/3/7 (tahap tertinggi yang tercapai)", () => {
+    const out = taskReminders(
+      [task("a", "2026-11-21"), task("b", "2026-11-20"), task("c", "2026-11-19"), task("d", "2026-11-18"), task("e", "2026-11-17"), task("f", "2026-11-13"), task("g", "2026-11-22")],
+      today,
+    );
+    expect(out.map((r) => [r.taskId, r.stage])).toEqual([
+      ["a", "h-1"],
+      ["b", "hari-h"],
+      ["c", "terlambat-1"],
+      ["d", "terlambat-1"],
+      ["e", "terlambat-3"],
+      ["f", "terlambat-7"],
+    ]);
+    expect(out[0]).toMatchObject({ key: "lineup-task:a:h-1", severity: "info", title: "Tugas panitia tenggat besok: Tugas a", body: "GIGS · tenggat 2026-11-21 · PIC Raka" });
+    expect(out[2].severity).toBe("warning");
+  });
+
+  it("selesai/batal/tanpa tenggat tidak diingatkan; prioritas tinggi = warning; tanpa PIC disebut", () => {
+    const out = taskReminders(
+      [
+        task("x", "2026-11-20", { status: "selesai" }),
+        task("y", "2026-11-20", { status: "batal" }),
+        task("z", null),
+        task("p", "2026-11-21", { status: "proses", priority: "tinggi", crewName: null }),
+      ],
+      today,
+    );
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ taskId: "p", severity: "warning" });
+    expect(out[0].body).toContain("belum ada PIC");
   });
 });

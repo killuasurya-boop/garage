@@ -57,7 +57,7 @@ type Board = {
   readiness: { items: Array<{ key: string; label: string; done: boolean; detail: string }>; done: number; total: number };
 };
 
-type Tab = "lineup" | "rundown" | "panitia" | "tugas";
+export type LineupTab = "lineup" | "rundown" | "panitia" | "tugas";
 
 const errText = (error: unknown) => (error instanceof GarageApiError || error instanceof Error ? error.message : "Gagal menyimpan.");
 const waLink = (phone: string, text?: string) => `https://wa.me/62${phone.replace(/^0/, "")}${text ? `?text=${encodeURIComponent(text)}` : ""}`;
@@ -105,10 +105,10 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
   );
 }
 
-export function LineupPanel() {
+export function LineupPanel({ initialEvent = null, initialTab = "lineup" }: { initialEvent?: string | null; initialTab?: LineupTab }) {
   const [board, setBoard] = useState<Board | null>(null);
   const [event, setEvent] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>("lineup");
+  const [tab, setTab] = useState<LineupTab>(initialTab);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [newEvent, setNewEvent] = useState("");
@@ -138,7 +138,7 @@ export function LineupPanel() {
   useEffect(() => {
     let alive = true;
     garageApi
-      .get<Board>("/api/event-lineup", { cache: "no-store" })
+      .get<Board>(`/api/event-lineup${initialEvent ? `?event=${encodeURIComponent(initialEvent)}` : ""}`, { cache: "no-store" })
       .then((data) => {
         if (!alive) return;
         setBoard(data);
@@ -149,7 +149,7 @@ export function LineupPanel() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [initialEvent]);
 
   const run = async (action: () => Promise<unknown>) => {
     setError(null);

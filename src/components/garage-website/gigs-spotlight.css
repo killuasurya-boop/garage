@@ -346,3 +346,15 @@
   .garage-website .gigs-spot__sticker.is-live { animation: none; }
 }
 .garage-website .gigs-spot__accent { font-style: normal; color: #e10613; }
+/* Jam tampil dari rundown Garage OS (mis. "20.00–20.45 WIB"); tampil hanya bila jam diisi. */
+.garage-website .gigs-spot__time {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #ffc24a;
+  font-variant-numeric: tabular-nums;
+}

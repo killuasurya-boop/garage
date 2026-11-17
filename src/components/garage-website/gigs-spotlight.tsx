@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowRight, CalendarDays, MapPin, Mic2, Music2, Share2, ShieldCheck, Store, Users } from "lucide-react";
+import { ArrowRight, CalendarDays, Clock3, MapPin, Mic2, Music2, Share2, ShieldCheck, Store, Users } from "lucide-react";
 
 import { groupLineup, LINEUP_KIND_LABEL, lineupSummary } from "@/lib/gigs-lineup";
 import type { GigsPromo } from "@/lib/gigs-promo";
@@ -175,6 +175,12 @@ export function GigsSpotlight({ promo }: { promo: GigsPromo }) {
                           {performer.logo ? <img src={performer.logo} alt={`Logo ${performer.name}`} loading="lazy" decoding="async" /> : null}
                         </div>
                         <strong>{performer.name}</strong>
+                        {performer.time ? (
+                          <span className="gigs-spot__time">
+                            <Clock3 aria-hidden size={12} />
+                            <span>{performer.time} WIB</span>
+                          </span>
+                        ) : null}
                       </li>
                     );
                   })}

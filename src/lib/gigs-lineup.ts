@@ -4,7 +4,8 @@
 
 export type LineupKind = "band" | "standup" | "akustik" | "dj" | "kreator";
 
-export type LineupItem = { name: string; logo: string | null; kind: LineupKind | null };
+/** `time` = jam tampil (mis. "20.00–20.45") dari rundown Garage OS; platform event tidak mengirimnya. */
+export type LineupItem = { name: string; logo: string | null; kind: LineupKind | null; time?: string | null };
 
 export type LineupGroup = { kind: LineupKind | null; label: string; items: LineupItem[] };
 
@@ -72,8 +73,16 @@ export function lineupSummary(groups: LineupGroup[]): string {
  * Lineup website = lineup terkonfirmasi dari Garage OS (modul Lineup & Panitia) bila ada, logo diambil dari
  * platform event untuk nama yang sama (tanpa peduli huruf besar/kecil). Tanpa data Garage OS → lineup platform.
  */
-export function mergeLineup(platform: LineupItem[], garage: Array<{ name: string; kind: LineupKind }>): LineupItem[] {
+export function mergeLineup(
+  platform: LineupItem[],
+  garage: Array<{ name: string; kind: LineupKind; time?: string | null }>,
+): LineupItem[] {
   if (!garage.length) return platform;
   const logoByName = new Map(platform.map((item) => [item.name.trim().toLowerCase(), item.logo]));
-  return garage.map((item) => ({ name: item.name, kind: item.kind, logo: logoByName.get(item.name.trim().toLowerCase()) ?? null }));
+  return garage.map((item) => ({
+    name: item.name,
+    kind: item.kind,
+    logo: logoByName.get(item.name.trim().toLowerCase()) ?? null,
+    time: item.time ?? null,
+  }));
 }

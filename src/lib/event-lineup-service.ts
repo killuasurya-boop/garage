@@ -2,7 +2,7 @@ import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { getDb } from "@/db";
-import { eventCrew, eventCrewTasks, eventPerformers, eventSponsors } from "@/db/schema";
+import { eventCrew, eventCrewTasks, eventPerformers, eventSponsors, staffProfiles } from "@/db/schema";
 import {
   buildRundown,
   cleanCrewPhone,
@@ -12,11 +12,14 @@ import {
   isTaskOverdue,
   LINEUP_KIND_ORDER,
   PERFORMER_STATUSES,
+  publicSetTime,
+  taskReminders,
   TASK_PRIORITIES,
   TASK_STATUSES,
   type CrewRole,
   type LineupKind,
   type PerformerStatus,
+  type TaskPriority,
   type TaskStatus,
 } from "@/lib/event-lineup-rules";
 import { wibDate } from "@/lib/event-sponsor-rules";
@@ -407,17 +410,26 @@ export async function updateTask(id: string, patch: z.infer<typeof taskPatchSche
 
 // ─── Website (publik) ───────────────────────────────────────────────────────
 
-export type PublicLineupItem = { name: string; kind: LineupKind };
+export type PublicLineupItem = { name: string; kind: LineupKind; time: string | null };
 
 /**
  * Lineup terkonfirmasi untuk website (tanpa kontak/catatan). Dicocokkan dengan nama event GIGS tanpa
- * peduli huruf besar/kecil. Kosong = website memakai lineup dari platform event seperti biasa.
+ * peduli huruf besar/kecil. Jam tampil dari rundown (urutan slot, lewat tengah malam). Kosong = website
+ * memakai lineup dari platform event seperti biasa.
  */
 export async function publicLineupFor(eventNameValue: string): Promise<PublicLineupItem[]> {
   const name = eventNameValue.trim();
   if (!name) return [];
   const rows = await getDb()
-    .select({ name: eventPerformers.name, kind: eventPerformers.kind, slotOrder: eventPerformers.slotOrder })
+    .select({
+      id: eventPerformers.id,
+      name: eventPerformers.name,
+      kind: eventPerformers.kind,
+      status: eventPerformers.status,
+      slotOrder: eventPerformers.slotOrder,
+      setStart: eventPerformers.setStart,
+      setMinutes: eventPerformers.setMinutes,
+    })
     .from(eventPerformers)
     .where(
       and(
@@ -428,5 +440,69 @@ export async function publicLineupFor(eventNameValue: string): Promise<PublicLin
     )
     .orderBy(asc(eventPerformers.slotOrder), asc(eventPerformers.name))
     .limit(16);
-  return rows.map((r) => ({ name: r.name, kind: r.kind as LineupKind }));
+  const rundown = buildRundown(
+    rows.map((r) => ({ ...r, kind: r.kind as LineupKind, status: r.status as PerformerStatus })),
+  );
+  return rundown.map((r) => ({ name: r.name, kind: r.kind, time: publicSetTime(r) }));
+}
+
+// ─── Pengingat tugas panitia (otomatis, ke HP Owner) ────────────────────────
+
+/**
+ * Tugas Belum/Proses yang tenggatnya besok, hari ini, atau terlambat 1/3/7 hari → notifikasi ke setiap Owner
+ * aktif. Aman diulang (kunci dedup per tugas + tahap + Owner). Dipanggil penjadwal tiap 15 menit.
+ */
+export async function sweepLineupTaskReminders(now = new Date()) {
+  const db = getDb();
+  const rows = await db
+    .select({
+      id: eventCrewTasks.id,
+      eventName: eventCrewTasks.eventName,
+      title: eventCrewTasks.title,
+      status: eventCrewTasks.status,
+      priority: eventCrewTasks.priority,
+      dueDate: eventCrewTasks.dueDate,
+      crewName: eventCrew.name,
+    })
+    .from(eventCrewTasks)
+    .leftJoin(eventCrew, eq(eventCrewTasks.crewId, eventCrew.id))
+    .where(inArray(eventCrewTasks.status, ["todo", "proses"]));
+  const reminders = taskReminders(
+    rows.map((r) => ({ ...r, status: r.status as TaskStatus, priority: r.priority as TaskPriority, dueDate: r.dueDate ?? null })),
+    wibDate(now),
+  );
+  if (!reminders.length) return { sent: 0 };
+  const owners = await db
+    .select({ userId: staffProfiles.userId, outletId: staffProfiles.outletId })
+    .from(staffProfiles)
+    .where(and(eq(staffProfiles.role, "Owner"), eq(staffProfiles.status, "active")));
+  const { notifyStaff } = await import("@/lib/staff-notifications");
+  let sent = 0;
+  let failed = 0;
+  let lastError: unknown = null;
+  for (const reminder of reminders) {
+    for (const owner of owners) {
+      // Gagal simpan ≠ sudah terkirim (dedup): dicatat, penerima lain tetap dicoba, lalu dilempar ke runMonitoredJob.
+      const row = await notifyStaff({
+        outletId: owner.outletId,
+        audience: "user",
+        userId: owner.userId,
+        kind: "lineup_task_reminder",
+        severity: reminder.severity,
+        title: reminder.title,
+        body: reminder.body,
+        url: `/control/lineup?event=${encodeURIComponent(reminder.eventName)}&tab=tugas`,
+        dedupKey: `${reminder.key}:${owner.userId}`,
+      }).catch((error: unknown) => {
+        failed += 1;
+        lastError = error;
+        return null;
+      });
+      if (row) sent += 1;
+    }
+  }
+  if (failed) {
+    throw new Error(`${failed} pengingat tugas panitia gagal disimpan (${sent} terkirim): ${lastError instanceof Error ? lastError.message : "galat"}`);
+  }
+  return { sent };
 }

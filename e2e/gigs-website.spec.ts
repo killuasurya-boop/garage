@@ -1,0 +1,222 @@
+import { expect, test, type Locator, type Page } from "@playwright/test";
+
+import { startFakeGigsPlatform } from "./fake-gigs-platform";
+import { failOnPageErrors, login } from "./helpers";
+
+// Lineup & Sponsor → website (Owner 17 Nov 2026): impor lineup dari platform GIGS, kustom kartu talent (tagline, logo,
+// Instagram), sponsor tampil di "Didukung oleh" dengan logo & Instagram, lalu cek beranda desktop + HP.
+// Platform GIGS = server palsu lokal (e2e/fake-gigs-platform.ts) dengan judul event = master event seed.
+
+// PNG 8×8 merah — cukup untuk lolos kompresi webp di server.
+const PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAEklEQVR4nGP4z8CAFWEXHbQSACj/P8Fu7N9hAAAAAElFTkSuQmCC",
+  "base64",
+);
+
+async function masterEvent(page: Page) {
+  const res = await page.request.get("/api/event-finance");
+  expect(res.ok(), await res.text()).toBeTruthy();
+  const event = (await res.json()).data.event as { id: string; title: string } | null;
+  expect(event, "butuh minimal satu master event (seed Grand Opening)").toBeTruthy();
+  return event!;
+}
+
+/** File unggahan harus bisa diunduh (200 image/*) DAN tampil di kartu (gambar lazy → di-scroll dulu). */
+async function expectImageLoads(page: Page, img: Locator, label: string) {
+  const src = await img.getAttribute("src");
+  expect(src, `${label}: src`).toBeTruthy();
+  const res = await page.request.get(src!);
+  expect(res.status(), `${label}: ${src} harus bisa diakses`).toBe(200);
+  expect(res.headers()["content-type"] ?? "").toMatch(/^image\//);
+  await img.scrollIntoViewIfNeeded();
+  await expect.poll(() => img.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0), { message: `${label} tampil` }).toBe(true);
+}
+
+async function noHorizontalOverflow(page: Page) {
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(overflow, "halaman tidak boleh bergeser ke samping").toBeLessThanOrEqual(1);
+}
+
+test("Lineup & Sponsor: impor platform → kustom talent & sponsor → tampil di beranda", async ({ page }) => {
+  test.setTimeout(600_000);
+  const check = failOnPageErrors(page);
+  const tag = Math.random().toString(36).slice(2, 6).toUpperCase();
+  const band = `Lost Side ${tag}`;
+  const comic = `Komika ${tag}`;
+  const ig = `lostside.e2e${tag.toLowerCase()}`;
+  const sponsorName = `Desain E2E ${tag}`;
+  const sponsorIg = `desain.e2e${tag.toLowerCase()}`;
+
+  await login(page, "owner@garage.id");
+  const event = await masterEvent(page);
+  const platform = startFakeGigsPlatform({
+    slug: `gigs-e2e-${tag.toLowerCase()}`,
+    name: event.title,
+    lineup: [
+      { name: band, type: "band" },
+      { name: comic, type: "komika" },
+    ],
+  });
+  await platform.listen();
+  try {
+    // 1) Impor dari platform GIGS (UI).
+    await page.goto(`/control/lineup?eventId=${event.id}`);
+    await expect(page.getByRole("heading", { name: "Lineup & Panitia" })).toBeVisible({ timeout: 90_000 });
+    await page.getByRole("button", { name: /Impor dari platform GIGS/ }).click();
+    await expect(page.getByRole("status").filter({ hasText: "Impor dari" })).toContainText("2 penampil baru", { timeout: 60_000 });
+    const card = page.locator("li").filter({ has: page.getByText(band, { exact: true }) });
+    await expect(card).toBeVisible();
+    await expect(page.locator("li").filter({ has: page.getByText(comic, { exact: true }) })).toContainText("Terkonfirmasi");
+
+    // Impor ulang tidak membuat duplikat.
+    await page.getByRole("button", { name: /Impor dari platform GIGS/ }).click();
+    await expect(page.getByRole("status").filter({ hasText: "Impor dari" })).toContainText("sudah ada, tidak diubah", { timeout: 60_000 });
+    await expect(page.getByText(band, { exact: true })).toHaveCount(1);
+
+    // 2) Kustom kartu talent: tagline, Instagram (tautan penuh dirapikan), unggah logo.
+    await card.getByRole("button", { name: "Ubah" }).click();
+    const dialog = page.getByRole("dialog", { name: `Ubah ${band}` });
+    await dialog.getByLabel("Tagline (baris kecil di bawah nama)").fill("Heavy / Metallic Roster");
+    await dialog.getByLabel("Instagram").fill(`https://www.instagram.com/${ig}/`);
+    await dialog.getByLabel(`Pilih logo ${band}`).setInputFiles({ name: "logo.png", mimeType: "image/png", buffer: PNG });
+    await expect(dialog.getByRole("button", { name: /Ganti logo/ })).toBeVisible({ timeout: 60_000 });
+    await dialog.getByRole("button", { name: "Simpan" }).click();
+    await expect(dialog).toBeHidden({ timeout: 60_000 });
+    await expect(card).toContainText("Heavy / Metallic Roster");
+    await expect(card.getByRole("link", { name: `@${ig}` })).toHaveAttribute("href", `https://www.instagram.com/${ig}/`);
+
+    // Instagram salah ditolak dengan pesan jelas (bukan error mentah).
+    const board = (await (await page.request.get(`/api/event-lineup?eventId=${event.id}`)).json()).data;
+    const imported = board.performers.find((p: { name: string }) => p.name === band);
+    const badIg = await page.request.patch(`/api/event-lineup/performers/${imported.id}`, { data: { instagram: "akun salah!" } });
+    expect(badIg.status()).toBe(400);
+    expect((await badIg.json()).error.code).toBe("INVALID_INSTAGRAM");
+
+    // 3) Sponsor: data dasar via API, logo via UI di detail sponsor.
+    const created = await page.request.post("/api/sponsors", {
+      data: { eventId: event.id, eventName: event.title, name: sponsorName, packageName: "Gold", agreedAmount: 2_500_000, instagram: `@${sponsorIg}`, showOnWebsite: true },
+    });
+    expect(created.ok(), await created.text()).toBeTruthy();
+    const badLink = await page.request.patch(`/api/sponsors/${(await created.json()).data.id}`, { data: { websiteUrl: "javascript:alert(1)" } });
+    expect(badLink.status()).toBe(400);
+    await page.goto("/control/sponsors");
+    await page.getByRole("list", { name: "Daftar sponsor" }).getByText(sponsorName).click();
+    const drawer = page.getByRole("dialog", { name: sponsorName });
+    await drawer.getByLabel(`Pilih logo ${sponsorName}`).setInputFiles({ name: "brand.png", mimeType: "image/png", buffer: PNG });
+    await expect(drawer.getByRole("button", { name: /Ganti logo/ })).toBeVisible({ timeout: 60_000 });
+    await expect(drawer).toContainText("tampil di website");
+
+    // 4) Beranda: kartu talent (tagline + logo + Instagram) dan "Didukung oleh" (logo + Instagram, tanpa nilai uang).
+    await page.goto("/");
+    const gigs = page.getByTestId("home-gigs-spotlight");
+    await expect(gigs).toBeVisible({ timeout: 90_000 });
+    const bandCard = gigs.locator("li").filter({ hasText: band });
+    await expect(bandCard).toContainText("Heavy / Metallic Roster");
+    await expect(bandCard.getByRole("link", { name: new RegExp(`Instagram ${band}`) })).toHaveAttribute("href", `https://www.instagram.com/${ig}/`);
+    const bandLogo = bandCard.getByRole("img", { name: `Logo ${band}` });
+    await expect(bandLogo).toHaveAttribute("src", /\/garage-uploads\/event-lineup\//);
+    await expectImageLoads(page, bandLogo, "logo talent");
+
+    const partners = page.getByTestId("home-gigs-partners");
+    await expect(partners).toBeVisible();
+    const sponsorLink = partners.getByRole("link").filter({ hasText: sponsorName });
+    await expect(sponsorLink).toHaveAttribute("href", `https://www.instagram.com/${sponsorIg}/`);
+    await expect(sponsorLink).toContainText("Gold");
+    const sponsorLogo = sponsorLink.getByRole("img", { name: `Logo ${sponsorName}` });
+    await expectImageLoads(page, sponsorLogo, "logo sponsor");
+    await expect(partners).not.toContainText("2.500.000");
+    await noHorizontalOverflow(page);
+    check();
+  } finally {
+    await platform.close();
+  }
+});
+
+test("Beranda HP: kartu lineup & sponsor tidak terpotong / tidak bergeser @mobile", async ({ page }) => {
+  test.setTimeout(400_000);
+  const check = failOnPageErrors(page);
+  const tag = Math.random().toString(36).slice(2, 6).toUpperCase();
+  await login(page, "owner@garage.id");
+  const event = await masterEvent(page);
+  const longName = `Band Nama Panjang Sekali ${tag}`;
+  const platform = startFakeGigsPlatform({ slug: `gigs-hp-${tag.toLowerCase()}`, name: event.title, lineup: [{ name: longName, type: "band" }] });
+  await platform.listen();
+  try {
+    const imported = await page.request.post("/api/event-lineup/import-platform", { data: { eventId: event.id } });
+    expect(imported.ok(), await imported.text()).toBeTruthy();
+    const sponsor = await page.request.post("/api/sponsors", {
+      data: { eventId: event.id, eventName: event.title, name: `Sponsor Dengan Nama Sangat Panjang ${tag}`, agreedAmount: 0, showOnWebsite: true },
+    });
+    expect(sponsor.ok(), await sponsor.text()).toBeTruthy();
+
+    await page.goto("/");
+    const gigs = page.getByTestId("home-gigs-spotlight");
+    await expect(gigs).toBeVisible({ timeout: 90_000 });
+    await expect(gigs.getByText(longName)).toBeVisible();
+    await expect(page.getByTestId("home-gigs-partners").getByText(`Sponsor Dengan Nama Sangat Panjang ${tag}`)).toBeVisible();
+    await noHorizontalOverflow(page);
+    check();
+  } finally {
+    await platform.close();
+  }
+});
+
+test("Kontrol Event: satu bar menautkan semua menu event dengan event yang sama", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop-1366", "alur Owner diuji di desktop");
+  test.setTimeout(400_000);
+  const check = failOnPageErrors(page);
+  await login(page, "owner@garage.id");
+  const event = await masterEvent(page);
+  await page.goto(`/control/lineup?eventId=${event.id}`);
+  const nav = page.getByRole("navigation", { name: "Kontrol event" });
+  await expect(nav.getByRole("link", { name: /Lineup & Panitia/ })).toHaveAttribute("aria-current", "page", { timeout: 90_000 });
+  // Tautan membawa event yang sama sejak awal (tidak menunggu papan lineup selesai dimuat).
+  await expect(nav.getByRole("link", { name: /Keuangan Event/ })).toHaveAttribute("href", `/control/event-finance?eventId=${event.id}`);
+
+  await nav.getByRole("link", { name: /Keuangan Event/ }).click();
+  await expect(page).toHaveURL(new RegExp(`/control/event-finance\\?eventId=${event.id}`));
+  await expect(page.getByRole("heading", { name: "Keuangan Event" })).toBeVisible({ timeout: 90_000 });
+  await expect(page.getByRole("heading", { name: event.title, exact: false }).first()).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Kontrol event" }).getByRole("link", { name: /Keuangan Event/ })).toHaveAttribute("aria-current", "page");
+
+  await page.getByRole("navigation", { name: "Kontrol event" }).getByRole("link", { name: /Hari-H/ }).click();
+  await expect(page).toHaveURL(new RegExp(`/event-day\\?event=${event.id}`));
+  await expect(page.getByRole("heading", { name: "Hari-H Event" })).toBeVisible({ timeout: 90_000 });
+  await expect(page.getByRole("navigation", { name: "Kontrol event" }).getByRole("link", { name: /Sponsor/ })).toHaveAttribute("href", "/control/sponsors");
+  check();
+});
+
+test("Keuangan Event: impor RAB dari platform GIGS jadi pos anggaran (cadangan dilewati)", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop-1366", "alur Owner diuji di desktop");
+  test.setTimeout(400_000);
+  const check = failOnPageErrors(page);
+  const tag = Math.random().toString(36).slice(2, 6).toUpperCase();
+  await login(page, "owner@garage.id");
+  const event = await masterEvent(page);
+  const platform = startFakeGigsPlatform({
+    slug: `gigs-rab-${tag.toLowerCase()}`,
+    name: event.title,
+    lineup: [],
+    budget: [
+      { code: "01", name: `Sound E2E ${tag}`, budget: 10_000_000, purpose: "Sewa sound system", pic: "Rafly" },
+      { code: "02", name: `MC E2E ${tag}`, budget: 1_200_000, purpose: "Honor 2 MC" },
+      { code: "03", name: "Save Money", budget: 1_500_000, purpose: "Simpanan cadangan, bukan biaya." },
+    ],
+  });
+  await platform.listen();
+  try {
+    await page.goto(`/control/event-finance?eventId=${event.id}`);
+    await expect(page.getByRole("heading", { name: "Keuangan Event" })).toBeVisible({ timeout: 90_000 });
+    await page.getByRole("button", { name: /Impor RAB dari platform GIGS/ }).click();
+    const notice = page.getByRole("status").filter({ hasText: "RAB dari" });
+    await expect(notice).toContainText("2 pos baru", { timeout: 60_000 });
+    await expect(notice).toContainText("Save Money");
+    const table = page.locator("table");
+    await expect(table.getByText(`Sound E2E ${tag}`)).toBeVisible();
+    await expect(table.getByText(`MC E2E ${tag}`)).toBeVisible();
+    await expect(table.getByText("Save Money")).toHaveCount(0);
+  } finally {
+    await platform.close();
+  }
+  check();
+});

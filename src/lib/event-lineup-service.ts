@@ -25,6 +25,8 @@ import {
 } from "@/lib/event-lineup-rules";
 import { OPS_CHECK_TEMPLATE } from "@/lib/event-day-rules";
 import { wibDate } from "@/lib/event-sponsor-rules";
+import { parseInstagramHandle } from "@/lib/gigs-lineup";
+import { fetchPlatformLineup } from "@/lib/gigs-promo";
 import { EventRefError, findEventForPlatform, listMasterEvents, resolveEventRef } from "@/lib/event-master";
 import { createAuditLog } from "@/lib/garage-service";
 import type { GarageSession } from "@/lib/server-auth";
@@ -86,6 +88,8 @@ const performerFields = {
   kind: z.enum(LINEUP_KIND_ORDER as [LineupKind, ...LineupKind[]]),
   eventDate: isoDate.nullable().optional(),
   genre: optionalText(60),
+  // Baris kecil di kartu lineup website, mis. "Heavy / Metallic Roster".
+  tagline: optionalText(40),
   contactName: optionalText(80),
   contactPhone: optionalText(24),
   instagram: optionalText(60),
@@ -117,6 +121,8 @@ export const performerPatchSchema = performerInputSchema
     // GIGS EO #14: tombol "Kirim jadwal" menandai jadwal sudah dikirim (false = belum).
     scheduleSent: z.boolean().optional(),
   });
+
+export const importPlatformSchema = z.object({ ...eventRef });
 
 export const reorderSchema = z.object({ eventId: z.string().uuid().nullable().optional(), eventName, ids: z.array(z.string().uuid()).min(1).max(200) });
 
@@ -171,10 +177,11 @@ function phoneOrThrow(value: string | null | undefined, field: string): string |
 }
 
 const instagramHandle = (value: string | null | undefined) => {
-  if (!value) return null;
-  const handle = value.trim().replace(/^@/, "").replace(/^https?:\/\/(www\.)?instagram\.com\//, "").replace(/\/+$/, "");
-  if (!/^[A-Za-z0-9._]{1,30}$/.test(handle)) throw new LineupError("INVALID_INSTAGRAM", "Akun Instagram tidak valid.");
-  return handle;
+  try {
+    return parseInstagramHandle(value);
+  } catch {
+    throw new LineupError("INVALID_INSTAGRAM", "Akun Instagram tidak valid.");
+  }
 };
 
 const emptyToNull = (value: string | null | undefined) => (value === undefined ? undefined : value && value.trim() ? value.trim() : null);
@@ -374,6 +381,7 @@ export async function createPerformer(input: z.infer<typeof performerInputSchema
       name: input.name,
       kind: input.kind,
       genre: emptyToNull(input.genre) ?? null,
+      tagline: emptyToNull(input.tagline) ?? null,
       contactName: emptyToNull(input.contactName) ?? null,
       contactPhone: phoneOrThrow(input.contactPhone, "Kontak penampil"),
       instagram: instagramHandle(input.instagram),
@@ -407,6 +415,7 @@ export async function updatePerformer(id: string, patch: z.infer<typeof performe
   if (patch.kind !== undefined) values.kind = patch.kind;
   if (patch.eventDate !== undefined) values.eventDate = patch.eventDate;
   if (patch.genre !== undefined) values.genre = emptyToNull(patch.genre);
+  if (patch.tagline !== undefined) values.tagline = emptyToNull(patch.tagline);
   if (patch.contactName !== undefined) values.contactName = emptyToNull(patch.contactName);
   if (patch.contactPhone !== undefined) values.contactPhone = phoneOrThrow(patch.contactPhone, "Kontak penampil");
   if (patch.instagram !== undefined) values.instagram = instagramHandle(patch.instagram);
@@ -437,6 +446,24 @@ export async function updatePerformer(id: string, patch: z.infer<typeof performe
   return row;
 }
 
+/** Logo penampil (unggahan webp di /garage-uploads/event-lineup) atau null = hapus → website memakai logo platform. */
+export async function setPerformerLogo(id: string, logoUrl: string | null, garage: GarageSession) {
+  assertOwnerHuman(garage);
+  const before = await findPerformer(id);
+  const [row] = await getDb()
+    .update(eventPerformers)
+    .set({ logoUrl, updatedAt: new Date() })
+    .where(eq(eventPerformers.id, id))
+    .returning();
+  await audit(garage, logoUrl ? "Ganti logo penampil" : "Hapus logo penampil", row.name, {
+    eventName: row.eventName,
+    performerId: id,
+    before: { logoUrl: before.logoUrl },
+    after: { logoUrl: row.logoUrl },
+  });
+  return row;
+}
+
 /** Urutan slot baru sesuai urutan id yang dikirim (penampil lain event ini tidak disentuh). */
 export async function reorderPerformers(input: z.infer<typeof reorderSchema>, garage: GarageSession) {
   assertOwnerHuman(garage);
@@ -456,6 +483,93 @@ export async function reorderPerformers(input: z.infer<typeof reorderSchema>, ga
   // Audit setelah transaksi selesai (koneksi terpisah; jangan di dalam tx).
   await audit(garage, "Atur urutan lineup", input.eventName, { eventName: input.eventName, order: input.ids });
   return result;
+}
+
+/**
+ * Impor lineup yang sudah tayang di platform GIGS ke Garage OS (sekali klik, agar tidak input 2x).
+ * - Nama yang belum ada → penampil baru: terkonfirmasi, tampil di website, logo platform, urutan di belakang.
+ * - Nama yang sudah ada (tanpa peduli huruf, status apa pun) → TIDAK diubah, kecuali logo masih kosong → diisi logo platform.
+ * Setelah impor, semua data adalah data Garage OS biasa: nama, jenis, logo, tagline, IG, jadwal bebas diubah.
+ */
+export async function importPlatformLineup(input: z.infer<typeof importPlatformSchema>, garage: GarageSession) {
+  assertOwnerHuman(garage);
+  const ref = await eventFor(input);
+  const db = getDb();
+  const [master] = ref.eventId ? await db.select({ platformSlug: events.platformSlug }).from(events).where(eq(events.id, ref.eventId)).limit(1) : [];
+  let platform: Awaited<ReturnType<typeof fetchPlatformLineup>>;
+  try {
+    platform = await fetchPlatformLineup({ slug: master?.platformSlug ?? null, name: ref.eventName });
+  } catch {
+    throw new LineupError("PLATFORM_UNREACHABLE", "Platform GIGS tidak bisa dihubungi. Coba lagi beberapa saat.", 502);
+  }
+  if (!platform) {
+    throw new LineupError(
+      "PLATFORM_EVENT_NOT_FOUND",
+      "Event ini tidak ditemukan di platform GIGS. Isi slug platform di menu Event, atau samakan judul event.",
+      404,
+    );
+  }
+  if (!platform.lineup.length) return { platformName: platform.name, created: [] as string[], logoFilled: [] as string[], skipped: [] as string[] };
+
+  const result = await db.transaction(async (tx) => {
+    const existing = await tx
+      .select({
+        id: eventPerformers.id,
+        name: eventPerformers.name,
+        platformName: eventPerformers.platformName,
+        logoUrl: eventPerformers.logoUrl,
+        slotOrder: eventPerformers.slotOrder,
+      })
+      .from(eventPerformers)
+      .where(ref.eventId ? eq(eventPerformers.eventId, ref.eventId) : and(isNull(eventPerformers.eventId), eq(eventPerformers.eventName, ref.eventName)))
+      .for("update");
+    type Existing = (typeof existing)[number];
+    // Kenali talent lewat nama asli di platform dulu (tetap cocok walau Owner sudah mengganti nama, mis. SURAU → SURAI),
+    // lalu lewat nama sekarang.
+    const byPlatform = new Map<string, Existing>(existing.filter((r) => r.platformName).map((r) => [r.platformName!.trim().toLowerCase(), r]));
+    const byName = new Map<string, Existing>(existing.map((r) => [r.name.trim().toLowerCase(), r]));
+    let slot = existing.reduce((max, r) => Math.max(max, r.slotOrder ?? 0), 0);
+    const created: string[] = [];
+    const logoFilled: string[] = [];
+    const skipped: string[] = [];
+    for (const item of platform.lineup) {
+      const key = item.name.trim().toLowerCase();
+      const found = byPlatform.get(key) ?? byName.get(key);
+      if (found) {
+        const values: Partial<typeof eventPerformers.$inferInsert> = {};
+        // Tautkan baris lama (dibuat manual / impor sebelum kolom ini) ke nama platformnya; tidak mengubah nama.
+        if (!found.platformName) values.platformName = item.name;
+        if (!found.logoUrl && item.logo) values.logoUrl = item.logo;
+        if (Object.keys(values).length) {
+          await tx.update(eventPerformers).set({ ...values, updatedAt: new Date() }).where(eq(eventPerformers.id, found.id));
+          byPlatform.set(key, { ...found, ...values } as Existing);
+        }
+        if (values.logoUrl) logoFilled.push(found.name);
+        else skipped.push(found.name);
+        continue;
+      }
+      slot += 1;
+      await tx.insert(eventPerformers).values({
+        eventId: ref.eventId,
+        eventName: ref.eventName,
+        name: item.name,
+        kind: item.kind ?? "band",
+        logoUrl: item.logo,
+        status: "konfirmasi",
+        slotOrder: slot,
+        showOnWebsite: true,
+        notes: "Diimpor dari platform GIGS.",
+        platformName: item.name,
+        createdBy: garage.user.id,
+      });
+      byPlatform.set(key, { id: "", name: item.name, platformName: item.name, logoUrl: item.logo, slotOrder: slot });
+      created.push(item.name);
+    }
+    return { created, logoFilled, skipped };
+  });
+  // Audit setelah transaksi (PGlite satu koneksi).
+  await audit(garage, "Impor lineup dari platform GIGS", ref.eventName, { eventName: ref.eventName, platform: platform.slug, ...result });
+  return { platformName: platform.name, ...result };
 }
 
 // ─── Panitia ────────────────────────────────────────────────────────────────
@@ -551,7 +665,15 @@ export async function updateTask(id: string, patch: z.infer<typeof taskPatchSche
 
 // ─── Website (publik) ───────────────────────────────────────────────────────
 
-export type PublicLineupItem = { name: string; kind: LineupKind; time: string | null; live: boolean };
+export type PublicLineupItem = {
+  name: string;
+  kind: LineupKind;
+  time: string | null;
+  live: boolean;
+  logo: string | null;
+  tagline: string | null;
+  instagram: string | null;
+};
 
 /**
  * Lineup terkonfirmasi untuk website (tanpa kontak/catatan). Dicocokkan dengan nama event GIGS tanpa
@@ -569,6 +691,9 @@ export async function publicLineupFor(platform: string | { slug: string; name: s
       id: eventPerformers.id,
       name: eventPerformers.name,
       kind: eventPerformers.kind,
+      logoUrl: eventPerformers.logoUrl,
+      tagline: eventPerformers.tagline,
+      instagram: eventPerformers.instagram,
       status: eventPerformers.status,
       slotOrder: eventPerformers.slotOrder,
       setStart: eventPerformers.setStart,
@@ -593,7 +718,16 @@ export async function publicLineupFor(platform: string | { slug: string; name: s
   );
   // "Sedang tampil" = mode stage manager (Fase 3): sudah mulai, belum selesai.
   const live = new Set(rows.filter((r) => r.actualStart && !r.actualEnd).map((r) => r.id));
-  return rundown.map((r) => ({ name: r.name, kind: r.kind, time: publicSetTime(r), live: live.has(r.id) }));
+  const extra = new Map(rows.map((r) => [r.id, r]));
+  return rundown.map((r) => ({
+    name: r.name,
+    kind: r.kind,
+    time: publicSetTime(r),
+    live: live.has(r.id),
+    logo: extra.get(r.id)?.logoUrl ?? null,
+    tagline: extra.get(r.id)?.tagline ?? null,
+    instagram: extra.get(r.id)?.instagram ?? null,
+  }));
 }
 
 // ─── Pengingat tugas panitia (otomatis, ke HP Owner) ────────────────────────

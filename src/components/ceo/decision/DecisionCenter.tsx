@@ -29,7 +29,7 @@ import {
   XCircle,
 } from "lucide-react";
 import Image from "next/image";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { APPROVAL_CATEGORY_LABEL, type ApprovalCategory } from "@/lib/approval-rules";
@@ -168,6 +168,9 @@ export function DecisionCenter() {
   const [askText, setAskText] = useState("");
   const [askBusy, setAskBusy] = useState(false);
   const [askAnswer, setAskAnswer] = useState<{ answer: string; note: string } | null>(null);
+  // Pengajuan yang TERAKHIR diminta detailnya. Jawaban server yang datang belakangan untuk pengajuan lain diabaikan,
+  // agar keputusan tidak pernah jatuh ke pengajuan yang salah (klik cepat / server lambat).
+  const latestDetailId = useRef<string | null>(null);
 
   useEffect(() => {
     try {
@@ -189,13 +192,17 @@ export function DecisionCenter() {
   }, []);
 
   const loadDetail = useCallback(async (id: string) => {
+    latestDetailId.current = id;
     setDetailState("loading");
     setDetailError(null);
     setAskAnswer(null);
     try {
-      setDetail(await api<Detail>(`/api/control/decision-center/${encodeURIComponent(id)}`));
+      const next = await api<Detail>(`/api/control/decision-center/${encodeURIComponent(id)}`);
+      if (latestDetailId.current !== id) return;
+      setDetail(next);
       setDetailState("idle");
     } catch (error) {
+      if (latestDetailId.current !== id) return;
       setDetailError(error instanceof Error ? error.message : "Gagal memuat detail.");
       setDetailState("error");
     }
@@ -221,6 +228,11 @@ export function DecisionCenter() {
 
   function select(id: string) {
     setSelectedId(id);
+    // Pindah ke pengajuan lain: buang detail lama dulu (tombol keputusan hilang sampai detail yang benar termuat).
+    if (detail?.approval.id !== id) {
+      setDetail(null);
+      setDialog(null);
+    }
     void loadDetail(id);
   }
 
@@ -242,6 +254,10 @@ export function DecisionCenter() {
 
   async function submitDecision() {
     if (!detail || !dialog) return;
+    if (detail.approval.id !== selectedId) {
+      setActionError("Pengajuan yang dipilih berubah. Periksa detailnya lalu ulangi keputusan.");
+      return;
+    }
     setBusy(true);
     setActionError(null);
     try {
@@ -300,8 +316,10 @@ export function DecisionCenter() {
   }, [toast]);
 
   const k = overview?.kpi;
-  const a = detail?.approval;
-  const ex = detail?.explanation;
+  // Detail hanya dipakai bila milik pengajuan yang sedang dipilih (tidak pernah menampilkan detail basi).
+  const current = detail && detail.approval.id === selectedId ? detail : null;
+  const a = current?.approval;
+  const ex = current?.explanation;
   const recTone = ex ? (ex.recommendation.action === "reject" ? "red" : ex.recommendation.action === "approve" || ex.recommendation.action === "approve_with_note" ? undefined : "amber") : undefined;
 
   return (
@@ -441,7 +459,7 @@ export function DecisionCenter() {
                 Pilih pengajuan untuk melihat masalah, bukti, analisis dan rekomendasi AYA.
               </div>
             </div>
-          ) : detailState === "loading" && !detail ? (
+          ) : detailState === "loading" && !current ? (
             <p className="dc-muted flex items-center gap-2 p-4 text-sm"><Loader2 className="size-4 animate-spin" aria-hidden /> Memeriksa data terbaru…</p>
           ) : detailState === "error" ? (
             <p className="dc-card p-4 text-sm" role="alert" style={{ color: "var(--dc-red)" }}>{detailError}</p>

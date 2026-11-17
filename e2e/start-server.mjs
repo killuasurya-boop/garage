@@ -48,6 +48,9 @@ const env = {
   MEMBER_GOOGLE_CLIENT_ID: "e2e-client.apps.googleusercontent.com",
   MEMBER_GOOGLE_CLIENT_SECRET: "e2e-secret",
   MEMBER_GOOGLE_TEST_ENDPOINT: "http://127.0.0.1:3199",
+  // Platform GIGS palsu lokal (e2e/fake-gigs-platform.ts, dijalankan oleh spec gigs-website). Tanpa spec itu → koneksi
+  // ditolak → beranda tampil tanpa section GIGS seperti biasa.
+  GARAGE_EVENT_API: "http://127.0.0.1:3198/event/api/events",
 };
 
 const npx = process.platform === "win32" ? "npx.cmd" : "npx";

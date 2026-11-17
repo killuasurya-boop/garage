@@ -8,6 +8,7 @@ import {
   Ban,
   CheckCircle2,
   ClipboardList,
+  Download,
   Clock3,
   ListOrdered,
   MessageCircle,
@@ -26,6 +27,9 @@ import {
 
 import { PageHeader } from "@/components/ceo/layout/PageHeader";
 import { Badge } from "@/components/ceo/ui/Badge";
+import { EventControlNav } from "@/components/ceo/ui/EventControlNav";
+import { LogoUpload } from "@/components/ceo/ui/LogoUpload";
+import { FormSection, ReadinessChips, TalentCardPreview } from "@/components/ceo/ui/WebsitePreview";
 import { garageApi, GarageApiError } from "@/lib/api-client";
 import {
   CREW_ROLE_LABEL,
@@ -95,10 +99,10 @@ function Field({ label, children, hint }: { label: string; children: ReactNode; 
   );
 }
 
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+function Modal({ title, onClose, children, wide = false }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-3 sm:items-center" role="dialog" aria-modal="true" aria-label={title}>
-      <div className="max-h-[calc(100dvh-1.5rem)] w-full max-w-lg overflow-y-auto rounded-lg border border-white/15 bg-[var(--garage-bg-2)] p-4 shadow-2xl">
+      <div className={`max-h-[calc(100dvh-1.5rem)] w-full ${wide ? "max-w-3xl" : "max-w-lg"} overflow-y-auto rounded-lg border border-white/15 bg-[var(--garage-bg-2)] p-4 shadow-2xl`}>
         <div className="mb-3 flex items-center justify-between gap-2">
           <h2 className="text-base font-bold text-zinc-50">{title}</h2>
           <button type="button" className={smallBtn} onClick={onClose} aria-label="Tutup">
@@ -124,6 +128,8 @@ export function LineupPanel({ initialEvent = null, initialEventId = null, initia
   const event = board?.eventName ?? null;
   const [tab, setTab] = useState<LineupTab>(initialTab);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [dialog, setDialog] = useState<
     | { kind: "performer"; row: PerformerView | null }
@@ -198,6 +204,8 @@ export function LineupPanel({ initialEvent = null, initialEventId = null, initia
         }
       />
 
+      <EventControlNav current="lineup" eventId={board?.eventId ?? initialEventId ?? null} />
+
       {/* Pilih / buat event */}
       <div className={`${cardClass} grid gap-3 lg:grid-cols-[18rem_minmax(0,1fr)] lg:items-start`}>
         <Field label="Event">
@@ -240,6 +248,15 @@ export function LineupPanel({ initialEvent = null, initialEventId = null, initia
           </p>
         </div>
       </div>
+
+      {notice ? (
+        <p role="status" className="flex items-start gap-2 rounded-md border border-amber-300/40 bg-amber-300/10 px-3 py-2 text-sm text-amber-100">
+          <CheckCircle2 size={16} className="mt-0.5 shrink-0" /> <span className="min-w-0">{notice}</span>
+          <button type="button" className="ml-auto shrink-0 text-amber-200 hover:text-white" aria-label="Tutup pesan" onClick={() => setNotice(null)}>
+            <X size={15} />
+          </button>
+        </p>
+      ) : null}
 
       {error ? (
         <p role="alert" className="flex items-start gap-2 rounded-md border border-[color-mix(in_srgb,var(--garage-red)_50%,transparent)] bg-[color-mix(in_srgb,var(--garage-red)_14%,transparent)] px-3 py-2 text-sm text-[#ffc4c4]">
@@ -297,6 +314,23 @@ export function LineupPanel({ initialEvent = null, initialEventId = null, initia
             <LineupTab
               board={board}
               onAdd={() => setDialog({ kind: "performer", row: null })}
+              importing={importing}
+              onImport={() => {
+                setImporting(true);
+                setNotice(null);
+                void run(async () => {
+                  const res = await garageApi.post<{ platformName: string; created: string[]; logoFilled: string[]; skipped: string[] }>(
+                    "/api/event-lineup/import-platform",
+                    { eventId: board?.eventId ?? null, eventName: event },
+                  );
+                  const parts = [
+                    res.created.length ? `${res.created.length} penampil baru (${res.created.join(", ")})` : null,
+                    res.logoFilled.length ? `logo diisi untuk ${res.logoFilled.join(", ")}` : null,
+                    res.skipped.length ? `${res.skipped.length} sudah ada, tidak diubah` : null,
+                  ].filter(Boolean);
+                  setNotice(parts.length ? `Impor dari “${res.platformName}”: ${parts.join(" · ")}. Semua tetap bisa diubah lewat tombol Ubah.` : `Platform “${res.platformName}” belum punya lineup.`);
+                }).finally(() => setImporting(false));
+              }}
               onEdit={(row) => setDialog({ kind: "performer", row })}
               onCancel={(row) => setDialog({ kind: "cancel", row })}
               onStatus={(row, status) => void run(() => garageApi.patch(`/api/event-lineup/performers/${row.id}`, { status }))}
@@ -326,7 +360,11 @@ export function LineupPanel({ initialEvent = null, initialEventId = null, initia
       ) : null}
 
       {dialog?.kind === "performer" && event ? (
-        <PerformerForm event={event} row={dialog.row} onClose={() => setDialog(null)} onSave={(body) => run(() => (dialog.row ? garageApi.patch(`/api/event-lineup/performers/${dialog.row.id}`, body) : garageApi.post("/api/event-lineup", { ...body, eventId: board?.eventId ?? null, eventName: event })))} />
+        <PerformerForm
+          event={event}
+          row={dialog.row ? board?.performers.find((p) => p.id === dialog.row?.id) ?? dialog.row : null}
+          onLogoChanged={() => load(selected)}
+          onClose={() => setDialog(null)} onSave={(body) => run(() => (dialog.row ? garageApi.patch(`/api/event-lineup/performers/${dialog.row.id}`, body) : garageApi.post("/api/event-lineup", { ...body, eventId: board?.eventId ?? null, eventName: event })))} />
       ) : null}
       {dialog?.kind === "cancel" ? (
         <CancelForm row={dialog.row} onClose={() => setDialog(null)} onSave={(reason) => run(() => garageApi.patch(`/api/event-lineup/performers/${dialog.row.id}`, { status: "batal", cancelReason: reason }))} />
@@ -357,6 +395,8 @@ function Stat({ label, value, sub, tone }: { label: string; value: string; sub: 
 function LineupTab({
   board,
   onAdd,
+  onImport,
+  importing,
   onEdit,
   onCancel,
   onStatus,
@@ -364,6 +404,8 @@ function LineupTab({
 }: {
   board: Board;
   onAdd: () => void;
+  onImport: () => void;
+  importing: boolean;
   onEdit: (row: PerformerView) => void;
   onCancel: (row: PerformerView) => void;
   onStatus: (row: PerformerView, status: PerformerStatus) => void;
@@ -384,10 +426,19 @@ function LineupTab({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-zinc-400">Urutan slot mengikuti rundown. Naik/turun mengubah urutan tampil.</p>
-        <button type="button" className={primaryBtn} onClick={onAdd}>
-          <Plus size={16} /> Tambah penampil
-        </button>
+        <ol className="grid min-w-0 flex-1 gap-1 text-sm text-zinc-200 sm:grid-cols-3" aria-label="Cara pakai lineup">
+          <li><b className="text-amber-300">1.</b> Impor dari platform GIGS atau Tambah penampil</li>
+          <li><b className="text-amber-300">2.</b> Klik “Ubah”: logo, tagline, Instagram, jam</li>
+          <li><b className="text-amber-300">3.</b> Status Terkonfirmasi → otomatis tayang di website</li>
+        </ol>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className={ghostBtn} onClick={onImport} disabled={importing} title="Ambil band/talent yang sudah tayang di platform GIGS (nama, jenis, logo)">
+            <Download size={16} /> {importing ? "Mengimpor…" : "Impor dari platform GIGS"}
+          </button>
+          <button type="button" className={primaryBtn} onClick={onAdd}>
+            <Plus size={16} /> Tambah penampil
+          </button>
+        </div>
       </div>
       {!groups.length ? <div className={`${cardClass} text-sm text-zinc-300`}>Belum ada penampil di event ini.</div> : null}
       {groups.map(({ kind, items }) => {
@@ -407,7 +458,21 @@ function LineupTab({
                       <span className="font-mono text-xs text-[#ff6b75]">{rd ? `SLOT #${String(rd.slot).padStart(2, "0")}` : "—"}</span>
                       <Badge tone={STATUS_TONE[row.status as PerformerStatus]}>{PERFORMER_STATUS_LABEL[row.status as PerformerStatus]}</Badge>
                     </div>
-                    <strong className="break-words text-lg font-black uppercase text-zinc-50">{row.name}</strong>
+                    <div className="flex min-w-0 items-center gap-3">
+                      {row.logoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element -- logo unggahan webp kecil
+                        <img src={row.logoUrl} alt="" className="size-12 shrink-0 rounded border border-white/10 bg-black object-contain p-0.5" />
+                      ) : null}
+                      <div className="min-w-0">
+                        <strong className="block break-words text-lg font-black uppercase text-zinc-50">{row.name}</strong>
+                        {row.tagline ? <span className="block break-words text-sm text-zinc-300">{row.tagline}</span> : null}
+                        {row.instagram ? (
+                          <a className="block break-all text-sm text-amber-300 underline-offset-2 hover:underline" href={`https://www.instagram.com/${row.instagram}/`} target="_blank" rel="noreferrer">
+                            @{row.instagram}
+                          </a>
+                        ) : null}
+                      </div>
+                    </div>
                     <p className="text-sm text-zinc-300">
                       {[row.genre, row.memberCount ? `${row.memberCount} orang` : null].filter(Boolean).join(" · ") || LINEUP_KIND_LABEL[kind]}
                     </p>
@@ -447,7 +512,20 @@ function LineupTab({
                       <p className="text-xs text-amber-300">Kontak belum diisi</p>
                     )}
                     {row.status === "batal" && row.cancelReason ? <p className="text-xs text-zinc-400">Alasan batal: {row.cancelReason}</p> : null}
-                    {!row.showOnWebsite ? <p className="text-xs text-zinc-400">Tidak ditampilkan di website</p> : null}
+                    {row.status !== "batal" ? (
+                      row.showOnWebsite ? (
+                        <ReadinessChips
+                          items={[
+                            { label: "Logo", ok: Boolean(row.logoUrl) },
+                            { label: "Instagram", ok: Boolean(row.instagram) },
+                            { label: "Tagline", ok: Boolean(row.tagline) },
+                            { label: "Jam tampil", ok: Boolean(rd?.start) },
+                          ]}
+                        />
+                      ) : (
+                        <p className="text-xs text-amber-200">Tidak tampil di website</p>
+                      )
+                    ) : null}
                     <div className="mt-auto flex flex-wrap gap-1.5 pt-1">
                       {row.status === "calon" ? (
                         <button type="button" className={smallBtn} onClick={() => onStatus(row, "konfirmasi")}>
@@ -702,12 +780,25 @@ function useSubmit(onSave: () => Promise<boolean>, onClose: () => void) {
   };
 }
 
-function PerformerForm({ event, row, onClose, onSave }: { event: string; row: PerformerView | null; onClose: () => void; onSave: (body: Record<string, unknown>) => Promise<boolean> }) {
+function PerformerForm({
+  event,
+  row,
+  onClose,
+  onSave,
+  onLogoChanged,
+}: {
+  event: string;
+  row: PerformerView | null;
+  onClose: () => void;
+  onSave: (body: Record<string, unknown>) => Promise<boolean>;
+  onLogoChanged: () => void | Promise<void>;
+}) {
   const [f, setF] = useState({
     name: row?.name ?? "",
     kind: (row?.kind as LineupKind) ?? "band",
     status: (row?.status as PerformerStatus) ?? "calon",
     genre: row?.genre ?? "",
+    tagline: row?.tagline ?? "",
     memberCount: row?.memberCount ? String(row.memberCount) : "",
     contactName: row?.contactName ?? "",
     contactPhone: row?.contactPhone ?? "",
@@ -728,6 +819,7 @@ function PerformerForm({ event, row, onClose, onSave }: { event: string; row: Pe
         kind: f.kind,
         ...(row ? {} : { status: f.status }),
         genre: f.genre || null,
+        tagline: f.tagline || null,
         memberCount: numOrNull(f.memberCount),
         contactName: f.contactName || null,
         contactPhone: f.contactPhone || null,
@@ -743,79 +835,120 @@ function PerformerForm({ event, row, onClose, onSave }: { event: string; row: Pe
     onClose,
   );
   return (
-    <Modal title={row ? `Ubah ${row.name}` : `Tambah penampil · ${event}`} onClose={onClose}>
-      <form className="grid gap-3 sm:grid-cols-2" onSubmit={submit}>
-        <div className="sm:col-span-2">
-          <Field label="Nama penampil">
-            <input className={inputClass} value={f.name} onChange={set("name")} required minLength={2} maxLength={80} />
-          </Field>
-        </div>
-        <Field label="Jenis">
-          <select className={inputClass} value={f.kind} onChange={set("kind")}>
-            {LINEUP_KIND_ORDER.map((k) => (
-              <option key={k} value={k}>
-                {LINEUP_KIND_LABEL[k]}
-              </option>
-            ))}
-          </select>
-        </Field>
-        {!row ? (
-          <Field label="Status">
-            <select className={inputClass} value={f.status} onChange={set("status")}>
-              <option value="calon">Calon</option>
-              <option value="konfirmasi">Terkonfirmasi</option>
-            </select>
-          </Field>
-        ) : (
-          <Field label="Genre / materi">
-            <input className={inputClass} value={f.genre} onChange={set("genre")} maxLength={60} />
-          </Field>
-        )}
-        {!row ? (
-          <Field label="Genre / materi">
-            <input className={inputClass} value={f.genre} onChange={set("genre")} maxLength={60} placeholder="mis. pop punk, komedi observasi" />
-          </Field>
-        ) : null}
-        <Field label="Jumlah personel">
-          <input className={inputClass} inputMode="numeric" value={f.memberCount} onChange={(e) => setF((s) => ({ ...s, memberCount: e.target.value.replace(/\D/g, "").slice(0, 2) }))} />
-        </Field>
-        <Field label="Jam tampil (WIB)">
-          <input className={inputClass} type="time" value={f.setStart} onChange={set("setStart")} />
-        </Field>
-        <Field label="Durasi (menit)">
-          <input className={inputClass} inputMode="numeric" value={f.setMinutes} onChange={(e) => setF((s) => ({ ...s, setMinutes: e.target.value.replace(/\D/g, "").slice(0, 3) }))} placeholder="mis. 30" />
-        </Field>
-        <Field label="Nama kontak">
-          <input className={inputClass} value={f.contactName} onChange={set("contactName")} maxLength={80} />
-        </Field>
-        <Field label="WhatsApp kontak">
-          <input className={inputClass} inputMode="tel" value={f.contactPhone} onChange={set("contactPhone")} placeholder="08…" maxLength={24} />
-        </Field>
-        <div className="sm:col-span-2">
-          <Field label="Instagram">
-            <input className={inputClass} value={f.instagram} onChange={set("instagram")} placeholder="@akun" maxLength={60} />
-          </Field>
-        </div>
-        <div className="sm:col-span-2">
-          <Field label="Tech rider / kebutuhan panggung">
-            <textarea className={areaClass} value={f.techRider} onChange={set("techRider")} maxLength={1000} placeholder="mis. 2 vokal mic, 1 DI bass, drum set lengkap" />
-          </Field>
-          <Field label="Hospitality (opsional)">
-            <textarea className={areaClass} value={f.hospitality} onChange={set("hospitality")} maxLength={1000} placeholder="mis. 6 air mineral, makan malam 5 orang, ruang ganti" />
-          </Field>
-          <Field label="Tautan kontrak (opsional)" hint="Google Drive / dokumen https://…">
-            <input className={inputClass} value={f.contractUrl} onChange={set("contractUrl")} maxLength={500} placeholder="https://…" />
-          </Field>
-        </div>
-        <div className="sm:col-span-2">
-          <Field label="Catatan">
-            <textarea className={areaClass} value={f.notes} onChange={set("notes")} maxLength={1000} />
-          </Field>
-        </div>
-        <label className="flex items-center gap-2 text-sm text-zinc-200 sm:col-span-2">
-          <input type="checkbox" checked={f.showOnWebsite} onChange={(e) => setF((s) => ({ ...s, showOnWebsite: e.target.checked }))} />
-          Tampilkan di website saat terkonfirmasi
-        </label>
+    <Modal title={row ? `Ubah ${row.name}` : `Tambah penampil · ${event}`} onClose={onClose} wide>
+      <form className="grid gap-4 sm:grid-cols-2" onSubmit={submit}>
+        <FormSection tone="plain" title="1. Data utama" hint="Nama & jenis tampil di website dan di rundown.">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <Field label="Nama penampil">
+                <input className={inputClass} value={f.name} onChange={set("name")} required minLength={2} maxLength={80} placeholder="mis. Lost Side" />
+              </Field>
+            </div>
+            <Field label="Jenis">
+              <select className={inputClass} value={f.kind} onChange={set("kind")}>
+                {LINEUP_KIND_ORDER.map((k) => (
+                  <option key={k} value={k}>
+                    {LINEUP_KIND_LABEL[k]}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            {!row ? (
+              <Field label="Status" hint="Terkonfirmasi = siap tayang di website.">
+                <select className={inputClass} value={f.status} onChange={set("status")}>
+                  <option value="calon">Calon</option>
+                  <option value="konfirmasi">Terkonfirmasi</option>
+                </select>
+              </Field>
+            ) : (
+              <Field label="Genre / materi">
+                <input className={inputClass} value={f.genre} onChange={set("genre")} maxLength={60} placeholder="mis. pop punk, komedi observasi" />
+              </Field>
+            )}
+            {!row ? (
+              <div className="sm:col-span-2">
+                <Field label="Genre / materi">
+                  <input className={inputClass} value={f.genre} onChange={set("genre")} maxLength={60} placeholder="mis. pop punk, komedi observasi" />
+                </Field>
+              </div>
+            ) : null}
+          </div>
+        </FormSection>
+
+        <FormSection tone="public" title="2. Tampil di website" hint="Semua di bagian ini terlihat pengunjung beranda. Klik kartu di website membuka Instagram.">
+          <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto]">
+            <div className="grid min-w-0 gap-3">
+              <div className="grid min-w-0 gap-1 text-xs font-semibold text-zinc-300">
+                Logo
+                {row ? (
+                  <LogoUpload endpoint={`/api/event-lineup/performers/${row.id}/logo`} logoUrl={row.logoUrl} label={row.name} onChanged={onLogoChanged} />
+                ) : (
+                  <p className="text-sm font-normal text-zinc-300">Klik Simpan dulu, lalu tombol “Ubah” pada kartu untuk mengunggah logo.</p>
+                )}
+              </div>
+              <Field label="Tagline (baris kecil di bawah nama)">
+                <input className={inputClass} value={f.tagline} onChange={set("tagline")} maxLength={40} placeholder="mis. Heavy / Metallic Roster" />
+              </Field>
+              <Field label="Instagram">
+                <input className={inputClass} value={f.instagram} onChange={set("instagram")} placeholder="@akun atau tautan instagram.com/akun" maxLength={60} />
+              </Field>
+              <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm text-zinc-100">
+                <input type="checkbox" className="size-4" checked={f.showOnWebsite} onChange={(e) => setF((s) => ({ ...s, showOnWebsite: e.target.checked }))} />
+                Tampilkan di website (saat status Terkonfirmasi)
+              </label>
+            </div>
+            <TalentCardPreview
+              name={f.name}
+              kindLabel={LINEUP_KIND_LABEL[f.kind]}
+              tagline={f.tagline}
+              instagram={f.instagram}
+              logo={row?.logoUrl ?? null}
+              time={f.setStart ? f.setStart.replace(":", ".") : null}
+              hidden={!f.showOnWebsite}
+            />
+          </div>
+        </FormSection>
+
+        <FormSection tone="plain" title="3. Jadwal panggung" hint="Mengisi rundown; jam tampil juga muncul di kartu website.">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Field label="Jam tampil (WIB)">
+              <input className={inputClass} type="time" value={f.setStart} onChange={set("setStart")} />
+            </Field>
+            <Field label="Durasi (menit)">
+              <input className={inputClass} inputMode="numeric" value={f.setMinutes} onChange={(e) => setF((s) => ({ ...s, setMinutes: e.target.value.replace(/\D/g, "").slice(0, 3) }))} placeholder="mis. 30" />
+            </Field>
+            <Field label="Jumlah personel">
+              <input className={inputClass} inputMode="numeric" value={f.memberCount} onChange={(e) => setF((s) => ({ ...s, memberCount: e.target.value.replace(/\D/g, "").slice(0, 2) }))} />
+            </Field>
+          </div>
+        </FormSection>
+
+        <FormSection tone="internal" title="4. Internal panitia" hint="TIDAK tampil di website. Kontak, kebutuhan panggung, dan catatan hanya untuk panitia.">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Nama kontak">
+              <input className={inputClass} value={f.contactName} onChange={set("contactName")} maxLength={80} />
+            </Field>
+            <Field label="WhatsApp kontak">
+              <input className={inputClass} inputMode="tel" value={f.contactPhone} onChange={set("contactPhone")} placeholder="08…" maxLength={24} />
+            </Field>
+            <div className="sm:col-span-2">
+              <Field label="Tech rider / kebutuhan panggung">
+                <textarea className={areaClass} value={f.techRider} onChange={set("techRider")} maxLength={1000} placeholder="mis. 2 vokal mic, 1 DI bass, drum set lengkap" />
+              </Field>
+            </div>
+            <div className="sm:col-span-2">
+              <Field label="Hospitality (opsional)">
+                <textarea className={areaClass} value={f.hospitality} onChange={set("hospitality")} maxLength={1000} placeholder="mis. 6 air mineral, makan malam 5 orang, ruang ganti" />
+              </Field>
+            </div>
+            <Field label="Tautan kontrak (opsional)" hint="Google Drive / dokumen https://…">
+              <input className={inputClass} value={f.contractUrl} onChange={set("contractUrl")} maxLength={500} placeholder="https://…" />
+            </Field>
+            <Field label="Catatan">
+              <textarea className={areaClass} value={f.notes} onChange={set("notes")} maxLength={1000} />
+            </Field>
+          </div>
+        </FormSection>
         <div className="sm:col-span-2">
           <FormActions busy={busy} onClose={onClose} />
         </div>

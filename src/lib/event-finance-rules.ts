@@ -103,3 +103,29 @@ export function eventProfit(input: EventProfitInput) {
     projectedStatus: projected >= 0 ? ("untung" as const) : ("rugi" as const),
   };
 }
+
+// ─── Impor RAB dari platform GIGS (Owner 17 Nov 2026, "jangan kerja 2x") ────────────────────────────
+
+/** Kategori pos dari nama pos RAB platform (kata kunci, tanpa menebak di luar daftar → "lain"). */
+export function platformBudgetCategory(name: string): EventCostCategory {
+  const n = name.toLowerCase();
+  if (/\b(band|stand-?up|komika|comedy|mc|honor|talent|penampil|dj|akustik)\b/.test(n)) return "honor";
+  if (/(sound|lighting|lampu|drum|audio)/.test(n)) return "sound";
+  if (/(sewa tempat|venue|panggung|stage|tenda)/.test(n)) return "venue";
+  if (/(konsumsi|komsumsi|makan|minum|catering)/.test(n)) return "konsumsi";
+  if (/(dekor)/.test(n)) return "dekorasi";
+  if (/(promosi|publikasi|desain|poster|iklan|dokumentasi|foto|video)/.test(n)) return "promosi";
+  if (/(keamanan|security|satpam)/.test(n)) return "keamanan";
+  if (/(izin|perizinan)/.test(n)) return "perizinan";
+  if (/(transport|bensin|ongkir)/.test(n)) return "transport";
+  return "lain";
+}
+
+/**
+ * Pos cadangan/tabungan BUKAN biaya: tidak diimpor sebagai pos anggaran (bila dicatat sebagai biaya,
+ * proyeksi untung/rugi event jadi salah). Platform menulisnya mis. "Save Money" — "Simpanan cadangan, bukan biaya".
+ */
+export function isReserveBudgetLine(name: string, purpose: string | null): boolean {
+  const text = `${name} ${purpose ?? ""}`.toLowerCase();
+  return /(save money|tabungan|simpanan|cadangan|buffer|dana darurat)/.test(text) || /bukan biaya/.test(text);
+}

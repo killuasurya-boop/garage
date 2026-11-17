@@ -1,0 +1,6 @@
+{
+  "name": "garage-kerja",
+  "version": "0.1.0",
+  "description": "Garage OS: panel status kerja, penjaga skill modul, penjaga rahasia saat commit/push, dan /cek-event (E2E event).",
+  "types": "./types/index.d.ts"
+}

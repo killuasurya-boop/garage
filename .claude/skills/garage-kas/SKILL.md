@@ -125,7 +125,8 @@ description: Aturan WAJIB uang/kas Garage OS: shift & laci, Kas Keluar/Masuk, bu
   P&L: `otherIncome` (from the ledger by business date) adds to net profit, never to net sales (ENGINE_VERSION 6). In-kind
   sponsorship is a note only (no ledger, no P&L). Installments are allocated earliest-due-first (pure `event-sponsor-rules.ts`);
   reminders via `sweepSponsorReminders` (H-3, due day, late day 1/3/7 then weekly; neutral wording). The GIGS platform
-  (separate stack, `/event`) is not changed by this module.
+  (separate stack, `/event`) is not changed by this module. Public branding (logo, https link, `show_on_website` default
+  false) is display-only, never money/contact — see skill `garage-event-lineup` (migration 0201).
 - Biaya Event (GIGS EO Fase 2, owner 17 Nov 2026, migration 0198): event costs are paid from bank_jago/bank_bni (one
   `event_expense` ledger row bank → external in the same tx) or `external` (Owner personal money, no ledger row). Void =
   `event_expense_void` reversal. P&L reads `event_expense_payments` (paid date +, void date −) as category `Biaya Event`

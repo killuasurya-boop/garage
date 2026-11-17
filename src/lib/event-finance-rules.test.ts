@@ -53,3 +53,23 @@ describe("eventProfit", () => {
     expect(p).toMatchObject({ menuContribution: 500_000, menuMarginKnown: false, current: -1_500_000, status: "rugi" });
   });
 });
+
+describe("impor RAB platform GIGS", () => {
+  it("kategori dari nama pos RAB asli GIGS Akhir Tahun 2026", async () => {
+    const { platformBudgetCategory } = await import("@/lib/event-finance-rules");
+    expect(platformBudgetCategory("Band")).toBe("honor");
+    expect(platformBudgetCategory("Stand-up Comedy")).toBe("honor");
+    expect(platformBudgetCategory("MC (2 orang)")).toBe("honor");
+    expect(platformBudgetCategory("Sound (LIGHTING + DRUM + STAGE)")).toBe("sound");
+    expect(platformBudgetCategory("Komsumsi")).toBe("konsumsi");
+    expect(platformBudgetCategory("Sewa Tempat")).toBe("venue");
+    expect(platformBudgetCategory("Dokumentasi")).toBe("promosi");
+    expect(platformBudgetCategory("Kembang Api")).toBe("lain");
+  });
+  it("cadangan/tabungan bukan biaya", async () => {
+    const { isReserveBudgetLine } = await import("@/lib/event-finance-rules");
+    expect(isReserveBudgetLine("Save Money", "Simpanan cadangan, bukan biaya.")).toBe(true);
+    expect(isReserveBudgetLine("Dana Darurat", null)).toBe(true);
+    expect(isReserveBudgetLine("Band", "Honor band lokal")).toBe(false);
+  });
+});

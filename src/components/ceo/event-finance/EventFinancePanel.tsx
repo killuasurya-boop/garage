@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { AlertTriangle, Archive, Ban, Banknote, Camera, Pencil, Plus, Printer, RefreshCw, TrendingDown, TrendingUp, X } from "lucide-react";
+import { AlertTriangle, Archive, Ban, Banknote, Camera, CheckCircle2, Download, Pencil, Plus, Printer, RefreshCw, TrendingDown, TrendingUp, X } from "lucide-react";
 
 import { PageHeader } from "@/components/ceo/layout/PageHeader";
+import { EventControlNav, StepHint } from "@/components/ceo/ui/EventControlNav";
 import { Badge } from "@/components/ceo/ui/Badge";
 import { garageApi, GarageApiError } from "@/lib/api-client";
 
@@ -112,10 +113,12 @@ function Stat({ label, value, sub, tone }: { label: string; value: string; sub?:
   );
 }
 
-export function EventFinancePanel() {
+export function EventFinancePanel({ initialEventId = null }: { initialEventId?: string | null }) {
   const [view, setView] = useState<FinanceView | null>(null);
-  const [eventId, setEventId] = useState<string | null>(null);
+  const [eventId, setEventId] = useState<string | null>(initialEventId);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [dialog, setDialog] = useState<null | { kind: "line"; row: BudgetRow | null } | { kind: "pay"; row: BudgetRow } | { kind: "void"; payment: Payment }>(null);
 
@@ -136,7 +139,7 @@ export function EventFinancePanel() {
   useEffect(() => {
     let alive = true;
     garageApi
-      .get<FinanceView>("/api/event-finance", { cache: "no-store" })
+      .get<FinanceView>(`/api/event-finance${initialEventId ? `?eventId=${initialEventId}` : ""}`, { cache: "no-store" })
       .then((data) => {
         if (!alive) return;
         setView(data);
@@ -147,7 +150,7 @@ export function EventFinancePanel() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [initialEventId]);
 
   const run = async (action: () => Promise<unknown>) => {
     setError(null);
@@ -159,6 +162,29 @@ export function EventFinancePanel() {
       setError(errText(e));
       return false;
     }
+  };
+
+  const rp = (n: number) => `Rp${Math.round(n).toLocaleString("id-ID")}`;
+  const importBudget = () => {
+    const targetEventId = view?.event?.id;
+    if (!targetEventId) return;
+    setImporting(true);
+    setNotice(null);
+    void run(async () => {
+      const res = await garageApi.post<{
+        platformName: string;
+        created: Array<{ title: string; plannedAmount: number }>;
+        skipped: string[];
+        reserve: Array<{ title: string; amount: number }>;
+        createdTotal: number;
+      }>("/api/event-finance/import-platform", { eventId: targetEventId });
+      const parts = [
+        res.created.length ? `${res.created.length} pos baru (${rp(res.createdTotal)})` : null,
+        res.skipped.length ? `${res.skipped.length} sudah ada, tidak diubah` : null,
+        res.reserve.length ? `dilewati sebagai cadangan, bukan biaya: ${res.reserve.map((r) => `${r.title} ${rp(r.amount)}`).join(", ")}` : null,
+      ].filter(Boolean);
+      setNotice(parts.length ? `RAB dari “${res.platformName}”: ${parts.join(" · ")}. Semua pos tetap bisa diubah.` : `Platform “${res.platformName}” belum punya RAB.`);
+    }).finally(() => setImporting(false));
   };
 
   const profit = view?.profit;
@@ -182,6 +208,16 @@ export function EventFinancePanel() {
         }
       />
 
+      <EventControlNav current="keuangan" eventId={eventId} />
+      <StepHint
+        label="Cara pakai keuangan event"
+        steps={[
+          "Tambah pos biaya = anggaran (honor, sound, dekor, …)",
+          "Klik “Bayar” saat uang keluar: rekening → otomatis ke buku kas, atau uang pribadi",
+          "Pantau untung/rugi; setelah acara isi evaluasi di bagian bawah",
+        ]}
+      />
+
       <div className={`${cardClass} grid gap-2 sm:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] sm:items-end print:hidden`}>
         <Field label="Event">
           <select className={inputClass} value={eventId ?? ""} onChange={(e) => void load(e.target.value || null)}>
@@ -195,6 +231,15 @@ export function EventFinancePanel() {
         </Field>
         <p className="text-sm text-zinc-400">Biaya dari rekening tercatat di buku kas; uang pribadi Owner tetap dihitung sebagai biaya event.</p>
       </div>
+
+      {notice ? (
+        <p role="status" className="flex items-start gap-2 rounded-md border border-amber-300/40 bg-amber-300/10 px-3 py-2 text-sm text-amber-100 print:hidden">
+          <CheckCircle2 size={16} className="mt-0.5 shrink-0" /> <span className="min-w-0">{notice}</span>
+          <button type="button" className="ml-auto shrink-0 text-amber-200 hover:text-white" aria-label="Tutup pesan" onClick={() => setNotice(null)}>
+            <X size={15} />
+          </button>
+        </p>
+      ) : null}
 
       {error ? (
         <p role="alert" className="flex items-start gap-2 rounded-md border border-[color-mix(in_srgb,var(--garage-red)_50%,transparent)] bg-[color-mix(in_srgb,var(--garage-red)_14%,transparent)] px-3 py-2 text-sm text-[#ffc4c4]">
@@ -248,9 +293,14 @@ export function EventFinancePanel() {
           <section className={`${cardClass} space-y-3`}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 className="font-bold text-zinc-100">Anggaran & realisasi</h3>
-              <button type="button" className={`${primaryBtn} print:hidden`} onClick={() => setDialog({ kind: "line", row: null })}>
-                <Plus size={16} /> Tambah pos biaya
-              </button>
+              <div className="flex flex-wrap gap-2 print:hidden">
+                <button type="button" className={ghostBtn} onClick={importBudget} disabled={importing} title="Ambil RAB dari platform GIGS sebagai pos anggaran (rencana saja)">
+                  <Download size={16} /> {importing ? "Mengimpor…" : "Impor RAB dari platform GIGS"}
+                </button>
+                <button type="button" className={primaryBtn} onClick={() => setDialog({ kind: "line", row: null })}>
+                  <Plus size={16} /> Tambah pos biaya
+                </button>
+              </div>
             </div>
             {!budget.rows.length ? <p className="text-sm text-zinc-400">Belum ada pos anggaran. Mulai dari honor penampil, sound, dan venue.</p> : null}
             {/* HP: kartu per pos (tombol selalu terlihat); tablet/desktop: tabel. */}
@@ -693,8 +743,13 @@ function ReviewCard({
   const [busy, setBusy] = useState(false);
   const area = `${inputClass.replace("h-10", "min-h-20 py-2")}`;
   return (
-    <section className={`${cardClass} space-y-3`}>
-      <h3 className="font-bold text-zinc-100">Evaluasi pasca-event</h3>
+    // Dipakai setelah acara: tertutup sampai dibuka (atau sudah ada isinya) agar layar tidak panjang sebelum event.
+    <details className={`${cardClass} group space-y-3`} open={Boolean(review)}>
+      <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 font-bold text-zinc-100">
+        <span>Evaluasi pasca-event <span className="font-normal text-zinc-400">· diisi setelah acara selesai</span></span>
+        <span className="text-sm font-normal text-amber-300 group-open:hidden">Buka</span>
+        <span className="hidden text-sm font-normal text-zinc-400 group-open:inline">Tutup</span>
+      </summary>
       <form
         className="grid gap-3 sm:grid-cols-2"
         onSubmit={async (e) => {
@@ -732,6 +787,6 @@ function ReviewCard({
         </button>
       </form>
       {review?.updatedAt ? <p className="text-xs text-zinc-500">Terakhir disimpan {dateTime(review.updatedAt)}</p> : null}
-    </section>
+    </details>
   );
 }

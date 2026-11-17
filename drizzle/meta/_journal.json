@@ -1408,6 +1408,13 @@
       "when": 1794898565586,
       "tag": "0200_gigs_eo_polish",
       "breakpoints": true
+    },
+    {
+      "idx": 201,
+      "version": "7",
+      "when": 1794942451755,
+      "tag": "0201_event_public_branding",
+      "breakpoints": true
     }
   ]
 }

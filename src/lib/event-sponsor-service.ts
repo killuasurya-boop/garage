@@ -30,8 +30,9 @@ import {
   wibDate,
   type SponsorStatus,
 } from "@/lib/event-sponsor-rules";
-import { EventRefError, listMasterEvents, resolveEventRef } from "@/lib/event-master";
+import { EventRefError, findEventForPlatform, listMasterEvents, resolveEventRef } from "@/lib/event-master";
 import { createAuditLog } from "@/lib/garage-service";
+import { parseInstagramHandle } from "@/lib/gigs-lineup";
 import type { GarageSession } from "@/lib/server-auth";
 
 // =============================================================================
@@ -81,6 +82,17 @@ export const sponsorInputSchema = z.object({
   contactName: optionalText(80),
   contactPhone: optionalText(24),
   packageName: optionalText(60),
+  // Tampilan publik: tautan https (opsional) + tampil di website event (default tidak).
+  websiteUrl: z
+    .string()
+    .trim()
+    .max(300)
+    .refine((v) => v === "" || /^https:\/\/[^\s"'<>]+$/.test(v), "Tautan harus diawali https://")
+    .nullable()
+    .optional(),
+  // Akun Instagram ("@akun" / tautan profil); di website, klik logo sponsor membuka profil ini.
+  instagram: optionalText(80),
+  showOnWebsite: z.boolean().optional(),
   agreedAmount: z.number().int("Nilai kesepakatan harus rupiah bulat.").min(0).max(10_000_000_000),
   notes: optionalText(1000),
 });
@@ -181,6 +193,10 @@ function buildView(row: SponsorRow, children: Awaited<ReturnType<typeof loadChil
     contactName: row.contactName,
     contactPhone: row.contactPhone,
     packageName: row.packageName,
+    logoUrl: row.logoUrl,
+    websiteUrl: row.websiteUrl,
+    instagram: row.instagram,
+    showOnWebsite: row.showOnWebsite,
     status: row.status as SponsorStatus,
     notes: row.notes,
     cancelReason: row.cancelReason,
@@ -283,6 +299,15 @@ function cleanInput(input: Partial<SponsorInput>) {
     }
   }
   if (input.packageName !== undefined) out.packageName = input.packageName?.trim() || null;
+  if (input.websiteUrl !== undefined) out.websiteUrl = input.websiteUrl?.trim() || null;
+  if (input.showOnWebsite !== undefined) out.showOnWebsite = input.showOnWebsite;
+  if (input.instagram !== undefined) {
+    try {
+      out.instagram = parseInstagramHandle(input.instagram);
+    } catch {
+      throw new SponsorError("INVALID_INSTAGRAM", "Akun Instagram sponsor tidak valid.");
+    }
+  }
   if (input.agreedAmount !== undefined) out.agreedAmount = input.agreedAmount;
   if (input.notes !== undefined) out.notes = input.notes?.trim() || null;
   return out;
@@ -338,10 +363,67 @@ export async function updateSponsor(id: string, input: Partial<SponsorInput>, ga
   await db.update(eventSponsors).set({ ...values, updatedAt: new Date() }).where(eq(eventSponsors.id, id));
   await audit(garage, "Sponsor diubah", before.sponsorNo, {
     sponsorId: id,
-    before: { name: before.name, eventName: before.eventName, packageName: before.packageName, agreedAmount: before.agreedAmount },
+    before: {
+      name: before.name,
+      eventName: before.eventName,
+      packageName: before.packageName,
+      agreedAmount: before.agreedAmount,
+      websiteUrl: before.websiteUrl,
+      instagram: before.instagram,
+      showOnWebsite: before.showOnWebsite,
+    },
     after: values,
   });
   return getSponsor(id, garage);
+}
+
+/** Logo sponsor (webp di /garage-uploads/event-sponsor) atau null = hapus. Tidak menyentuh uang. */
+export async function setSponsorLogo(id: string, logoUrl: string | null, garage: GarageSession) {
+  assertOwnerHuman(garage);
+  const db = getDb();
+  const before = await loadSponsor(db, id);
+  await db.update(eventSponsors).set({ logoUrl, updatedAt: new Date() }).where(eq(eventSponsors.id, id));
+  await audit(garage, logoUrl ? "Logo sponsor diganti" : "Logo sponsor dihapus", before.sponsorNo, {
+    sponsorId: id,
+    before: { logoUrl: before.logoUrl },
+    after: { logoUrl },
+  });
+  return getSponsor(id, garage);
+}
+
+// ─── Website (publik) ───────────────────────────────────────────────────────
+
+export type PublicSponsor = { name: string; logo: string | null; url: string | null; instagram: string | null; packageName: string | null };
+
+/**
+ * Sponsor yang dicentang "tampil di website" untuk event GIGS di beranda (slug platform → master, lalu nama).
+ * Hanya nama, logo, tautan, paket — TIDAK PERNAH nilai uang, kontak, atau catatan. Sponsor batal tidak tampil.
+ */
+export async function publicSponsorsFor(platform: { slug: string; name: string }): Promise<PublicSponsor[]> {
+  const master = await findEventForPlatform(platform).catch(() => null);
+  const name = (master?.title ?? platform.name).trim();
+  if (!name) return [];
+  const rows = await getDb()
+    .select({
+      name: eventSponsors.name,
+      logoUrl: eventSponsors.logoUrl,
+      websiteUrl: eventSponsors.websiteUrl,
+      instagram: eventSponsors.instagram,
+      packageName: eventSponsors.packageName,
+    })
+    .from(eventSponsors)
+    .where(
+      and(
+        master
+          ? sql`(${eventSponsors.eventId} = ${master.id} or (${eventSponsors.eventId} is null and lower(${eventSponsors.eventName}) = lower(${name})))`
+          : sql`lower(${eventSponsors.eventName}) = lower(${name})`,
+        eq(eventSponsors.showOnWebsite, true),
+        sql`${eventSponsors.status} <> 'batal'`,
+      ),
+    )
+    .orderBy(asc(eventSponsors.createdAt))
+    .limit(24);
+  return rows.map((r) => ({ name: r.name, logo: r.logoUrl, url: r.websiteUrl, instagram: r.instagram, packageName: r.packageName }));
 }
 
 export async function setSponsorStatus(id: string, status: SponsorStatus, reason: string | null, garage: GarageSession) {

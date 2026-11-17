@@ -5,7 +5,39 @@
 export type LineupKind = "band" | "standup" | "akustik" | "dj" | "kreator";
 
 /** `time` = jam tampil (mis. "20.00–20.45") dari rundown Garage OS; platform event tidak mengirimnya. */
-export type LineupItem = { name: string; logo: string | null; kind: LineupKind | null; time?: string | null; live?: boolean };
+/** `tagline` = baris kecil di bawah nama (mis. "Heavy / Metallic Roster"), diisi Owner di modul Lineup. */
+export type LineupItem = {
+  name: string;
+  logo: string | null;
+  kind: LineupKind | null;
+  time?: string | null;
+  live?: boolean;
+  tagline?: string | null;
+  /** Akun Instagram tanpa "@" (diisi Owner); kartu website jadi tautan ke profilnya. */
+  instagram?: string | null;
+};
+
+/**
+ * "@akun", "akun", atau tautan instagram.com/akun → "akun". Kosong → null. Format salah → Error
+ * (pemanggil memetakan ke error modulnya). Aturan murni, dipakai lineup & sponsor.
+ */
+export function parseInstagramHandle(value: string | null | undefined): string | null {
+  if (!value || !value.trim()) return null;
+  const handle = value
+    .trim()
+    .replace(/^@/, "")
+    .replace(/^https?:\/\/(www\.)?instagram\.com\//i, "")
+    .replace(/[?#].*$/, "")
+    .replace(/\/+$/, "");
+  if (!/^[A-Za-z0-9._]{1,30}$/.test(handle)) throw new Error("Akun Instagram tidak valid.");
+  return handle;
+}
+
+/** Tautan profil publik; null bila akun kosong/tidak valid (tidak pernah membuat tautan sembarang). */
+export function instagramUrl(handle: string | null | undefined): string | null {
+  if (!handle || !/^[A-Za-z0-9._]{1,30}$/.test(handle)) return null;
+  return `https://www.instagram.com/${handle}/`;
+}
 
 export type LineupGroup = { kind: LineupKind | null; label: string; items: LineupItem[] };
 
@@ -70,20 +102,31 @@ export function lineupSummary(groups: LineupGroup[]): string {
 }
 
 /**
- * Lineup website = lineup terkonfirmasi dari Garage OS (modul Lineup & Panitia) bila ada, logo diambil dari
- * platform event untuk nama yang sama (tanpa peduli huruf besar/kecil). Tanpa data Garage OS → lineup platform.
+ * Lineup website = lineup terkonfirmasi dari Garage OS (modul Lineup & Panitia) bila ada. Logo: unggahan Owner di
+ * Garage OS lebih dulu, lalu logo platform event untuk nama yang sama (tanpa peduli huruf besar/kecil).
+ * Tanpa data Garage OS → lineup platform.
  */
 export function mergeLineup(
   platform: LineupItem[],
-  garage: Array<{ name: string; kind: LineupKind; time?: string | null; live?: boolean }>,
+  garage: Array<{
+    name: string;
+    kind: LineupKind;
+    time?: string | null;
+    live?: boolean;
+    logo?: string | null;
+    tagline?: string | null;
+    instagram?: string | null;
+  }>,
 ): LineupItem[] {
   if (!garage.length) return platform;
   const logoByName = new Map(platform.map((item) => [item.name.trim().toLowerCase(), item.logo]));
   return garage.map((item) => ({
     name: item.name,
     kind: item.kind,
-    logo: logoByName.get(item.name.trim().toLowerCase()) ?? null,
+    logo: item.logo || logoByName.get(item.name.trim().toLowerCase()) || null,
     time: item.time ?? null,
     live: item.live ?? false,
+    tagline: item.tagline ?? null,
+    instagram: item.instagram ?? null,
   }));
 }

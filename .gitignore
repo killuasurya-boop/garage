@@ -141,3 +141,7 @@ testsprite_tests\tmp\config.json
 /output/
 /tmp/
 /testsprite_tests/tmp/
+
+# Logo talent & sponsor event unggahan Owner (runtime, persisten via volume garage-uploads di prod)
+/public/garage-uploads/event-lineup/
+/public/garage-uploads/event-sponsor/

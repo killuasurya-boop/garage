@@ -1,5 +1,5 @@
 {
-  "id": "dacef19d-2e60-46b7-8772-62cd369cad60",
+  "id": "011a3912-fb5b-4c3e-a4d0-d798c14e10cf",
   "prevId": "b91077a5-bdb7-4a04-ba91-9c785e8c547d",
   "version": "7",
   "dialect": "postgresql",
@@ -8189,8 +8189,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.event_checkins": {
-      "name": "event_checkins",
+    "public.event_crew": {
+      "name": "event_crew",
       "schema": "",
       "columns": {
         "id": {
@@ -8200,110 +8200,70 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "event_id": {
-          "name": "event_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "invitation_id": {
-          "name": "invitation_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "guest_id": {
-          "name": "guest_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "kind": {
-          "name": "kind",
+        "event_name": {
+          "name": "event_name",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "method": {
-          "name": "method",
+        "name": {
+          "name": "name",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "guest_name": {
-          "name": "guest_name",
+        "role": {
+          "name": "role",
           "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "pax": {
-          "name": "pax",
-          "type": "integer",
           "primaryKey": false,
           "notNull": true
         },
-        "note": {
-          "name": "note",
+        "phone": {
+          "name": "phone",
           "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-        "client_key": {
-          "name": "client_key",
+        "duties": {
+          "name": "duties",
           "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-        "checked_in_at": {
-          "name": "checked_in_at",
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'aktif'"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
-        "checked_in_by": {
-          "name": "checked_in_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "checked_in_by_name": {
-          "name": "checked_in_by_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "undone_at": {
-          "name": "undone_at",
+        "updated_at": {
+          "name": "updated_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
-          "notNull": false
-        },
-        "undone_by": {
-          "name": "undone_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "undo_reason": {
-          "name": "undo_reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
+          "notNull": true,
+          "default": "now()"
         }
       },
       "indexes": {
-        "event_checkins_event_idx": {
-          "name": "event_checkins_event_idx",
+        "event_crew_event_idx": {
+          "name": "event_crew_event_idx",
           "columns": [
             {
-              "expression": "event_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "checked_in_at",
+              "expression": "event_name",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -8313,99 +8273,15 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-        },
-        "event_checkins_client_key_idx": {
-          "name": "event_checkins_client_key_idx",
-          "columns": [
-            {
-              "expression": "client_key",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "client_key is not null",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "event_checkins_active_invitation_idx": {
-          "name": "event_checkins_active_invitation_idx",
-          "columns": [
-            {
-              "expression": "invitation_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "undone_at is null and invitation_id is not null",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
         }
       },
       "foreignKeys": {
-        "event_checkins_event_id_events_id_fk": {
-          "name": "event_checkins_event_id_events_id_fk",
-          "tableFrom": "event_checkins",
-          "tableTo": "events",
-          "columnsFrom": [
-            "event_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "event_checkins_invitation_id_event_invitations_id_fk": {
-          "name": "event_checkins_invitation_id_event_invitations_id_fk",
-          "tableFrom": "event_checkins",
-          "tableTo": "event_invitations",
-          "columnsFrom": [
-            "invitation_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "event_checkins_guest_id_event_guests_id_fk": {
-          "name": "event_checkins_guest_id_event_guests_id_fk",
-          "tableFrom": "event_checkins",
-          "tableTo": "event_guests",
-          "columnsFrom": [
-            "guest_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "event_checkins_checked_in_by_user_id_fk": {
-          "name": "event_checkins_checked_in_by_user_id_fk",
-          "tableFrom": "event_checkins",
+        "event_crew_created_by_user_id_fk": {
+          "name": "event_crew_created_by_user_id_fk",
+          "tableFrom": "event_crew",
           "tableTo": "user",
           "columnsFrom": [
-            "checked_in_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "event_checkins_undone_by_user_id_fk": {
-          "name": "event_checkins_undone_by_user_id_fk",
-          "tableFrom": "event_checkins",
-          "tableTo": "user",
-          "columnsFrom": [
-            "undone_by"
+            "created_by"
           ],
           "columnsTo": [
             "id"
@@ -8418,9 +8294,166 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
-        "event_checkins_pax_check": {
-          "name": "event_checkins_pax_check",
-          "value": "\"event_checkins\".\"pax\" > 0 and \"event_checkins\".\"pax\" <= 50"
+        "event_crew_status_check": {
+          "name": "event_crew_status_check",
+          "value": "\"event_crew\".\"status\" in ('aktif','nonaktif')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.event_crew_tasks": {
+      "name": "event_crew_tasks",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "event_name": {
+          "name": "event_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "crew_id": {
+          "name": "crew_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "due_date": {
+          "name": "due_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "priority": {
+          "name": "priority",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'normal'"
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'todo'"
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "done_at": {
+          "name": "done_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "event_crew_tasks_event_idx": {
+          "name": "event_crew_tasks_event_idx",
+          "columns": [
+            {
+              "expression": "event_name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "event_crew_tasks_crew_idx": {
+          "name": "event_crew_tasks_crew_idx",
+          "columns": [
+            {
+              "expression": "crew_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "event_crew_tasks_crew_id_event_crew_id_fk": {
+          "name": "event_crew_tasks_crew_id_event_crew_id_fk",
+          "tableFrom": "event_crew_tasks",
+          "tableTo": "event_crew",
+          "columnsFrom": [
+            "crew_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "event_crew_tasks_created_by_user_id_fk": {
+          "name": "event_crew_tasks_created_by_user_id_fk",
+          "tableFrom": "event_crew_tasks",
+          "tableTo": "user",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "event_crew_tasks_status_check": {
+          "name": "event_crew_tasks_status_check",
+          "value": "\"event_crew_tasks\".\"status\" in ('todo','proses','selesai','batal')"
+        },
+        "event_crew_tasks_priority_check": {
+          "name": "event_crew_tasks_priority_check",
+          "value": "\"event_crew_tasks\".\"priority\" in ('rendah','normal','tinggi')"
         }
       },
       "isRLSEnabled": false
@@ -8957,6 +8990,193 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.event_performers": {
+      "name": "event_performers",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "event_name": {
+          "name": "event_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "event_date": {
+          "name": "event_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "genre": {
+          "name": "genre",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "contact_name": {
+          "name": "contact_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "contact_phone": {
+          "name": "contact_phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "instagram": {
+          "name": "instagram",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "member_count": {
+          "name": "member_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'calon'"
+        },
+        "slot_order": {
+          "name": "slot_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "set_start": {
+          "name": "set_start",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "set_minutes": {
+          "name": "set_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tech_rider": {
+          "name": "tech_rider",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "show_on_website": {
+          "name": "show_on_website",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "cancel_reason": {
+          "name": "cancel_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "event_performers_event_idx": {
+          "name": "event_performers_event_idx",
+          "columns": [
+            {
+              "expression": "event_name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "event_performers_created_by_user_id_fk": {
+          "name": "event_performers_created_by_user_id_fk",
+          "tableFrom": "event_performers",
+          "tableTo": "user",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "event_performers_kind_check": {
+          "name": "event_performers_kind_check",
+          "value": "\"event_performers\".\"kind\" in ('band','standup','akustik','dj','kreator')"
+        },
+        "event_performers_status_check": {
+          "name": "event_performers_status_check",
+          "value": "\"event_performers\".\"status\" in ('calon','konfirmasi','batal')"
+        },
+        "event_performers_minutes_check": {
+          "name": "event_performers_minutes_check",
+          "value": "\"event_performers\".\"set_minutes\" is null or (\"event_performers\".\"set_minutes\" > 0 and \"event_performers\".\"set_minutes\" <= 600)"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.event_rsvps": {

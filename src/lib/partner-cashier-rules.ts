@@ -413,3 +413,34 @@ export function partnerShiftPayoutNote(shiftOpenedAt: Date | string) {
   const fmt = (d: Date) => d.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
   return `Wajib bayar ini masuk rekap setoran harian mitra tanggal ${fmt(day)} (item yang siap lewat pukul 00.00 masuk rekap hari berikutnya) dan dibayar paling lambat ${fmt(next)} pukul 12.00 WIB lewat Keuangan Mitra. Laporan shift hanya mencatat, tidak membayar.`;
 }
+
+// ─── Laporan tutup shift (PDF shift + slip struk): satu sumber teks agar angka sama dengan Laporan Lengkap ───
+
+/** Nama produk + varian (varian "Regular"/kosong tidak ditulis). */
+export function partnerProductLabel(product: Pick<PartnerShiftProduct, "itemName" | "variantLabel">): string {
+  const variant = product.variantLabel?.trim();
+  return variant && variant.toLowerCase() !== "regular" ? `${product.itemName} (${variant})` : product.itemName;
+}
+
+export type PartnerReportNote = { label: string; amount: number; sign?: "minus"; emphasis?: boolean };
+
+/**
+ * Baris ringkasan per mitra untuk laporan tutup shift: wajib bayar, profit Garage, lalu pengecualian yang perlu
+ * diperhatikan kasir/manajer (refund, penyesuaian, bill belum dibayar, belum siap, ditolak). Nilai dalam rupiah.
+ */
+export function partnerReportNotes(partner: PartnerShiftPartner): PartnerReportNote[] {
+  const notes: PartnerReportNote[] = [];
+  if (partner.refunds) notes.push({ label: "Refund pelanggan (mengurangi profit)", amount: partner.refunds, sign: "minus" });
+  if (partner.payable !== partner.partnerCost) notes.push({ label: "Penyesuaian kewajiban (disetujui)", amount: partner.payable - partner.partnerCost });
+  notes.push({ label: "Wajib bayar ke mitra", amount: partner.payable, emphasis: true });
+  notes.push({ label: "Profit Garage", amount: partner.garageProfit, emphasis: true });
+  if (partner.unpaidBill.qty) notes.push({ label: `Bill belum dibayar pelanggan (${partner.unpaidBill.qty} item, tetap wajib bayar)`, amount: partner.unpaidBill.sales });
+  if (partner.pending.qty) notes.push({ label: `Belum siap dari mitra (${partner.pending.qty} item, belum dihitung)`, amount: partner.pending.sales });
+  if (partner.cancelled.qty) notes.push({ label: `Ditolak/batal sebelum siap (${partner.cancelled.qty} item, Rp0 ke mitra)`, amount: partner.cancelled.sales });
+  return notes;
+}
+
+/** Ada isi yang layak dicetak (penjualan siap, atau item tertunda/ditolak yang perlu dicek). */
+export function hasPartnerReport(sales: Pick<PartnerShiftSales, "partners"> | null | undefined): boolean {
+  return Boolean(sales?.partners.some((p) => p.qty > 0 || p.pending.qty > 0 || p.cancelled.qty > 0 || p.refunds > 0));
+}

@@ -214,6 +214,46 @@ describe("kertas manajemen", () => {
     expect(content).toContain("Manajer");
   });
 
+  const partnerSales = {
+    partners: [
+      {
+        partnerId: "p1",
+        partnerName: "Mitra Dimsum",
+        products: [{ itemName: "Dimsum Ayam", variantLabel: "Regular", qty: 4, unitPrice: 25000, sales: 100000, partnerCost: 88000, garageProfit: 12000 }],
+        orderCount: 3,
+        qty: 4,
+        sales: 100000,
+        partnerCost: 88000,
+        garageProfit: 12000,
+        refunds: 0,
+        payable: 88000,
+        pending: { qty: 3, sales: 75000, partnerCost: 66000 },
+        cancelled: { qty: 1, sales: 25000 },
+        unpaidBill: { qty: 0, sales: 0 },
+      },
+    ],
+    totals: { orderCount: 3, qty: 4, sales: 100000, partnerCost: 88000, garageProfit: 12000, refunds: 0, payable: 88000, pendingQty: 3, cancelledQty: 1, unpaidBillSales: 0 },
+  };
+
+  it.each([32, 48])("slip tutup shift %i kolom memuat rincian penjualan mitra", (width) => {
+    const content = buildShiftSlipContent({ ...shift, partners: partnerSales }, { width });
+    expect(longest(content)).toBeLessThanOrEqual(width);
+    expect(content).toContain("PENJUALAN MITRA");
+    expect(content).toContain("MITRA DIMSUM");
+    expect(content).toContain("4x Dimsum Ayam");
+    expect(content).toContain("Rp 100.000");
+    expect(content).toContain("Rp 88.000");
+    expect(content).toContain("Rp 12.000");
+    expect(content).toContain("Belum siap");
+    expect(content).toContain("Ditolak");
+    expect(content.indexOf("PENJUALAN MITRA")).toBeLessThan(content.indexOf("KAS LACI"));
+  });
+
+  it("tanpa penjualan mitra → seksi mitra tidak dicetak", () => {
+    expect(buildShiftSlipContent(shift)).not.toContain("PENJUALAN MITRA");
+    expect(buildShiftSlipContent({ ...shift, partners: { partners: [], totals: partnerSales.totals } })).not.toContain("PENJUALAN MITRA");
+  });
+
   it("tanda tangan bisa dimatikan", () => {
     expect(buildShiftSlipContent(shift, { showSignature: false })).not.toContain("Manajer");
   });

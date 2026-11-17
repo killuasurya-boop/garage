@@ -103,6 +103,10 @@ description: Aturan WAJIB Smart Partner Hub (mitra resmi, produk partner, portal
     (= wajib bayar), profit Garage, plus pending / rejected / unpaid-bill / refund. Shown in the PDF (`renderPartnerSales`), the POS
     card and the shift detail via `GET /api/finance/cash-sessions/[id]/partner-sales`. Open shift is allowed: no drawer cash.
     Read-only; payment to partners stays the daily settlement.
+  - Same partner detail is printed in the shift-close PDF (`generateShiftReportPdf(summary, txs, partners)`, route
+    `cash-sessions/[id]/report`) and the thermal shift slip (`buildShiftSlipContent({...shift, partners})`, fetched by
+    `printShiftSlip` from `/partner-sales`). Shared helpers `partnerProductLabel` / `partnerReportNotes` /
+    `hasPartnerReport` in `partner-cashier-rules.ts`. Partner load failure = report still renders without the section.
   - Service hours `partnerServiceOpen`/`partnerServiceClose` (default 17:00–22:30 WIB, empty = no limit) are an exception to
     "status never refuses":
     - outside the window `partnerOrderBlockReason` refuses (card label "Tutup · buka 17.00");

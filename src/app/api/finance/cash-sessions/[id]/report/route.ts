@@ -4,6 +4,7 @@ import {
   getCashSessionTransactions,
 } from "@/lib/garage-service";
 import { generateShiftReportPdf } from "@/lib/garage-shift-report-pdf";
+import { partnerSalesForCashSession } from "@/lib/partner-hub-service";
 import { canUseApi } from "@/lib/role-access";
 import { requireAnyPermission } from "@/lib/server-auth";
 
@@ -43,7 +44,9 @@ export async function GET(
     );
   }
 
-  const pdf = await generateShiftReportPdf(summary, transactions);
+  // Penjualan mitra (Partner Hub). Gagal dimuat = PDF tetap jadi tanpa seksi mitra.
+  const partners = await partnerSalesForCashSession(id, session.data, { allowAll }).catch(() => null);
+  const pdf = await generateShiftReportPdf(summary, transactions, partners);
   const filename = `shift-${summary.session.code}.pdf`;
 
   return new Response(new Uint8Array(pdf), {

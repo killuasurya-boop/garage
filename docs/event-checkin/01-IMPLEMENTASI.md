@@ -26,7 +26,7 @@ Sudah masuk (orang) = orang dari undangan + walk-in; undangan masuk X/Y; % datan
 
 ## Berkas
 
-- Migrasi `0196_event_checkins` (tabel `event_checkins`); reset grand opening = CLEAR; staging menyamarkan nama.
+- Migrasi `0197_event_checkins` (tabel `event_checkins`); reset grand opening = CLEAR; staging menyamarkan nama.
 - Aturan murni `src/lib/event-checkin-rules.ts`; server `src/lib/event-checkin-service.ts`; API `/api/event-checkin/**`
   (`requireStaffSession`); layar `src/app/checkin/page.tsx` + `src/components/garage/events/event-checkin-panel.tsx`
   (pemindai bersama `useCodeScanner`); tombol "Check-in pintu" di modul Event.

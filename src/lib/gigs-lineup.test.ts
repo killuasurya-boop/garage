@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { groupLineup, lineupSummary, parseLineupKind, type LineupItem } from "@/lib/gigs-lineup";
+import { groupLineup, lineupSummary, mergeLineup, parseLineupKind, type LineupItem } from "@/lib/gigs-lineup";
 
 const item = (name: string, kind: LineupItem["kind"] = null): LineupItem => ({ name, logo: null, kind });
 
@@ -33,5 +33,22 @@ describe("groupLineup", () => {
   });
   it("lineup kosong → tidak ada kelompok", () => {
     expect(groupLineup([])).toEqual([]);
+  });
+});
+
+describe("mergeLineup", () => {
+  it("tanpa data Garage OS → lineup platform apa adanya", () => {
+    const platform = [{ name: "A", logo: "/event/a.png", kind: null }];
+    expect(mergeLineup(platform, [])).toBe(platform);
+  });
+  it("data Garage OS menggantikan, logo platform dipakai untuk nama yang sama", () => {
+    const merged = mergeLineup([{ name: "SURAI", logo: "/event/surai.png", kind: null }], [
+      { name: "Surai", kind: "band" },
+      { name: "Standup Indo Tebing Tinggi", kind: "standup" },
+    ]);
+    expect(merged).toEqual([
+      { name: "Surai", kind: "band", logo: "/event/surai.png" },
+      { name: "Standup Indo Tebing Tinggi", kind: "standup", logo: null },
+    ]);
   });
 });

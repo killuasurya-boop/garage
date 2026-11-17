@@ -215,6 +215,21 @@ describe("Penjualan Mitra di laporan shift", () => {
     const buffer: Buffer = await pdf.renderShiftAccountabilityPdf(data!);
     expect(buffer.subarray(0, 4).toString()).toBe("%PDF");
 
+    // PDF tutup shift (POS / Laporan Shift) & slip struk memuat rincian mitra yang sama.
+    const core = await import("@/lib/garage-service");
+    const summary = await core.getCashSessionSummary(cashSessionId, kasirId, { allowAll: true });
+    const txs = await core.getCashSessionTransactions(cashSessionId, kasirId, { allowAll: true });
+    const partners = await svc.partnerSalesForCashSession(cashSessionId, owner(), { allowAll: true });
+    const shiftPdf = await import("@/lib/garage-shift-report-pdf");
+    const withPartners: Buffer = await shiftPdf.generateShiftReportPdf(summary!, txs!, partners);
+    const withoutPartners: Buffer = await shiftPdf.generateShiftReportPdf(summary!, txs!, null);
+    expect(withPartners.subarray(0, 4).toString()).toBe("%PDF");
+    expect(withPartners.length).toBeGreaterThan(withoutPartners.length);
+    const slips = await import("@/lib/management-slips");
+    const slip = slips.buildShiftSlipContent({ ...summary!, partners } as unknown as Parameters<typeof slips.buildShiftSlipContent>[0], { width: 48 });
+    expect(slip).toContain("PENJUALAN MITRA");
+    expect(slip).toContain("4x Dimsum Ayam");
+
     // Layar POS saat shift BERJALAN: kasir pemilik boleh, kasir lain tidak.
     const onScreen = await svc.partnerSalesForCashSession(cashSessionId, kasir(), { allowAll: false });
     expect(onScreen).toMatchObject({ status: "open", totals: { sales: 100_000, payable: 88_000, garageProfit: 12_000 } });

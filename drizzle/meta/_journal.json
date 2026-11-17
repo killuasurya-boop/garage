@@ -1377,8 +1377,15 @@
     {
       "idx": 196,
       "version": "7",
-      "when": 1794873648935,
-      "tag": "0196_event_checkins",
+      "when": 1794872035968,
+      "tag": "0196_event_lineup_crew",
+      "breakpoints": true
+    },
+    {
+      "idx": 197,
+      "version": "7",
+      "when": 1794888966303,
+      "tag": "0197_event_checkins",
       "breakpoints": true
     }
   ]

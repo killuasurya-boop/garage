@@ -67,3 +67,13 @@ export function lineupSummary(groups: LineupGroup[]): string {
     .map((group) => `${group.items.length} ${group.kind === "standup" ? "stand-up" : LINEUP_KIND_LABEL[group.kind!].toLowerCase()}`)
     .join(" · ");
 }
+
+/**
+ * Lineup website = lineup terkonfirmasi dari Garage OS (modul Lineup & Panitia) bila ada, logo diambil dari
+ * platform event untuk nama yang sama (tanpa peduli huruf besar/kecil). Tanpa data Garage OS → lineup platform.
+ */
+export function mergeLineup(platform: LineupItem[], garage: Array<{ name: string; kind: LineupKind }>): LineupItem[] {
+  if (!garage.length) return platform;
+  const logoByName = new Map(platform.map((item) => [item.name.trim().toLowerCase(), item.logo]));
+  return garage.map((item) => ({ name: item.name, kind: item.kind, logo: logoByName.get(item.name.trim().toLowerCase()) ?? null }));
+}

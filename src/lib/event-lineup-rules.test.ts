@@ -137,3 +137,22 @@ describe("taskReminders", () => {
     expect(out[0].body).toContain("belum ada PIC");
   });
 });
+
+describe("GIGS EO fase 4", () => {
+  it("scheduleReminders: H-1 & hari H, satu per event, yang sudah dikirim tidak dihitung", async () => {
+    const { scheduleReminders } = await import("@/lib/event-lineup-rules");
+    const row = (name: string, sent = false, hasContact = true) => ({ eventId: "e1", eventName: "GIGS", eventDate: "2026-12-20", name, hasContact, scheduleSent: sent });
+    const out = scheduleReminders([row("Surai"), row("Standup", false, false), row("Sudah", true)], "2026-12-19");
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ key: "lineup-schedule:e1:h-1", severity: "warning", title: "2 penampil belum dikirimi jadwal (event besok)" });
+    expect(out[0].body).toContain("1 tanpa nomor WA");
+    expect(scheduleReminders([row("Surai")], "2026-12-17")).toEqual([]);
+  });
+  it("eventReadiness: checklist operasional ikut bila ada", () => {
+    const base = { performers: [], crew: [], tasks: [], overlaps: 0 };
+    expect(eventReadiness(base, "2026-12-01").total).toBe(7);
+    const withOps = eventReadiness({ ...base, ops: { done: 3, total: 10 } }, "2026-12-01");
+    expect(withOps.total).toBe(8);
+    expect(withOps.items.find((i) => i.key === "operasional")).toMatchObject({ done: false, detail: "3/10 selesai" });
+  });
+});

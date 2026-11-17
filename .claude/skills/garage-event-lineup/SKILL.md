@@ -47,3 +47,9 @@ description: Aturan WAJIB modul Lineup & Panitia Event (band/stand-up, rundown, 
   rencana tidak diubah; telat > 12 jam dianggap di luar hari event (tidak dihitung). Beranda `live` = sudah mulai & belum
   selesai. "Salin rundown ke agenda" (Owner) mengisi `events.agenda` dari rundown terkonfirmasi. Manajer di Lineup: baca papan +
   ubah STATUS tugas saja (`assertCrewHuman`); data penampil/panitia/uang tetap Owner.
+- Fase 4 (migrasi 0200): penampil `hospitality`, `contract_url` (https saja), `schedule_sent_at` (tombol "Kirim jadwal" menandai;
+  pengingat H-1/hari H `scheduleReminders` untuk yang belum). Papan Lineup: `honor` per penampil (Owner saja, dari pos
+  anggaran honor tertaut) dan `sponsorNotes` (kewajiban sponsor ber-`slot_performer_id`, harus penampil event sponsor itu).
+  Checklist operasional `event_ops_checks` (10 item bawaan `OPS_CHECK_TEMPLATE`, Owner/Manajer centang, tambah item Owner)
+  masuk kesiapan sebagai item "operasional". Evaluasi `event_reviews` (1 per event, upsert) + banding antar event di
+  Keuangan Event. Laporan ke sponsor: `/control/sponsors/report/[id]` (cetak/PDF). E2E `e2e/gigs-eo.spec.ts`.

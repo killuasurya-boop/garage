@@ -1,8 +1,8 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { getDb } from "@/db";
-import { cashLedgerEntries, eventBudgetLines, eventExpensePayments, eventPerformers, events } from "@/db/schema";
+import { cashLedgerEntries, eventBudgetLines, eventExpensePayments, eventPerformers, eventReviews, events } from "@/db/schema";
 import { postAccountCash } from "@/lib/cash-ledger";
 import {
   budgetSummary,
@@ -210,6 +210,7 @@ export async function getEventFinance(garage: GarageSession, eventId: string | n
     sponsor,
     menu,
     profit,
+    ...(await getEventReviewAndComparison(id, garage)),
   };
 }
 
@@ -399,4 +400,82 @@ export async function setExpenseProof(paymentId: string, proofPath: string, gara
   await getDb().update(eventExpensePayments).set({ proofPath }).where(eq(eventExpensePayments.id, paymentId));
   await audit(garage, "Unggah bukti biaya event", paymentId, { paymentId });
   return { id: paymentId, hasProof: true };
+}
+
+// ─── Evaluasi pasca-event & perbandingan (GIGS EO #15) ─────────────────────
+
+export const eventReviewSchema = z.object({
+  eventId: z.string().uuid(),
+  rating: z.number().int().min(1).max(5).nullable().optional(),
+  highlights: optionalText(2000),
+  issues: optionalText(2000),
+  incidents: optionalText(2000),
+  nextTime: optionalText(2000),
+});
+
+export async function saveEventReview(input: z.infer<typeof eventReviewSchema>, garage: GarageSession) {
+  assertOwnerHuman(garage);
+  const event = await loadEvent(input.eventId);
+  const values = {
+    eventId: event.id,
+    rating: input.rating ?? null,
+    highlights: input.highlights?.trim() || null,
+    issues: input.issues?.trim() || null,
+    incidents: input.incidents?.trim() || null,
+    nextTime: input.nextTime?.trim() || null,
+    updatedBy: garage.user.id,
+    updatedAt: new Date(),
+  };
+  const [row] = await getDb()
+    .insert(eventReviews)
+    .values(values)
+    .onConflictDoUpdate({ target: eventReviews.eventId, set: values })
+    .returning();
+  await audit(garage, "Simpan evaluasi event", event.title, { eventId: event.id, rating: row.rating });
+  return row;
+}
+
+/**
+ * Banding antar event (master, terbaru dulu): biaya dibayar, sponsor masuk, orang check-in. Penjualan menu tidak
+ * ikut di daftar ini (butuh laporan per event); lihat detail tiap event.
+ */
+async function eventComparison(currentId: string) {
+  const db = getDb();
+  const rows = await db.execute(sql`
+    select e.id, e.title, e.starts_at,
+      coalesce((select sum(p.amount) from event_expense_payments p where p.event_id = e.id and p.status = 'posted'), 0)::bigint as cost_paid,
+      coalesce((select sum(sp.amount) from event_sponsor_payments sp join event_sponsors s on s.id = sp.sponsor_id where s.event_id = e.id and sp.status = 'posted'), 0)::bigint as sponsor_paid,
+      coalesce((select sum(c.pax) from event_checkins c where c.event_id = e.id and c.status = 'aktif'), 0)::int as checkins,
+      (select r.rating from event_reviews r where r.event_id = e.id) as rating
+    from events e
+    where e.status <> 'archived'
+    order by e.starts_at desc
+    limit 6`);
+  const list = (rows as unknown as { rows?: Array<Record<string, unknown>> }).rows ?? (rows as unknown as Array<Record<string, unknown>>);
+  return list.map((r) => {
+    const costPaid = Number(r.cost_paid);
+    const sponsorPaid = Number(r.sponsor_paid);
+    return {
+      id: String(r.id),
+      title: String(r.title),
+      date: wibDate(new Date(r.starts_at as string)),
+      costPaid,
+      sponsorPaid,
+      net: sponsorPaid - costPaid,
+      checkins: Number(r.checkins),
+      rating: r.rating === null || r.rating === undefined ? null : Number(r.rating),
+      current: String(r.id) === currentId,
+    };
+  });
+}
+
+export async function getEventReviewAndComparison(eventId: string, garage: GarageSession) {
+  assertOwnerHuman(garage);
+  const [review] = await getDb().select().from(eventReviews).where(eq(eventReviews.eventId, eventId)).limit(1);
+  return {
+    review: review
+      ? { rating: review.rating, highlights: review.highlights, issues: review.issues, incidents: review.incidents, nextTime: review.nextTime, updatedAt: review.updatedAt.toISOString() }
+      : null,
+    comparison: await eventComparison(eventId),
+  };
 }

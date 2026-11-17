@@ -1,9 +1,9 @@
-import { and, desc, eq, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { getDb } from "@/db";
-import { eventCheckins, eventInvitations, eventPerformers, eventRsvps, events } from "@/db/schema";
-import { checkinDecision, clockDot, extractInvitationToken, stageState } from "@/lib/event-day-rules";
+import { eventCheckins, eventInvitations, eventOpsChecks, eventPerformers, eventRsvps, events } from "@/db/schema";
+import { checkinDecision, clockDot, extractInvitationToken, OPS_CHECK_TEMPLATE, stageState } from "@/lib/event-day-rules";
 import { findInvitationByToken } from "@/lib/event-invitations";
 import { buildRundown, type LineupKind, type PerformerStatus } from "@/lib/event-lineup-rules";
 import { listMasterEvents } from "@/lib/event-master";
@@ -253,4 +253,67 @@ export async function syncAgendaFromRundown(eventId: string, garage: GarageSessi
   await db.update(events).set({ agenda, contentVersion: event.contentVersion + 1, updatedBy: garage.user.id, updatedAt: new Date() }).where(eq(events.id, event.id));
   await audit(garage, "Salin rundown ke agenda event", event.title, { eventId: event.id, before: event.agenda, after: agenda });
   return { agenda };
+}
+
+// ─── Checklist operasional & keselamatan (GIGS EO #11) ──────────────────────
+
+export const opsCheckPatchSchema = z.object({
+  done: z.boolean().optional(),
+  pic: z.string().trim().max(80).nullable().optional(),
+  note: z.string().trim().max(300).nullable().optional(),
+});
+export const opsCheckCreateSchema = z.object({ eventId: z.string().uuid(), label: z.string().trim().min(3).max(160) });
+
+/** Checklist event; item bawaan dibuat otomatis pertama kali dibuka. */
+export async function getOpsChecklist(eventId: string, garage: GarageSession) {
+  assertEventCrew(garage);
+  const event = await loadEvent(eventId, garage);
+  const db = getDb();
+  let rows = await db.select().from(eventOpsChecks).where(eq(eventOpsChecks.eventId, event.id)).orderBy(asc(eventOpsChecks.sortOrder), asc(eventOpsChecks.createdAt));
+  if (!rows.length) {
+    await db
+      .insert(eventOpsChecks)
+      .values(OPS_CHECK_TEMPLATE.map((item, index) => ({ eventId: event.id, key: item.key, label: item.label, sortOrder: index })))
+      .onConflictDoNothing();
+    rows = await db.select().from(eventOpsChecks).where(eq(eventOpsChecks.eventId, event.id)).orderBy(asc(eventOpsChecks.sortOrder), asc(eventOpsChecks.createdAt));
+  }
+  const items = rows.map((r) => ({ id: r.id, key: r.key, label: r.label, pic: r.pic, note: r.note, done: Boolean(r.doneAt), doneAt: r.doneAt?.toISOString() ?? null }));
+  return { eventId: event.id, items, done: items.filter((i) => i.done).length, total: items.length };
+}
+
+export async function updateOpsCheck(id: string, patch: z.infer<typeof opsCheckPatchSchema>, garage: GarageSession) {
+  assertEventCrew(garage);
+  const db = getDb();
+  const [row] = await db.select().from(eventOpsChecks).where(eq(eventOpsChecks.id, id)).limit(1);
+  if (!row) throw new EventDayError("NOT_FOUND", "Item checklist tidak ditemukan.", 404);
+  await loadEvent(row.eventId, garage);
+  const values: Partial<typeof eventOpsChecks.$inferInsert> = {};
+  if (patch.done !== undefined) {
+    values.doneAt = patch.done ? new Date() : null;
+    values.doneBy = patch.done ? garage.user.id : null;
+  }
+  if (patch.pic !== undefined) values.pic = patch.pic?.trim() || null;
+  if (patch.note !== undefined) values.note = patch.note?.trim() || null;
+  const [updated] = await db.update(eventOpsChecks).set(values).where(eq(eventOpsChecks.id, id)).returning();
+  await audit(garage, patch.done === undefined ? "Ubah checklist operasional event" : patch.done ? "Checklist operasional selesai" : "Checklist operasional dibuka lagi", row.label, {
+    eventId: row.eventId,
+    checkId: id,
+    done: Boolean(updated.doneAt),
+  });
+  return { id, done: Boolean(updated.doneAt), pic: updated.pic, note: updated.note };
+}
+
+export async function addOpsCheck(input: z.infer<typeof opsCheckCreateSchema>, garage: GarageSession) {
+  assertEventCrew(garage);
+  if (garage.profile.role !== "Owner") throw new EventDayError("FORBIDDEN", "Hanya Owner yang menambah item checklist.", 403);
+  const event = await loadEvent(input.eventId, garage);
+  const db = getDb();
+  const [count] = await db.select({ n: sql<number>`count(*)::int` }).from(eventOpsChecks).where(eq(eventOpsChecks.eventId, event.id));
+  const n = Number(count?.n ?? 0);
+  const [row] = await db
+    .insert(eventOpsChecks)
+    .values({ eventId: event.id, key: `custom-${Date.now().toString(36)}`, label: input.label, sortOrder: n + 1 })
+    .returning();
+  await audit(garage, "Tambah item checklist operasional event", row.label, { eventId: event.id, checkId: row.id });
+  return { id: row.id };
 }

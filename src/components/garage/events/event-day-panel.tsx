@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { AlertTriangle, ArrowLeft, Ban, Camera, CheckCircle2, ClipboardList, Mic2, Play, RefreshCw, RotateCcw, Square, UserPlus, Users } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Ban, Camera, CheckCircle2, ClipboardList, Mic2, Play, RefreshCw, RotateCcw, ShieldCheck, Square, UserPlus, Users } from "lucide-react";
 
 import { garageApi, GarageApiError } from "@/lib/api-client";
 import { useCodeScanner } from "@/lib/use-code-scanner";
@@ -42,7 +42,8 @@ type DayView = {
   };
 };
 type Task = { id: string; title: string; status: string; dueDate: string | null; overdue: boolean; crewName: string | null };
-type Tab = "checkin" | "panggung" | "tugas";
+type OpsItem = { id: string; label: string; pic: string | null; note: string | null; done: boolean };
+type Tab = "checkin" | "panggung" | "tugas" | "kesiapan";
 
 const errText = (error: unknown) => (error instanceof GarageApiError || error instanceof Error ? error.message : "Gagal.");
 const clock = (iso: string) => new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" }).format(new Date(iso));
@@ -68,6 +69,7 @@ export function EventDayPanel({ initialEventId = null }: { initialEventId?: stri
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState<{ tone: "ok" | "bad"; text: string } | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [ops, setOps] = useState<{ items: OpsItem[]; done: number; total: number } | null>(null);
 
   const load = useCallback(async (id: string | null) => {
     setError(null);
@@ -78,6 +80,8 @@ export function EventDayPanel({ initialEventId = null }: { initialEventId?: stri
       if (data.event) {
         const board = await garageApi.get<{ tasks: Task[] }>(`/api/event-lineup?event=${encodeURIComponent(data.event.title)}`, { cache: "no-store" }).catch(() => null);
         setTasks(board?.tasks ?? []);
+        const checklist = await garageApi.get<{ items: OpsItem[]; done: number; total: number }>(`/api/event-day/ops?eventId=${data.event.id}`, { cache: "no-store" }).catch(() => null);
+        setOps(checklist);
       }
     } catch (e) {
       setError(errText(e));
@@ -180,12 +184,13 @@ export function EventDayPanel({ initialEventId = null }: { initialEventId?: stri
             </Card>
           </div>
 
-          <div role="tablist" className="flex gap-2">
+          <div role="tablist" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {(
               [
                 ["checkin", "Check-in", Users],
                 ["panggung", "Panggung", Mic2],
                 ["tugas", "Tugas", ClipboardList],
+                ["kesiapan", "Kesiapan", ShieldCheck],
               ] as const
             ).map(([key, label, Icon]) => (
               <button
@@ -193,7 +198,7 @@ export function EventDayPanel({ initialEventId = null }: { initialEventId?: stri
                 type="button"
                 role="tab"
                 aria-selected={tab === key}
-                className={`${ghostBtn} flex-1 ${tab === key ? "border-[color-mix(in_srgb,var(--garage-red)_70%,transparent)] bg-[color-mix(in_srgb,var(--garage-red)_18%,transparent)]" : ""}`}
+                className={`${ghostBtn} ${tab === key ? "border-[color-mix(in_srgb,var(--garage-red)_70%,transparent)] bg-[color-mix(in_srgb,var(--garage-red)_18%,transparent)]" : ""}`}
                 onClick={() => setTab(key)}
               >
                 <Icon size={16} /> {label}
@@ -224,6 +229,39 @@ export function EventDayPanel({ initialEventId = null }: { initialEventId?: stri
                     ) : (
                       <span className="text-xs font-semibold uppercase text-zinc-400">{t.status}</span>
                     )}
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          ) : null}
+          {tab === "kesiapan" ? (
+            <Card className="space-y-2">
+              <p className="text-sm text-zinc-300">
+                Checklist operasional & keselamatan · {ops?.done ?? 0}/{ops?.total ?? 0} selesai
+              </p>
+              <ul className="divide-y divide-white/10">
+                {ops?.items.map((item) => (
+                  <li key={item.id} className="flex items-start gap-3 py-2">
+                    <input
+                      type="checkbox"
+                      className="mt-1 size-5 shrink-0 accent-[#d11a2a]"
+                      checked={item.done}
+                      aria-label={item.label}
+                      onChange={(e) => void act(() => garageApi.patch(`/api/event-day/ops/${item.id}`, { done: e.target.checked }))}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className={`font-semibold ${item.done ? "text-zinc-400 line-through" : ""}`}>{item.label}</p>
+                      <button
+                        type="button"
+                        className="text-xs text-zinc-400 underline-offset-2 hover:underline"
+                        onClick={() => {
+                          const pic = window.prompt("PIC (penanggung jawab) item ini?", item.pic ?? "");
+                          if (pic !== null) void act(() => garageApi.patch(`/api/event-day/ops/${item.id}`, { pic: pic.trim() || null }));
+                        }}
+                      >
+                        {item.pic ? `PIC ${item.pic}` : "Atur PIC"}
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>

@@ -80,3 +80,17 @@ export function clockDot(minutes: number | null): string | null {
   const m = ((Math.round(minutes) % 1440) + 1440) % 1440;
   return `${String(Math.floor(m / 60)).padStart(2, "0")}.${String(m % 60).padStart(2, "0")}`;
 }
+
+/** GIGS EO #11: checklist operasional & keselamatan bawaan per event (bisa ditambah item sendiri). */
+export const OPS_CHECK_TEMPLATE: Array<{ key: string; label: string }> = [
+  { key: "izin", label: "Izin keramaian (Polsek/Polres) & pemberitahuan lingkungan" },
+  { key: "keamanan", label: "Petugas keamanan & pembagian pos jaga" },
+  { key: "p3k", label: "Kotak P3K & petugas medis / nomor ambulans" },
+  { key: "kapasitas", label: "Kapasitas lokasi & alur masuk–keluar" },
+  { key: "evakuasi", label: "Jalur evakuasi, pintu darurat & APAR siap" },
+  { key: "listrik", label: "Listrik cukup & genset / cadangan daya" },
+  { key: "hujan", label: "Rencana hujan (tenda, terpal, panggung tertutup)" },
+  { key: "soundcheck", label: "Sound check selesai sebelum gerbang dibuka" },
+  { key: "parkir", label: "Area parkir & petugas parkir" },
+  { key: "kebersihan", label: "Tempat sampah & petugas kebersihan" },
+];

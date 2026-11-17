@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+
+import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { Role } from "@/lib/garage-data";
@@ -166,5 +169,69 @@ describe("Master event", () => {
     expect(titles).not.toContain("Creative Supper Club");
     expect(titles).not.toContain("Event Lain"); // draft
     for (const e of json.events) expect(Object.keys(e).sort()).toEqual(["endsAt", "slug", "startsAt", "tagline", "title", "venueName"]);
+  });
+
+  it("judul master dobel: papan & penulisan memakai ID master, bukan judul", async () => {
+    const lineup = await import("@/lib/event-lineup-service");
+    const base = { outletId, venueName: "Garage Coffee", address: "Jl. Contoh No. 1, Tebing Tinggi", mapsUrl: "https://maps.app.goo.gl/contoh", contactWhatsapp: "6281200000000" };
+    const [a, b] = await t
+      .getDb()
+      .insert(t.schema.events)
+      .values([
+        { ...base, slug: "kembar-a", title: "Malam Kembar", startsAt: new Date("2027-01-01T12:00:00Z"), endsAt: new Date("2027-01-01T17:00:00Z") },
+        { ...base, slug: "kembar-b", title: "Malam Kembar", startsAt: new Date("2027-01-08T12:00:00Z"), endsAt: new Date("2027-01-08T17:00:00Z") },
+      ] as any)
+      .returning();
+    await lineup.createPerformer({ eventId: b.id, name: "Band B", kind: "band" }, owner());
+    const crewA = await lineup.createCrew({ eventId: a.id, name: "Panitia A", role: "stage" }, owner());
+    const boardB = await lineup.getLineupBoard(owner(), { eventId: b.id });
+    expect(boardB.eventId).toBe(b.id);
+    expect(boardB.performers.map((p: any) => p.name)).toEqual(["Band B"]);
+    expect(boardB.crew).toEqual([]);
+    const boardA = await lineup.getLineupBoard(owner(), { eventId: a.id });
+    expect(boardA.performers).toEqual([]);
+    expect(boardA.crew.map((c: any) => c.name)).toEqual(["Panitia A"]);
+    // Panitia event A tidak boleh jadi PIC tugas event B walau judulnya sama.
+    await expect(lineup.createTask({ eventId: b.id, title: "Cek sound", crewId: crewA.id }, owner())).rejects.toMatchObject({ code: "CREW_OTHER_EVENT" });
+    await expect(lineup.getLineupBoard(owner(), { eventId: "00000000-0000-0000-0000-000000000000" })).rejects.toMatchObject({ code: "EVENT_NOT_FOUND" });
+  });
+
+  it("event arsip tetap bisa dibuka lewat ID; sponsor event arsip tetap bisa diubah", async () => {
+    const lineup = await import("@/lib/event-lineup-service");
+    const sponsorSvc = await import("@/lib/event-sponsor-service");
+    const [old] = await t
+      .getDb()
+      .insert(t.schema.events)
+      .values({ outletId, slug: "arsip-lama", title: "Event Arsip Lama", status: "archived", startsAt: new Date("2025-01-01T12:00:00Z"), endsAt: new Date("2025-01-01T17:00:00Z"), venueName: "Garage Coffee", address: "Jl. Contoh No. 1, Tebing Tinggi", mapsUrl: "https://maps.app.goo.gl/contoh", contactWhatsapp: "6281200000000" } as any)
+      .returning();
+    const board = await lineup.getLineupBoard(owner(), { eventId: old.id });
+    expect(board).toMatchObject({ eventId: old.id, eventName: "Event Arsip Lama" });
+    expect(board.masterEvents.map((e: any) => e.id)).not.toContain(old.id);
+    const sponsor = await sponsorSvc.createSponsor({ eventId: old.id, eventName: "Event Arsip Lama", name: "Sponsor Lama", agreedAmount: 500_000 } as any, owner());
+    const updated = await sponsorSvc.updateSponsor(sponsor.id, { eventId: old.id, eventName: "Event Arsip Lama", name: "Sponsor Lama", notes: "ubah catatan" } as any, owner());
+    expect(updated).toMatchObject({ eventId: old.id, eventName: "Event Arsip Lama" });
+  });
+
+  it("migrasi 0197: backfill menautkan + menyamakan nama dengan judul master; papan & tugas jalan", async () => {
+    const lineup = await import("@/lib/event-lineup-service");
+    const db = t.getDb();
+    const [ev] = await db
+      .insert(t.schema.events)
+      .values({ outletId, slug: "gigs-huruf", title: "Gigs Huruf Besar", startsAt: new Date("2027-02-01T12:00:00Z"), endsAt: new Date("2027-02-01T17:00:00Z"), venueName: "Garage Coffee", address: "Jl. Contoh No. 1, Tebing Tinggi", mapsUrl: "https://maps.app.goo.gl/contoh", contactWhatsapp: "6281200000000" } as any)
+      .returning();
+    const [crew] = await db.insert(t.schema.eventCrew).values({ eventName: "GIGS HURUF BESAR", name: "Lama", role: "stage" } as any).returning();
+    await db.insert(t.schema.eventPerformers).values({ eventName: "gigs huruf besar ", name: "Band Lama", kind: "band" } as any);
+    const file = readFileSync("drizzle/0197_gigs_master_event.sql", "utf8");
+    for (const stmt of file.split("--> statement-breakpoint").map((x) => x.trim())) {
+      const body = stmt.split("\n").filter((l) => !l.trim().startsWith("--")).join("\n").trim();
+      if (body.startsWith("UPDATE")) await db.execute(sql.raw(body));
+    }
+    const rows = (await db.select().from(t.schema.eventCrew)).filter((r: any) => r.id === crew.id);
+    expect(rows[0]).toMatchObject({ eventId: ev.id, eventName: "Gigs Huruf Besar" });
+    const board = await lineup.getLineupBoard(owner(), { eventId: ev.id });
+    expect(board.performers.map((p: any) => p.name)).toEqual(["Band Lama"]);
+    expect(board.legacyEvents).not.toContain("GIGS HURUF BESAR");
+    const task = await lineup.createTask({ eventId: ev.id, title: "Sewa tenda", crewId: crew.id }, owner());
+    expect(task.crewId).toBe(crew.id);
   });
 });

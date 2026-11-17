@@ -1,8 +1,8 @@
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 
 import { getDb } from "@/db";
-import { eventCrew, eventCrewTasks, eventPerformers, eventSponsors, staffProfiles } from "@/db/schema";
+import { eventCrew, eventCrewTasks, eventPerformers, eventSponsors, events, staffProfiles } from "@/db/schema";
 import {
   buildRundown,
   cleanCrewPhone,
@@ -97,7 +97,7 @@ export const performerPatchSchema = performerInputSchema
   .partial()
   .extend({ status: z.enum(PERFORMER_STATUSES).optional(), cancelReason: optionalText(300) });
 
-export const reorderSchema = z.object({ eventName, ids: z.array(z.string().uuid()).min(1).max(200) });
+export const reorderSchema = z.object({ eventId: z.string().uuid().nullable().optional(), eventName, ids: z.array(z.string().uuid()).min(1).max(200) });
 
 const crewFields = {
   name: z.string().trim().min(2, "Nama panitia wajib diisi.").max(80),
@@ -173,10 +173,12 @@ async function findTask(id: string) {
   if (!row) throw new LineupError("NOT_FOUND", "Tugas tidak ditemukan.", 404);
   return row;
 }
-async function assertCrewInEvent(crewId: string | null | undefined, event: string) {
+/** Panitia harus dari event yang sama: dibandingkan per ID master bila ada, per nama hanya untuk data lama. */
+async function assertCrewInEvent(crewId: string | null | undefined, event: { eventId: string | null; eventName: string }) {
   if (!crewId) return;
   const crew = await findCrew(crewId);
-  if (crew.eventName !== event) throw new LineupError("CREW_OTHER_EVENT", "Penanggung jawab harus panitia event yang sama.");
+  const same = event.eventId ? crew.eventId === event.eventId : crew.eventId === null && crew.eventName === event.eventName;
+  if (!same) throw new LineupError("CREW_OTHER_EVENT", "Penanggung jawab harus panitia event yang sama.");
 }
 
 // ─── Baca ───────────────────────────────────────────────────────────────────
@@ -185,38 +187,63 @@ export type PerformerView = typeof eventPerformers.$inferSelect;
 export type CrewView = typeof eventCrew.$inferSelect & { openTasks: number };
 export type TaskView = typeof eventCrewTasks.$inferSelect & { overdue: boolean; crewName: string | null };
 
-/** Semua nama event yang pernah dipakai (lineup, panitia, tugas, sponsor), terbaru di atas. */
+/** Nama event lama yang belum tertaut ke master (lineup, panitia, tugas, sponsor), terbaru di atas. */
 async function knownEvents(): Promise<string[]> {
   const db = getDb();
   const rows = await db.execute(sql`
     select event_name, max(created_at) as last from (
-      select event_name, created_at from ${eventPerformers}
-      union all select event_name, created_at from ${eventCrew}
-      union all select event_name, created_at from ${eventCrewTasks}
-      union all select event_name, created_at from ${eventSponsors}
+      select event_name, created_at from ${eventPerformers} where event_id is null
+      union all select event_name, created_at from ${eventCrew} where event_id is null
+      union all select event_name, created_at from ${eventCrewTasks} where event_id is null
+      union all select event_name, created_at from ${eventSponsors} where event_id is null
     ) t group by event_name order by last desc limit 50`);
   const list = (rows as unknown as { rows?: Array<{ event_name: string }> }).rows ?? (rows as unknown as Array<{ event_name: string }>);
   return list.map((r) => r.event_name).filter(Boolean);
 }
 
-export async function getLineupBoard(garage: GarageSession, requested: string | null) {
+/** Pilihan event papan: ID master (utama) atau nama lama. String = nama (tautan lama `?event=`). */
+export type LineupBoardRequest = string | { eventId?: string | null; eventName?: string | null } | null;
+
+export async function getLineupBoard(garage: GarageSession, requested: LineupBoardRequest) {
   assertOwnerHuman(garage);
   const db = getDb();
-  const [known, masterEvents] = await Promise.all([knownEvents(), listMasterEvents()]);
-  // Master event di atas, lalu nama lama yang belum tertaut ke master (ditandai di layar).
-  const masterTitles = new Set(masterEvents.map((e) => e.title.toLowerCase()));
-  const legacyEvents = known.filter((name) => !masterTitles.has(name.toLowerCase()));
-  const events = [...masterEvents.map((e) => e.title), ...legacyEvents];
-  const event = requested?.trim() || events[0] || null;
+  const req = typeof requested === "string" ? { eventName: requested } : (requested ?? {});
+  const [legacyEvents, masterEvents] = await Promise.all([knownEvents(), listMasterEvents()]);
   const today = wibDate();
-  const master = event ? masterEvents.find((e) => e.title.toLowerCase() === event.toLowerCase()) ?? null : null;
-  if (!event) {
-    return { today, events, masterEvents, legacyEvents, eventId: null, eventName: null, performers: [], rundown: [], crew: [], tasks: [], readiness: eventReadiness({ performers: [], crew: [], tasks: [], overlaps: 0 }, today) };
+  // Identitas = ID master. Judul boleh dobel, jadi nama hanya dipakai untuk tautan lama / data tanpa master.
+  let master: { id: string; title: string } | null = null;
+  let legacyName: string | null = null;
+  if (req.eventId) {
+    master = masterEvents.find((e) => e.id === req.eventId) ?? null;
+    if (!master) {
+      // Event arsip / di luar 50 teratas tetap bisa dibuka lewat ID-nya.
+      const [row] = await db.select({ id: events.id, title: events.title }).from(events).where(eq(events.id, req.eventId)).limit(1);
+      if (!row) throw new LineupError("EVENT_NOT_FOUND", "Event tidak ditemukan.", 404);
+      master = row;
+    }
+  } else if (req.eventName?.trim()) {
+    const name = req.eventName.trim();
+    if (legacyEvents.includes(name)) legacyName = name;
+    else master = masterEvents.find((e) => e.title.toLowerCase() === name.toLowerCase()) ?? null;
+    if (!master && !legacyName) legacyName = name;
+  } else if (masterEvents[0]) {
+    master = masterEvents[0];
+  } else if (legacyEvents[0]) {
+    legacyName = legacyEvents[0];
   }
+  const event = master?.title ?? legacyName;
+  const events_ = [...masterEvents.map((e) => e.title), ...legacyEvents];
+  if (!event) {
+    return { today, events: events_, masterEvents, legacyEvents, eventId: null, eventName: null, performers: [], rundown: [], crew: [], tasks: [], readiness: eventReadiness({ performers: [], crew: [], tasks: [], overlaps: 0 }, today) };
+  }
+  const scope = <T extends { eventId: unknown; eventName: unknown }>(table: T): SQL =>
+    master
+      ? eq(table.eventId as typeof eventPerformers.eventId, master.id)
+      : (and(eq(table.eventName as typeof eventPerformers.eventName, event), isNull(table.eventId as typeof eventPerformers.eventId)) as SQL);
   const [performers, crewRows, taskRows] = await Promise.all([
-    db.select().from(eventPerformers).where(eq(eventPerformers.eventName, event)).orderBy(asc(eventPerformers.slotOrder), asc(eventPerformers.name)),
-    db.select().from(eventCrew).where(eq(eventCrew.eventName, event)).orderBy(asc(eventCrew.role), asc(eventCrew.name)),
-    db.select().from(eventCrewTasks).where(eq(eventCrewTasks.eventName, event)).orderBy(asc(eventCrewTasks.dueDate), asc(eventCrewTasks.createdAt)),
+    db.select().from(eventPerformers).where(scope(eventPerformers)).orderBy(asc(eventPerformers.slotOrder), asc(eventPerformers.name)),
+    db.select().from(eventCrew).where(scope(eventCrew)).orderBy(asc(eventCrew.role), asc(eventCrew.name)),
+    db.select().from(eventCrewTasks).where(scope(eventCrewTasks)).orderBy(asc(eventCrewTasks.dueDate), asc(eventCrewTasks.createdAt)),
   ]);
   const crewName = new Map(crewRows.map((c) => [c.id, c.name]));
   const tasks: TaskView[] = taskRows.map((t) => ({
@@ -250,7 +277,7 @@ export async function getLineupBoard(garage: GarageSession, requested: string | 
   );
   return {
     today,
-    events: events.includes(event) ? events : [event, ...events],
+    events: events_.includes(event) ? events_ : [event, ...events_],
     masterEvents,
     legacyEvents,
     eventId: master?.id ?? null,
@@ -341,8 +368,9 @@ export async function reorderPerformers(input: z.infer<typeof reorderSchema>, ga
   assertOwnerHuman(garage);
   const db = getDb();
   const result = await db.transaction(async (tx) => {
-    const rows = await tx.select({ id: eventPerformers.id, eventName: eventPerformers.eventName }).from(eventPerformers).where(inArray(eventPerformers.id, input.ids)).for("update");
-    if (rows.length !== new Set(input.ids).size || rows.some((r) => r.eventName !== input.eventName)) {
+    const rows = await tx.select({ id: eventPerformers.id, eventId: eventPerformers.eventId, eventName: eventPerformers.eventName }).from(eventPerformers).where(inArray(eventPerformers.id, input.ids)).for("update");
+    const sameEvent = (r: { eventId: string | null; eventName: string }) => (input.eventId ? r.eventId === input.eventId : r.eventId === null && r.eventName === input.eventName);
+    if (rows.length !== new Set(input.ids).size || rows.some((r) => !sameEvent(r))) {
       throw new LineupError("REORDER_MISMATCH", "Daftar penampil tidak cocok dengan event ini. Muat ulang lalu coba lagi.", 409);
     }
     for (const [index, id] of input.ids.entries()) {
@@ -402,7 +430,7 @@ export async function updateCrew(id: string, patch: z.infer<typeof crewPatchSche
 export async function createTask(input: z.infer<typeof taskInputSchema>, garage: GarageSession) {
   assertOwnerHuman(garage);
   const ref = await eventFor(input);
-  await assertCrewInEvent(input.crewId, ref.eventName);
+  await assertCrewInEvent(input.crewId, ref);
   const [row] = await getDb()
     .insert(eventCrewTasks)
     .values({
@@ -423,7 +451,7 @@ export async function createTask(input: z.infer<typeof taskInputSchema>, garage:
 export async function updateTask(id: string, patch: z.infer<typeof taskPatchSchema>, garage: GarageSession) {
   assertOwnerHuman(garage);
   const before = await findTask(id);
-  if (patch.crewId !== undefined) await assertCrewInEvent(patch.crewId, before.eventName);
+  if (patch.crewId !== undefined) await assertCrewInEvent(patch.crewId, before);
   const values: Partial<typeof eventCrewTasks.$inferInsert> = { updatedAt: new Date() };
   if (patch.title !== undefined) values.title = patch.title;
   if (patch.crewId !== undefined) values.crewId = patch.crewId;
@@ -497,6 +525,7 @@ export async function sweepLineupTaskReminders(now = new Date()) {
   const rows = await db
     .select({
       id: eventCrewTasks.id,
+      eventId: eventCrewTasks.eventId,
       eventName: eventCrewTasks.eventName,
       title: eventCrewTasks.title,
       status: eventCrewTasks.status,
@@ -512,6 +541,7 @@ export async function sweepLineupTaskReminders(now = new Date()) {
     wibDate(now),
   );
   if (!reminders.length) return { sent: 0 };
+  const eventIdOf = new Map(rows.map((r) => [r.id, r.eventId]));
   const owners = await db
     .select({ userId: staffProfiles.userId, outletId: staffProfiles.outletId })
     .from(staffProfiles)
@@ -531,7 +561,9 @@ export async function sweepLineupTaskReminders(now = new Date()) {
         severity: reminder.severity,
         title: reminder.title,
         body: reminder.body,
-        url: `/control/lineup?event=${encodeURIComponent(reminder.eventName)}&tab=tugas`,
+        url: eventIdOf.get(reminder.taskId)
+          ? `/control/lineup?eventId=${eventIdOf.get(reminder.taskId)}&tab=tugas`
+          : `/control/lineup?event=${encodeURIComponent(reminder.eventName)}&tab=tugas`,
         dedupKey: `${reminder.key}:${owner.userId}`,
       }).catch((error: unknown) => {
         failed += 1;

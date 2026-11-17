@@ -21,11 +21,25 @@ describe("budgetSummary", () => {
     expect(out.rows.find((r) => r.id === "b")).toMatchObject({ paid: 500_000, remaining: 1_500_000, over: 0 });
     // Pos arsip: rencana tidak dihitung, uang yang sudah keluar tetap dihitung.
     expect(out.rows.find((r) => r.id === "c")).toMatchObject({ plannedAmount: 0, paid: 100_000, over: 100_000 });
-    expect(out.totals).toEqual({ planned: 3_000_000, paid: 1_800_000, remaining: 1_200_000, over: 0 });
+    // Sisa & lebih dijumlah per pos: lebih bayar pos A/C tidak menutup sisa pos B.
+    expect(out.totals).toEqual({ planned: 3_000_000, paid: 1_800_000, remaining: 1_500_000, over: 300_000 });
     expect(out.categories.map((c) => [c.category, c.planned, c.paid])).toEqual([
       ["honor", 1_000_000, 1_300_000],
       ["sound", 2_000_000, 500_000],
     ]);
+  });
+});
+
+describe("budgetSummary — lebih bayar tidak menutup pos lain", () => {
+  it("dua pos Rp1jt, Rp1,5jt dibayar ke pos pertama → sisa tetap Rp1jt", () => {
+    const out = budgetSummary(
+      [
+        { id: "a", category: "sound", title: "A", plannedAmount: 1_000_000, status: "aktif" },
+        { id: "b", category: "venue", title: "B", plannedAmount: 1_000_000, status: "aktif" },
+      ],
+      [{ budgetLineId: "a", amount: 1_500_000, status: "posted" }],
+    );
+    expect(out.totals).toMatchObject({ remaining: 1_000_000, over: 500_000 });
   });
 });
 

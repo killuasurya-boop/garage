@@ -163,11 +163,11 @@ export function GigsSpotlight({ promo }: { promo: GigsPromo }) {
                   </h4>
                 ) : null}
                 <ol className="gigs-spot__lineup">
-                  {group.items.map((performer) => {
+                  {group.items.map((performer, index) => {
                     const slot = promo.promo.lineup.indexOf(performer) + 1;
                     const igUrl = instagramUrl(performer.instagram);
                     return (
-                      <li key={performer.name} className={`gigs-spot__band${performer.kind ? ` is-${performer.kind}` : ""}${igUrl ? " has-link" : ""}`}>
+                      <li key={`${performer.name}-${index}`} className={`gigs-spot__band${performer.kind ? ` is-${performer.kind}` : ""}${igUrl ? " has-link" : ""}`}>
                         <div className="gigs-spot__card-head">
                           <span className="gigs-spot__slot">#{String(slot).padStart(2, "0")}</span>
                           {performer.live ? <span className="gigs-spot__live">Sedang tampil</span> : null}
@@ -222,7 +222,7 @@ export function GigsSpotlight({ promo }: { promo: GigsPromo }) {
               <span>{promo.partners.length} sponsor</span>
             </div>
             <ul className="gigs-spot__partner-list">
-              {promo.partners.map((partner) => {
+              {promo.partners.map((partner, index) => {
                 const body = (
                   <>
                     <span className="gigs-spot__partner-logo">
@@ -240,7 +240,7 @@ export function GigsSpotlight({ promo }: { promo: GigsPromo }) {
                 // Instagram dulu (permintaan Owner), lalu tautan website sponsor.
                 const href = instagramUrl(partner.instagram) ?? partner.url;
                 return (
-                  <li key={partner.name}>
+                  <li key={`${partner.name}-${index}`}>
                     {href ? (
                       <a className="gigs-spot__partner" href={href} target="_blank" rel="noopener noreferrer sponsored">
                         {body}

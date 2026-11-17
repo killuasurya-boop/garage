@@ -204,7 +204,7 @@ export function LineupPanel({ initialEvent = null, initialEventId = null, initia
         }
       />
 
-      <EventControlNav current="lineup" eventId={board?.eventId ?? null} />
+      <EventControlNav current="lineup" eventId={board?.eventId ?? initialEventId ?? null} />
 
       {/* Pilih / buat event */}
       <div className={`${cardClass} grid gap-3 lg:grid-cols-[18rem_minmax(0,1fr)] lg:items-start`}>

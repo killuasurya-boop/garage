@@ -170,6 +170,8 @@ test("Kontrol Event: satu bar menautkan semua menu event dengan event yang sama"
   await page.goto(`/control/lineup?eventId=${event.id}`);
   const nav = page.getByRole("navigation", { name: "Kontrol event" });
   await expect(nav.getByRole("link", { name: /Lineup & Panitia/ })).toHaveAttribute("aria-current", "page", { timeout: 90_000 });
+  // Tautan membawa event yang sama sejak awal (tidak menunggu papan lineup selesai dimuat).
+  await expect(nav.getByRole("link", { name: /Keuangan Event/ })).toHaveAttribute("href", `/control/event-finance?eventId=${event.id}`);
 
   await nav.getByRole("link", { name: /Keuangan Event/ }).click();
   await expect(page).toHaveURL(new RegExp(`/control/event-finance\\?eventId=${event.id}`));

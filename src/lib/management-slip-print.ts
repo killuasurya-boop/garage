@@ -42,13 +42,19 @@ export async function printShiftSlip(
   extra: Pick<ShiftSlipInput, "qrisCounted" | "floatLeft" | "depositAmount" | "closingNote"> = {},
 ): Promise<SlipPrintResult> {
   try {
-    const summary = await garageApi.get<Omit<ShiftSlipInput, "qrisCounted" | "floatLeft" | "depositAmount">>(
-      `/api/finance/cash-sessions/${encodeURIComponent(sessionId)}/summary`,
-    );
+    const [summary, partners] = await Promise.all([
+      garageApi.get<Omit<ShiftSlipInput, "qrisCounted" | "floatLeft" | "depositAmount">>(
+        `/api/finance/cash-sessions/${encodeURIComponent(sessionId)}/summary`,
+      ),
+      // Penjualan mitra: gagal dimuat = slip tetap dicetak tanpa seksi mitra.
+      garageApi
+        .get<ShiftSlipInput["partners"]>(`/api/finance/cash-sessions/${encodeURIComponent(sessionId)}/partner-sales`)
+        .catch(() => null),
+    ]);
     const res = await printDocument(
       (width) =>
         buildShiftSlipContent(
-          { ...summary, ...extra },
+          { ...summary, ...extra, partners },
           {
             width,
             brand: settings.brand,

@@ -39,6 +39,11 @@ Pukul 17.00 produk otomatis bisa dipesan lagi, dan mitra mendapat pengingat untu
 - **Setelah tutup shift:**
   - Riwayat & Laporan Shift → detail shift → kartu **Penjualan Mitra**;
   - PDF **Laporan Lengkap** → seksi **Penjualan Mitra (Partner Hub)**, plus 3 kartu di Ringkasan Eksekutif.
+  - PDF **tutup shift** (tombol PDF di POS / Laporan Shift) → seksi **Penjualan Mitra (Partner Hub)** sebelum
+    Rekonsiliasi Kas Laci: tabel per mitra (produk, qty, harga, penjualan, modal mitra, profit), wajib bayar ke mitra,
+    profit Garage, belum siap, ditolak, bill belum dibayar, dan catatan setoran;
+  - **Slip tutup shift** (printer struk) → seksi **PENJUALAN MITRA** sebelum KAS LACI dengan rincian yang sama.
+    Angka mitra bukan uang laci; dibayar lewat setoran harian mitra.
 
 Arti angka:
 

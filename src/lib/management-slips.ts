@@ -7,6 +7,7 @@
 // =============================================================================
 
 import { discrepancyStatusLabel } from "@/lib/cash-discrepancy";
+import { hasPartnerReport, partnerProductLabel, partnerReportNotes, type PartnerShiftSales } from "@/lib/partner-cashier-rules";
 import {
   createLayout,
   formatJakartaDateTime,
@@ -62,6 +63,8 @@ export interface ShiftSlipInput {
   depositAmount?: number | null;
   closingNote?: string | null;
   cashMovements?: { cashIn: number; cashOut: number } | null;
+  /** Penjualan mitra shift ini (GET /api/finance/cash-sessions/[id]/partner-sales). Kosong = seksi tidak dicetak. */
+  partners?: Pick<PartnerShiftSales, "partners" | "totals"> | null;
 }
 
 export interface DailyRecapRow {
@@ -191,6 +194,31 @@ export function buildShiftSlipContent(input: ShiftSlipInput, options: SlipOption
     layout.pair(`${method.label} (${method.count}x)`, formatRupiah(method.total));
   }
   layout.divider();
+
+  // Penjualan mitra (Partner Hub): per mitra → produk, wajib bayar & profit Garage. Bukan uang laci.
+  if (input.partners && hasPartnerReport(input.partners)) {
+    layout.text("PENJUALAN MITRA");
+    for (const partner of input.partners.partners) {
+      layout.text(partner.partnerName.toUpperCase());
+      for (const product of partner.products) {
+        layout.pair(`${product.qty}x ${partnerProductLabel(product)}`, formatRupiah(product.sales));
+      }
+      if (!partner.products.length) layout.text("(belum ada item siap)");
+      layout.pair("Penjualan", formatRupiah(partner.sales));
+      layout.pair("Modal mitra", formatRupiah(partner.partnerCost));
+      for (const note of partnerReportNotes(partner)) {
+        layout.pair(note.emphasis ? note.label.toUpperCase() : note.label, `${note.sign === "minus" ? "-" : ""}${formatRupiah(note.amount)}`);
+      }
+    }
+    if (input.partners.partners.length > 1) {
+      const t = input.partners.totals;
+      layout.pair("TOTAL PENJUALAN MITRA", formatRupiah(t.sales));
+      layout.pair("TOTAL WAJIB BAYAR MITRA", formatRupiah(t.payable));
+      layout.pair("TOTAL PROFIT GARAGE", formatRupiah(t.garageProfit));
+    }
+    layout.text("(Bukan uang laci; dibayar lewat setoran harian mitra)");
+    layout.divider();
+  }
 
   layout.text("KAS LACI");
   layout.pair("Modal awal", formatRupiah(s.openingCash));

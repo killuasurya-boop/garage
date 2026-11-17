@@ -2,7 +2,7 @@ import { and, asc, eq, inArray, isNull, ne, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 
 import { getDb } from "@/db";
-import { eventCrew, eventCrewTasks, eventOpsChecks, eventPerformers, events, eventSponsorObligations, eventSponsors, staffProfiles } from "@/db/schema";
+import { eventCrew, eventCrewTasks, eventOpsChecks, eventPerformers, events, eventSponsorObligations, eventSponsors, staffProfiles, user } from "@/db/schema";
 import {
   buildRundown,
   cleanCrewPhone,
@@ -132,6 +132,8 @@ const crewFields = {
   role: z.enum(CREW_ROLES),
   phone: optionalText(24),
   duties: optionalText(1000),
+  // Akun login staf yang ditautkan (opsional): membuka /panitia untuk event ini saja.
+  userId: z.string().trim().min(1).max(100).nullable().optional(),
 };
 export const crewInputSchema = z.object({ ...eventRef, ...crewFields });
 export const crewPatchSchema = z.object({
@@ -139,6 +141,7 @@ export const crewPatchSchema = z.object({
   role: crewFields.role.optional(),
   phone: crewFields.phone,
   duties: crewFields.duties,
+  userId: crewFields.userId,
   status: z.enum(["aktif", "nonaktif"]).optional(),
 });
 
@@ -383,10 +386,22 @@ export async function getLineupBoard(garage: GarageSession, requested: LineupBoa
     const list = (rows as unknown as { rows?: Array<{ performer_id: string; planned: number; paid: number }> }).rows ?? (rows as unknown as Array<{ performer_id: string; planned: number; paid: number }>);
     for (const r of list) honor[r.performer_id] = { planned: Number(r.planned), paid: Number(r.paid) };
   }
+  // Akun staf aktif untuk ditautkan ke panitia (Owner saja; tanpa nomor HP).
+  const accounts =
+    garage.profile.role === "Owner"
+      ? await db
+          .select({ userId: user.id, name: user.name, email: user.email, role: staffProfiles.role })
+          .from(staffProfiles)
+          .innerJoin(user, eq(user.id, staffProfiles.userId))
+          .where(eq(staffProfiles.status, "active"))
+          .orderBy(asc(user.name))
+          .limit(300)
+      : [];
   return {
     today,
     honor,
     sponsorNotes,
+    accounts,
     events: events_.includes(event) ? events_ : [event, ...events_],
     masterEvents,
     legacyEvents,
@@ -687,6 +702,7 @@ export async function bulkPaste(input: z.infer<typeof bulkPasteSchema>, garage: 
 export async function createCrew(input: z.infer<typeof crewInputSchema>, garage: GarageSession) {
   assertOwnerHuman(garage);
   const ref = await eventFor(input);
+  const account = await crewAccountOrThrow(input.userId);
   const [row] = await getDb()
     .insert(eventCrew)
     .values({
@@ -696,11 +712,26 @@ export async function createCrew(input: z.infer<typeof crewInputSchema>, garage:
       role: input.role,
       phone: phoneOrThrow(input.phone, "Nomor panitia"),
       duties: emptyToNull(input.duties) ?? null,
+      userId: account ?? null,
       createdBy: garage.user.id,
     })
     .returning();
   await audit(garage, "Tambah panitia event", row.name, { eventName: row.eventName, crewId: row.id, role: row.role });
   return row;
+}
+
+/** Akun yang boleh ditautkan = akun staf AKTIF (bukan API key agent). null/kosong = lepas tautan. */
+async function crewAccountOrThrow(userId: string | null | undefined): Promise<string | null | undefined> {
+  if (userId === undefined) return undefined;
+  if (!userId) return null;
+  const [row] = await getDb()
+    .select({ id: user.id })
+    .from(user)
+    .innerJoin(staffProfiles, eq(staffProfiles.userId, user.id))
+    .where(and(eq(user.id, userId), eq(staffProfiles.status, "active")))
+    .limit(1);
+  if (!row) throw new LineupError("ACCOUNT_NOT_FOUND", "Akun staf tidak ditemukan atau tidak aktif.", 404);
+  return row.id;
 }
 
 export async function updateCrew(id: string, patch: z.infer<typeof crewPatchSchema>, garage: GarageSession) {
@@ -712,6 +743,8 @@ export async function updateCrew(id: string, patch: z.infer<typeof crewPatchSche
   if (patch.phone !== undefined) values.phone = phoneOrThrow(patch.phone, "Nomor panitia");
   if (patch.duties !== undefined) values.duties = emptyToNull(patch.duties);
   if (patch.status !== undefined) values.status = patch.status;
+  const account = await crewAccountOrThrow(patch.userId);
+  if (account !== undefined) values.userId = account;
   const [row] = await getDb().update(eventCrew).set(values).where(eq(eventCrew.id, id)).returning();
   const changed = Object.keys(values).filter((k) => k !== "updatedAt");
   await audit(garage, "Ubah panitia event", row.name, {

@@ -68,6 +68,7 @@ type Board = {
   crew: CrewView[];
   tasks: TaskView[];
   readiness: { items: Array<{ key: string; label: string; done: boolean; detail: string }>; done: number; total: number };
+  accounts?: Array<{ userId: string; name: string | null; email: string; role: string }>;
 };
 
 export type LineupTab = "lineup" | "rundown" | "panitia" | "tugas";
@@ -422,7 +423,7 @@ export function LineupPanel({ initialEvent = null, initialEventId = null, initia
         <CancelForm row={dialog.row} onClose={() => setDialog(null)} onSave={(reason) => run(() => garageApi.patch(`/api/event-lineup/performers/${dialog.row.id}`, { status: "batal", cancelReason: reason }))} />
       ) : null}
       {dialog?.kind === "crew" && event ? (
-        <CrewForm row={dialog.row} onClose={() => setDialog(null)} onSave={(body) => run(() => (dialog.row ? garageApi.patch(`/api/event-lineup/crew/${dialog.row.id}`, body) : garageApi.post("/api/event-lineup/crew", { ...body, eventId: board?.eventId ?? null, eventName: event })))} />
+        <CrewForm row={dialog.row} accounts={board?.accounts ?? []} onClose={() => setDialog(null)} onSave={(body) => run(() => (dialog.row ? garageApi.patch(`/api/event-lineup/crew/${dialog.row.id}`, body) : garageApi.post("/api/event-lineup/crew", { ...body, eventId: board?.eventId ?? null, eventName: event })))} />
       ) : null}
       {dialog?.kind === "task" && event && board ? (
         <TaskForm row={dialog.row} crew={board.crew.filter((c) => c.status === "aktif" || c.id === dialog.row?.crewId)} onClose={() => setDialog(null)} onSave={(body) => run(() => (dialog.row ? garageApi.patch(`/api/event-lineup/tasks/${dialog.row.id}`, body) : garageApi.post("/api/event-lineup/tasks", { ...body, eventId: board?.eventId ?? null, eventName: event })))} />
@@ -734,6 +735,11 @@ function CrewTab({
                       </p>
                       {c.duties ? <p className="whitespace-pre-line text-sm text-zinc-300">{c.duties}</p> : null}
                       <p className="text-xs text-zinc-400">{c.openTasks} tugas terbuka</p>
+                      <p className={`text-xs ${c.userId ? "text-emerald-200" : "text-zinc-400"}`}>
+                        {c.userId
+                          ? `Akun tertaut: ${board.accounts?.find((a) => a.userId === c.userId)?.name ?? "akun staf"} · bisa membuka /panitia`
+                          : "Belum ditautkan ke akun login (Ubah → Akun login)"}
+                      </p>
                     </div>
                     <div className="flex flex-wrap gap-1.5">
                       {c.phone ? (
@@ -1047,9 +1053,19 @@ function CancelForm({ row, onClose, onSave }: { row: PerformerView; onClose: () 
   );
 }
 
-function CrewForm({ row, onClose, onSave }: { row: CrewView | null; onClose: () => void; onSave: (body: Record<string, unknown>) => Promise<boolean> }) {
-  const [f, setF] = useState({ name: row?.name ?? "", role: (row?.role as CrewRole) ?? "ketua", phone: row?.phone ?? "", duties: row?.duties ?? "" });
-  const { busy, submit } = useSubmit(() => onSave({ name: f.name, role: f.role, phone: f.phone || null, duties: f.duties || null }), onClose);
+function CrewForm({
+  row,
+  accounts,
+  onClose,
+  onSave,
+}: {
+  row: CrewView | null;
+  accounts: NonNullable<Board["accounts"]>;
+  onClose: () => void;
+  onSave: (body: Record<string, unknown>) => Promise<boolean>;
+}) {
+  const [f, setF] = useState({ name: row?.name ?? "", role: (row?.role as CrewRole) ?? "ketua", phone: row?.phone ?? "", duties: row?.duties ?? "", userId: row?.userId ?? "" });
+  const { busy, submit } = useSubmit(() => onSave({ name: f.name, role: f.role, phone: f.phone || null, duties: f.duties || null, userId: f.userId || null }), onClose);
   return (
     <Modal title={row ? `Ubah ${row.name}` : "Tambah panitia"} onClose={onClose}>
       <form className="grid gap-3" onSubmit={submit}>
@@ -1070,6 +1086,19 @@ function CrewForm({ row, onClose, onSave }: { row: CrewView | null; onClose: () 
         </Field>
         <Field label="Tugas utama">
           <textarea className={areaClass} value={f.duties} onChange={(e) => setF((s) => ({ ...s, duties: e.target.value }))} maxLength={1000} placeholder="mis. memandu urutan tampil, cek sound tiap penampil" />
+        </Field>
+        <Field
+          label="Akun login (opsional)"
+          hint="Panitia ini bisa membuka Ruang Panitia (/panitia) untuk event ini: rundown, tugas, dan ubah status tugasnya. Ketua & Sekretaris bisa membuat tugas; Ketua & Bendahara melihat ringkasan anggaran. Tidak bisa mencatat uang."
+        >
+          <select className={inputClass} value={f.userId} onChange={(e) => setF((s) => ({ ...s, userId: e.target.value }))}>
+            <option value="">Tidak ditautkan</option>
+            {accounts.map((a) => (
+              <option key={a.userId} value={a.userId}>
+                {a.name ?? a.email} · {a.role} · {a.email}
+              </option>
+            ))}
+          </select>
         </Field>
         <FormActions busy={busy} onClose={onClose} />
       </form>

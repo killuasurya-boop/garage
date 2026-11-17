@@ -220,3 +220,55 @@ test("Keuangan Event: impor RAB dari platform GIGS jadi pos anggaran (cadangan d
   }
   check();
 });
+
+test("Tempel daftar talent (UI) + Ruang Panitia: akun waiter ditautkan sebagai ketua", async ({ page, browser }, info) => {
+  test.skip(info.project.name !== "desktop-1366", "alur Owner diuji di desktop");
+  test.setTimeout(500_000);
+  const check = failOnPageErrors(page);
+  const tag = Math.random().toString(36).slice(2, 6).toUpperCase();
+  await login(page, "owner@garage.id");
+  const event = await masterEvent(page);
+
+  // 1) Tempel daftar talent lewat layar Lineup.
+  await page.goto(`/control/lineup?eventId=${event.id}`);
+  await expect(page.getByRole("heading", { name: "Lineup & Panitia" })).toBeVisible({ timeout: 90_000 });
+  await page.getByRole("button", { name: "Tempel daftar" }).click();
+  const dialog = page.getByRole("dialog", { name: /Tempel daftar talent/ });
+  await dialog.getByLabel("Tempel di sini").fill(`Nama\tJenis\tTagline\tInstagram\tJam\tDurasi\nTempel Band ${tag}\tband\tPop Punk\t@tempel${tag.toLowerCase()}\t23.00\t30\nKomika ${tag}\tkomika\t\t\t23:30\t20`);
+  await expect(dialog.getByRole("status")).toContainText("2 baris siap disimpan");
+  await dialog.getByRole("button", { name: /Simpan 2 baris/ }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Tempel daftar" })).toContainText("2 tersimpan", { timeout: 60_000 });
+  await expect(page.getByText(`Tempel Band ${tag}`, { exact: true })).toBeVisible();
+
+  // 2) Owner menautkan akun waiter sebagai Ketua Panitia + satu tugas untuknya (API).
+  const board = (await (await page.request.get(`/api/event-lineup?eventId=${event.id}`)).json()).data;
+  const waiter = board.accounts.find((a: { email: string }) => a.email === "waiter@garage.id");
+  expect(waiter, "akun seed waiter@garage.id").toBeTruthy();
+  const crew = await page.request.post("/api/event-lineup/crew", { data: { eventId: event.id, eventName: event.title, name: `Ketua ${tag}`, role: "ketua", userId: waiter.userId } });
+  expect(crew.ok(), await crew.text()).toBeTruthy();
+  const crewId = (await crew.json()).data.id;
+  const task = await page.request.post("/api/event-lineup/tasks", { data: { eventId: event.id, eventName: event.title, title: `Konfirmasi sound ${tag}`, crewId } });
+  expect(task.ok(), await task.text()).toBeTruthy();
+
+  // 3) Login sebagai waiter → Ruang Panitia: event terlihat, tugas bisa diselesaikan, tanpa ringkasan uang? (ketua: ada).
+  const ctx = await browser.newContext();
+  const wp = await ctx.newPage();
+  const wcheck = failOnPageErrors(wp);
+  await login(wp, "waiter@garage.id");
+  await wp.goto("/panitia");
+  const ws = wp.getByTestId("panitia-workspace");
+  await expect(ws.getByRole("heading", { name: "Ruang Panitia" })).toBeVisible({ timeout: 90_000 });
+  const section = ws.getByRole("region", { name: event.title });
+  await expect(section.getByText("Ketua Panitia")).toBeVisible();
+  await expect(section.getByText(`Tempel Band ${tag}`)).toBeVisible();
+  const taskCard = section.locator("li").filter({ hasText: `Konfirmasi sound ${tag}` });
+  await taskCard.getByRole("button", { name: "Selesai" }).click();
+  await expect(taskCard.getByRole("button", { name: "Selesai" })).toBeDisabled({ timeout: 30_000 });
+  await expect(section.getByText("Ringkasan anggaran")).toBeVisible();
+  // Waiter tidak bisa membuka papan Owner.
+  const forbidden = await wp.request.get(`/api/event-lineup?eventId=${event.id}`);
+  expect(forbidden.status()).toBe(403);
+  wcheck();
+  await ctx.close();
+  check();
+});

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import { startFakeGigsPlatform } from "./fake-gigs-platform";
 import { failOnPageErrors, login } from "./helpers";
@@ -19,6 +19,17 @@ async function masterEvent(page: Page) {
   const event = (await res.json()).data.event as { id: string; title: string } | null;
   expect(event, "butuh minimal satu master event (seed Grand Opening)").toBeTruthy();
   return event!;
+}
+
+/** File unggahan harus bisa diunduh (200 image/*) DAN tampil di kartu (gambar lazy → di-scroll dulu). */
+async function expectImageLoads(page: Page, img: Locator, label: string) {
+  const src = await img.getAttribute("src");
+  expect(src, `${label}: src`).toBeTruthy();
+  const res = await page.request.get(src!);
+  expect(res.status(), `${label}: ${src} harus bisa diakses`).toBe(200);
+  expect(res.headers()["content-type"] ?? "").toMatch(/^image\//);
+  await img.scrollIntoViewIfNeeded();
+  await expect.poll(() => img.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0), { message: `${label} tampil` }).toBe(true);
 }
 
 async function noHorizontalOverflow(page: Page) {
@@ -104,7 +115,7 @@ test("Lineup & Sponsor: impor platform → kustom talent & sponsor → tampil di
     await expect(bandCard.getByRole("link", { name: new RegExp(`Instagram ${band}`) })).toHaveAttribute("href", `https://www.instagram.com/${ig}/`);
     const bandLogo = bandCard.getByRole("img", { name: `Logo ${band}` });
     await expect(bandLogo).toHaveAttribute("src", /\/garage-uploads\/event-lineup\//);
-    expect(await bandLogo.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0), "logo talent harus termuat").toBeTruthy();
+    await expectImageLoads(page, bandLogo, "logo talent");
 
     const partners = page.getByTestId("home-gigs-partners");
     await expect(partners).toBeVisible();
@@ -112,8 +123,7 @@ test("Lineup & Sponsor: impor platform → kustom talent & sponsor → tampil di
     await expect(sponsorLink).toHaveAttribute("href", `https://www.instagram.com/${sponsorIg}/`);
     await expect(sponsorLink).toContainText("Gold");
     const sponsorLogo = sponsorLink.getByRole("img", { name: `Logo ${sponsorName}` });
-    await sponsorLogo.scrollIntoViewIfNeeded();
-    expect(await sponsorLogo.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0), "logo sponsor harus termuat").toBeTruthy();
+    await expectImageLoads(page, sponsorLogo, "logo sponsor");
     await expect(partners).not.toContainText("2.500.000");
     await noHorizontalOverflow(page);
     check();

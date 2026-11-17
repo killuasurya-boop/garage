@@ -326,7 +326,10 @@ export async function generateShiftReportPdf(
           { label: "PROFIT", x: 470, w: 77, align: "right" as const },
         ];
         const tableRow = (values: string[], opts: { bold?: boolean; color?: string; size?: number } = {}) => {
-          if (doc.y > 760) doc.addPage();
+          // Ukur baris tertinggi dulu supaya satu baris tidak terbelah ke dua halaman.
+          doc.font(opts.bold ? "Helvetica-Bold" : "Helvetica").fontSize(opts.size ?? 9);
+          const rowHeight = Math.max(...values.map((value, i) => doc.heightOfString(value, { width: cols[i].w })));
+          if (doc.y + rowHeight > 790) doc.addPage();
           const ry = doc.y;
           let bottom = ry;
           values.forEach((value, i) => {

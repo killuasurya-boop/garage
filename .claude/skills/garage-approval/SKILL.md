@@ -39,3 +39,8 @@ description: Aturan WAJIB Smart Approval V3 (tier, eksekusi, Decision Center, Do
   Tahap C/D: Decision Center loads deterministic cross-module context (requester 30 days, open risk alerts, same order) +
   evidence-completeness `confidence`; `getDecisionQueues` = read-only index of other modules' approval queues; decisions
   record `payload.decisionCenter` (recommendation, confidence, followed) → AI Governance "Kualitas keputusan".
+- Decision Center pilih-lalu-putuskan (bug fix 17 Nov 2026): keputusan HANYA boleh memakai detail pengajuan yang sedang
+  dipilih. `DecisionCenter.tsx`: `select()` membuang detail lama + dialog bila pindah pengajuan; `loadDetail` mengabaikan
+  jawaban server untuk pengajuan yang bukan permintaan terakhir (`latestDetailId`); render & `submitDecision` mensyaratkan
+  `detail.approval.id === selectedId`. Dulu panel menampilkan detail LAMA (dengan tombol Setujui/Tolak) selama detail baru
+  dimuat → Tolak bisa jatuh ke pengajuan lain. E2E `decision-center.spec.ts` menunggu nominal pengajuan terpilih tampil.

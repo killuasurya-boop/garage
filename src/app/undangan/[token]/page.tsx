@@ -7,6 +7,7 @@ import type { CSSProperties } from "react";
 
 import { AgeGate, AgendaLive, InviteIntro, PosterCountdown } from "@/components/garage/events/event-live-parts";
 import { CoBrandLockup, PosterFilters, ShareActions, sponsorLogoFor } from "@/components/garage/events/event-poster-parts";
+import { EntryQr } from "@/components/garage/events/entry-qr";
 import { RsvpForm } from "@/components/garage/events/rsvp-form";
 import { eventZoneLabel, formatEventDate, formatEventTimeRange } from "@/lib/event-format";
 import { getPublicInvitation, invitationUrl } from "@/lib/event-invitations";
@@ -179,6 +180,15 @@ export default async function InvitationPage({ params }: { params: Promise<{ tok
             <RsvpForm token={token} maxPax={invitation.maxPax} initial={invitation.rsvp} canChange={invitation.canChange} contactUrl={contactUrl} />
           </div>
         </section>
+
+        {invitation.rsvp?.response === "attending" ? (
+          <section aria-labelledby="entry-title" className="gp-invite-card gp-reveal flex flex-col items-center gap-4 p-6 text-center sm:p-8">
+            <h2 id="entry-title" className="gp-display text-[30px] sm:text-[36px]" style={TIGHT}>
+              Tiket masuk
+            </h2>
+            <EntryQr url={pageUrl} guestName={invitation.guestName} maxPax={invitation.maxPax} />
+          </section>
+        ) : null}
 
         <section aria-labelledby="save-title" className="gp-reveal flex flex-col items-center gap-4 text-center">
           <h2 id="save-title" className="gp-label">

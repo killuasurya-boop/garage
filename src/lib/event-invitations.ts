@@ -452,7 +452,7 @@ export type PublicInvitation = {
   canChange: boolean;
 };
 
-async function findInvitationByToken(token: string) {
+export async function findInvitationByToken(token: string) {
   if (!INVITATION_TOKEN_PATTERN.test(token)) return null;
   const hash = hashInvitationToken(token);
   const [row] = await getDb()

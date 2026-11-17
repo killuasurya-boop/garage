@@ -49,6 +49,12 @@ function assertOwnerHuman(garage: GarageSession) {
   if (garage.profile.agentKey) throw new LineupError("HUMAN_SESSION_REQUIRED", "Lineup & panitia hanya untuk Owner yang login langsung.", 403);
 }
 
+/** GIGS EO Fase 3 (#9): Ketua/Stage Manager = Manajer (login langsung) boleh melihat papan & mengubah STATUS tugas. */
+function assertCrewHuman(garage: GarageSession) {
+  if (garage.profile.role !== "Owner" && garage.profile.role !== "Manajer") throw new LineupError("FORBIDDEN", "Lineup & panitia hanya untuk Owner dan Manajer.", 403);
+  if (garage.profile.agentKey) throw new LineupError("HUMAN_SESSION_REQUIRED", "Lineup & panitia hanya untuk staf yang login langsung.", 403);
+}
+
 async function audit(garage: GarageSession, action: string, object: string, metadata: Record<string, unknown>) {
   await createAuditLog({
     actor: garage.user.name ?? "Owner",
@@ -200,7 +206,7 @@ async function knownEvents(): Promise<string[]> {
 }
 
 export async function getLineupBoard(garage: GarageSession, requested: string | null) {
-  assertOwnerHuman(garage);
+  assertCrewHuman(garage);
   const db = getDb();
   const [known, masterEvents] = await Promise.all([knownEvents(), listMasterEvents()]);
   // Master event di atas, lalu nama lama yang belum tertaut ke master (ditandai di layar).
@@ -421,7 +427,10 @@ export async function createTask(input: z.infer<typeof taskInputSchema>, garage:
 }
 
 export async function updateTask(id: string, patch: z.infer<typeof taskPatchSchema>, garage: GarageSession) {
-  assertOwnerHuman(garage);
+  assertCrewHuman(garage);
+  if (garage.profile.role !== "Owner" && Object.keys(patch).some((key) => key !== "status")) {
+    throw new LineupError("FORBIDDEN", "Manajer hanya bisa mengubah status tugas.", 403);
+  }
   const before = await findTask(id);
   if (patch.crewId !== undefined) await assertCrewInEvent(patch.crewId, before.eventName);
   const values: Partial<typeof eventCrewTasks.$inferInsert> = { updatedAt: new Date() };
@@ -445,7 +454,7 @@ export async function updateTask(id: string, patch: z.infer<typeof taskPatchSche
 
 // ─── Website (publik) ───────────────────────────────────────────────────────
 
-export type PublicLineupItem = { name: string; kind: LineupKind; time: string | null };
+export type PublicLineupItem = { name: string; kind: LineupKind; time: string | null; live: boolean };
 
 /**
  * Lineup terkonfirmasi untuk website (tanpa kontak/catatan). Dicocokkan dengan nama event GIGS tanpa
@@ -467,6 +476,8 @@ export async function publicLineupFor(platform: string | { slug: string; name: s
       slotOrder: eventPerformers.slotOrder,
       setStart: eventPerformers.setStart,
       setMinutes: eventPerformers.setMinutes,
+      actualStart: eventPerformers.actualStart,
+      actualEnd: eventPerformers.actualEnd,
     })
     .from(eventPerformers)
     .where(
@@ -483,7 +494,9 @@ export async function publicLineupFor(platform: string | { slug: string; name: s
   const rundown = buildRundown(
     rows.map((r) => ({ ...r, kind: r.kind as LineupKind, status: r.status as PerformerStatus })),
   );
-  return rundown.map((r) => ({ name: r.name, kind: r.kind, time: publicSetTime(r) }));
+  // "Sedang tampil" = mode stage manager (Fase 3): sudah mulai, belum selesai.
+  const live = new Set(rows.filter((r) => r.actualStart && !r.actualEnd).map((r) => r.id));
+  return rundown.map((r) => ({ name: r.name, kind: r.kind, time: publicSetTime(r), live: live.has(r.id) }));
 }
 
 // ─── Pengingat tugas panitia (otomatis, ke HP Owner) ────────────────────────

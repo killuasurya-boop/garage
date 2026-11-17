@@ -358,3 +358,16 @@
   color: #ffc24a;
   font-variant-numeric: tabular-nums;
 }
+/* Mode stage manager (GIGS EO Fase 3): penampil yang sedang tampil. */
+.garage-website .gigs-spot__live {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e10613;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}

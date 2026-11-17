@@ -43,12 +43,12 @@ describe("mergeLineup", () => {
   });
   it("data Garage OS menggantikan, logo platform dipakai untuk nama yang sama", () => {
     const merged = mergeLineup([{ name: "SURAI", logo: "/event/surai.png", kind: null }], [
-      { name: "Surai", kind: "band" },
+      { name: "Surai", kind: "band", time: "20.00–20.30" },
       { name: "Standup Indo Tebing Tinggi", kind: "standup" },
     ]);
     expect(merged).toEqual([
-      { name: "Surai", kind: "band", logo: "/event/surai.png" },
-      { name: "Standup Indo Tebing Tinggi", kind: "standup", logo: null },
+      { name: "Surai", kind: "band", logo: "/event/surai.png", time: "20.00–20.30" },
+      { name: "Standup Indo Tebing Tinggi", kind: "standup", logo: null, time: null },
     ]);
   });
 });

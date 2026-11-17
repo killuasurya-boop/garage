@@ -70,6 +70,18 @@ function startUnpaidOrderSweeper() {
           console.warn("[sponsor] gagal:", error instanceof Error ? error.message : error);
         }
       }
+      // Lineup & Panitia: pengingat tugas panitia (H-1, hari H, terlambat 1/3/7 hari) ke HP Owner.
+      // Tiap 15 menit; aman diulang karena tiap pengingat punya kunci dedup per tugas + tahap + Owner.
+      if (new Date().getMinutes() % 15 === 8) {
+        try {
+          const { runMonitoredJob } = await import("@/lib/background-job-runner");
+          const { sweepLineupTaskReminders } = await import("@/lib/event-lineup-service");
+          const r = await runMonitoredJob("event_lineup_tasks", () => sweepLineupTaskReminders());
+          if (r?.sent) console.log(`[lineup] ${r.sent} pengingat tugas panitia dikirim.`);
+        } catch (error) {
+          console.warn("[lineup] gagal dimuat:", error instanceof Error ? error.message : error);
+        }
+      }
       // Sekali per jam: bersihkan feed notifikasi staf yang sudah lama (> 14 hari).
       if (new Date().getMinutes() === 7) {
         const { pruneStaffNotifications } = await import("@/lib/staff-notifications");

@@ -183,3 +183,85 @@ export function performerScheduleMessage(eventName: string, row: Pick<RundownRow
   const time = row.start ? `${row.start}${row.end ? `–${row.end}` : ""} WIB` : "jam tampil menyusul";
   return `Halo ${row.name}, jadwal tampil di ${eventName}: slot #${String(row.slot).padStart(2, "0")}, ${time}. Mohon datang 60 menit sebelum tampil untuk cek sound. Terima kasih!`;
 }
+
+/** Jam tampil untuk website, mis. "20.00–20.45" (titik, gaya Indonesia). Tanpa jam → null. */
+export function publicSetTime(row: Pick<RundownRow, "start" | "end">): string | null {
+  if (!row.start) return null;
+  const dot = (clock: string) => clock.replace(":", ".");
+  return row.end ? `${dot(row.start)}–${dot(row.end)}` : dot(row.start);
+}
+
+// ─── Pengingat tugas panitia (Owner, Nov 2026) ─────────────────────────────
+
+export type ReminderTask = {
+  id: string;
+  eventName: string;
+  title: string;
+  status: TaskStatus;
+  priority: TaskPriority;
+  dueDate: string | null;
+  crewName: string | null;
+};
+
+export type TaskReminderStage = "h-1" | "hari-h" | "terlambat-1" | "terlambat-3" | "terlambat-7";
+
+export type TaskReminder = {
+  key: string;
+  taskId: string;
+  eventName: string;
+  stage: TaskReminderStage;
+  severity: "info" | "warning";
+  title: string;
+  body: string;
+};
+
+function daysBetween(fromDate: string, toDate: string): number {
+  return Math.round((Date.parse(`${toDate}T00:00:00Z`) - Date.parse(`${fromDate}T00:00:00Z`)) / 86_400_000);
+}
+
+const OVERDUE_STAGES: Array<{ days: number; stage: TaskReminderStage }> = [
+  { days: 7, stage: "terlambat-7" },
+  { days: 3, stage: "terlambat-3" },
+  { days: 1, stage: "terlambat-1" },
+];
+
+/**
+ * Pengingat tugas panitia untuk hari ini (tanggal WIB): H-1, hari H, lalu terlambat 1/3/7 hari. Hanya tugas
+ * Belum/Proses yang punya tenggat. Satu tahap paling relevan per tugas; dedup lewat `key` di pemanggil.
+ */
+export function taskReminders(tasks: ReminderTask[], today: string): TaskReminder[] {
+  const out: TaskReminder[] = [];
+  for (const task of tasks) {
+    if ((task.status !== "todo" && task.status !== "proses") || !task.dueDate) continue;
+    const diff = daysBetween(today, task.dueDate);
+    let stage: TaskReminderStage | null = null;
+    let when = "";
+    if (diff === 1) {
+      stage = "h-1";
+      when = "tenggat besok";
+    } else if (diff === 0) {
+      stage = "hari-h";
+      when = "tenggat hari ini";
+    } else if (diff < 0) {
+      const late = -diff;
+      const hit = OVERDUE_STAGES.find((s) => late >= s.days);
+      if (hit) {
+        stage = hit.stage;
+        when = `terlambat ${late} hari`;
+      }
+    }
+    if (!stage) continue;
+    const severity = stage.startsWith("terlambat") || task.priority === "tinggi" ? "warning" : "info";
+    const pic = task.crewName ? ` · PIC ${task.crewName}` : " · belum ada PIC";
+    out.push({
+      key: `lineup-task:${task.id}:${stage}`,
+      taskId: task.id,
+      eventName: task.eventName,
+      stage,
+      severity,
+      title: `Tugas panitia ${when}: ${task.title}`,
+      body: `${task.eventName} · tenggat ${task.dueDate}${pic}`,
+    });
+  }
+  return out;
+}

@@ -18,3 +18,10 @@ description: Aturan WAJIB modul Lineup & Panitia Event (band/stand-up, rundown, 
 - Website: `src/app/page.tsx` replaces the GIGS platform lineup with confirmed + `showOnWebsite` performers whose event name
   matches the GIGS promo name (case-insensitive, `publicLineupFor`), logo taken from the platform by name (`mergeLineup`).
   No Garage OS data → platform lineup unchanged. Public output carries name + kind only (no contact/notes).
+- Website set time (owner 17 Nov 2026): `publicLineupFor` returns `{ name, kind, time }`; `time` = `publicSetTime(buildRundown(...))`
+  ("20.00–20.45", null when no set time), shown on the GIGS card as "… WIB". Still no contact/notes in public output.
+- Crew task reminders (owner 17 Nov 2026): pure `taskReminders(tasks, todayWib)` → stage `h-1`, `hari-h`, `terlambat-1/3/7`
+  (only `todo`/`proses` with a due date; `tinggi` or overdue = warning). `sweepLineupTaskReminders` sends `notifyStaff`
+  kind `lineup_task_reminder` to every active Owner, dedupKey `lineup-task:{taskId}:{stage}:{ownerUserId}`, url
+  `/control/lineup?event=…&tab=tugas` (page reads `event`/`tab`). Runs every 15 min (minute % 15 === 8) via
+  `runMonitoredJob("event_lineup_tasks")`. No automatic WhatsApp to crew (crew are not accounts; no messaging provider).

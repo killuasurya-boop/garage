@@ -8,11 +8,17 @@ export type FakeGigsEvent = {
   slug: string;
   name: string;
   lineup: Array<{ name: string; type: string; logo?: string }>;
+  /** RAB untuk /event/<slug>/api/public/config (opsional). */
+  budget?: Array<{ code: string; name: string; budget: number; purpose?: string; pic?: string }>;
 };
 
 export function startFakeGigsPlatform(initial: FakeGigsEvent) {
   let current = initial;
   const server: Server = createServer((req, res) => {
+    if (req.method === "GET" && req.url === `/event/${current.slug}/api/public/config`) {
+      res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ finance: { target: 0, budgetLines: current.budget ?? [] } }));
+      return;
+    }
     if (req.method !== "GET" || !req.url?.startsWith("/event/api/events")) {
       res.writeHead(404).end();
       return;

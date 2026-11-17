@@ -11,12 +11,15 @@ import {
   EVENT_PAY_SOURCE_LABEL,
   EVENT_PAY_SOURCES,
   eventProfit,
+  isReserveBudgetLine,
+  platformBudgetCategory,
   type EventCostCategory,
   type EventPaySource,
 } from "@/lib/event-finance-rules";
 import { listMasterEvents } from "@/lib/event-master";
 import { wibDate } from "@/lib/event-sponsor-rules";
 import { createAuditLog } from "@/lib/garage-service";
+import { fetchPlatformBudget } from "@/lib/gigs-promo";
 import type { GarageSession } from "@/lib/server-auth";
 
 // =============================================================================
@@ -235,6 +238,66 @@ export async function createBudgetLine(input: z.infer<typeof budgetLineSchema>, 
     .returning();
   await audit(garage, "Tambah pos anggaran event", row.title, { eventId: event.id, lineId: row.id, category: row.category, plannedAmount: row.plannedAmount });
   return row;
+}
+
+export const importPlatformBudgetSchema = z.object({ eventId: z.string().uuid() });
+
+/**
+ * Impor RAB dari platform GIGS sebagai pos anggaran (Owner, sekali klik). Hanya RENCANA: tidak ada uang yang bergerak,
+ * tidak ada baris buku kas. Nama pos yang sudah ada (aktif/arsip, tanpa peduli huruf) TIDAK ditimpa. Pos cadangan
+ * ("Save Money", "bukan biaya") dilewati. Setelah impor semua pos bebas diubah/diarsipkan seperti biasa.
+ */
+export async function importPlatformBudget(input: z.infer<typeof importPlatformBudgetSchema>, garage: GarageSession) {
+  assertOwnerHuman(garage);
+  const event = await loadEvent(input.eventId);
+  let platform: Awaited<ReturnType<typeof fetchPlatformBudget>>;
+  try {
+    platform = await fetchPlatformBudget({ slug: event.platformSlug ?? null, name: event.title });
+  } catch {
+    throw new EventFinanceError("PLATFORM_UNREACHABLE", "Platform GIGS tidak bisa dihubungi. Coba lagi beberapa saat.", 502);
+  }
+  if (!platform) {
+    throw new EventFinanceError("PLATFORM_EVENT_NOT_FOUND", "Event ini tidak ditemukan di platform GIGS. Isi slug platform di menu Event, atau samakan judul event.", 404);
+  }
+  const db = getDb();
+  const result = await db.transaction(async (tx) => {
+    const existing = await tx.select({ title: eventBudgetLines.title }).from(eventBudgetLines).where(eq(eventBudgetLines.eventId, event.id)).for("update");
+    const titles = new Set(existing.map((r) => r.title.trim().toLowerCase()));
+    const created: Array<{ title: string; category: EventCostCategory; plannedAmount: number }> = [];
+    const skipped: string[] = [];
+    const reserve: Array<{ title: string; amount: number }> = [];
+    for (const line of platform.lines) {
+      const title = line.name.trim();
+      if (isReserveBudgetLine(title, line.purpose)) {
+        reserve.push({ title, amount: line.budget });
+        continue;
+      }
+      if (titles.has(title.toLowerCase())) {
+        skipped.push(title);
+        continue;
+      }
+      const category = platformBudgetCategory(title);
+      const notes = [`RAB platform GIGS${line.code ? ` #${line.code}` : ""}`, line.pic ? `PIC ${line.pic}` : null, line.purpose].filter(Boolean).join(" · ").slice(0, 500);
+      await tx.insert(eventBudgetLines).values({ eventId: event.id, category, title, plannedAmount: line.budget, notes, createdBy: garage.user.id });
+      titles.add(title.toLowerCase());
+      created.push({ title, category, plannedAmount: line.budget });
+    }
+    return { created, skipped, reserve };
+  });
+  // Audit setelah transaksi (PGlite satu koneksi).
+  await audit(garage, "Impor RAB dari platform GIGS", event.title, {
+    eventId: event.id,
+    platform: platform.slug,
+    created: result.created,
+    skipped: result.skipped,
+    reserve: result.reserve,
+  });
+  return {
+    platformName: platform.name,
+    target: platform.target,
+    createdTotal: result.created.reduce((sum, r) => sum + r.plannedAmount, 0),
+    ...result,
+  };
 }
 
 export async function updateBudgetLine(id: string, patch: z.infer<typeof budgetLinePatchSchema>, garage: GarageSession) {

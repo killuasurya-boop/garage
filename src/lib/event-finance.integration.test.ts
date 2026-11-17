@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { Role } from "@/lib/garage-data";
 import type { GarageSession } from "@/lib/server-auth";
@@ -142,5 +142,76 @@ describe("Keuangan event", () => {
     await expect(
       svc.recordExpensePayment({ budgetLineId: lineId, amount: 1_000, paidAt: "2026-11-10", source: "external", payee: "X", idempotencyKey: "evfin-pay-arsip" }, owner()),
     ).rejects.toMatchObject({ code: "LINE_ARCHIVED" });
+  });
+
+  it("impor RAB platform GIGS: pos baru (rencana saja), cadangan dilewati, impor ulang tidak menimpa", async () => {
+    // RAB asli GIGS AKHIR TAHUN 2026 (konfigurasi publik platform, 17 Nov 2026), dipetakan ke judul event uji.
+    const config = {
+      finance: {
+        target: 21300000,
+        budgetLines: [
+          { code: "01", name: "Band", budget: 3200000, purpose: "Honor band lokal yang tampil (kontrak & bukti bayar).", pic: "Ace" },
+          { code: "02", name: "Sound (LIGHTING + DRUM + STAGE)", budget: 10000000, purpose: "Sewa sound system dari vendor.", pic: "Rafly" },
+          { code: "03", name: "Komsumsi", budget: 1000000, purpose: "Untuk para panitia dan talent", pic: "Rafly" },
+          { code: "04", name: "Stand-up Comedy", budget: 1200000, purpose: "Honor komika lokal Tebing Tinggi.", pic: "Ace" },
+          { code: "05", name: "Sewa Tempat", budget: 1200000, purpose: "Tempat stage dan sound", pic: "" },
+          { code: "06", name: "Kembang Api", budget: 1000000, purpose: "Hanya dipakai setelah keputusan keselamatan & izin.", pic: "" },
+          { code: "07", name: "Dokumentasi", budget: 1000000, purpose: "Foto & video acara.", pic: "Aress" },
+          { code: "08", name: "Save Money", budget: 1500000, purpose: "Simpanan cadangan, bukan biaya. Dipakai hanya setelah disetujui.", pic: "" },
+          { code: "09", name: "MC (2 orang)", budget: 1200000, purpose: "Honor total 2 MC (kontrak & cue sheet).", pic: "" },
+          { code: "10", name: "", budget: 5000 },
+          { code: "11", name: "Minus", budget: -1 },
+        ],
+      },
+    };
+    const calls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        calls.push(String(url));
+        if (String(url).endsWith("/api/events")) return new Response(JSON.stringify({ events: [{ slug: "gigs-uang", name: "gigs uang" }] }), { status: 200 });
+        return new Response(JSON.stringify(config), { status: 200 });
+      }),
+    );
+    try {
+      const before = (await svc.getEventFinance(owner(), eventId)).budget.rows.length;
+      const ledgerBefore = await t.getDb().select().from(t.schema.cashLedgerEntries);
+      const res = await svc.importPlatformBudget({ eventId }, owner());
+      expect(calls.at(-1)).toMatch(/\/event\/gigs-uang\/api\/public\/config$/);
+      expect(res.created.map((r: any) => r.title)).toEqual([
+        "Band",
+        "Sound (LIGHTING + DRUM + STAGE)",
+        "Komsumsi",
+        "Stand-up Comedy",
+        "Sewa Tempat",
+        "Kembang Api",
+        "Dokumentasi",
+        "MC (2 orang)",
+      ]);
+      expect(res.createdTotal).toBe(19_800_000);
+      expect(res.reserve).toEqual([{ title: "Save Money", amount: 1_500_000 }]);
+      const view = await svc.getEventFinance(owner(), eventId);
+      expect(view.budget.rows.length).toBe(before + 8);
+      const sound = view.budget.rows.find((r: any) => r.title === "Sound (LIGHTING + DRUM + STAGE)");
+      expect(sound).toMatchObject({ category: "sound", plannedAmount: 10_000_000 });
+      expect(view.budget.rows.find((r: any) => r.title === "MC (2 orang)")).toMatchObject({ category: "honor" });
+      // Rencana saja: tidak ada baris buku kas baru.
+      expect((await t.getDb().select().from(t.schema.cashLedgerEntries)).length).toBe(ledgerBefore.length);
+      // Impor ulang: tidak dobel, tidak menimpa perubahan Owner.
+      await svc.updateBudgetLine(sound.id, { plannedAmount: 9_000_000 }, owner());
+      const again = await svc.importPlatformBudget({ eventId }, owner());
+      expect(again.created).toEqual([]);
+      expect(again.skipped).toHaveLength(8);
+      expect((await svc.getEventFinance(owner(), eventId)).budget.rows.find((r: any) => r.id === sound.id).plannedAmount).toBe(9_000_000);
+      await expect(svc.importPlatformBudget({ eventId }, session("Manajer" as Role))).rejects.toMatchObject({ code: "FORBIDDEN" });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("fetch failed"); }));
+    try {
+      await expect(svc.importPlatformBudget({ eventId }, owner())).rejects.toMatchObject({ code: "PLATFORM_UNREACHABLE" });
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

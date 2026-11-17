@@ -185,3 +185,38 @@ test("Kontrol Event: satu bar menautkan semua menu event dengan event yang sama"
   await expect(page.getByRole("navigation", { name: "Kontrol event" }).getByRole("link", { name: /Sponsor/ })).toHaveAttribute("href", "/control/sponsors");
   check();
 });
+
+test("Keuangan Event: impor RAB dari platform GIGS jadi pos anggaran (cadangan dilewati)", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop-1366", "alur Owner diuji di desktop");
+  test.setTimeout(400_000);
+  const check = failOnPageErrors(page);
+  const tag = Math.random().toString(36).slice(2, 6).toUpperCase();
+  await login(page, "owner@garage.id");
+  const event = await masterEvent(page);
+  const platform = startFakeGigsPlatform({
+    slug: `gigs-rab-${tag.toLowerCase()}`,
+    name: event.title,
+    lineup: [],
+    budget: [
+      { code: "01", name: `Sound E2E ${tag}`, budget: 10_000_000, purpose: "Sewa sound system", pic: "Rafly" },
+      { code: "02", name: `MC E2E ${tag}`, budget: 1_200_000, purpose: "Honor 2 MC" },
+      { code: "03", name: "Save Money", budget: 1_500_000, purpose: "Simpanan cadangan, bukan biaya." },
+    ],
+  });
+  await platform.listen();
+  try {
+    await page.goto(`/control/event-finance?eventId=${event.id}`);
+    await expect(page.getByRole("heading", { name: "Keuangan Event" })).toBeVisible({ timeout: 90_000 });
+    await page.getByRole("button", { name: /Impor RAB dari platform GIGS/ }).click();
+    const notice = page.getByRole("status").filter({ hasText: "RAB dari" });
+    await expect(notice).toContainText("2 pos baru", { timeout: 60_000 });
+    await expect(notice).toContainText("Save Money");
+    const table = page.locator("table");
+    await expect(table.getByText(`Sound E2E ${tag}`)).toBeVisible();
+    await expect(table.getByText(`MC E2E ${tag}`)).toBeVisible();
+    await expect(table.getByText("Save Money")).toHaveCount(0);
+  } finally {
+    await platform.close();
+  }
+  check();
+});

@@ -184,6 +184,19 @@ Selama `GARAGE_MCP_CHATGPT_ENABLED` bukan `true`: tidak ada endpoint OAuth, `/.w
   - Ditolak (`ubahDataBlockReason`): auth/API key/akun & keamanan pengguna, PIN/password, tutup/buka buku
     (pakai `tutup_buku_harian`), sertifikasi saldo awal, terbitkan konten (pakai `terbitkan_konten`), aksi
     massal/impor, endpoint sisi pelanggan/member, backup, OAuth.
+- **Unggah foto dari chat** (Owner, 17 Nov 2026) — dua langkah, hanya di pintu ChatGPT:
+  1. `siapkan_foto` (R1): Owner mengunggah foto di percakapan; ChatGPT mengisi argumen `foto` (file, lewat
+     `_meta["openai/fileParams"]`). Server mengunduh **hanya** dari host unggahan ChatGPT (https, tanpa IP,
+     redirect dicek ulang), maks 8 MB, isi wajib JPG/PNG/WebP asli, lalu di-encode ulang (EXIF dibuang) dan
+     disimpan sementara 30 menit (non-publik, terikat Owner). Belum mengubah data; balasannya `fotoId`.
+  2. `pasang_foto` (R2, preview → konfirmasi): pasang `fotoId` ke tujuan tetap — `produk_menu` (cukup `nama` produk,
+     mis. "Nasi Goreng": nama persis menang, nama ambigu → `PRODUK_AMBIGU` + daftar pilihan; atau `id`),
+     `produk_mitra` (id link), `bahan_gudang` (id), `hero_website`, `suasana_website` (slot 1–4). Diteruskan ke
+     endpoint unggah yang sudah ada (kompresi & audit route itu tetap jalan).
+  - Bukti uang (struk kas, bukti transfer, dokumen) tidak bisa lewat jalur ini. URL unduhan tidak pernah
+    masuk audit/log. Host tambahan (bila OpenAI mengganti domain file): env `GARAGE_MCP_PHOTO_HOSTS`
+    (dipisah koma) — hanya operator VPS.
+  - Menghapus foto suasana: `ubah_data_garage` DELETE `/api/site/landing-hero?slot=suasana_N`.
 - **Sakelar Owner:** Pengaturan → Keamanan → *ChatGPT boleh mengubah data* (`mcpChatgptWriteEnabled`, default
   hidup). Mati = semua tool yang mengubah data ditolak `MCP_WRITE_DISABLED`; membaca tetap jalan. Tidak bisa
   diubah lewat API key/ChatGPT (prefix `mcpChatgpt` terlindungi).

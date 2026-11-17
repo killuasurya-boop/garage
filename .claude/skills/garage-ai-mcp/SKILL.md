@@ -20,6 +20,16 @@ description: Aturan WAJIB MCP ChatGPT, Owner AI Connect/Command Center, tool reg
   temporary agent key revoked right after (`mcp-delegated-api.ts`; scope owner/readonly, hidden from key list);
   blocked paths in `ubahDataBlockReason`; switch `mcpChatgptWriteEnabled` (off = writes `MCP_WRITE_DISABLED`). Login/2FA pages forward the signed
   `oauth_query` (`oauth-login-continue.ts`). See `docs/AGENT-API.md` §6.
+- Foto dari ChatGPT (owner 17 Nov 2026, no migration, `agent-tools-foto.ts` + `mcp-photo-staging.ts`): two tools, Owner via the
+  confirm flow only (`confirmOnly`, agent keys refused). `siapkan_foto` (R1, `_meta["openai/fileParams"]=["foto"]` via `AgentTool.meta`)
+  downloads the file the Owner uploaded in chat: https + OpenAI host allowlist only (`photoSourceBlockReason`, extra hosts via
+  `GARAGE_MCP_PHOTO_HOSTS`), no IPs, redirects re-checked per hop, 8 MB stream cap, 15 s; content must decode as JPG/PNG/WebP and is
+  re-encoded to WebP (EXIF stripped); staged in a NON-public temp dir bound to the Owner (30 min, max 10). `pasang_foto` (R2, preview +
+  confirmation on stable `fotoId`) forwards the staged file as multipart (`callApiAsOwner` `form`) to an EXISTING upload route from a
+  fixed list (`photoRoute`: produk_menu — by `nama` via `resolveMenuProductId`, active non-partner only, exact name wins, ambiguous =
+  `PRODUK_AMBIGU` —, produk_mitra, bahan_gudang, hero_website, suasana_website slot 1–4). Never add free paths or
+  money evidence (receipts, transfer proofs, documents) to that list. Signed `download_url`s never reach audit (`toolArgsPreview`
+  redacts to host), `mcp_operations` or error text.
 - Owner AI Connect (blueprint GOS-AI-MCP V3 Phase 1, `docs/owner-ai/`, migration 0175): `/control/ai-connect` + navbar chip
   (`AiStatusChip`). Status is per dimension (`computeAiStatus`, `owner-ai-status.ts`, pure): gateway / identity / ChatGPT link / tool
   access / execution — never a single green. `VERIFIED` only via MCP tool `garage_verify_connection` with a one-time code from

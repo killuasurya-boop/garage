@@ -26,6 +26,8 @@ export type DelegatedRequest = {
   path: string;
   query?: Record<string, string>;
   body?: unknown;
+  /** Multipart (mis. unggah foto) — menggantikan `body` JSON; content-type diisi fetch (boundary). */
+  form?: FormData;
 };
 
 export type DelegatedResponse = { status: number; ok: boolean; json: unknown; text: string | null };
@@ -93,11 +95,12 @@ export async function callApiAsOwner(
   try {
     const url = new URL(request.path, options.internalOrigin);
     for (const [name, value] of Object.entries(request.query ?? {})) url.searchParams.set(name, value);
-    const hasBody = request.method !== "GET" && request.body !== undefined;
+    const form = request.method !== "GET" ? request.form : undefined;
+    const hasBody = !form && request.method !== "GET" && request.body !== undefined;
     const response = await fetch(url, {
       method: request.method,
       headers: { authorization: `Bearer ${key}`, ...(hasBody ? { "content-type": "application/json" } : {}) },
-      body: hasBody ? JSON.stringify(request.body) : undefined,
+      body: form ?? (hasBody ? JSON.stringify(request.body) : undefined),
       cache: "no-store",
     });
     const type = response.headers.get("content-type") ?? "";

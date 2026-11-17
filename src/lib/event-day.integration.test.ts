@@ -136,4 +136,29 @@ describe("Hari-H: panggung", () => {
     await expect(lineup.updateTask(task.id, { status: "selesai" }, manajer())).resolves.toMatchObject({ status: "selesai" });
     await expect(lineup.updateTask(task.id, { title: "Ganti" }, manajer())).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
+
+  it("dua HP menekan Mulai bersamaan → tetap satu penampil live", async () => {
+    const at = new Date("2026-12-20T19:50:00+07:00");
+    await Promise.all([day.setSlotState(standup, "start", manajer(), at), day.setSlotState(surai, "start", owner(), at)]);
+    const view = await day.getEventDay(owner(), eventId);
+    expect(view.stage.slots.filter((s: any) => s.live)).toHaveLength(1);
+    const live = (await t.getDb().select().from(t.schema.eventPerformers)).filter((p: any) => p.eventId === eventId && p.actualStart && !p.actualEnd);
+    expect(live).toHaveLength(1);
+    await day.setSlotState(standup, "undo", owner());
+    await day.setSlotState(surai, "undo", owner());
+  });
+
+  it("Manajer: default & daftar event hanya outletnya (event outlet lain yang lebih baru tidak dipilih)", async () => {
+    const [other] = await t.getDb().insert(t.schema.outlets).values({ code: "LAIN", name: "Outlet Lain" } as any).returning();
+    await t
+      .getDb()
+      .insert(t.schema.events)
+      .values({ slug: "outlet-lain-baru", title: "Event Outlet Lain", outletId: other.id, startsAt: new Date("2027-06-01T12:00:00Z"), endsAt: new Date("2027-06-01T17:00:00Z"), venueName: "Garage Coffee", address: "Jl. Contoh No. 1, Tebing Tinggi", mapsUrl: "https://maps.app.goo.gl/contoh", contactWhatsapp: "6281200000000", status: "published" } as any);
+    const asOwner = await day.getEventDay(owner(), null);
+    expect(asOwner.event.title).toBe("Event Outlet Lain");
+    const asManajer = await day.getEventDay(manajer(), null);
+    expect(asManajer.masterEvents.map((e: any) => e.title)).not.toContain("Event Outlet Lain");
+    expect(asManajer.event).toBeTruthy();
+    expect(asManajer.event.title).not.toBe("Event Outlet Lain");
+  });
 });

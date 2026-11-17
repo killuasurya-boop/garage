@@ -27,6 +27,8 @@ export type GigsPromo = {
   fundTarget: number | null;
   fundPercent: number | null;
   counts: { sponsors: number; creators: number } | null;
+  /** Sponsor dari Garage OS (modul Sponsor, dicentang "tampil di website"); diisi di beranda, bukan dari platform. */
+  partners?: Array<{ name: string; logo: string | null; url: string | null; packageName: string | null }>;
   links: {
     daftar: string | null;
     daftarSponsor: string | null;

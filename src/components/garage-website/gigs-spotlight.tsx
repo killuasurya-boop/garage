@@ -176,6 +176,7 @@ export function GigsSpotlight({ promo }: { promo: GigsPromo }) {
                           {performer.logo ? <img src={performer.logo} alt={`Logo ${performer.name}`} loading="lazy" decoding="async" /> : null}
                         </div>
                         <strong>{performer.name}</strong>
+                        {performer.tagline ? <span className="gigs-spot__tagline">{performer.tagline}</span> : null}
                         {performer.time ? (
                           <span className="gigs-spot__time">
                             <Clock3 aria-hidden size={12} />
@@ -202,6 +203,40 @@ export function GigsSpotlight({ promo }: { promo: GigsPromo }) {
                 </li>
               </ol>
             ) : null}
+          </div>
+        ) : null}
+
+        {/* ---------- Sponsor (dari modul Sponsor Garage OS, dicentang "tampil di website") ---------- */}
+        {promo.partners?.length ? (
+          <div className="gigs-spot__partners" data-testid="home-gigs-partners">
+            <div className="gigs-spot__subhead">
+              <h3>Didukung oleh</h3>
+              <span>{promo.partners.length} sponsor</span>
+            </div>
+            <ul className="gigs-spot__partner-list">
+              {promo.partners.map((partner) => {
+                const body = (
+                  <>
+                    <span className="gigs-spot__partner-logo">
+                      {partner.logo ? <img src={partner.logo} alt={`Logo ${partner.name}`} loading="lazy" decoding="async" /> : <b aria-hidden>{partner.name.slice(0, 2)}</b>}
+                    </span>
+                    <strong>{partner.name}</strong>
+                    {partner.packageName ? <span className="gigs-spot__partner-tier">{partner.packageName}</span> : null}
+                  </>
+                );
+                return (
+                  <li key={partner.name}>
+                    {partner.url ? (
+                      <a className="gigs-spot__partner" href={partner.url} target="_blank" rel="noopener noreferrer sponsored">
+                        {body}
+                      </a>
+                    ) : (
+                      <div className="gigs-spot__partner">{body}</div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
           </div>
         ) : null}
 

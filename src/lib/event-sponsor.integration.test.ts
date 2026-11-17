@@ -197,4 +197,18 @@ describe("Sponsor Event — pengingat", () => {
     const rows = await t.getDb().select().from(t.schema.staffNotifications).where(eq(t.schema.staffNotifications.kind, "sponsor_reminder"));
     expect(rows.some((r: any) => /Bengkel Jaya/.test(r.body ?? "") && r.userId === OWNER && r.url === "/control/sponsors")).toBe(true);
   });
+
+  it("website: hanya sponsor yang dicentang & tidak batal, tanpa nilai uang/kontak", async () => {
+    const shown = await sp.createSponsor({ ...base, name: "Brand Tampil", contactPhone: null, showOnWebsite: true, websiteUrl: "https://instagram.com/brandtampil" }, owner());
+    await sp.createSponsor({ ...base, name: "Brand Diam", contactPhone: null }, owner());
+    // Tautan publik wajib https (divalidasi skema route).
+    expect(sp.sponsorUpdateSchema.safeParse({ websiteUrl: "http://tidak-aman.test" }).success).toBe(false);
+    expect(sp.sponsorUpdateSchema.safeParse({ websiteUrl: "javascript:alert(1)" }).success).toBe(false);
+    const withLogo = await sp.setSponsorLogo(shown.id, "/garage-uploads/event-sponsor/brand.webp", owner());
+    expect(withLogo.logoUrl).toBe("/garage-uploads/event-sponsor/brand.webp");
+    const list = await sp.publicSponsorsFor({ slug: "", name: "gigs akhir tahun 2026" });
+    expect(list).toEqual([{ name: "Brand Tampil", logo: "/garage-uploads/event-sponsor/brand.webp", url: "https://instagram.com/brandtampil", packageName: "Gold" }]);
+    await sp.setSponsorStatus(shown.id, "batal", "Mundur", owner());
+    expect(await sp.publicSponsorsFor({ slug: "", name: "GIGS AKHIR TAHUN 2026" })).toEqual([]);
+  });
 });

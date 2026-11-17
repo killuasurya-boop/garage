@@ -47,8 +47,14 @@ describe("mergeLineup", () => {
       { name: "Standup Indo Tebing Tinggi", kind: "standup" },
     ]);
     expect(merged).toEqual([
-      { name: "Surai", kind: "band", logo: "/event/surai.png", time: "20.00–20.30", live: false },
-      { name: "Standup Indo Tebing Tinggi", kind: "standup", logo: null, time: null, live: false },
+      { name: "Surai", kind: "band", logo: "/event/surai.png", time: "20.00–20.30", live: false, tagline: null },
+      { name: "Standup Indo Tebing Tinggi", kind: "standup", logo: null, time: null, live: false, tagline: null },
     ]);
+  });
+  it("logo unggahan Garage OS & tagline menang atas logo platform", () => {
+    const merged = mergeLineup([{ name: "Lost Side", logo: "/event/lost.png", kind: null }], [
+      { name: "Lost Side", kind: "band", logo: "/garage-uploads/event-lineup/x.webp", tagline: "Heavy / Metallic Roster" },
+    ]);
+    expect(merged[0]).toMatchObject({ logo: "/garage-uploads/event-lineup/x.webp", tagline: "Heavy / Metallic Roster" });
   });
 });

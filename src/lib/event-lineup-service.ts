@@ -84,6 +84,8 @@ const performerFields = {
   kind: z.enum(LINEUP_KIND_ORDER as [LineupKind, ...LineupKind[]]),
   eventDate: isoDate.nullable().optional(),
   genre: optionalText(60),
+  // Baris kecil di kartu lineup website, mis. "Heavy / Metallic Roster".
+  tagline: optionalText(40),
   contactName: optionalText(80),
   contactPhone: optionalText(24),
   instagram: optionalText(60),
@@ -311,6 +313,7 @@ export async function createPerformer(input: z.infer<typeof performerInputSchema
       name: input.name,
       kind: input.kind,
       genre: emptyToNull(input.genre) ?? null,
+      tagline: emptyToNull(input.tagline) ?? null,
       contactName: emptyToNull(input.contactName) ?? null,
       contactPhone: phoneOrThrow(input.contactPhone, "Kontak penampil"),
       instagram: instagramHandle(input.instagram),
@@ -342,6 +345,7 @@ export async function updatePerformer(id: string, patch: z.infer<typeof performe
   if (patch.kind !== undefined) values.kind = patch.kind;
   if (patch.eventDate !== undefined) values.eventDate = patch.eventDate;
   if (patch.genre !== undefined) values.genre = emptyToNull(patch.genre);
+  if (patch.tagline !== undefined) values.tagline = emptyToNull(patch.tagline);
   if (patch.contactName !== undefined) values.contactName = emptyToNull(patch.contactName);
   if (patch.contactPhone !== undefined) values.contactPhone = phoneOrThrow(patch.contactPhone, "Kontak penampil");
   if (patch.instagram !== undefined) values.instagram = instagramHandle(patch.instagram);
@@ -365,6 +369,24 @@ export async function updatePerformer(id: string, patch: z.infer<typeof performe
     before: Object.fromEntries(changed.map((k) => [k, (before as Record<string, unknown>)[k]])),
     after: Object.fromEntries(changed.map((k) => [k, (row as Record<string, unknown>)[k]])),
     reason: reason ?? undefined,
+  });
+  return row;
+}
+
+/** Logo penampil (unggahan webp di /garage-uploads/event-lineup) atau null = hapus → website memakai logo platform. */
+export async function setPerformerLogo(id: string, logoUrl: string | null, garage: GarageSession) {
+  assertOwnerHuman(garage);
+  const before = await findPerformer(id);
+  const [row] = await getDb()
+    .update(eventPerformers)
+    .set({ logoUrl, updatedAt: new Date() })
+    .where(eq(eventPerformers.id, id))
+    .returning();
+  await audit(garage, logoUrl ? "Ganti logo penampil" : "Hapus logo penampil", row.name, {
+    eventName: row.eventName,
+    performerId: id,
+    before: { logoUrl: before.logoUrl },
+    after: { logoUrl: row.logoUrl },
   });
   return row;
 }
@@ -483,7 +505,14 @@ export async function updateTask(id: string, patch: z.infer<typeof taskPatchSche
 
 // ─── Website (publik) ───────────────────────────────────────────────────────
 
-export type PublicLineupItem = { name: string; kind: LineupKind; time: string | null; live: boolean };
+export type PublicLineupItem = {
+  name: string;
+  kind: LineupKind;
+  time: string | null;
+  live: boolean;
+  logo: string | null;
+  tagline: string | null;
+};
 
 /**
  * Lineup terkonfirmasi untuk website (tanpa kontak/catatan). Dicocokkan dengan nama event GIGS tanpa
@@ -501,6 +530,8 @@ export async function publicLineupFor(platform: string | { slug: string; name: s
       id: eventPerformers.id,
       name: eventPerformers.name,
       kind: eventPerformers.kind,
+      logoUrl: eventPerformers.logoUrl,
+      tagline: eventPerformers.tagline,
       status: eventPerformers.status,
       slotOrder: eventPerformers.slotOrder,
       setStart: eventPerformers.setStart,
@@ -525,7 +556,15 @@ export async function publicLineupFor(platform: string | { slug: string; name: s
   );
   // "Sedang tampil" = mode stage manager (Fase 3): sudah mulai, belum selesai.
   const live = new Set(rows.filter((r) => r.actualStart && !r.actualEnd).map((r) => r.id));
-  return rundown.map((r) => ({ name: r.name, kind: r.kind, time: publicSetTime(r), live: live.has(r.id) }));
+  const extra = new Map(rows.map((r) => [r.id, r]));
+  return rundown.map((r) => ({
+    name: r.name,
+    kind: r.kind,
+    time: publicSetTime(r),
+    live: live.has(r.id),
+    logo: extra.get(r.id)?.logoUrl ?? null,
+    tagline: extra.get(r.id)?.tagline ?? null,
+  }));
 }
 
 // ─── Pengingat tugas panitia (otomatis, ke HP Owner) ────────────────────────

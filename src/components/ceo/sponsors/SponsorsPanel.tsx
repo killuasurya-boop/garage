@@ -21,6 +21,7 @@ import {
 
 import { PageHeader } from "@/components/ceo/layout/PageHeader";
 import { Badge } from "@/components/ceo/ui/Badge";
+import { LogoUpload } from "@/components/ceo/ui/LogoUpload";
 import { garageApi, GarageApiError } from "@/lib/api-client";
 import { INSTALLMENT_STATE_LABEL, OBLIGATION_STATE_LABEL, SPONSOR_STATUS_LABEL, type InstallmentState, type ObligationState } from "@/lib/event-sponsor-rules";
 import type { SponsorView } from "@/lib/event-sponsor-service";
@@ -378,6 +379,8 @@ function SponsorForm({
   const [contactName, setContactName] = useState(initial?.contactName ?? "");
   const [contactPhone, setContactPhone] = useState(initial?.contactPhone ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
+  const [websiteUrl, setWebsiteUrl] = useState(initial?.websiteUrl ?? "");
+  const [showOnWebsite, setShowOnWebsite] = useState(initial?.showOnWebsite ?? false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -394,6 +397,8 @@ function SponsorForm({
       contactName: contactName.trim() || null,
       contactPhone: contactPhone.trim() || null,
       notes: notes.trim() || null,
+      websiteUrl: websiteUrl.trim() || null,
+      showOnWebsite,
     };
     try {
       const view = initial ? await garageApi.patch<SponsorView>(`/api/sponsors/${initial.id}`, body) : await garageApi.post<SponsorView>("/api/sponsors", body);
@@ -448,6 +453,16 @@ function SponsorForm({
       <Field label="Nama sponsor">
         <input value={name} onChange={(e) => setName(e.target.value)} required minLength={2} maxLength={120} className={inputClass} />
       </Field>
+      <Field label="Tautan sponsor di website (opsional)">
+        <input value={websiteUrl} onChange={(e) => setWebsiteUrl(e.target.value)} maxLength={300} inputMode="url" placeholder="https://instagram.com/brand" className={inputClass} />
+      </Field>
+      <label className="flex items-start gap-2 text-sm text-zinc-200">
+        <input type="checkbox" className="mt-1" checked={showOnWebsite} onChange={(e) => setShowOnWebsite(e.target.checked)} />
+        <span>
+          Tampilkan di website event (bagian “Didukung oleh”)
+          <span className="block text-xs text-zinc-400">Yang tampil hanya nama, logo, paket, dan tautan — nilai uang & kontak tidak pernah tampil.</span>
+        </span>
+      </label>
       <Field label="Nilai uang yang disepakati" hint={`${agreed ? idr(Number(agreed)) : "Rp0"} · sponsor barang dicatat terpisah, tidak termasuk di sini.`}>
         <input inputMode="numeric" value={agreed} onChange={(e) => setAgreed(digits(e.target.value))} placeholder="5000000" className={`${inputClass} font-mono`} />
       </Field>
@@ -528,6 +543,17 @@ function SponsorDetail({ sponsor, today, onChanged, onEdit }: { sponsor: Sponsor
           ))}
         </dl>
         <Progress paid={sponsor.money.paid} agreed={sponsor.money.agreed} />
+        <div className="grid gap-1.5 border-t border-white/10 pt-3">
+          <p className="text-xs font-semibold text-zinc-300">
+            Logo sponsor · {sponsor.showOnWebsite ? <span className="text-amber-300">tampil di website</span> : <span className="text-zinc-400">tidak tampil di website (centang di Ubah)</span>}
+          </p>
+          <LogoUpload
+            endpoint={`/api/sponsors/${sponsor.id}/logo`}
+            logoUrl={sponsor.logoUrl}
+            label={sponsor.name}
+            onChanged={async () => onChanged(await garageApi.get<SponsorView>(`/api/sponsors/${sponsor.id}`, { cache: "no-store" }))}
+          />
+        </div>
         {sponsor.money.overpaid ? <p className="text-xs text-[#ffd8a8]">Uang masuk melebihi kesepakatan {idr(sponsor.money.overpaid)}. Cek nilai kesepakatan atau batalkan pembayaran yang salah.</p> : null}
         <p className="text-xs text-zinc-400">
           Total dukungan {idr(sponsor.health.totalSupport)} (uang + perkiraan nilai barang {idr(sponsor.health.inkindValue)}).

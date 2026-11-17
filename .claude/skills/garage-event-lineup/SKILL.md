@@ -50,3 +50,13 @@ description: Aturan WAJIB modul Lineup & Panitia Event (band/stand-up, rundown, 
   rencana tidak diubah; telat > 12 jam dianggap di luar hari event (tidak dihitung). Beranda `live` = sudah mulai & belum
   selesai. "Salin rundown ke agenda" (Owner) mengisi `events.agenda` dari rundown terkonfirmasi. Manajer di Lineup: baca papan +
   ubah STATUS tugas saja (`assertCrewHuman`); data penampil/panitia/uang tetap Owner.
+
+## Kustom kartu talent & sponsor di website (Owner 17 Nov 2026, migrasi 0200)
+- Penampil: `tagline` (≤40, baris kecil di bawah nama, mis. "Heavy / Metallic Roster") + `logo_url` (unggah
+  `POST/DELETE /api/event-lineup/performers/[id]/logo`, webp ≤200 KB di `/garage-uploads/event-lineup`, `setPerformerLogo`,
+  diaudit). `publicLineupFor` mengirim `{ name, kind, time, live, logo, tagline }`; `mergeLineup`: logo Garage OS dulu,
+  lalu logo platform untuk nama sama. Hapus logo → kembali ke logo platform.
+- Sponsor: `logo_url` (`POST/DELETE /api/sponsors/[id]/logo`, `setSponsorLogo`), `website_url` (https saja, Zod),
+  `show_on_website` (default **false**, Owner mencentang). `publicSponsorsFor({slug,name})` = nama, logo, tautan, paket
+  saja (TIDAK PERNAH nilai uang/kontak/catatan), sponsor `batal` tidak tampil. Beranda: bagian "Didukung oleh" di
+  `gigs-spotlight.tsx` (`promo.partners`). Tidak menyentuh buku kas.

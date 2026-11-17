@@ -1401,6 +1401,13 @@
       "when": 1794897743988,
       "tag": "0199_gigs_event_day",
       "breakpoints": true
+    },
+    {
+      "idx": 200,
+      "version": "7",
+      "when": 1794928968921,
+      "tag": "0200_event_public_branding",
+      "breakpoints": true
     }
   ]
 }

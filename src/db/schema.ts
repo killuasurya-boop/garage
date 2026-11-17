@@ -5767,6 +5767,10 @@ export const eventSponsors = pgTable(
     contactName: text("contact_name"),
     contactPhone: text("contact_phone"),
     packageName: text("package_name"),
+    // Tampilan publik (owner 17 Nov 2026): logo + tautan, tampil di website event hanya bila dicentang.
+    logoUrl: text("logo_url"),
+    websiteUrl: text("website_url"),
+    showOnWebsite: boolean("show_on_website").notNull().default(false),
     // Nilai UANG yang disepakati (rupiah). Sponsor barang dicatat terpisah.
     agreedAmount: integer("agreed_amount").notNull().default(0),
     // aktif | selesai | batal
@@ -5897,6 +5901,9 @@ export const eventPerformers = pgTable(
     // band | standup | akustik | dj | kreator
     kind: text("kind").notNull(),
     genre: text("genre"),
+    // Kartu lineup website (owner 17 Nov 2026): logo unggahan + baris kecil di bawah nama.
+    logoUrl: text("logo_url"),
+    tagline: text("tagline"),
     contactName: text("contact_name"),
     contactPhone: text("contact_phone"),
     instagram: text("instagram"),

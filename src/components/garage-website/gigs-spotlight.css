@@ -371,3 +371,57 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
+/* Tagline penampil (diisi Owner di modul Lineup), mis. "Heavy / Metallic Roster". */
+.garage-website .gigs-spot__tagline {
+  margin-top: -8px;
+  font-size: 13px;
+  line-height: 1.35;
+  color: #c9c9c9;
+  overflow-wrap: anywhere;
+}
+/* Sponsor event dari Garage OS: logo di plat gelap, nama tetap terbaca (tidak terpotong). */
+.garage-website .gigs-spot__partners { margin-top: 28px; }
+.garage-website .gigs-spot__partner-list {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+}
+.garage-website .gigs-spot__partner {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  background: #141414;
+  color: var(--fg);
+  text-decoration: none;
+  transition: border-color 0.2s, transform 0.2s;
+}
+.garage-website a.gigs-spot__partner:hover { border-color: rgba(255, 176, 32, 0.7); transform: translateY(-2px); }
+.garage-website a.gigs-spot__partner:focus-visible { outline: 2px solid #ffb020; outline-offset: 2px; }
+.garage-website .gigs-spot__partner-logo {
+  aspect-ratio: 16 / 9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0a0a0a;
+  overflow: hidden;
+}
+.garage-website .gigs-spot__partner-logo img { width: 100%; height: 100%; object-fit: contain; padding: 8px; }
+.garage-website .gigs-spot__partner-logo b { font-family: var(--font-display); font-weight: 400; font-size: 28px; text-transform: uppercase; color: #ff2638; }
+.garage-website .gigs-spot__partner strong { font-size: 14px; font-weight: 700; overflow-wrap: anywhere; }
+.garage-website .gigs-spot__partner-tier {
+  align-self: flex-start;
+  padding: 2px 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border: 1px solid rgba(255, 176, 32, 0.6);
+  color: #ffb020;
+}
+@media (prefers-reduced-motion: reduce) {
+  .garage-website a.gigs-spot__partner { transition: none; transform: none; }
+}

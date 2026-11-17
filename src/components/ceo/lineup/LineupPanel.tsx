@@ -26,6 +26,7 @@ import {
 
 import { PageHeader } from "@/components/ceo/layout/PageHeader";
 import { Badge } from "@/components/ceo/ui/Badge";
+import { LogoUpload } from "@/components/ceo/ui/LogoUpload";
 import { garageApi, GarageApiError } from "@/lib/api-client";
 import {
   CREW_ROLE_LABEL,
@@ -324,7 +325,11 @@ export function LineupPanel({ initialEvent = null, initialEventId = null, initia
       ) : null}
 
       {dialog?.kind === "performer" && event ? (
-        <PerformerForm event={event} row={dialog.row} onClose={() => setDialog(null)} onSave={(body) => run(() => (dialog.row ? garageApi.patch(`/api/event-lineup/performers/${dialog.row.id}`, body) : garageApi.post("/api/event-lineup", { ...body, eventId: board?.eventId ?? null, eventName: event })))} />
+        <PerformerForm
+          event={event}
+          row={dialog.row ? board?.performers.find((p) => p.id === dialog.row?.id) ?? dialog.row : null}
+          onLogoChanged={() => load(selected)}
+          onClose={() => setDialog(null)} onSave={(body) => run(() => (dialog.row ? garageApi.patch(`/api/event-lineup/performers/${dialog.row.id}`, body) : garageApi.post("/api/event-lineup", { ...body, eventId: board?.eventId ?? null, eventName: event })))} />
       ) : null}
       {dialog?.kind === "cancel" ? (
         <CancelForm row={dialog.row} onClose={() => setDialog(null)} onSave={(reason) => run(() => garageApi.patch(`/api/event-lineup/performers/${dialog.row.id}`, { status: "batal", cancelReason: reason }))} />
@@ -405,7 +410,16 @@ function LineupTab({
                       <span className="font-mono text-xs text-[#ff6b75]">{rd ? `SLOT #${String(rd.slot).padStart(2, "0")}` : "—"}</span>
                       <Badge tone={STATUS_TONE[row.status as PerformerStatus]}>{PERFORMER_STATUS_LABEL[row.status as PerformerStatus]}</Badge>
                     </div>
-                    <strong className="break-words text-lg font-black uppercase text-zinc-50">{row.name}</strong>
+                    <div className="flex min-w-0 items-center gap-3">
+                      {row.logoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element -- logo unggahan webp kecil
+                        <img src={row.logoUrl} alt="" className="size-12 shrink-0 rounded border border-white/10 bg-black object-contain p-0.5" />
+                      ) : null}
+                      <div className="min-w-0">
+                        <strong className="block break-words text-lg font-black uppercase text-zinc-50">{row.name}</strong>
+                        {row.tagline ? <span className="block break-words text-sm text-zinc-300">{row.tagline}</span> : null}
+                      </div>
+                    </div>
                     <p className="text-sm text-zinc-300">
                       {[row.genre, row.memberCount ? `${row.memberCount} orang` : null].filter(Boolean).join(" · ") || LINEUP_KIND_LABEL[kind]}
                     </p>
@@ -678,12 +692,25 @@ function useSubmit(onSave: () => Promise<boolean>, onClose: () => void) {
   };
 }
 
-function PerformerForm({ event, row, onClose, onSave }: { event: string; row: PerformerView | null; onClose: () => void; onSave: (body: Record<string, unknown>) => Promise<boolean> }) {
+function PerformerForm({
+  event,
+  row,
+  onClose,
+  onSave,
+  onLogoChanged,
+}: {
+  event: string;
+  row: PerformerView | null;
+  onClose: () => void;
+  onSave: (body: Record<string, unknown>) => Promise<boolean>;
+  onLogoChanged: () => void | Promise<void>;
+}) {
   const [f, setF] = useState({
     name: row?.name ?? "",
     kind: (row?.kind as LineupKind) ?? "band",
     status: (row?.status as PerformerStatus) ?? "calon",
     genre: row?.genre ?? "",
+    tagline: row?.tagline ?? "",
     memberCount: row?.memberCount ? String(row.memberCount) : "",
     contactName: row?.contactName ?? "",
     contactPhone: row?.contactPhone ?? "",
@@ -702,6 +729,7 @@ function PerformerForm({ event, row, onClose, onSave }: { event: string; row: Pe
         kind: f.kind,
         ...(row ? {} : { status: f.status }),
         genre: f.genre || null,
+        tagline: f.tagline || null,
         memberCount: numOrNull(f.memberCount),
         contactName: f.contactName || null,
         contactPhone: f.contactPhone || null,
@@ -748,6 +776,21 @@ function PerformerForm({ event, row, onClose, onSave }: { event: string; row: Pe
             <input className={inputClass} value={f.genre} onChange={set("genre")} maxLength={60} placeholder="mis. pop punk, komedi observasi" />
           </Field>
         ) : null}
+        <div className="sm:col-span-2">
+          <Field label="Tagline di kartu website">
+            <input className={inputClass} value={f.tagline} onChange={set("tagline")} maxLength={40} placeholder="mis. Heavy / Metallic Roster" />
+          </Field>
+        </div>
+        <div className="sm:col-span-2">
+          <div className="grid min-w-0 gap-1 text-xs font-semibold text-zinc-300">
+            Logo (kartu lineup website)
+            {row ? (
+              <LogoUpload endpoint={`/api/event-lineup/performers/${row.id}/logo`} logoUrl={row.logoUrl} label={row.name} onChanged={onLogoChanged} />
+            ) : (
+              <p className="text-sm font-normal text-zinc-400">Simpan penampil dulu, lalu buka “Ubah” untuk mengunggah logo.</p>
+            )}
+          </div>
+        </div>
         <Field label="Jumlah personel">
           <input className={inputClass} inputMode="numeric" value={f.memberCount} onChange={(e) => setF((s) => ({ ...s, memberCount: e.target.value.replace(/\D/g, "").slice(0, 2) }))} />
         </Field>

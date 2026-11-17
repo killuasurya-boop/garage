@@ -52,7 +52,7 @@ async function convertMenuImage(input: Buffer) {
 }
 
 /** Baca field `image` (multipart), kompres ke webp ≤200 KB, simpan di public/garage-uploads/<folder>. */
-export async function storeMenuImage(request: Request, folder: "menu" | "event-menu", fileId: string) {
+export async function storeMenuImage(request: Request, folder: "menu" | "event-menu" | "event-lineup" | "event-sponsor", fileId: string) {
   let formData: FormData;
   try {
     formData = await request.formData();

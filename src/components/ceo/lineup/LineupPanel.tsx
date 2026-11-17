@@ -46,9 +46,13 @@ import type { CrewView, PerformerView, TaskView } from "@/lib/event-lineup-servi
 // Lineup & Panitia Event (owner 16 Nov 2026): Owner saja. Semua data & aturan (rundown, kesiapan, tugas terlambat)
 // dihitung di server; layar ini hanya menampilkan dan mengirim perubahan.
 
+type MasterEvent = { id: string; title: string; date: string; status: string; platformSlug: string | null };
 type Board = {
   today: string;
   events: string[];
+  masterEvents: MasterEvent[];
+  legacyEvents: string[];
+  eventId: string | null;
   eventName: string | null;
   performers: PerformerView[];
   rundown: RundownRow[];
@@ -111,7 +115,6 @@ export function LineupPanel({ initialEvent = null, initialTab = "lineup" }: { in
   const [tab, setTab] = useState<LineupTab>(initialTab);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [newEvent, setNewEvent] = useState("");
   const [dialog, setDialog] = useState<
     | { kind: "performer"; row: PerformerView | null }
     | { kind: "cancel"; row: PerformerView }
@@ -185,31 +188,39 @@ export function LineupPanel({ initialEvent = null, initialTab = "lineup" }: { in
         <Field label="Event">
           <select className={inputClass} value={event ?? ""} onChange={(e) => void load(e.target.value || null)}>
             {!board?.events.length ? <option value="">Belum ada event</option> : null}
-            {board?.events.map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
+            {board?.masterEvents.length ? (
+              <optgroup label="Event (master)">
+                {board.masterEvents.map((m) => (
+                  <option key={m.id} value={m.title}>
+                    {m.title} · {m.date}
+                  </option>
+                ))}
+              </optgroup>
+            ) : null}
+            {board?.legacyEvents.length ? (
+              <optgroup label="Nama lama — belum tertaut">
+                {board.legacyEvents.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </optgroup>
+            ) : null}
           </select>
         </Field>
-        <form
-          className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const name = newEvent.trim();
-            if (name.length < 2) return;
-            setNewEvent("");
-            // Selalu muat dari server: nama yang sudah ada menampilkan datanya, nama baru mendapat papan & kesiapan kosong.
-            void load(name);
-          }}
-        >
-          <Field label="Event baru" hint="Pakai nama persis seperti di platform event (mis. GIGS AKHIR TAHUN 2026) agar lineup tampil di website.">
-            <input className={inputClass} value={newEvent} onChange={(e) => setNewEvent(e.target.value)} placeholder="Nama event" maxLength={120} />
-          </Field>
-          <button type="submit" className={`${ghostBtn} sm:mt-[1.375rem]`}>
-            <Plus size={16} /> Pakai
-          </button>
-        </form>
+        <div className="grid min-w-0 gap-1 text-sm text-zinc-300">
+          {board?.eventName && !board.eventId ? (
+            <p className="flex items-start gap-2 text-amber-200">
+              <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+              “{board.eventName}” belum tertaut ke master event. Buat event dengan judul yang sama di menu Event (Undangan
+              Digital) agar sponsor, lineup, dan beranda GIGS memakai satu identitas.
+            </p>
+          ) : null}
+          <p>
+            Event baru dibuat di menu <strong className="text-zinc-100">Event</strong> (Garage OS) lalu otomatis muncul di sini.
+            Isi “Slug di platform GIGS” di pengaturan event agar lineup tampil di beranda.
+          </p>
+        </div>
       </div>
 
       {error ? (
@@ -293,20 +304,20 @@ export function LineupPanel({ initialEvent = null, initialTab = "lineup" }: { in
           ) : null}
         </>
       ) : !loading ? (
-        <div className={`${cardClass} text-sm text-zinc-300`}>Belum ada event. Isi “Event baru” di atas untuk mulai menyusun lineup dan panitia.</div>
+        <div className={`${cardClass} text-sm text-zinc-300`}>Belum ada event. Buat event di menu Event (Garage OS) untuk mulai menyusun lineup dan panitia.</div>
       ) : null}
 
       {dialog?.kind === "performer" && event ? (
-        <PerformerForm event={event} row={dialog.row} onClose={() => setDialog(null)} onSave={(body) => run(() => (dialog.row ? garageApi.patch(`/api/event-lineup/performers/${dialog.row.id}`, body) : garageApi.post("/api/event-lineup", { ...body, eventName: event })))} />
+        <PerformerForm event={event} row={dialog.row} onClose={() => setDialog(null)} onSave={(body) => run(() => (dialog.row ? garageApi.patch(`/api/event-lineup/performers/${dialog.row.id}`, body) : garageApi.post("/api/event-lineup", { ...body, eventId: board?.eventId ?? null, eventName: event })))} />
       ) : null}
       {dialog?.kind === "cancel" ? (
         <CancelForm row={dialog.row} onClose={() => setDialog(null)} onSave={(reason) => run(() => garageApi.patch(`/api/event-lineup/performers/${dialog.row.id}`, { status: "batal", cancelReason: reason }))} />
       ) : null}
       {dialog?.kind === "crew" && event ? (
-        <CrewForm row={dialog.row} onClose={() => setDialog(null)} onSave={(body) => run(() => (dialog.row ? garageApi.patch(`/api/event-lineup/crew/${dialog.row.id}`, body) : garageApi.post("/api/event-lineup/crew", { ...body, eventName: event })))} />
+        <CrewForm row={dialog.row} onClose={() => setDialog(null)} onSave={(body) => run(() => (dialog.row ? garageApi.patch(`/api/event-lineup/crew/${dialog.row.id}`, body) : garageApi.post("/api/event-lineup/crew", { ...body, eventId: board?.eventId ?? null, eventName: event })))} />
       ) : null}
       {dialog?.kind === "task" && event && board ? (
-        <TaskForm row={dialog.row} crew={board.crew.filter((c) => c.status === "aktif" || c.id === dialog.row?.crewId)} onClose={() => setDialog(null)} onSave={(body) => run(() => (dialog.row ? garageApi.patch(`/api/event-lineup/tasks/${dialog.row.id}`, body) : garageApi.post("/api/event-lineup/tasks", { ...body, eventName: event })))} />
+        <TaskForm row={dialog.row} crew={board.crew.filter((c) => c.status === "aktif" || c.id === dialog.row?.crewId)} onClose={() => setDialog(null)} onSave={(body) => run(() => (dialog.row ? garageApi.patch(`/api/event-lineup/tasks/${dialog.row.id}`, body) : garageApi.post("/api/event-lineup/tasks", { ...body, eventId: board?.eventId ?? null, eventName: event })))} />
       ) : null}
     </div>
   );

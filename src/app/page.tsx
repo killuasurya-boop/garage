@@ -53,7 +53,7 @@ export default async function Home() {
 
   // Lineup GIGS: penampil terkonfirmasi dari modul Lineup & Panitia (Garage OS) menggantikan daftar platform event.
   const gigs = gigsPromo
-    ? { ...gigsPromo, promo: { ...gigsPromo.promo, lineup: mergeLineup(gigsPromo.promo.lineup, await publicLineupFor(gigsPromo.name).catch(() => [])) } }
+    ? { ...gigsPromo, promo: { ...gigsPromo.promo, lineup: mergeLineup(gigsPromo.promo.lineup, await publicLineupFor({ slug: gigsPromo.slug, name: gigsPromo.name }).catch(() => [])) } }
     : null;
 
   // Hero hanya butuh tanda "ada foto hero"; teks alt lama (brand "Coffee & Motor") tidak dikirim ke klien.

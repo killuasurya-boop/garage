@@ -1380,6 +1380,13 @@
       "when": 1794872035968,
       "tag": "0196_event_lineup_crew",
       "breakpoints": true
+    },
+    {
+      "idx": 197,
+      "version": "7",
+      "when": 1794896391750,
+      "tag": "0197_gigs_master_event",
+      "breakpoints": true
     }
   ]
 }

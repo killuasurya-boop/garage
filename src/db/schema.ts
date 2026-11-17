@@ -5083,6 +5083,8 @@ export const events = pgTable(
     // draft | published | archived
     status: text("status").notNull().default("draft"),
     featuredOnHome: boolean("featured_on_home").notNull().default(true),
+    // Slug event yang sama di platform GIGS (/event/<slug>); menghubungkan beranda & lineup ke master event ini.
+    platformSlug: text("platform_slug"),
     rsvpDeadline: timestamp("rsvp_deadline", { withTimezone: true }),
     defaultMaxPax: integer("default_max_pax").notNull().default(2),
     contentVersion: integer("content_version").notNull().default(1),
@@ -5092,6 +5094,7 @@ export const events = pgTable(
   },
   (t) => ({
     slugUnique: uniqueIndex("events_slug_unique").on(t.slug),
+    platformSlugUnique: uniqueIndex("events_platform_slug_unique").on(t.platformSlug).where(sql`${t.platformSlug} IS NOT NULL`),
     statusIdx: index("events_status_idx").on(t.status),
   }),
 );
@@ -5884,6 +5887,8 @@ export const eventPerformers = pgTable(
   "event_performers",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    // Master event (Fase 1 GIGS EO). Nama tetap disimpan untuk riwayat & data lama tanpa master.
+    eventId: uuid("event_id").references(() => events.id, { onDelete: "set null" }),
     eventName: text("event_name").notNull(),
     eventDate: date("event_date"),
     name: text("name").notNull(),
@@ -5911,6 +5916,7 @@ export const eventPerformers = pgTable(
   },
   (table) => ({
     eventIdx: index("event_performers_event_idx").on(table.eventName),
+    eventIdIdx: index("event_performers_event_id_idx").on(table.eventId),
     kindCheck: check("event_performers_kind_check", sql`${table.kind} in ('band','standup','akustik','dj','kreator')`),
     statusCheck: check("event_performers_status_check", sql`${table.status} in ('calon','konfirmasi','batal')`),
     minutesCheck: check("event_performers_minutes_check", sql`${table.setMinutes} is null or (${table.setMinutes} > 0 and ${table.setMinutes} <= 600)`),
@@ -5921,6 +5927,8 @@ export const eventCrew = pgTable(
   "event_crew",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    // Master event (Fase 1 GIGS EO). Nama tetap disimpan untuk riwayat & data lama tanpa master.
+    eventId: uuid("event_id").references(() => events.id, { onDelete: "set null" }),
     eventName: text("event_name").notNull(),
     name: text("name").notNull(),
     // ketua | sekretaris | bendahara | lineup | stage | sound | keamanan | dokumentasi | humas | konsumsi | tiket | lo | lainnya
@@ -5935,6 +5943,7 @@ export const eventCrew = pgTable(
   },
   (table) => ({
     eventIdx: index("event_crew_event_idx").on(table.eventName),
+    eventIdIdx: index("event_crew_event_id_idx").on(table.eventId),
     statusCheck: check("event_crew_status_check", sql`${table.status} in ('aktif','nonaktif')`),
   }),
 );
@@ -5943,6 +5952,8 @@ export const eventCrewTasks = pgTable(
   "event_crew_tasks",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    // Master event (Fase 1 GIGS EO). Nama tetap disimpan untuk riwayat & data lama tanpa master.
+    eventId: uuid("event_id").references(() => events.id, { onDelete: "set null" }),
     eventName: text("event_name").notNull(),
     title: text("title").notNull(),
     crewId: uuid("crew_id").references(() => eventCrew.id, { onDelete: "set null" }),
@@ -5959,6 +5970,7 @@ export const eventCrewTasks = pgTable(
   },
   (table) => ({
     eventIdx: index("event_crew_tasks_event_idx").on(table.eventName),
+    eventIdIdx: index("event_crew_tasks_event_id_idx").on(table.eventId),
     crewIdx: index("event_crew_tasks_crew_idx").on(table.crewId),
     statusCheck: check("event_crew_tasks_status_check", sql`${table.status} in ('todo','proses','selesai','batal')`),
     priorityCheck: check("event_crew_tasks_priority_check", sql`${table.priority} in ('rendah','normal','tinggi')`),

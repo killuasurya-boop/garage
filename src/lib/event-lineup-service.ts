@@ -23,6 +23,7 @@ import {
   type TaskStatus,
 } from "@/lib/event-lineup-rules";
 import { wibDate } from "@/lib/event-sponsor-rules";
+import { EventRefError, findEventForPlatform, listMasterEvents, resolveEventRef } from "@/lib/event-master";
 import { createAuditLog } from "@/lib/garage-service";
 import type { GarageSession } from "@/lib/server-auth";
 
@@ -69,6 +70,8 @@ const clock = z
   .optional();
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Tanggal tidak valid (format YYYY-MM-DD).");
 const eventName = z.string().trim().min(2, "Nama event wajib diisi.").max(120);
+// Tulis baru: pilih master event (`eventId`); nama bebas hanya untuk data lama tanpa master.
+const eventRef = { eventId: z.string().uuid().nullable().optional(), eventName: eventName.optional() };
 
 const performerFields = {
   name: z.string().trim().min(2, "Nama penampil wajib diisi.").max(80),
@@ -88,9 +91,9 @@ const performerFields = {
 };
 
 // Penampil baru hanya calon/konfirmasi; "batal" hanya lewat ubah status (wajib alasan).
-export const performerInputSchema = z.object({ eventName, ...performerFields, status: z.enum(["calon", "konfirmasi"]).optional() });
+export const performerInputSchema = z.object({ ...eventRef, ...performerFields, status: z.enum(["calon", "konfirmasi"]).optional() });
 export const performerPatchSchema = performerInputSchema
-  .omit({ eventName: true })
+  .omit({ eventName: true, eventId: true })
   .partial()
   .extend({ status: z.enum(PERFORMER_STATUSES).optional(), cancelReason: optionalText(300) });
 
@@ -102,7 +105,7 @@ const crewFields = {
   phone: optionalText(24),
   duties: optionalText(1000),
 };
-export const crewInputSchema = z.object({ eventName, ...crewFields });
+export const crewInputSchema = z.object({ ...eventRef, ...crewFields });
 export const crewPatchSchema = z.object({
   name: crewFields.name.optional(),
   role: crewFields.role.optional(),
@@ -112,7 +115,7 @@ export const crewPatchSchema = z.object({
 });
 
 export const taskInputSchema = z.object({
-  eventName,
+  ...eventRef,
   title: z.string().trim().min(3, "Judul tugas wajib diisi.").max(160),
   crewId: z.string().uuid().nullable().optional(),
   dueDate: isoDate.nullable().optional(),
@@ -129,6 +132,15 @@ export const taskPatchSchema = z.object({
 });
 
 // ─── Helper ────────────────────────────────────────────────────────────────
+
+async function eventFor(input: { eventId?: string | null; eventName?: string | null }) {
+  try {
+    return await resolveEventRef(input);
+  } catch (error) {
+    if (error instanceof EventRefError) throw new LineupError(error.code, error.message, error.status);
+    throw error;
+  }
+}
 
 function phoneOrThrow(value: string | null | undefined, field: string): string | null {
   if (value === undefined || value === null || value.trim() === "") return null;
@@ -190,11 +202,16 @@ async function knownEvents(): Promise<string[]> {
 export async function getLineupBoard(garage: GarageSession, requested: string | null) {
   assertOwnerHuman(garage);
   const db = getDb();
-  const events = await knownEvents();
+  const [known, masterEvents] = await Promise.all([knownEvents(), listMasterEvents()]);
+  // Master event di atas, lalu nama lama yang belum tertaut ke master (ditandai di layar).
+  const masterTitles = new Set(masterEvents.map((e) => e.title.toLowerCase()));
+  const legacyEvents = known.filter((name) => !masterTitles.has(name.toLowerCase()));
+  const events = [...masterEvents.map((e) => e.title), ...legacyEvents];
   const event = requested?.trim() || events[0] || null;
   const today = wibDate();
+  const master = event ? masterEvents.find((e) => e.title.toLowerCase() === event.toLowerCase()) ?? null : null;
   if (!event) {
-    return { today, events, eventName: null, performers: [], rundown: [], crew: [], tasks: [], readiness: eventReadiness({ performers: [], crew: [], tasks: [], overlaps: 0 }, today) };
+    return { today, events, masterEvents, legacyEvents, eventId: null, eventName: null, performers: [], rundown: [], crew: [], tasks: [], readiness: eventReadiness({ performers: [], crew: [], tasks: [], overlaps: 0 }, today) };
   }
   const [performers, crewRows, taskRows] = await Promise.all([
     db.select().from(eventPerformers).where(eq(eventPerformers.eventName, event)).orderBy(asc(eventPerformers.slotOrder), asc(eventPerformers.name)),
@@ -231,18 +248,32 @@ export async function getLineupBoard(garage: GarageSession, requested: string | 
     },
     today,
   );
-  return { today, events: events.includes(event) ? events : [event, ...events], eventName: event, performers, rundown, crew, tasks, readiness };
+  return {
+    today,
+    events: events.includes(event) ? events : [event, ...events],
+    masterEvents,
+    legacyEvents,
+    eventId: master?.id ?? null,
+    eventName: event,
+    performers,
+    rundown,
+    crew,
+    tasks,
+    readiness,
+  };
 }
 
 // ─── Penampil ───────────────────────────────────────────────────────────────
 
 export async function createPerformer(input: z.infer<typeof performerInputSchema>, garage: GarageSession) {
   assertOwnerHuman(garage);
+  const ref = await eventFor(input);
   const db = getDb();
   const [row] = await db
     .insert(eventPerformers)
     .values({
-      eventName: input.eventName,
+      eventId: ref.eventId,
+      eventName: ref.eventName,
       eventDate: input.eventDate ?? null,
       name: input.name,
       kind: input.kind,
@@ -328,10 +359,12 @@ export async function reorderPerformers(input: z.infer<typeof reorderSchema>, ga
 
 export async function createCrew(input: z.infer<typeof crewInputSchema>, garage: GarageSession) {
   assertOwnerHuman(garage);
+  const ref = await eventFor(input);
   const [row] = await getDb()
     .insert(eventCrew)
     .values({
-      eventName: input.eventName,
+      eventId: ref.eventId,
+      eventName: ref.eventName,
       name: input.name,
       role: input.role,
       phone: phoneOrThrow(input.phone, "Nomor panitia"),
@@ -368,11 +401,13 @@ export async function updateCrew(id: string, patch: z.infer<typeof crewPatchSche
 
 export async function createTask(input: z.infer<typeof taskInputSchema>, garage: GarageSession) {
   assertOwnerHuman(garage);
-  await assertCrewInEvent(input.crewId, input.eventName);
+  const ref = await eventFor(input);
+  await assertCrewInEvent(input.crewId, ref.eventName);
   const [row] = await getDb()
     .insert(eventCrewTasks)
     .values({
-      eventName: input.eventName,
+      eventId: ref.eventId,
+      eventName: ref.eventName,
       title: input.title,
       crewId: input.crewId ?? null,
       dueDate: input.dueDate ?? null,
@@ -417,8 +452,11 @@ export type PublicLineupItem = { name: string; kind: LineupKind; time: string | 
  * peduli huruf besar/kecil. Jam tampil dari rundown (urutan slot, lewat tengah malam). Kosong = website
  * memakai lineup dari platform event seperti biasa.
  */
-export async function publicLineupFor(eventNameValue: string): Promise<PublicLineupItem[]> {
-  const name = eventNameValue.trim();
+export async function publicLineupFor(platform: string | { slug: string; name: string }): Promise<PublicLineupItem[]> {
+  const ref = typeof platform === "string" ? { slug: "", name: platform } : platform;
+  // Master event (slug platform GIGS → event Garage OS) dulu; tanpa master: cocok nama seperti sebelumnya.
+  const master = await findEventForPlatform(ref).catch(() => null);
+  const name = (master?.title ?? ref.name).trim();
   if (!name) return [];
   const rows = await getDb()
     .select({
@@ -433,7 +471,9 @@ export async function publicLineupFor(eventNameValue: string): Promise<PublicLin
     .from(eventPerformers)
     .where(
       and(
-        sql`lower(${eventPerformers.eventName}) = lower(${name})`,
+        master
+          ? sql`(${eventPerformers.eventId} = ${master.id} or lower(${eventPerformers.eventName}) = lower(${name}))`
+          : sql`lower(${eventPerformers.eventName}) = lower(${name})`,
         eq(eventPerformers.status, "konfirmasi"),
         eq(eventPerformers.showOnWebsite, true),
       ),

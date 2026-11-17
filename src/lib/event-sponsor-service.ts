@@ -29,6 +29,7 @@ import {
   wibDate,
   type SponsorStatus,
 } from "@/lib/event-sponsor-rules";
+import { EventRefError, listMasterEvents, resolveEventRef } from "@/lib/event-master";
 import { createAuditLog } from "@/lib/garage-service";
 import type { GarageSession } from "@/lib/server-auth";
 
@@ -215,10 +216,12 @@ export async function listSponsors(garage: GarageSession, options: { eventName?:
   const sponsors = rows.map((row) => buildView(row, children, today));
   const active = sponsors.filter((s) => s.status !== "batal");
   const eventNames = [...new Set(rows.map((r) => r.eventName))];
+  const masterEvents = await listMasterEvents();
   return {
     today,
     sponsors,
     events: eventNames,
+    masterEvents,
     totals: {
       sponsors: active.length,
       agreed: active.reduce((sum, s) => sum + s.money.agreed, 0),
@@ -282,9 +285,21 @@ function cleanInput(input: Partial<SponsorInput>) {
   return out;
 }
 
+/** Master event (GIGS EO Fase 1): `eventId` → nama = judul master; nama yang sama dengan satu master ikut ditautkan. */
+async function withEventRef(values: Partial<typeof eventSponsors.$inferInsert>, input: Partial<SponsorInput>) {
+  if (input.eventId === undefined && input.eventName === undefined) return values;
+  try {
+    const ref = await resolveEventRef({ eventId: input.eventId ?? null, eventName: input.eventName ?? null });
+    return { ...values, eventId: ref.eventId, eventName: ref.eventName };
+  } catch (error) {
+    if (error instanceof EventRefError) throw new SponsorError(error.code, error.message, error.status);
+    throw error;
+  }
+}
+
 export async function createSponsor(input: SponsorInput, garage: GarageSession, now = new Date()) {
   assertOwnerHuman(garage);
-  const values = cleanInput(input);
+  const values = await withEventRef(cleanInput(input), input);
   const db = getDb();
   const row = await db.transaction(async (tx) => {
     const sponsorNo = await nextSponsorNo(tx, now);
@@ -311,7 +326,7 @@ export async function updateSponsor(id: string, input: Partial<SponsorInput>, ga
   const db = getDb();
   const before = await loadSponsor(db, id);
   if (before.status === "batal") throw new SponsorError("CANCELLED", "Sponsor yang sudah batal tidak bisa diubah.", 409);
-  const values = cleanInput(input);
+  const values = await withEventRef(cleanInput(input), input);
   if (values.agreedAmount !== undefined) {
     const installments = await db.select().from(eventSponsorInstallments).where(eq(eventSponsorInstallments.sponsorId, id));
     const problem = scheduleProblem(installments.map((i) => ({ label: i.label, amount: i.amount, dueDate: String(i.dueDate) })), values.agreedAmount);

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getDb } from "@/db";
 import {
   cashLedgerEntries,
+  eventPerformers,
   eventSponsorInkind,
   eventSponsorInstallments,
   eventSponsorObligations,
@@ -104,6 +105,8 @@ export const paymentSchema = z.object({
 export const obligationSchema = z.object({
   title: z.string().trim().min(2, "Kewajiban wajib diisi.").max(160),
   dueDate: dateString.nullable().optional(),
+  // GIGS EO #13: kewajiban di panggung (mis. "disebut MC") ditempel ke slot penampil event yang sama.
+  slotPerformerId: z.string().uuid().nullable().optional(),
 });
 
 export const inkindSchema = z.object({
@@ -156,7 +159,7 @@ function buildView(row: SponsorRow, children: Awaited<ReturnType<typeof loadChil
   );
   const obligations = own(children.obligations).map((o) => {
     const base = { id: o.id, title: o.title, dueDate: o.dueDate ? String(o.dueDate) : null, doneAt: o.doneAt ? o.doneAt.toISOString() : null };
-    return { ...base, state: obligationState(base, today), doneNote: o.doneNote, hasProof: Boolean(o.proofPath) };
+    return { ...base, state: obligationState(base, today), doneNote: o.doneNote, hasProof: Boolean(o.proofPath), slotPerformerId: o.slotPerformerId };
   });
   const inkind = own(children.inkind).map((k) => ({
     id: k.id,
@@ -522,7 +525,15 @@ export async function addObligation(id: string, input: z.infer<typeof obligation
   assertOwnerHuman(garage);
   const db = getDb();
   const sponsor = await loadSponsor(db, id);
-  const [row] = await db.insert(eventSponsorObligations).values({ sponsorId: id, title: input.title.trim(), dueDate: input.dueDate || null }).returning();
+  if (input.slotPerformerId) {
+    const [performer] = await db.select({ eventId: eventPerformers.eventId }).from(eventPerformers).where(eq(eventPerformers.id, input.slotPerformerId)).limit(1);
+    if (!performer) throw new SponsorError("SLOT_NOT_FOUND", "Penampil tidak ditemukan.", 404);
+    if (!sponsor.eventId || performer.eventId !== sponsor.eventId) throw new SponsorError("SLOT_OTHER_EVENT", "Slot harus penampil dari event sponsor ini.");
+  }
+  const [row] = await db
+    .insert(eventSponsorObligations)
+    .values({ sponsorId: id, title: input.title.trim(), dueDate: input.dueDate || null, slotPerformerId: input.slotPerformerId ?? null })
+    .returning();
   await audit(garage, "Kewajiban sponsor ditambah", sponsor.sponsorNo, { sponsorId: id, obligationId: row.id, title: row.title, dueDate: row.dueDate });
   return getSponsor(id, garage);
 }

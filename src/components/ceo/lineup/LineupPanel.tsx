@@ -49,6 +49,8 @@ import type { CrewView, PerformerView, TaskView } from "@/lib/event-lineup-servi
 type MasterEvent = { id: string; title: string; date: string; status: string; platformSlug: string | null };
 type Board = {
   today: string;
+  honor?: Record<string, { planned: number; paid: number }>;
+  sponsorNotes?: Record<string, Array<{ sponsor: string; title: string; done: boolean }>>;
   events: string[];
   masterEvents: MasterEvent[];
   legacyEvents: string[];
@@ -414,6 +416,14 @@ function LineupTab({
                       {rd?.start ? `${rd.start}${rd.end ? `–${rd.end}` : ""} WIB` : "Jam tampil belum diatur"}
                       {rd?.overlap ? <Badge tone="red">Bertumpuk</Badge> : null}
                     </p>
+                    {board.honor?.[row.id] ? (
+                      <p className="text-sm text-zinc-300">
+                        Honor Rp{board.honor[row.id].paid.toLocaleString("id-ID")} / Rp{board.honor[row.id].planned.toLocaleString("id-ID")}{" "}
+                        <Badge tone={board.honor[row.id].paid >= board.honor[row.id].planned ? "success" : board.honor[row.id].paid ? "amber" : "muted"}>
+                          {board.honor[row.id].paid >= board.honor[row.id].planned ? "Lunas" : board.honor[row.id].paid ? "Sebagian" : "Belum dibayar"}
+                        </Badge>
+                      </p>
+                    ) : null}
                     {row.contactPhone ? (
                       <p className="flex flex-wrap items-center gap-2 text-sm text-zinc-300">
                         {row.contactName ?? "Kontak"} ·
@@ -421,8 +431,15 @@ function LineupTab({
                           <Phone size={13} /> {row.contactPhone}
                         </a>
                         {rd ? (
-                          <a className="inline-flex items-center gap-1 text-emerald-300 underline-offset-2 hover:underline" href={waLink(row.contactPhone, performerScheduleMessage(board.eventName ?? "", rd))} target="_blank" rel="noreferrer">
-                            <MessageCircle size={13} /> Kirim jadwal
+                          <a
+                            className="inline-flex items-center gap-1 text-emerald-300 underline-offset-2 hover:underline"
+                            href={waLink(row.contactPhone, performerScheduleMessage(board.eventName ?? "", rd))}
+                            target="_blank"
+                            rel="noreferrer"
+                            // GIGS EO #14: tandai jadwal sudah dikirim (pengingat H-1 berhenti untuk penampil ini).
+                            onClick={() => void garageApi.patch(`/api/event-lineup/performers/${row.id}`, { scheduleSent: true }).catch(() => undefined)}
+                          >
+                            <MessageCircle size={13} /> {row.scheduleSentAt ? "Kirim ulang jadwal" : "Kirim jadwal"}
                           </a>
                         ) : null}
                       </p>
@@ -505,7 +522,14 @@ function RundownTab({ board }: { board: Board }) {
                 <tr key={row.id} className="border-t border-white/10 align-top text-zinc-100">
                   <td className="py-2 pr-3 font-mono">#{String(row.slot).padStart(2, "0")}</td>
                   <td className="whitespace-nowrap py-2 pr-3">{row.start ? `${row.start}${row.end ? `–${row.end}` : ""}` : "—"}</td>
-                  <td className="py-2 pr-3 font-semibold">{row.name}</td>
+                  <td className="py-2 pr-3 font-semibold">
+                    {row.name}
+                    {board.sponsorNotes?.[row.id]?.map((note, index) => (
+                      <span key={index} className={`mt-1 block text-xs font-normal ${note.done ? "text-zinc-400 line-through" : "text-amber-200"}`}>
+                        Sponsor {note.sponsor}: {note.title}
+                      </span>
+                    ))}
+                  </td>
                   <td className="py-2 pr-3">{LINEUP_KIND_LABEL[row.kind]}</td>
                   <td className="py-2 pr-3">{PERFORMER_STATUS_LABEL[row.status]}</td>
                   <td className="py-2 pr-3 text-xs">
@@ -691,6 +715,8 @@ function PerformerForm({ event, row, onClose, onSave }: { event: string; row: Pe
     setStart: row?.setStart ?? "",
     setMinutes: row?.setMinutes ? String(row.setMinutes) : "",
     techRider: row?.techRider ?? "",
+    hospitality: row?.hospitality ?? "",
+    contractUrl: row?.contractUrl ?? "",
     notes: row?.notes ?? "",
     showOnWebsite: row?.showOnWebsite ?? true,
   });
@@ -709,6 +735,8 @@ function PerformerForm({ event, row, onClose, onSave }: { event: string; row: Pe
         setStart: f.setStart || null,
         setMinutes: numOrNull(f.setMinutes),
         techRider: f.techRider || null,
+        hospitality: f.hospitality || null,
+        contractUrl: f.contractUrl || null,
         notes: f.notes || null,
         showOnWebsite: f.showOnWebsite,
       }),
@@ -771,6 +799,12 @@ function PerformerForm({ event, row, onClose, onSave }: { event: string; row: Pe
         <div className="sm:col-span-2">
           <Field label="Tech rider / kebutuhan panggung">
             <textarea className={areaClass} value={f.techRider} onChange={set("techRider")} maxLength={1000} placeholder="mis. 2 vokal mic, 1 DI bass, drum set lengkap" />
+          </Field>
+          <Field label="Hospitality (opsional)">
+            <textarea className={areaClass} value={f.hospitality} onChange={set("hospitality")} maxLength={1000} placeholder="mis. 6 air mineral, makan malam 5 orang, ruang ganti" />
+          </Field>
+          <Field label="Tautan kontrak (opsional)" hint="Google Drive / dokumen https://…">
+            <input className={inputClass} value={f.contractUrl} onChange={set("contractUrl")} maxLength={500} placeholder="https://…" />
           </Field>
         </div>
         <div className="sm:col-span-2">

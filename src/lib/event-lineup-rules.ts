@@ -156,6 +156,8 @@ export type ReadinessInput = {
   crew: Array<{ role: CrewRole; status: "aktif" | "nonaktif" }>;
   tasks: TaskLike[];
   overlaps: number;
+  /** GIGS EO #11: progres checklist operasional & keselamatan (master event). */
+  ops?: { done: number; total: number };
 };
 
 export type ReadinessItem = { key: string; label: string; done: boolean; detail: string };
@@ -179,6 +181,14 @@ export function eventReadiness(input: ReadinessInput, today: string): { items: R
     { key: "stage", label: "Stage manager / koordinator lineup ditunjuk", done: hasStage, detail: hasStage ? "Ada" : "Belum ada" },
     { key: "tugas", label: "Tidak ada tugas terlambat", done: overdue === 0, detail: overdue ? `${overdue} terlambat dari ${openTasks} terbuka` : `${openTasks} tugas terbuka` },
   ];
+  if (input.ops && input.ops.total > 0) {
+    items.push({
+      key: "operasional",
+      label: "Checklist operasional & keselamatan lengkap",
+      done: input.ops.done >= input.ops.total,
+      detail: `${input.ops.done}/${input.ops.total} selesai`,
+    });
+  }
   const done = items.filter((i) => i.done).length;
   return { items, done, total: items.length };
 }
@@ -266,6 +276,40 @@ export function taskReminders(tasks: ReminderTask[], today: string): TaskReminde
       severity,
       title: `Tugas panitia ${when}: ${task.title}`,
       body: `${task.eventName} · tenggat ${task.dueDate}${pic}`,
+    });
+  }
+  return out;
+}
+
+export type ScheduleCheck = { eventId: string; eventName: string; eventDate: string; name: string; hasContact: boolean; scheduleSent: boolean };
+
+/**
+ * GIGS EO #14: H-1 dan hari H, penampil terkonfirmasi yang jadwalnya belum dikirim → satu pengingat per event per tahap
+ * (bentuk sama dengan `taskReminders` supaya dikirim lewat jalur yang sama).
+ */
+export function scheduleReminders(rows: ScheduleCheck[], today: string): TaskReminder[] {
+  const byEvent = new Map<string, ScheduleCheck[]>();
+  for (const row of rows) {
+    if (row.scheduleSent) continue;
+    const list = byEvent.get(row.eventId) ?? [];
+    list.push(row);
+    byEvent.set(row.eventId, list);
+  }
+  const out: TaskReminder[] = [];
+  for (const [eventId, list] of byEvent) {
+    const diff = daysBetween(today, list[0].eventDate);
+    if (diff !== 0 && diff !== 1) continue;
+    const stage: TaskReminderStage = diff === 1 ? "h-1" : "hari-h";
+    const names = list.map((r) => r.name);
+    const noContact = list.filter((r) => !r.hasContact).length;
+    out.push({
+      key: `lineup-schedule:${eventId}:${stage}`,
+      taskId: eventId,
+      eventName: list[0].eventName,
+      stage,
+      severity: "warning",
+      title: `${list.length} penampil belum dikirimi jadwal ${diff === 1 ? "(event besok)" : "(event hari ini)"}`,
+      body: `${list[0].eventName}: ${names.slice(0, 4).join(", ")}${names.length > 4 ? ", …" : ""}${noContact ? ` · ${noContact} tanpa nomor WA` : ""}`,
     });
   }
   return out;

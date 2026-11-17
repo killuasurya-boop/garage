@@ -56,6 +56,8 @@ type FinanceView = {
   sponsor?: { count: number; agreed: number; paid: number; remaining: number; inkind: number };
   menu?: { available: boolean; netSales: number; cost: number | null; paidBills: number; note: string | null };
   profit?: { menuContribution: number; menuMarginKnown: boolean; income: number; current: number; projected: number; status: "untung" | "rugi"; projectedStatus: "untung" | "rugi" };
+  review?: { rating: number | null; highlights: string | null; issues: string | null; incidents: string | null; nextTime: string | null; updatedAt: string } | null;
+  comparison?: Array<{ id: string; title: string; date: string; costPaid: number; sponsorPaid: number; net: number; checkins: number; rating: number | null; current: boolean }>;
 };
 
 const idr = (value: number) => `${value < 0 ? "-" : ""}Rp${Math.abs(Math.round(value)).toLocaleString("id-ID")}`;
@@ -402,6 +404,26 @@ export function EventFinancePanel() {
               ))}
             </ul>
           </section>
+          <ReviewCard key={view.event.id} eventId={view.event.id} review={view.review ?? null} onSave={(body) => run(() => garageApi.put("/api/event-finance/review", body))} />
+
+          {view.comparison?.length ? (
+            <section className={`${cardClass} space-y-2`}>
+              <h3 className="font-bold text-zinc-100">Banding antar event</h3>
+              <p className="text-xs text-zinc-400">Sponsor masuk − biaya dibayar (tanpa penjualan menu) · orang check-in · nilai evaluasi.</p>
+              <ul className="divide-y divide-white/10">
+                {view.comparison.map((c) => (
+                  <li key={c.id} className={`flex flex-wrap items-baseline justify-between gap-2 py-2 text-sm ${c.current ? "font-bold text-zinc-50" : "text-zinc-300"}`}>
+                    <span className="min-w-0">
+                      {c.title} · {c.date}
+                    </span>
+                    <span className="tabular-nums">
+                      {idr(c.net)} · {c.checkins} org{c.rating ? ` · ${c.rating}/5` : ""}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
         </>
       ) : !loading && !view?.event ? (
         <div className={`${cardClass} text-sm text-zinc-300`}>Belum ada event. Buat event di menu Event (Garage OS) lebih dulu.</div>
@@ -651,5 +673,65 @@ function VoidForm({ payment, onClose, onSave }: { payment: Payment; onClose: () 
         </button>
       </form>
     </Modal>
+  );
+}
+
+function ReviewCard({
+  eventId,
+  review,
+  onSave,
+}: {
+  eventId: string;
+  review: NonNullable<FinanceView["review"]> | null;
+  onSave: (body: Record<string, unknown>) => Promise<boolean>;
+}) {
+  const [rating, setRating] = useState(review?.rating ? String(review.rating) : "");
+  const [highlights, setHighlights] = useState(review?.highlights ?? "");
+  const [issues, setIssues] = useState(review?.issues ?? "");
+  const [incidents, setIncidents] = useState(review?.incidents ?? "");
+  const [nextTime, setNextTime] = useState(review?.nextTime ?? "");
+  const [busy, setBusy] = useState(false);
+  const area = `${inputClass.replace("h-10", "min-h-20 py-2")}`;
+  return (
+    <section className={`${cardClass} space-y-3`}>
+      <h3 className="font-bold text-zinc-100">Evaluasi pasca-event</h3>
+      <form
+        className="grid gap-3 sm:grid-cols-2"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setBusy(true);
+          await onSave({ eventId, rating: rating ? Number(rating) : null, highlights, issues, incidents, nextTime });
+          setBusy(false);
+        }}
+      >
+        <Field label="Nilai keseluruhan">
+          <select className={inputClass} value={rating} onChange={(e) => setRating(e.target.value)}>
+            <option value="">Belum dinilai</option>
+            {[5, 4, 3, 2, 1].map((n) => (
+              <option key={n} value={n}>
+                {n} / 5
+              </option>
+            ))}
+          </select>
+        </Field>
+        <div className="hidden sm:block" />
+        <Field label="Yang berhasil">
+          <textarea className={area} value={highlights} onChange={(e) => setHighlights(e.target.value)} maxLength={2000} />
+        </Field>
+        <Field label="Kendala">
+          <textarea className={area} value={issues} onChange={(e) => setIssues(e.target.value)} maxLength={2000} />
+        </Field>
+        <Field label="Insiden (keamanan, medis, keluhan)">
+          <textarea className={area} value={incidents} onChange={(e) => setIncidents(e.target.value)} maxLength={2000} />
+        </Field>
+        <Field label="Perbaikan untuk event berikutnya">
+          <textarea className={area} value={nextTime} onChange={(e) => setNextTime(e.target.value)} maxLength={2000} />
+        </Field>
+        <button type="submit" className={`${primaryBtn} sm:col-span-2 print:hidden`} disabled={busy}>
+          Simpan evaluasi
+        </button>
+      </form>
+      {review?.updatedAt ? <p className="text-xs text-zinc-500">Terakhir disimpan {dateTime(review.updatedAt)}</p> : null}
+    </section>
   );
 }

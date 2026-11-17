@@ -1,8 +1,8 @@
-import { and, asc, eq, inArray, isNull, sql, type SQL } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, ne, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 
 import { getDb } from "@/db";
-import { eventCrew, eventCrewTasks, eventPerformers, eventSponsors, events, staffProfiles } from "@/db/schema";
+import { eventCrew, eventCrewTasks, eventOpsChecks, eventPerformers, events, eventSponsorObligations, eventSponsors, staffProfiles } from "@/db/schema";
 import {
   buildRundown,
   cleanCrewPhone,
@@ -13,6 +13,7 @@ import {
   LINEUP_KIND_ORDER,
   PERFORMER_STATUSES,
   publicSetTime,
+  scheduleReminders,
   taskReminders,
   TASK_PRIORITIES,
   TASK_STATUSES,
@@ -22,6 +23,7 @@ import {
   type TaskPriority,
   type TaskStatus,
 } from "@/lib/event-lineup-rules";
+import { OPS_CHECK_TEMPLATE } from "@/lib/event-day-rules";
 import { wibDate } from "@/lib/event-sponsor-rules";
 import { EventRefError, findEventForPlatform, listMasterEvents, resolveEventRef } from "@/lib/event-master";
 import { createAuditLog } from "@/lib/garage-service";
@@ -92,6 +94,14 @@ const performerFields = {
   setStart: clock,
   setMinutes: z.number().int().min(1).max(600).nullable().optional(),
   techRider: optionalText(1000),
+  hospitality: optionalText(1000),
+  contractUrl: z
+    .string()
+    .trim()
+    .max(500)
+    .refine((v) => v === "" || /^https:\/\/[^\s"'<>]+$/.test(v), "Tautan kontrak harus https://…")
+    .nullable()
+    .optional(),
   notes: optionalText(1000),
   showOnWebsite: z.boolean().optional(),
 };
@@ -101,7 +111,12 @@ export const performerInputSchema = z.object({ ...eventRef, ...performerFields, 
 export const performerPatchSchema = performerInputSchema
   .omit({ eventName: true, eventId: true })
   .partial()
-  .extend({ status: z.enum(PERFORMER_STATUSES).optional(), cancelReason: optionalText(300) });
+  .extend({
+    status: z.enum(PERFORMER_STATUSES).optional(),
+    cancelReason: optionalText(300),
+    // GIGS EO #14: tombol "Kirim jadwal" menandai jadwal sudah dikirim (false = belum).
+    scheduleSent: z.boolean().optional(),
+  });
 
 export const reorderSchema = z.object({ eventId: z.string().uuid().nullable().optional(), eventName, ids: z.array(z.string().uuid()).min(1).max(200) });
 
@@ -207,6 +222,18 @@ async function knownEvents(): Promise<string[]> {
   return list.map((r) => r.event_name).filter(Boolean);
 }
 
+async function opsProgress(eventId: string) {
+  const [row] = await getDb()
+    .select({ total: sql<number>`count(*)::int`, done: sql<number>`count(${eventOpsChecks.doneAt})::int` })
+    .from(eventOpsChecks)
+    .where(eq(eventOpsChecks.eventId, eventId));
+  const total = Number(row?.total ?? 0);
+  // Checklist keselamatan belum pernah dibuka (baris dibuat saat layar Hari-H dibuka) = 10 item bawaan, belum selesai.
+  // Skor kesiapan tidak boleh tergantung apakah seseorang pernah membuka /event-day.
+  if (total === 0) return { done: 0, total: OPS_CHECK_TEMPLATE.length };
+  return { done: Number(row?.done ?? 0), total };
+}
+
 /** Pilihan event papan: ID master (utama) atau nama lama. String = nama (tautan lama `?event=`). */
 export type LineupBoardRequest = string | { eventId?: string | null; eventName?: string | null } | null;
 
@@ -278,11 +305,47 @@ export async function getLineupBoard(garage: GarageSession, requested: LineupBoa
       crew: crewRows.map((c) => ({ role: c.role as CrewRole, status: c.status as "aktif" | "nonaktif" })),
       tasks: taskRows.map((t) => ({ status: t.status as TaskStatus, dueDate: t.dueDate })),
       overlaps: rundown.filter((r) => r.overlap).length,
+      ops: master ? await opsProgress(master.id) : undefined,
     },
     today,
   );
+  // GIGS EO #13: kewajiban sponsor yang ditempel ke slot penampil (untuk MC / stage manager).
+  const sponsorNotes: Record<string, Array<{ sponsor: string; title: string; done: boolean }>> = {};
+  if (performers.length) {
+    const noteRows = await db
+      .select({ performerId: eventSponsorObligations.slotPerformerId, sponsor: eventSponsors.name, title: eventSponsorObligations.title, doneAt: eventSponsorObligations.doneAt })
+      .from(eventSponsorObligations)
+      .innerJoin(eventSponsors, eq(eventSponsors.id, eventSponsorObligations.sponsorId))
+      .where(
+        and(
+          inArray(eventSponsorObligations.slotPerformerId, performers.map((p) => p.id)),
+          isNull(eventSponsorObligations.archivedAt),
+          ne(eventSponsors.status, "batal"),
+        ),
+      );
+    for (const r of noteRows) {
+      if (!r.performerId) continue;
+      (sponsorNotes[r.performerId] ??= []).push({ sponsor: r.sponsor, title: r.title, done: Boolean(r.doneAt) });
+    }
+  }
+  // GIGS EO #10: status honor penampil (Owner saja) dari Keuangan Event — anggaran honor tertaut vs dibayar.
+  const honor: Record<string, { planned: number; paid: number }> = {};
+  if (garage.profile.role === "Owner" && master) {
+    const rows = await db.execute(sql`
+      select l.performer_id, sum(l.planned_amount)::int as planned, coalesce(sum(pp.paid), 0)::int as paid
+      from event_budget_lines l
+      left join (
+        select budget_line_id, sum(amount) as paid from event_expense_payments where status = 'posted' group by budget_line_id
+      ) pp on pp.budget_line_id = l.id
+      where l.event_id = ${master.id} and l.performer_id is not null and l.status = 'aktif'
+      group by l.performer_id`);
+    const list = (rows as unknown as { rows?: Array<{ performer_id: string; planned: number; paid: number }> }).rows ?? (rows as unknown as Array<{ performer_id: string; planned: number; paid: number }>);
+    for (const r of list) honor[r.performer_id] = { planned: Number(r.planned), paid: Number(r.paid) };
+  }
   return {
     today,
+    honor,
+    sponsorNotes,
     events: events_.includes(event) ? events_ : [event, ...events_],
     masterEvents,
     legacyEvents,
@@ -320,6 +383,8 @@ export async function createPerformer(input: z.infer<typeof performerInputSchema
       setStart: emptyToNull(input.setStart) ?? null,
       setMinutes: input.setMinutes ?? null,
       techRider: emptyToNull(input.techRider) ?? null,
+      hospitality: emptyToNull(input.hospitality) ?? null,
+      contractUrl: emptyToNull(input.contractUrl) ?? null,
       notes: emptyToNull(input.notes) ?? null,
       showOnWebsite: input.showOnWebsite ?? true,
       createdBy: garage.user.id,
@@ -350,6 +415,9 @@ export async function updatePerformer(id: string, patch: z.infer<typeof performe
   if (patch.setStart !== undefined) values.setStart = emptyToNull(patch.setStart);
   if (patch.setMinutes !== undefined) values.setMinutes = patch.setMinutes;
   if (patch.techRider !== undefined) values.techRider = emptyToNull(patch.techRider);
+  if (patch.scheduleSent !== undefined) values.scheduleSentAt = patch.scheduleSent ? new Date() : null;
+  if (patch.hospitality !== undefined) values.hospitality = emptyToNull(patch.hospitality);
+  if (patch.contractUrl !== undefined) values.contractUrl = emptyToNull(patch.contractUrl);
   if (patch.notes !== undefined) values.notes = emptyToNull(patch.notes);
   if (patch.showOnWebsite !== undefined) values.showOnWebsite = patch.showOnWebsite;
   if (patch.status !== undefined) {
@@ -550,10 +618,30 @@ export async function sweepLineupTaskReminders(now = new Date()) {
     .from(eventCrewTasks)
     .leftJoin(eventCrew, eq(eventCrewTasks.crewId, eventCrew.id))
     .where(inArray(eventCrewTasks.status, ["todo", "proses"]));
-  const reminders = taskReminders(
-    rows.map((r) => ({ ...r, status: r.status as TaskStatus, priority: r.priority as TaskPriority, dueDate: r.dueDate ?? null })),
-    wibDate(now),
-  );
+  const today = wibDate(now);
+  // GIGS EO #14: penampil terkonfirmasi (master event) yang jadwalnya belum dikirim, H-1 & hari H.
+  const performerRows = await db
+    .select({
+      eventId: events.id,
+      eventName: events.title,
+      startsAt: events.startsAt,
+      name: eventPerformers.name,
+      contactPhone: eventPerformers.contactPhone,
+      scheduleSentAt: eventPerformers.scheduleSentAt,
+    })
+    .from(eventPerformers)
+    .innerJoin(events, eq(events.id, eventPerformers.eventId))
+    .where(and(eq(eventPerformers.status, "konfirmasi"), isNull(eventPerformers.scheduleSentAt)));
+  const reminders = [
+    ...taskReminders(
+      rows.map((r) => ({ ...r, status: r.status as TaskStatus, priority: r.priority as TaskPriority, dueDate: r.dueDate ?? null })),
+      today,
+    ),
+    ...scheduleReminders(
+      performerRows.map((r) => ({ eventId: r.eventId, eventName: r.eventName, eventDate: wibDate(r.startsAt), name: r.name, hasContact: Boolean(r.contactPhone), scheduleSent: Boolean(r.scheduleSentAt) })),
+      today,
+    ),
+  ];
   if (!reminders.length) return { sent: 0 };
   const eventIdOf = new Map(rows.map((r) => [r.id, r.eventId]));
   const owners = await db

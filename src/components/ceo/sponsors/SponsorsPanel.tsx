@@ -553,6 +553,9 @@ function SponsorDetail({ sponsor, today, onChanged, onEdit }: { sponsor: Sponsor
             <button type="button" onClick={onEdit} className={ghostBtn}>
               <Pencil className="h-4 w-4" aria-hidden /> Ubah kesepakatan
             </button>
+            <a href={`/control/sponsors/report/${sponsor.id}`} target="_blank" rel="noreferrer" className={ghostBtn}>
+              <ClipboardCheck className="h-4 w-4" aria-hidden /> Laporan ke sponsor
+            </a>
             {sponsor.status === "aktif" ? (
               <button type="button" disabled={busy} onClick={() => void setStatus("selesai")} className={ghostBtn}>
                 <CheckCircle2 className="h-4 w-4" aria-hidden /> Tandai selesai
@@ -905,6 +908,22 @@ function InstallmentsTab({ sponsor, locked, onChanged }: { sponsor: SponsorView;
 
 function ObligationsTab({ sponsor, locked, onChanged }: { sponsor: SponsorView; locked: boolean; onChanged: (view: SponsorView) => void }) {
   const [title, setTitle] = useState("");
+  // GIGS EO #13: slot panggung (penampil terkonfirmasi event sponsor ini) untuk kewajiban seperti "disebut MC".
+  const [slots, setSlots] = useState<Array<{ id: string; name: string }>>([]);
+  const [slotId, setSlotId] = useState("");
+  useEffect(() => {
+    if (!sponsor.eventId) return;
+    let alive = true;
+    garageApi
+      .get<{ eventId: string | null; performers: Array<{ id: string; name: string; status: string }> }>(`/api/event-lineup?event=${encodeURIComponent(sponsor.eventName)}`, { cache: "no-store" })
+      .then((board) => {
+        if (alive && board.eventId === sponsor.eventId) setSlots(board.performers.filter((p) => p.status === "konfirmasi").map((p) => ({ id: p.id, name: p.name })));
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [sponsor.eventId, sponsor.eventName]);
   const [dueDate, setDueDate] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -930,7 +949,8 @@ function ObligationsTab({ sponsor, locked, onChanged }: { sponsor: SponsorView; 
           onSubmit={(e) => {
             e.preventDefault();
             const sent = title;
-            void run(() => garageApi.post<SponsorView>(`/api/sponsors/${sponsor.id}/obligations`, { title: sent.trim(), dueDate: dueDate || null })).then(() => {
+            void run(() => garageApi.post<SponsorView>(`/api/sponsors/${sponsor.id}/obligations`, { title: sent.trim(), dueDate: dueDate || null, slotPerformerId: slotId || null })).then(() => {
+              setSlotId("");
               // Hanya kosongkan bila belum diketik ulang selama menyimpan.
               setTitle((current) => (current === sent ? "" : current));
               setDueDate("");
@@ -939,6 +959,16 @@ function ObligationsTab({ sponsor, locked, onChanged }: { sponsor: SponsorView; 
         >
           <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Janji ke sponsor: logo di poster, disebut MC, booth…" aria-label="Kewajiban baru" maxLength={160} className={inputClass} />
           <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} aria-label="Tenggat kewajiban" className={inputClass} />
+          {slots.length ? (
+            <select value={slotId} onChange={(e) => setSlotId(e.target.value)} aria-label="Slot panggung (opsional)" className={`${inputClass} sm:col-span-2`}>
+              <option value="">Tanpa slot panggung</option>
+              {slots.map((p) => (
+                <option key={p.id} value={p.id}>
+                  Slot: {p.name}
+                </option>
+              ))}
+            </select>
+          ) : null}
           <button type="submit" disabled={busy || title.trim().length < 2} className={primaryBtn}>
             <Plus className="h-4 w-4" aria-hidden /> Tambah
           </button>

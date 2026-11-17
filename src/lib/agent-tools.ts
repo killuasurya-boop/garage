@@ -13,6 +13,7 @@ import { ownerAiTools } from "@/lib/agent-tools-owner-ai";
 import { kasTools } from "@/lib/agent-tools-kas";
 import { posStaffTools } from "@/lib/agent-tools-pos-staf";
 import { ubahDataTools } from "@/lib/agent-tools-ubah-data";
+import { fotoTools } from "@/lib/agent-tools-foto";
 import { productTools } from "@/lib/agent-tools-produk";
 import { warehouseTools } from "@/lib/agent-tools-gudang";
 import { memberTableEventTools } from "@/lib/agent-tools-member-meja-event";
@@ -353,6 +354,7 @@ const tools: AgentTool[] = [
   ...marketingTools,
   // Tulis universal (Owner via ChatGPT, selalu lewat konfirmasi).
   ...ubahDataTools,
+  ...fotoTools,
   {
     name: "garage_api",
     title: "Baca endpoint Garage OS",
@@ -412,6 +414,7 @@ export function listAgentTools(session?: GarageSession, options: { includeConfir
       domain: tool.domain,
       risk: tool.risk,
       inputSchema: z.toJSONSchema(tool.input),
+      meta: tool.meta,
     }));
 }
 

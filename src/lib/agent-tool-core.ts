@@ -35,6 +35,8 @@ export type AgentTool = {
    * Hanya boleh MENAIKKAN dari `risk`, tidak menurunkan.
    */
   riskFor?: (args: Record<string, unknown>) => ToolRisk;
+  /** `_meta` tambahan di deskriptor MCP (mis. `openai/fileParams` untuk argumen berupa file unggahan). */
+  meta?: Record<string, unknown>;
 };
 
 export const rupiah = (value: number) => `Rp${Math.round(value).toLocaleString("id-ID")}`;

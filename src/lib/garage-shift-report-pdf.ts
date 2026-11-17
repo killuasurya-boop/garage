@@ -13,6 +13,11 @@ type Transactions = NonNullable<
   Awaited<ReturnType<typeof import("./garage-service").getCashSessionTransactions>>
 >;
 
+import { hasPartnerReport, partnerProductLabel, partnerReportNotes, type PartnerShiftSales } from "./partner-cashier-rules";
+
+/** Penjualan mitra shift ini (opsional; hub mati / tidak ada penjualan = seksi tidak dicetak). */
+export type ShiftReportPartners = Pick<PartnerShiftSales, "partners" | "totals"> & { payoutNote?: string | null };
+
 const fmtRp = (n: number) => `Rp ${new Intl.NumberFormat("id-ID").format(n)}`;
 
 const fmtDateTime = (iso: string | null) =>
@@ -44,6 +49,7 @@ const labelForMethod = (method: string) =>
 export async function generateShiftReportPdf(
   summary: Summary,
   transactions: Transactions,
+  partners: ShiftReportPartners | null = null,
 ): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     try {
@@ -300,6 +306,77 @@ export async function generateShiftReportPdf(
         doc.strokeColor("#ddd").lineWidth(0.5).moveTo(48, doc.y).lineTo(547, doc.y).stroke();
         doc.moveDown(0.25);
       };
+
+      // ─── Penjualan mitra (Partner Hub) ──────────────────
+      // Per mitra → produk (qty, harga, penjualan, modal mitra = wajib bayar, profit Garage). Bukan uang laci.
+      if (partners && hasPartnerReport(partners)) {
+        sectionTitle("Penjualan Mitra (Partner Hub)");
+        doc
+          .font("Helvetica")
+          .fontSize(8.5)
+          .fillColor("#666")
+          .text("Produk mitra yang sudah SIAP di order shift ini. Modal mitra = harga setor yang wajib dibayar Garage ke mitra lewat setoran harian, bukan dari laci.", 48, doc.y, { width: 499 });
+        doc.moveDown(0.4);
+        const cols = [
+          { label: "PRODUK", x: 48, w: 165, align: "left" as const },
+          { label: "QTY", x: 213, w: 32, align: "right" as const },
+          { label: "HARGA", x: 245, w: 70, align: "right" as const },
+          { label: "PENJUALAN", x: 315, w: 75, align: "right" as const },
+          { label: "MODAL MITRA", x: 390, w: 80, align: "right" as const },
+          { label: "PROFIT", x: 470, w: 77, align: "right" as const },
+        ];
+        const tableRow = (values: string[], opts: { bold?: boolean; color?: string; size?: number } = {}) => {
+          // Ukur baris tertinggi dulu supaya satu baris tidak terbelah ke dua halaman.
+          doc.font(opts.bold ? "Helvetica-Bold" : "Helvetica").fontSize(opts.size ?? 9);
+          const rowHeight = Math.max(...values.map((value, i) => doc.heightOfString(value, { width: cols[i].w })));
+          if (doc.y + rowHeight > 790) doc.addPage();
+          const ry = doc.y;
+          let bottom = ry;
+          values.forEach((value, i) => {
+            const c = cols[i];
+            doc
+              .font(opts.bold ? "Helvetica-Bold" : "Helvetica")
+              .fontSize(opts.size ?? 9)
+              .fillColor(opts.color ?? "#111")
+              .text(value, c.x, ry, { width: c.w, align: c.align });
+            bottom = Math.max(bottom, doc.y);
+          });
+          doc.y = bottom;
+          doc.moveDown(0.25);
+        };
+        for (const partner of partners.partners) {
+          if (doc.y > 700) doc.addPage();
+          doc
+            .font("Helvetica-Bold")
+            .fontSize(10.5)
+            .fillColor("#111")
+            .text(`${partner.partnerName} · ${partner.orderCount} order · ${partner.qty} item siap`, 48, doc.y, { width: 499 });
+          doc.moveDown(0.25);
+          tableRow(cols.map((c) => c.label), { bold: true, color: "#666", size: 8 });
+          rule();
+          if (!partner.products.length) tableRow(["Belum ada item siap", "", "", "", "", ""], { color: "#666" });
+          for (const product of partner.products) {
+            tableRow([partnerProductLabel(product), String(product.qty), fmtRp(product.unitPrice), fmtRp(product.sales), fmtRp(product.partnerCost), fmtRp(product.garageProfit)]);
+          }
+          rule();
+          tableRow([`TOTAL ${partner.partnerName}`, String(partner.qty), "", fmtRp(partner.sales), fmtRp(partner.partnerCost), fmtRp(partner.sales - partner.partnerCost)], { bold: true });
+          for (const note of partnerReportNotes(partner)) {
+            pairRow(note.label, `${note.sign === "minus" ? "- " : ""}${fmtRp(note.amount)}`, { bold: note.emphasis, indent: 14, color: note.emphasis ? "#111" : "#555" });
+          }
+          doc.moveDown(0.3);
+        }
+        if (partners.partners.length > 1) {
+          const t = partners.totals;
+          pairRow("Total penjualan mitra", fmtRp(t.sales), { bold: true });
+          pairRow("Total modal mitra (harga setor)", fmtRp(t.partnerCost));
+          pairRow("Total wajib bayar ke mitra", fmtRp(t.payable), { bold: true });
+          pairRow("Total profit Garage dari mitra", fmtRp(t.garageProfit), { bold: true });
+        }
+        if (partners.payoutNote) {
+          doc.font("Helvetica").fontSize(8.5).fillColor("#666").text(partners.payoutNote, 48, doc.y, { width: 499 });
+        }
+        doc.moveDown(0.8);
+      }
 
       const recon = summary.reconciliation;
       sectionTitle("Rekonsiliasi Kas Laci");

@@ -1,5 +1,5 @@
 {
-  "id": "6f6cd8c9-1ca3-4ae8-81d1-e50928886825",
+  "id": "b91077a5-bdb7-4a04-ba91-9c785e8c547d",
   "prevId": "e90b86d6-3976-4248-84bc-b6f240c99064",
   "version": "7",
   "dialect": "postgresql",
@@ -8187,242 +8187,6 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.event_checkins": {
-      "name": "event_checkins",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "event_id": {
-          "name": "event_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "invitation_id": {
-          "name": "invitation_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "guest_id": {
-          "name": "guest_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "method": {
-          "name": "method",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "guest_name": {
-          "name": "guest_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "pax": {
-          "name": "pax",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "note": {
-          "name": "note",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "client_key": {
-          "name": "client_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "checked_in_at": {
-          "name": "checked_in_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "checked_in_by": {
-          "name": "checked_in_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "checked_in_by_name": {
-          "name": "checked_in_by_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "undone_at": {
-          "name": "undone_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "undone_by": {
-          "name": "undone_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "undo_reason": {
-          "name": "undo_reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "event_checkins_event_idx": {
-          "name": "event_checkins_event_idx",
-          "columns": [
-            {
-              "expression": "event_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "checked_in_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "event_checkins_client_key_idx": {
-          "name": "event_checkins_client_key_idx",
-          "columns": [
-            {
-              "expression": "client_key",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "client_key is not null",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "event_checkins_active_invitation_idx": {
-          "name": "event_checkins_active_invitation_idx",
-          "columns": [
-            {
-              "expression": "invitation_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "undone_at is null and invitation_id is not null",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "event_checkins_event_id_events_id_fk": {
-          "name": "event_checkins_event_id_events_id_fk",
-          "tableFrom": "event_checkins",
-          "tableTo": "events",
-          "columnsFrom": [
-            "event_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "event_checkins_invitation_id_event_invitations_id_fk": {
-          "name": "event_checkins_invitation_id_event_invitations_id_fk",
-          "tableFrom": "event_checkins",
-          "tableTo": "event_invitations",
-          "columnsFrom": [
-            "invitation_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "event_checkins_guest_id_event_guests_id_fk": {
-          "name": "event_checkins_guest_id_event_guests_id_fk",
-          "tableFrom": "event_checkins",
-          "tableTo": "event_guests",
-          "columnsFrom": [
-            "guest_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "event_checkins_checked_in_by_user_id_fk": {
-          "name": "event_checkins_checked_in_by_user_id_fk",
-          "tableFrom": "event_checkins",
-          "tableTo": "user",
-          "columnsFrom": [
-            "checked_in_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "event_checkins_undone_by_user_id_fk": {
-          "name": "event_checkins_undone_by_user_id_fk",
-          "tableFrom": "event_checkins",
-          "tableTo": "user",
-          "columnsFrom": [
-            "undone_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "event_checkins_pax_check": {
-          "name": "event_checkins_pax_check",
-          "value": "\"event_checkins\".\"pax\" > 0 and \"event_checkins\".\"pax\" <= 50"
-        }
-      },
       "isRLSEnabled": false
     },
     "public.event_guests": {
@@ -18013,6 +17777,21 @@
           "columns": [
             {
               "expression": "ticket_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "partner_order_lines_order_idx": {
+          "name": "partner_order_lines_order_idx",
+          "columns": [
+            {
+              "expression": "order_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

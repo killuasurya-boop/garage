@@ -52,6 +52,7 @@ type CashierThemeMode
 } from "@/components/garage/garage-app-pickers";
 import { Alert,AlertDescription,AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { WebsiteAtmosphereCard } from "@/components/garage/website-atmosphere-card";
 import { Button } from "@/components/ui/button";
 import {
 Card,
@@ -2019,6 +2020,8 @@ function WebsiteSettingsView({ me }: { me: GarageMe }) {
           </CardContent>
         </Card>
       </div>
+
+      <WebsiteAtmosphereCard canManage={canManageWebsite} />
 
       {/* Info Bisnis editable (C10) — dipakai landing publik (SEO + kontak). */}
       <Card className="garage-panel garage-animate-in">

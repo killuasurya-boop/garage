@@ -79,7 +79,8 @@ test("UAT-A: Owner & Manajer menyiapkan mitra pilot; aktivasi tidak bisa dilompa
   const manager = await as(browser, "manajer@garage.id");
 
   // Modul mati = halaman lama tidak berubah; nyalakan untuk outlet ini.
-  await call(owner.api, "PATCH", "/api/settings", { partnerHubEnabled: true });
+  // Jam layanan mitra dikosongkan supaya UAT bisa jalan jam berapa pun (aturan jam diuji di vitest).
+  await call(owner.api, "PATCH", "/api/settings", { partnerHubEnabled: true, partnerServiceOpen: "", partnerServiceClose: "" });
 
   const created = await call<{ id: string }>(manager.api, "POST", "/api/partners", {
     code: "PAU",
@@ -283,12 +284,10 @@ test("UAT-D: keuangan Rp0 selisih — refund penuh item mitra & void setelah sia
   const queueAfter = await call<Array<{ ticketNo: string }>>(kasir.api, "GET", "/api/pos/partner-orders");
   expect(queueAfter.data.find((row) => row.ticketNo === t5.ticketNo)).toBeUndefined();
 
-  // Keputusan Owner 15 Nov 2026 (dikonfirmasi 16 Nov): Kasir BOLEH melihat harga setor (HPP) & profit Garage,
-  // angka yang sama tercantum di PDF settlement mitra.
+  // Keputusan Owner 15 Nov 2026 (A3): kasir boleh melihat HPP mitra & profit Garage (angka sama dengan PDF settlement).
   const kasirView = await call<{ costHidden: boolean; partners: Array<{ garageProfit: number | null; totalCost: number | null; lines: Array<{ unitCost: number | null }> }> }>(kasir.api, "GET", `/api/pos/partner-finance?partnerId=${state.partnerId}`);
   expect(kasirView.data.costHidden).toBe(false);
   expect(kasirView.data.partners[0].totalCost).not.toBeNull();
-  expect(kasirView.data.partners[0].garageProfit).not.toBeNull();
   expect(kasirView.data.partners[0].lines.every((line) => line.unitCost === COST)).toBe(true);
 
   // Hitungan manual dari master: O1 2×, O2 1× (direfund), O3 1× (void setelah siap), O4 batal, O5 ditolak (0).

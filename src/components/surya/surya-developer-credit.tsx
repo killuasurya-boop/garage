@@ -6,6 +6,8 @@ type Props = {
   /** full = footer lengkap, compact = baris kredit saja, invoice = satu blok minimal. */
   variant?: "full" | "compact" | "invoice";
   className?: string;
+  /** Tautan "Explore Digital Projects ↗" (homepage → section portofolio SURYA.dev). Kosong = tidak tampil. */
+  exploreHref?: string;
 };
 
 function CreditLines({ stacked = false }: { stacked?: boolean }) {
@@ -26,7 +28,7 @@ function CreditLines({ stacked = false }: { stacked?: boolean }) {
 }
 
 /** Kredit pengembang SURYA.dev (referensi D). Hanya untuk halaman publik, bukan layar operasional. */
-export function SuryaDeveloperCredit({ variant = "compact", className = "" }: Props) {
+export function SuryaDeveloperCredit({ variant = "compact", className = "", exploreHref }: Props) {
   if (variant === "invoice") {
     return (
       <div className={`sdc sdc--invoice ${className}`} data-surya-credit="invoice">
@@ -50,6 +52,11 @@ export function SuryaDeveloperCredit({ variant = "compact", className = "" }: Pr
     <div className={`sdc sdc--${variant} ${className}`} data-surya-credit={variant}>
       <span className="sdc-copy">© 2026 Garage Coffee. All rights reserved.</span>
       <CreditLines />
+      {exploreHref ? (
+        <a className="sdc-explore" href={exploreHref}>
+          Explore Digital Projects <span aria-hidden="true">↗</span>
+        </a>
+      ) : null}
     </div>
   );
 }

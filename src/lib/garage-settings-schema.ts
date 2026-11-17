@@ -873,6 +873,20 @@ export const SETTINGS_CATEGORIES: SettingCategory[] = [
         unit: "menit",
         hint: "Produk mitra otomatis tidak bisa dijual bila Portal Mitra tidak terbuka selama ini (HP mati / tanpa sinyal). 0 = tidak dicek.",
       },
+      {
+        key: "partnerServiceOpen",
+        label: "Jam buka produk mitra",
+        type: "text",
+        defaultValue: DEFAULT_APP_SETTINGS.partnerServiceOpen,
+        hint: "Format JJ:MM (WIB). Mulai jam ini produk mitra bisa dipesan lagi. Kosongkan jam buka & tutup = tanpa batas jam.",
+      },
+      {
+        key: "partnerServiceClose",
+        label: "Jam tutup produk mitra",
+        type: "text",
+        defaultValue: DEFAULT_APP_SETTINGS.partnerServiceClose,
+        hint: "Format JJ:MM (WIB). Setelah jam ini pesanan produk mitra ditolak dan status mitra Buka/Jeda otomatis Tutup. Pesanan yang sudah masuk tetap diselesaikan.",
+      },
     ],
   },
   {

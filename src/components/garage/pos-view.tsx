@@ -203,7 +203,7 @@ SheetTitle
 } from "@/components/ui/sheet";
 import { Tabs,TabsContent,TabsList,TabsTrigger } from "@/components/ui/tabs";
 import { GarageApiError, garageApi } from "@/lib/api-client";
-import { canAccessModule } from "@/lib/role-access";
+import { canAccessModule, canHandleMoney } from "@/lib/role-access";
 import { GARAGE_TAGS, invalidateGarageCache } from "@/lib/garage-cache";
 import type {
 AppSettings,
@@ -232,6 +232,7 @@ import { printDocument, printKitchenChit, printKitchenChits, printThermal } from
 import { PosProductionPanel, ticketToChit } from "@/components/garage/pos-production-panel";
 import { denominationTotals, OpeningDenominationCount } from "@/components/garage/cash-denomination-grid";
 import { PosShiftSalesSummary } from "@/components/garage/pos-shift-sales-summary";
+import { PartnerShiftSalesCard } from "@/components/garage/partner-hub/partner-shift-sales";
 import { PosInvoiceDeleteDialog, type InvoiceDeleteTarget } from "@/components/garage/pos-invoice-delete-dialog";
 import { PAYMENT_STATUS_LABEL, paymentStatusOf, type PaymentStatus } from "@/lib/payment-status";
 import { quickCashOptions } from "@/lib/pos-cash";
@@ -732,7 +733,7 @@ export function PosView({
   if (partnerAttention !== partnerAttentionSeen) {
     setPartnerAttentionSeen(partnerAttention);
     if (partnerAttention > partnerAttentionSeen) {
-      setPosNotice(`${partnerAttention} pesanan mitra perlu perhatian — buka Partner Hub (Mitra).`);
+      setPosNotice(`${partnerAttention} pesanan mitra perlu perhatian — buka menu Pesanan Mitra.`);
     }
   }
   // Kunci POS bertahan saat halaman di-refresh (dulu refresh = terbuka).
@@ -4864,7 +4865,7 @@ export function PosView({
               <PosV6NavItem icon={Wallet} label="Petty Cash" testId="pos-menu-petty" onClick={() => openModulePath("/shift?tab=petty")} />
               <PosV6NavItem icon={ClipboardList} label="Catatan Kejadian" testId="pos-menu-incident" onClick={() => openModulePath("/shift?tab=incident")} />
               {settings.partnerHubEnabled ? (
-                <PosV6NavItem icon={Handshake} label="Partner Hub (Mitra)" testId="pos-menu-partners" count={partnerAttention} dot={partnerAttention ? "danger" : undefined} onClick={() => openModulePath("/partners", "Partner Hub")} />
+                <PosV6NavItem icon={Handshake} label="Pesanan Mitra" testId="pos-menu-partners" count={partnerAttention} dot={partnerAttention ? "danger" : undefined} onClick={() => openModulePath("/partners?tab=orders", "Pesanan Mitra")} />
               ) : null}
               {settings.partnerHubEnabled ? (
                 <PosV6NavItem icon={HandCoins} label="Penjualan Mitra Hari Ini" testId="pos-menu-partner-sales" onClick={() => openModulePath("/partners?tab=finance", "Penjualan & Setoran Mitra")} />
@@ -5046,6 +5047,7 @@ export function PosView({
           {activeCashierToolOpen === "reports" && (
             <div className="space-y-3">
               <PosShiftSalesSummary />
+              {settings.partnerHubEnabled && cashSession.id ? <PartnerShiftSalesCard sessionId={cashSession.id} /> : null}
               <details className="rounded-md border border-[#34343c] bg-white/[0.03] p-2">
                 <summary className="cursor-pointer px-1 py-1 text-sm font-semibold text-white">
                   Penjualan shift saya (produk, kategori, metode bayar)
@@ -5612,7 +5614,17 @@ export function PosView({
         onConfirm={confirmFinalizeOrder}
       />
 
-      <PosV6ModuleSheet view={moduleView} onClose={() => setModuleView(null)} role={me.role} />
+      <PosV6ModuleSheet
+        view={moduleView}
+        onClose={() => setModuleView(null)}
+        role={me.role}
+        partner={{
+          userId: me.user.id,
+          canHandleMoney: canHandleMoney({ role: me.role, workstation: me.workstation ?? null }),
+          slaAccept: settings.partnerSlaAcceptWarnMinutes,
+          slaReady: settings.partnerReadyWaitWarnMinutes,
+        }}
+      />
 
       {/* Tagihan Belum Bayar: daftar + popup detail (Owner, Nov 2026). */}
       <PosV6PendingBills

@@ -8,6 +8,7 @@ import { Download, Plus, ShieldCheck, UserPlus } from "lucide-react";
 
 import { PartnerHealthBoard, PartnerPerformanceStaff, PriceProposalQueue } from "./desk-growth";
 import { api, Btn, Card, Chip, Field, inputCls, Notice, rp } from "./desk-shared";
+import { matchesPartnerFilter, PartnerStatusControl, PartnerStatusFilter, type PartnerFilter } from "./partner-status-control";
 
 type Partner = {
   id: string;
@@ -28,6 +29,9 @@ type Partner = {
   soldOutCount: number;
   bank: Array<{ id: string; bankName: string; accountName: string; accountMasked: string; status: string; accountNumber?: string }>;
   accounts: Array<{ id: string; phone: string; displayName: string; status: string }>;
+  readiness?: { total: number; done: number; missing: string[] };
+  activeOrders?: number;
+  productActiveCount?: number;
 };
 type Product = {
   linkId: string;
@@ -48,8 +52,8 @@ const NEXT: Record<string, Array<{ to: string; label: string; owner?: boolean }>
   draft: [{ to: "verifikasi", label: "Ajukan verifikasi" }],
   verifikasi: [{ to: "disetujui", label: "Setujui (Owner)", owner: true }, { to: "draft", label: "Kembalikan ke draft" }],
   disetujui: [{ to: "aktif", label: "Aktifkan (Owner)", owner: true }],
-  aktif: [{ to: "dibekukan", label: "Bekukan sementara" }, { to: "nonaktif", label: "Nonaktifkan mitra" }],
-  dibekukan: [{ to: "aktif", label: "Aktifkan lagi (Owner)", owner: true }, { to: "nonaktif", label: "Nonaktifkan mitra" }],
+  aktif: [{ to: "dibekukan", label: "Bekukan sementara" }, { to: "nonaktif", label: "Nonaktifkan mitra (Owner)", owner: true }],
+  dibekukan: [{ to: "aktif", label: "Aktifkan lagi (Owner)", owner: true }, { to: "nonaktif", label: "Nonaktifkan mitra (Owner)", owner: true }],
   nonaktif: [{ to: "draft", label: "Buka ulang (draft)" }],
 };
 const DAYS = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
@@ -60,6 +64,7 @@ export function DeskManage({ role }: { role: string }) {
   const [message, setMessage] = useState<{ tone: "error" | "ok"; text: string } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [healthKey, setHealthKey] = useState(0);
+  const [filter, setFilter] = useState<PartnerFilter>("all");
   const isOwner = role === "Owner";
 
   const load = useCallback(async () => {
@@ -106,7 +111,14 @@ export function DeskManage({ role }: { role: string }) {
           <p className="text-center text-sm text-[#b8b8bf]">Belum ada mitra terdaftar.</p>
         </Card>
       ) : (
-        partners.map((partner) => (
+        <>
+        <PartnerStatusFilter partners={partners} value={filter} onChange={setFilter} />
+        {partners.filter((p) => matchesPartnerFilter(p.status, filter)).length === 0 ? (
+          <Card>
+            <p className="text-center text-sm text-[#b8b8bf]">Tidak ada mitra dengan status ini.</p>
+          </Card>
+        ) : null}
+        {partners.filter((p) => matchesPartnerFilter(p.status, filter)).map((partner) => (
           <Card key={partner.id}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">
@@ -129,14 +141,20 @@ export function DeskManage({ role }: { role: string }) {
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <Chip tone={partner.status === "aktif" ? "green" : partner.status === "dibekukan" || partner.status === "nonaktif" ? "red" : "amber"}>{STATUS_LABEL[partner.status]}</Chip>
+                {partner.readiness && ["draft", "verifikasi", "disetujui"].includes(partner.status) ? (
+                  <Chip tone={partner.readiness.done === partner.readiness.total ? "green" : "amber"}>
+                    Siap aktif {partner.readiness.done}/{partner.readiness.total}
+                  </Chip>
+                ) : null}
+                <PartnerStatusControl partner={partner} role={role} busy={busy} run={run} onOpenDetail={() => setOpenId(partner.id)} />
                 <Chip tone={partner.operationalStatus === "buka" ? "green" : partner.operationalStatus === "jeda" ? "amber" : "red"}>{partner.operationalStatus.toUpperCase()}</Chip>
                 <Btn onClick={() => setOpenId(openId === partner.id ? null : partner.id)}>{openId === partner.id ? "Tutup" : "Kelola"}</Btn>
               </div>
             </div>
             {openId === partner.id ? <PartnerDetail partner={partner} allPartners={partners} isOwner={isOwner} busy={busy} run={run} /> : null}
           </Card>
-        ))
+        ))}
+        </>
       )}
     </div>
   );

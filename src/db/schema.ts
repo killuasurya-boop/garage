@@ -5580,6 +5580,8 @@ export const partnerOrderLines = pgTable(
     orderItemIdx: uniqueIndex("partner_order_lines_order_item_idx").on(table.orderItemId),
     partnerCreatedIdx: index("partner_order_lines_partner_created_idx").on(table.partnerId, table.createdAt),
     ticketIdx: index("partner_order_lines_ticket_idx").on(table.ticketId),
+    // Laporan shift / cek silang membaca baris mitra per order (`order_id IN (...)`).
+    orderIdx: index("partner_order_lines_order_idx").on(table.orderId),
   }),
 );
 

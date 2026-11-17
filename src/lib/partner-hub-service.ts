@@ -7,11 +7,12 @@
 
 import { createHash, randomUUID } from "node:crypto";
 
-import { and, asc, desc, eq, gte, inArray, lt, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, lte, ne, or, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
   cashLedgerEntries,
+  cashSessions,
   expenses,
   kitchenTickets,
   menuItems,
@@ -30,6 +31,7 @@ import {
   partnerReports,
   partnerSettlementLines,
   partnerSettlements,
+  payments,
   partners,
 } from "@/db/schema";
 import { postAccountCash, type CashAccount } from "@/lib/cash-ledger";
@@ -48,7 +50,17 @@ import {
   partnerLineFinance,
   partnerCardLabel,
   partnerServiceNote,
+  partnerServiceHoursActive,
+  partnerServiceHoursText,
+  partnerServiceClosedSince,
+  isWithinPartnerServiceHours,
+  clockLabel,
+  jakartaDayMinute,
+  parseClock,
   partnerMarketingBlockers,
+  partnerStatusActions,
+  partnerStatusNeedsOwner,
+  type PartnerStatusActionKind,
   PARTNER_WEBSITE_TAG,
   partnerSettlementTotals,
   partnerTicketNextStatus,
@@ -73,6 +85,7 @@ import {
   PRICE_PROPOSAL_STATUS_LABEL,
 } from "@/lib/partner-hub-insights";
 import { normalizePhone } from "@/lib/member-types";
+import { isPartnerPickupOrder, partnerShiftCoverage, partnerShiftPayoutNote, partnerShiftSales, type PartnerShiftLine } from "@/lib/partner-cashier-rules";
 import { PAYMENT_STATUS_LABEL, paymentStatusOf } from "@/lib/payment-status";
 
 export class PartnerHubError extends Error {
@@ -161,7 +174,7 @@ export async function listPartners(garage: GarageSession) {
   const rows = await db.select().from(partners).where(eq(partners.outletId, garage.profile.outlet.id)).orderBy(asc(partners.name));
   if (!rows.length) return [];
   const ids = rows.map((row) => row.id);
-  const [links, banks, accounts] = await Promise.all([
+  const [links, banks, accounts, activeTickets] = await Promise.all([
     db
       .select({ link: partnerProductLinks, item: menuItems })
       .from(partnerProductLinks)
@@ -169,11 +182,28 @@ export async function listPartners(garage: GarageSession) {
       .where(inArray(partnerProductLinks.partnerId, ids)),
     db.select().from(partnerBankAccounts).where(and(inArray(partnerBankAccounts.partnerId, ids), ne(partnerBankAccounts.status, "superseded"))),
     db.select().from(partnerAccounts).where(inArray(partnerAccounts.partnerId, ids)),
+    db
+      .select({ partnerId: kitchenTickets.partnerId, count: sql<number>`count(*)::int` })
+      .from(kitchenTickets)
+      .where(and(inArray(kitchenTickets.partnerId, ids), inArray(kitchenTickets.status, ["queue", "cooking", "ready"])))
+      .groupBy(kitchenTickets.partnerId),
   ]);
   return rows.map((partner) => {
     const own = links.filter((row) => row.link.partnerId === partner.id);
+    // Kesiapan aktivasi (aturan sama dengan server) → indikator "Siap aktif x/5" di daftar.
+    const missing = partnerActivationBlockers({
+      status: "disetujui",
+      hasVerifiedBank: banks.some((b) => b.partnerId === partner.id && b.status === "verified"),
+      hasActiveAccount: accounts.some((a) => a.partnerId === partner.id && a.status === "active" && /^0\d{8,14}$/.test(a.phone)),
+      phone: partner.phone,
+      activeProductCount: own.filter((row) => row.link.active).length,
+      termsAccepted: Boolean(partner.terms?.trim()),
+    });
     return {
       ...partner,
+      readiness: { total: 5, done: 5 - missing.length, missing },
+      activeOrders: Number(activeTickets.find((t) => t.partnerId === partner.id)?.count ?? 0),
+      productActiveCount: own.filter((row) => row.link.active).length,
       // Buka/Jeda kemarin tidak terbawa ke hari ini (lihat effectiveOperationalStatus).
       operationalStatus: effectiveOperationalStatus({ operationalStatus: partner.operationalStatus, operationalStatusAt: partner.operationalStatusAt }),
       productCount: own.length,
@@ -254,37 +284,42 @@ export async function updatePartnerProfile(partnerId: string, input: PartnerProf
 }
 
 /** Ubah status siklus hidup mitra (PRD 04). Disetujui/Aktif = Owner; aktivasi wajib lolos syarat. */
+/** Syarat aktivasi satu mitra (dipakai server sebelum aktif & ringkasan kesiapan di daftar). */
+async function partnerActivationCheck(db: DbLike, partner: typeof partners.$inferSelect, statusForCheck = "disetujui") {
+  const [bank] = await db
+    .select({ id: partnerBankAccounts.id })
+    .from(partnerBankAccounts)
+    .where(and(eq(partnerBankAccounts.partnerId, partner.id), eq(partnerBankAccounts.status, "verified")))
+    .limit(1);
+  const accounts = await db
+    .select({ phone: partnerAccounts.phone })
+    .from(partnerAccounts)
+    .where(and(eq(partnerAccounts.partnerId, partner.id), eq(partnerAccounts.status, "active")));
+  const [{ count }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(partnerProductLinks)
+    .where(and(eq(partnerProductLinks.partnerId, partner.id), eq(partnerProductLinks.active, true)));
+  return partnerActivationBlockers({
+    status: statusForCheck,
+    hasVerifiedBank: Boolean(bank),
+    hasActiveAccount: accounts.some((a) => /^0\d{8,14}$/.test(a.phone)),
+    phone: partner.phone,
+    activeProductCount: Number(count),
+    termsAccepted: Boolean(partner.terms?.trim()),
+  });
+}
+
 export async function changePartnerStatus(partnerId: string, to: string, reason: string, garage: GarageSession) {
   const db = getDb();
   const partner = await loadPartner(db, partnerId, garage.profile.outlet.id);
   if (!canChangePartnerStatus(partner.status, to)) {
     throw new PartnerHubError("INVALID_STATUS", `Status mitra tidak bisa diubah dari ${partner.status} ke ${to}.`, 409);
   }
-  if (to === "disetujui" || to === "aktif") assertOwner(garage, "Menyetujui / mengaktifkan mitra");
+  // Aktif / disetujui / nonaktif = keputusan kerja sama → Owner. Bekukan/draft/verifikasi boleh Manajer (darurat).
+  if (partnerStatusNeedsOwner(to)) assertOwner(garage, "Mengaktifkan / menyetujui / menonaktifkan mitra");
   else assertOwnerOrManager(garage, "Mengubah status mitra");
   if (to === "aktif") {
-    const [bank] = await db
-      .select({ id: partnerBankAccounts.id })
-      .from(partnerBankAccounts)
-      .where(and(eq(partnerBankAccounts.partnerId, partnerId), eq(partnerBankAccounts.status, "verified")))
-      .limit(1);
-    const [account] = await db
-      .select({ id: partnerAccounts.id })
-      .from(partnerAccounts)
-      .where(and(eq(partnerAccounts.partnerId, partnerId), eq(partnerAccounts.status, "active")))
-      .limit(1);
-    const [{ count }] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(partnerProductLinks)
-      .where(and(eq(partnerProductLinks.partnerId, partnerId), eq(partnerProductLinks.active, true)));
-    const blockers = partnerActivationBlockers({
-      status: partner.status,
-      hasVerifiedBank: Boolean(bank),
-      hasActiveAccount: Boolean(account),
-      phone: partner.phone,
-      activeProductCount: Number(count),
-      termsAccepted: Boolean(partner.terms?.trim()),
-    });
+    const blockers = await partnerActivationCheck(db, partner, partner.status);
     if (blockers.length) throw new PartnerHubError("ACTIVATION_BLOCKED", blockers.join(" "), 409);
   }
   return db.transaction(async (tx) => {
@@ -303,6 +338,40 @@ export async function changePartnerStatus(partnerId: string, to: string, reason:
     await logEvent(tx, { partnerId, kind: "partner_status", fromStatus: partner.status, toStatus: to, reason, actor: staffActor(garage) });
     return row;
   });
+}
+
+const STATUS_PUSH: Partial<Record<string, string>> = {
+  aktif: "Kerja sama Anda AKTIF. Tekan BUKA di Portal Mitra saat siap menerima pesanan.",
+  dibekukan: "Penjualan produk Anda DIBEKUKAN sementara oleh Garage.",
+  nonaktif: "Kerja sama dengan Garage Coffee DIAKHIRI.",
+};
+
+/**
+ * Aksi status dari daftar mitra (Bekukan / Aktifkan / Nonaktifkan / Buka ulang). Jalur transisi dihitung server
+ * dari status sekarang (partnerStatusActions); aktivasi dicek syaratnya DULU agar tidak berhenti di tengah jalan.
+ */
+export async function applyPartnerStatusAction(partnerId: string, kind: PartnerStatusActionKind, reason: string, garage: GarageSession) {
+  if (reason.trim().length < 3) throw new PartnerHubError("REASON_REQUIRED", "Alasan wajib diisi.");
+  const db = getDb();
+  const partner = await loadPartner(db, partnerId, garage.profile.outlet.id);
+  const action = partnerStatusActions(partner.status, garage.profile.role).find((a) => a.kind === kind);
+  if (!action) {
+    const exists = partnerStatusActions(partner.status, "Owner").some((a) => a.kind === kind);
+    throw exists
+      ? new PartnerHubError("FORBIDDEN", "Aksi ini hanya boleh dilakukan Owner.", 403)
+      : new PartnerHubError("INVALID_STATUS", `Aksi ini tidak berlaku untuk mitra berstatus ${partner.status}.`, 409);
+  }
+  if (action.path.includes("aktif")) {
+    const blockers = await partnerActivationCheck(db, partner);
+    if (blockers.length) throw new PartnerHubError("ACTIVATION_BLOCKED", `Belum bisa diaktifkan: ${blockers.join(" ")}`, 409);
+  }
+  let row = partner;
+  for (const to of action.path) row = await changePartnerStatus(partnerId, to, reason.trim(), garage);
+  const text = STATUS_PUSH[row.status];
+  if (text) {
+    await pushToPartner(partnerId, { title: "Status kerja sama Garage", body: `${text} Alasan: ${reason.trim()}`.slice(0, 220), tag: `partner-status:${partnerId}:${row.status}` });
+  }
+  return { id: partnerId, status: row.status };
 }
 
 // ─── Rekening (perubahan = baris baru + verifikasi Owner) ────────────────────
@@ -805,12 +874,12 @@ export async function publicPartnerMarketingProducts() {
   if (!promoted.length) return [];
   const { getAppSettings } = await import("@/lib/garage-service");
   const { loadPartnerLinks } = await import("@/lib/partner-hub-orders");
-  const outletSettings = new Map<string, { hub: boolean; heartbeat: number }>();
+  const outletSettings = new Map<string, { hub: boolean; heartbeat: number; hours: { open: string; close: string } }>();
   const out = [];
   for (const row of promoted) {
     if (!outletSettings.has(row.partner.outletId)) {
       const st = await getAppSettings(row.partner.outletId);
-      outletSettings.set(row.partner.outletId, { hub: st.partnerHubEnabled, heartbeat: st.partnerHeartbeatMinutes });
+      outletSettings.set(row.partner.outletId, { hub: st.partnerHubEnabled, heartbeat: st.partnerHeartbeatMinutes, hours: { open: st.partnerServiceOpen, close: st.partnerServiceClose } });
     }
     const cfg = outletSettings.get(row.partner.outletId)!;
     if (!cfg.hub) continue;
@@ -821,7 +890,7 @@ export async function publicPartnerMarketingProducts() {
     // Ketersediaan = aturan yang sama dengan menu digital & POS (Buka/Jeda/Tutup efektif, portal offline, last order, Habis).
     const link = (await loadPartnerLinks(db, [row.item.id], { heartbeatMinutes: cfg.heartbeat })).get(row.item.id);
     const availability = link
-      ? { hubEnabled: true, partnerStatus: link.partnerStatus, operationalStatus: link.operationalStatus, linkActive: link.linkActive, productStock: row.item.stock, lastOrderByDay: link.lastOrderByDay }
+      ? { hubEnabled: true, partnerStatus: link.partnerStatus, operationalStatus: link.operationalStatus, linkActive: link.linkActive, productStock: row.item.stock, lastOrderByDay: link.lastOrderByDay, serviceHours: cfg.hours }
       : null;
     // "Tersedia sekarang" di website = bisa dipesan DAN mitra sedang buka normal (Jeda/Tutup/offline tetap bisa dipesan
     // di outlet, tetapi tidak diiklankan sebagai tersedia sekarang).
@@ -836,6 +905,12 @@ export async function publicPartnerMarketingProducts() {
       priceFrom: prices.length ? Math.min(...prices) : 0,
       multiPrice: new Set(prices).size > 1,
       availableNow,
+      // Di luar jam layanan (Owner 16 Nov 2026): "Buka 17.00"; selain itu label lama.
+      statusText: availableNow
+        ? "Tersedia sekarang"
+        : partnerServiceHoursActive(cfg.hours) && !isWithinPartnerServiceHours(cfg.hours)
+          ? `Buka ${clockLabel(cfg.hours.open)}`
+          : "Sedang tutup",
     });
   }
   return out.slice(0, 8);
@@ -902,6 +977,7 @@ function ticketView(ticket: typeof kitchenTickets.$inferSelect, lines: Array<typ
     readyAt: ticket.readyAt,
     deliveredAt: ticket.deliveredAt,
     claimedByName: ticket.claimedByName,
+    claimedById: ticket.claimedBy,
     deliveredByName: ticket.deliveredByName,
     issueReason: ticket.issueReason,
     notes: ticket.itemNotes,
@@ -953,6 +1029,8 @@ type PartnerTicketActor = {
   actor: Actor;
   /** Staf Garage yang menekan tombol atas nama mitra (bukan mitra sendiri). */
   onBehalf: null | { userId: string; name: string; role: string; workstation: string | null };
+  /** Sesi staf (untuk antrean cetak tiket SELESAI); null bila mitra sendiri yang menekan. */
+  garage?: GarageSession | null;
 };
 
 /**
@@ -1006,7 +1084,8 @@ async function applyPartnerTicketAction(who: PartnerTicketActor, ticketNo: strin
         ? { onBehalfOfPartner: true, staffUserId: who.onBehalf.userId, staffName: who.onBehalf.name, staffRole: who.onBehalf.role, staffWorkstation: who.onBehalf.workstation }
         : undefined,
     });
-    return { ticket, next };
+    const [order] = ticket.orderId ? await tx.select({ fulfillment: orders.fulfillment }).from(orders).where(eq(orders.id, ticket.orderId)).limit(1) : [];
+    return { ticket, next, fulfillment: order?.fulfillment ?? null };
   });
   // Notifikasi in-app setelah mutasi sukses (WhatsApp hanya jalur tambahan).
   try {
@@ -1014,16 +1093,26 @@ async function applyPartnerTicketAction(who: PartnerTicketActor, ticketNo: strin
     const { publishProductionChange } = await import("@/lib/production-events");
     publishProductionChange();
     if (action === "ready") {
-      await notifyStaff({
-        outletId: who.outletId,
-        audience: "waiter",
-        kind: "partner_ready",
-        severity: "info",
-        title: `Siap diambil dari ${who.partnerName}`,
-        body: `${result.ticket.orderNo} · ${result.ticket.tableLabel ?? "Take away"}`,
-        url: "/partners?tab=pickup",
-        dedupKey: `partner_ready:${ticketNo}`,
-      });
+      // Take away / delivery diserahkan kasir (Owner 16 Nov 2026) → kasir juga diberi tahu; meja → waiter.
+      const pickup = isPartnerPickupOrder({ tableLabel: result.ticket.tableLabel, fulfillment: result.fulfillment });
+      for (const audience of pickup ? (["cashier", "waiter"] as const) : (["waiter"] as const)) {
+        await notifyStaff({
+          outletId: who.outletId,
+          audience,
+          kind: "partner_ready",
+          severity: pickup && audience === "cashier" ? "urgent" : "info",
+          title: pickup && audience === "cashier" ? `Pesanan ${who.partnerName} siap diserahkan` : `Siap diambil dari ${who.partnerName}`,
+          body: `${result.ticket.orderNo} · ${result.ticket.tableLabel ?? "Take away"}`,
+          url: pickup && audience === "cashier" ? "/partners?tab=orders" : "/partners?tab=pickup",
+          orderId: result.ticket.orderId ?? null,
+          dedupKey: audience === "waiter" ? `partner_ready:${ticketNo}` : `partner_ready:${audience}:${ticketNo}`,
+        });
+      }
+      // Semua tiket order ini siap (mis. kopi Bar sudah siap duluan) → tiket SELESAI + kabar pelanggan sekali.
+      if (result.ticket.orderId) {
+        const { announceTicketsProgress } = await import("@/lib/garage-service");
+        await announceTicketsProgress(result.ticket.orderId, "ready", who.garage ?? null);
+      }
     }
     if (action === "reject") {
       await notifyStaff({
@@ -1086,11 +1175,86 @@ export async function actOnPartnerTicketAsStaff(garage: GarageSession, ticketNo:
       byName: `${garage.user.name} (staf, a.n. ${row.partnerName})`,
       actor: { type: "staff", id: garage.user.id, name: `${garage.user.name} / ${roleLabel} — atas nama ${row.partnerName}` },
       onBehalf: { userId: garage.user.id, name: garage.user.name, role: garage.profile.role, workstation },
+      garage,
     },
     ticketNo,
     action,
     reason,
   );
+}
+
+/**
+ * Kasir menyerahkan pesanan mitra yang SUDAH SIAP ke pelanggan (take away / ambil di kasir / kurir) — Owner 16 Nov 2026.
+ * Satu langkah (klaim + diserahkan) lewat jalur deliver yang sudah ada (`updateKitchenStatus` → delivered):
+ * fee antar, kabar "sudah diambil" ke pelanggan, dan baris mitra "delivered" ikut jalur itu.
+ * Tidak pernah melompati mitra: tiket yang belum Siap ditolak (beda dengan serve_direct Bar/Dapur).
+ */
+export async function handoverPartnerTicket(garage: GarageSession, ticketNo: string) {
+  const db = getDb();
+  const [row] = await db
+    .select({ ticket: kitchenTickets, partnerName: partners.name, outletId: partners.outletId })
+    .from(kitchenTickets)
+    .innerJoin(partners, eq(kitchenTickets.partnerId, partners.id))
+    .where(eq(kitchenTickets.ticketNo, ticketNo))
+    .limit(1);
+  if (!row || row.outletId !== garage.profile.outlet.id) throw new PartnerHubError("TICKET_NOT_FOUND", "Tiket mitra tidak ditemukan.", 404);
+  const ticket = row.ticket;
+  if (ticket.status === "delivered") return { ticketNo, status: "delivered", already: true };
+  if (ticket.status !== "ready") {
+    throw new PartnerHubError(
+      "NOT_READY",
+      `Pesanan belum siap dari ${row.partnerName}. Tunggu mitra menekan Siap, atau tandai Siap atas nama mitra bila barangnya sudah ada di kasir.`,
+      409,
+    );
+  }
+  const isManager = garage.profile.role === "Owner" || garage.profile.role === "Manajer";
+  if (ticket.claimedBy && ticket.claimedBy !== garage.user.id && !isManager) {
+    throw new PartnerHubError("TICKET_CLAIMED", `Pesanan ini sedang dibawa ${ticket.claimedByName ?? "staf lain"}.`, 409);
+  }
+  const now = new Date();
+  // Klaim atomik: hanya berhasil bila tiket masih Siap DAN pengklaimnya belum berubah sejak dibaca. Waiter yang mengklaim
+  // di antara baca & tulis membuat update ini gagal (bukan ditimpa). Owner/Manajer yang menyelesaikan tiket milik orang
+  // lain mempertahankan pengklaim aslinya.
+  const [claimed] = await db
+    .update(kitchenTickets)
+    .set(ticket.claimedBy ? { updatedAt: now } : { claimedBy: garage.user.id, claimedByName: garage.user.name, claimedAt: now, updatedAt: now })
+    .where(
+      and(
+        eq(kitchenTickets.id, ticket.id),
+        eq(kitchenTickets.status, "ready"),
+        ticket.claimedBy ? eq(kitchenTickets.claimedBy, ticket.claimedBy) : isNull(kitchenTickets.claimedBy),
+      ),
+    )
+    .returning({ id: kitchenTickets.id });
+  if (!claimed) {
+    const [latest] = await db
+      .select({ status: kitchenTickets.status, claimedBy: kitchenTickets.claimedBy, claimedByName: kitchenTickets.claimedByName })
+      .from(kitchenTickets)
+      .where(eq(kitchenTickets.id, ticket.id))
+      .limit(1);
+    if (latest?.status === "delivered") return { ticketNo, status: "delivered", already: true };
+    if (latest?.claimedBy && latest.claimedBy !== garage.user.id) {
+      throw new PartnerHubError("TICKET_CLAIMED", `Pesanan ini baru saja diambil ${latest.claimedByName ?? "staf lain"}.`, 409);
+    }
+    throw new PartnerHubError("TICKET_CHANGED", "Status pesanan baru saja berubah. Muat ulang lalu coba lagi.", 409);
+  }
+  const { updateKitchenStatus } = await import("@/lib/garage-service");
+  const updated = await updateKitchenStatus(ticketNo, "delivered", garage);
+  await logEvent(db, {
+    partnerId: ticket.partnerId!,
+    kind: "ticket_handover",
+    subjectId: ticketNo,
+    fromStatus: "ready",
+    toStatus: "delivered",
+    actor: staffActor(garage),
+    metadata: {
+      orderNo: ticket.orderNo,
+      tableLabel: ticket.tableLabel,
+      // Owner/Manajer menyelesaikan tiket yang sedang dibawa staf lain: jejak siapa pemilik klaimnya.
+      ...(ticket.claimedBy && ticket.claimedBy !== garage.user.id ? { completedForClaimer: ticket.claimedByName ?? ticket.claimedBy } : {}),
+    },
+  });
+  return { ticketNo, status: updated?.status ?? "delivered", already: false };
 }
 
 // ─── Monitor POS & keuangan ──────────────────────────────────────────────────
@@ -1102,7 +1266,7 @@ export async function listPartnerOrdersForOutlet(
   const db = getDb();
   const since = new Date(Date.now() - 24 * 3_600_000);
   const rows = await db
-    .select({ ticket: kitchenTickets, partner: partners, order: { id: orders.id, status: orders.status, total: orders.total } })
+    .select({ ticket: kitchenTickets, partner: partners, order: { id: orders.id, status: orders.status, total: orders.total, fulfillment: orders.fulfillment } })
     .from(kitchenTickets)
     .innerJoin(partners, eq(kitchenTickets.partnerId, partners.id))
     .innerJoin(orders, eq(kitchenTickets.orderId, orders.id))
@@ -1151,6 +1315,7 @@ export async function listPartnerOrdersForOutlet(
         // Status layanan yang berlaku (keterangan untuk kasir/waiter; tidak menentukan boleh-tidaknya pesanan).
         partnerOperationalStatus: effectiveOperationalStatus({ operationalStatus: partner.operationalStatus, operationalStatusAt: partner.operationalStatusAt }),
         handoverPoint: partner.handoverPoint,
+        fulfillment: ticketOrder.fulfillment,
         orderStatus: order.status,
         paymentLabel: PAYMENT_STATUS_LABEL[paymentStatusOf({ status: order.status })],
         needsRefund,
@@ -1227,6 +1392,80 @@ export async function sweepPartnerSla(now = new Date()) {
     }
   }
   return { escalated, readyWaiting };
+}
+
+/**
+ * Jam layanan produk mitra (Owner 16 Nov 2026), dijalankan sweeper server tiap menit:
+ * - Lewat jam tutup (default 22.30): mitra yang masih Buka/Jeda → Tutup otomatis (sekali; bila mitra menekan BUKA lagi
+ *   setelah jam tutup, tidak ditutup ulang — pesanan tetap ditolak oleh jam layanan) + push ke mitra.
+ * - 10 menit pertama setelah jam buka (default 17.00): pengingat ke mitra yang masih Tutup, sekali per hari.
+ * Pesanan yang sudah masuk sebelum jam tutup tidak disentuh.
+ */
+export async function sweepPartnerServiceHours(now = new Date()) {
+  const db = getDb();
+  const outletRows = await db.selectDistinct({ outletId: partners.outletId }).from(partners).where(eq(partners.status, "aktif"));
+  if (!outletRows.length) return { closed: 0, reminded: 0 };
+  const { getAppSettings } = await import("@/lib/garage-service");
+  const system: Actor = { type: "system", id: null, name: "Otomatis · jam layanan" };
+  let closed = 0;
+  let reminded = 0;
+  for (const { outletId } of outletRows) {
+    const settings = await getAppSettings(outletId);
+    const hours = { open: settings.partnerServiceOpen, close: settings.partnerServiceClose };
+    if (!settings.partnerHubEnabled || !partnerServiceHoursActive(hours)) continue;
+    const text = partnerServiceHoursText(hours);
+    const closedSince = partnerServiceClosedSince(hours, now);
+    const rows = await db.select().from(partners).where(and(eq(partners.outletId, outletId), eq(partners.status, "aktif")));
+    if (closedSince) {
+      for (const partner of rows) {
+        if (partner.operationalStatus !== "buka" && partner.operationalStatus !== "jeda") continue;
+        if (partner.operationalStatusAt && partner.operationalStatusAt >= closedSince) continue;
+        const updated = await db.transaction(async (tx) => {
+          const [row] = await tx
+            .update(partners)
+            .set({ operationalStatus: "tutup", operationalStatusAt: now, operationalStatusBy: system.name, updatedAt: now })
+            .where(and(eq(partners.id, partner.id), inArray(partners.operationalStatus, ["buka", "jeda"])))
+            .returning({ id: partners.id });
+          if (row) {
+            await logEvent(tx, { partnerId: partner.id, kind: "operational_status", fromStatus: partner.operationalStatus, toStatus: "tutup", reason: `Jam layanan ${text}`, actor: system });
+          }
+          return Boolean(row);
+        });
+        if (!updated) continue;
+        closed += 1;
+        await pushToPartner(partner.id, {
+          title: "Layanan ditutup otomatis",
+          body: `Jam layanan produk mitra Garage ${text}. Pesanan baru tidak masuk sampai pukul ${clockLabel(hours.open)}. Selesaikan pesanan yang masih berjalan.`,
+          tag: `service-close-${partner.id}`,
+        });
+      }
+      continue;
+    }
+    // Di dalam jam layanan: pengingat BUKA sekali per hari, hanya di 10 menit pertama.
+    const openMinute = parseClock(hours.open)!;
+    const { minute } = jakartaDayMinute(now);
+    const sinceOpen = (minute - openMinute + 1440) % 1440;
+    if (sinceOpen >= 10) continue;
+    const dayKey = wibDayKey(now);
+    for (const partner of rows) {
+      const effective = effectiveOperationalStatus({ operationalStatus: partner.operationalStatus, operationalStatusAt: partner.operationalStatusAt }, now);
+      if (effective === "buka") continue;
+      const [already] = await db
+        .select({ id: partnerEvents.id })
+        .from(partnerEvents)
+        .where(and(eq(partnerEvents.partnerId, partner.id), eq(partnerEvents.kind, "service_open_reminder"), eq(partnerEvents.subjectId, dayKey)))
+        .limit(1);
+      if (already) continue;
+      await logEvent(db, { partnerId: partner.id, kind: "service_open_reminder", subjectId: dayKey, actor: system });
+      reminded += 1;
+      await pushToPartner(partner.id, {
+        title: "Jam layanan dimulai",
+        body: `Produk Anda sudah bisa dipesan pelanggan Garage (${text}). Buka Portal Mitra dan tekan BUKA.`,
+        tag: `service-open-${partner.id}`,
+      });
+    }
+  }
+  return { closed, reminded };
 }
 
 /** Ringkasan Partner Hub untuk Dashboard Owner/Manajer: penjualan & kewajiban hari ini/bulan ini, status mitra. */
@@ -1389,6 +1628,180 @@ export async function partnerFinanceLines(partnerId: string, outletId: string, f
       salesVoided: line.salesVoided,
     };
   });
+}
+
+/**
+ * Penjualan mitra untuk satu shift kasir (Owner 16 Nov 2026): baris mitra yang berada di order milik shift (order id yang
+ * sama dengan laporan shift), dengan status efektif DEC-03/04 + penyesuaian refund per baris. Hanya membaca.
+ */
+export async function partnerSalesForOrders(orderIds: string[], outletId: string) {
+  const empty = { ...partnerShiftSales([]), itemKeys: [] as string[] };
+  if (!orderIds.length) return empty;
+  const db = getDb();
+  const rows: Array<{ line: typeof partnerOrderLines.$inferSelect; ticketStatus: string | null; orderStatus: string | null; partnerName: string }> = [];
+  // Potong per 500 id supaya parameter query tetap wajar untuk shift yang sangat ramai.
+  for (let i = 0; i < orderIds.length; i += 500) {
+    const chunk = orderIds.slice(i, i + 500);
+    rows.push(
+      ...(await db
+        .select({ line: partnerOrderLines, ticketStatus: kitchenTickets.status, orderStatus: orders.status, partnerName: partners.name })
+        .from(partnerOrderLines)
+        .innerJoin(partners, eq(partnerOrderLines.partnerId, partners.id))
+        .leftJoin(kitchenTickets, eq(partnerOrderLines.ticketId, kitchenTickets.id))
+        .leftJoin(orders, eq(partnerOrderLines.orderId, orders.id))
+        .where(and(eq(partnerOrderLines.outletId, outletId), inArray(partnerOrderLines.orderId, chunk)))
+        .orderBy(asc(partnerOrderLines.createdAt))),
+    );
+  }
+  if (!rows.length) return empty;
+  const lineIds = rows.map((row) => row.line.id);
+  const adjustments: Array<typeof partnerAdjustments.$inferSelect> = [];
+  for (let i = 0; i < lineIds.length; i += 500) {
+    adjustments.push(...(await db.select().from(partnerAdjustments).where(inArray(partnerAdjustments.orderLineId, lineIds.slice(i, i + 500)))));
+  }
+  const lines: PartnerShiftLine[] = rows.map((row) => {
+    const line = effectiveLine(row);
+    return {
+      id: line.id,
+      partnerId: line.partnerId,
+      partnerName: row.partnerName,
+      itemName: line.itemName,
+      variantLabel: line.variantLabel,
+      orderNo: line.orderNo,
+      orderPayment: paymentStatusOf({ status: row.orderStatus }),
+      createdAt: line.createdAt,
+      qty: line.qty,
+      unitPrice: line.unitPrice,
+      unitCost: line.unitCost,
+      status: line.status,
+      cancelledQty: line.cancelledQty,
+      fulfilledQty: line.fulfilledQty,
+      salesVoided: line.salesVoided,
+    };
+  });
+  const result = partnerShiftSales(
+    lines,
+    adjustments.map((adj) => ({ orderLineId: adj.orderLineId, partnerId: adj.partnerId, kind: adj.kind, salesDelta: adj.salesDelta, liabilityDelta: adj.liabilityDelta, status: adj.status })),
+  );
+  return { ...result, itemKeys: [...new Set(lines.map((line) => `${line.itemName}\u0000${line.variantLabel}`))] };
+}
+
+/**
+ * Penjualan mitra satu shift untuk layar (kartu POS "Penjualan shift saya" & detail shift). Kasir hanya shift miliknya;
+ * shift TERBUKA boleh dilihat — angka mitra bukan uang laci, jadi tidak membuka blind count (tanpa kas seharusnya).
+ */
+export async function partnerSalesForCashSession(sessionId: string, garage: GarageSession, options: { allowAll: boolean }) {
+  const db = getDb();
+  const [session] = await db
+    .select({ id: cashSessions.id, code: cashSessions.code, outletId: cashSessions.outletId, openedBy: cashSessions.openedBy, openedAt: cashSessions.openedAt, status: cashSessions.status })
+    .from(cashSessions)
+    .where(eq(cashSessions.id, sessionId))
+    .limit(1);
+  const notFound = new PartnerHubError("CASH_SESSION_NOT_FOUND", "Sesi tidak ditemukan atau bukan milik kasir ini.", 404);
+  if (!session) throw notFound;
+  if (!options.allowAll && session.openedBy !== garage.user.id) throw notFound;
+  if (garage.profile.role !== "Owner" && session.outletId && session.outletId !== garage.profile.outlet.id) throw notFound;
+  const { getCashSessionTransactions } = await import("@/lib/garage-service");
+  const base = await getCashSessionTransactions(sessionId, garage.user.id, { allowAll: true });
+  const orderIds = base?.orders.map((order) => order.id) ?? [];
+  const result = session.outletId ? await partnerSalesForOrders(orderIds, session.outletId) : { ...partnerShiftSales([]), itemKeys: [] };
+  return {
+    sessionId: session.id,
+    sessionCode: session.code,
+    status: session.status,
+    openedAt: session.openedAt,
+    partners: result.partners,
+    totals: result.totals,
+    payoutNote: partnerShiftPayoutNote(session.openedAt),
+  };
+}
+
+/**
+ * Cek silang satu hari (Owner 16 Nov 2026): wajib bayar ke mitra pada rekap setoran harian (semua baris mitra tanggal
+ * itu, sama dengan settlement) dibandingkan dengan yang tercatat di laporan shift kasir yang berjalan pada tanggal itu.
+ * Baris yang tidak masuk shift mana pun ditampilkan beserta sebabnya. Hanya baca.
+ */
+export async function partnerShiftCoverageForDay(outletId: string, from: Date, to: Date) {
+  const db = getDb();
+  // Untuk keterangan saja: shift yang berjalan di periode ini.
+  const sessions = await db
+    .select({ id: cashSessions.id, code: cashSessions.code })
+    .from(cashSessions)
+    .where(and(eq(cashSessions.outletId, outletId), lt(cashSessions.openedAt, to), or(isNull(cashSessions.closedAt), gte(cashSessions.closedAt, from))));
+  const rows = await db
+    .select({ line: partnerOrderLines, ticketStatus: kitchenTickets.status, orderStatus: orders.status, partnerName: partners.name })
+    .from(partnerOrderLines)
+    .innerJoin(partners, eq(partnerOrderLines.partnerId, partners.id))
+    .leftJoin(kitchenTickets, eq(partnerOrderLines.ticketId, kitchenTickets.id))
+    .leftJoin(orders, eq(partnerOrderLines.orderId, orders.id))
+    .where(and(eq(partnerOrderLines.outletId, outletId), gte(partnerOrderLines.createdAt, from), lt(partnerOrderLines.createdAt, to)))
+    .orderBy(asc(partnerOrderLines.createdAt));
+  const lines = rows.map((row) => {
+    const line = effectiveLine(row);
+    return {
+      id: line.id,
+      orderId: line.orderId,
+      partnerId: line.partnerId,
+      partnerName: row.partnerName,
+      itemName: line.itemName,
+      variantLabel: line.variantLabel,
+      orderNo: line.orderNo,
+      orderPayment: paymentStatusOf({ status: row.orderStatus }),
+      createdAt: line.createdAt,
+      qty: line.qty,
+      unitPrice: line.unitPrice,
+      unitCost: line.unitCost,
+      status: line.status,
+      cancelledQty: line.cancelledQty,
+      fulfilledQty: line.fulfilledQty,
+      salesVoided: line.salesVoided,
+    };
+  });
+  // Penyesuaian kewajiban yang disetujui di periode ini (sama dengan rekap setoran) — ikut dicek silang.
+  const adjustments = await db
+    .select({ id: partnerAdjustments.id, orderLineId: partnerAdjustments.orderLineId, partnerId: partnerAdjustments.partnerId, liabilityDelta: partnerAdjustments.liabilityDelta, kind: partnerAdjustments.kind })
+    .from(partnerAdjustments)
+    .where(and(eq(partnerAdjustments.outletId, outletId), eq(partnerAdjustments.status, "approved"), gte(partnerAdjustments.createdAt, from), lt(partnerAdjustments.createdAt, to)));
+  const adjLineIds = [...new Set(adjustments.map((a) => a.orderLineId).filter((id): id is string => Boolean(id)))].filter((id) => !lines.some((l) => l.id === id));
+  const extraLines = adjLineIds.length
+    ? await db.select({ id: partnerOrderLines.id, orderId: partnerOrderLines.orderId, orderNo: partnerOrderLines.orderNo }).from(partnerOrderLines).where(inArray(partnerOrderLines.id, adjLineIds))
+    : [];
+  const lineInfo = new Map<string, { orderId: string; orderNo: string }>([...lines, ...extraLines].map((l) => [l.id, { orderId: l.orderId, orderNo: l.orderNo }]));
+  const partnerNames = new Map(rows.map((r) => [r.line.partnerId, r.partnerName]));
+  // Keanggotaan shift dihitung PER ORDER dengan aturan yang sama dengan laporan shift (getCashSessionTransactions):
+  // pembayaran masuk sesi kas mana pun, ATAU order dibuat kasir pembuka sesi selama sesi itu berjalan — tanpa
+  // membatasi ke shift di tanggal ini (order 23.50 yang dibayar di shift besok tetap tercatat).
+  const orderIds = [...new Set([...lines.map((l) => l.orderId), ...extraLines.map((l) => l.orderId)])];
+  const covered = new Set<string>();
+  for (let i = 0; i < orderIds.length; i += 500) {
+    const chunk = orderIds.slice(i, i + 500);
+    const paid = await db
+      .selectDistinct({ orderId: payments.orderId })
+      .from(payments)
+      .where(and(inArray(payments.orderId, chunk), sql`${payments.cashSessionId} is not null`));
+    for (const row of paid) if (row.orderId) covered.add(row.orderId);
+    const created = await db
+      .selectDistinct({ orderId: orders.id })
+      .from(orders)
+      .innerJoin(
+        cashSessions,
+        and(
+          eq(cashSessions.openedBy, orders.createdBy),
+          eq(cashSessions.outletId, orders.outletId),
+          lte(cashSessions.openedAt, orders.createdAt),
+          or(isNull(cashSessions.closedAt), gt(cashSessions.closedAt, orders.createdAt)),
+        ),
+      )
+      .where(inArray(orders.id, chunk));
+    for (const row of created) covered.add(row.orderId);
+  }
+  const adjustmentRows = adjustments
+    .filter((a) => a.liabilityDelta !== 0)
+    .map((a) => {
+      const info = a.orderLineId ? lineInfo.get(a.orderLineId) : undefined;
+      return { partnerName: partnerNames.get(a.partnerId) ?? "Mitra", orderId: info?.orderId ?? null, orderNo: info?.orderNo ?? null, liabilityDelta: a.liabilityDelta, kind: a.kind };
+    });
+  return { shiftCount: sessions.length, shifts: sessions.map((s) => s.code), ...partnerShiftCoverage(lines, covered, adjustmentRows) };
 }
 
 export async function partnerFinanceSummary(partnerId: string, outletId: string, from: Date, to: Date) {

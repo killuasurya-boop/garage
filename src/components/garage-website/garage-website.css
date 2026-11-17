@@ -1392,3 +1392,63 @@ html { scroll-behavior: smooth; }
 @media (prefers-reduced-motion: reduce) {
   .garage-website .gigs-chip, .garage-website .gigs-chip__dot, .garage-website .gigs-promo__logo { animation: none; transition: none; }
 }
+
+/* ── Pilihan hari ini (Promo + Unggulan, maks 6) — owner 16 Nov 2026 ── */
+.menu-picks-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 32px; }
+.menu-picks-tabs { display: inline-flex; gap: 6px; padding: 4px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg-2); }
+.menu-picks-tab {
+  min-height: 44px; padding: 0 18px; border: 0; border-radius: 999px; background: transparent;
+  color: var(--fg-dim); font-weight: 700; font-size: 14px; cursor: pointer;
+  transition: background-color .18s ease, color .18s ease;
+}
+.menu-picks-tab .mono { margin-left: 6px; font-size: 11px; opacity: .85; }
+.menu-picks-tab.is-active { background: var(--red); color: #fff; }
+.menu-picks-tab:focus-visible { outline: 2px solid var(--red-bright); outline-offset: 2px; }
+.menu-picks-grid { display: grid; gap: 14px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.menu-picks-card {
+  display: grid; grid-template-columns: 112px minmax(0, 1fr); align-items: stretch;
+  border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--bg-2);
+  color: inherit; text-decoration: none; transition: border-color .2s ease, transform .2s ease;
+}
+.menu-picks-card:hover { border-color: var(--line-2); transform: translateY(-2px); }
+.menu-picks-card:focus-visible { outline: 2px solid var(--red-bright); outline-offset: 2px; }
+.menu-picks-photo { position: relative; background: #15151b; min-height: 112px; }
+.menu-picks-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.menu-picks-badge {
+  position: absolute; left: 6px; top: 6px; padding: 3px 6px; border-radius: 5px;
+  background: var(--red); color: #fff; font-size: 10px; font-weight: 900; letter-spacing: .04em;
+}
+.menu-picks-body { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; min-width: 0; }
+.menu-picks-name { color: #fff; font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
+.menu-picks-cat { color: var(--fg-dim); font-size: 11px; }
+.menu-picks-price { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin-top: auto; font-variant-numeric: tabular-nums; }
+.menu-picks-now { color: var(--fg); font-weight: 800; font-size: 16px; }
+.menu-picks-was { color: var(--fg-dim); text-decoration: line-through; font-size: 13px; }
+.menu-picks-more { display: flex; justify-content: center; margin-top: 28px; }
+@media (max-width: 1000px) { .menu-picks-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) {
+  .menu-picks-grid { grid-template-columns: 1fr; }
+  .menu-picks-tabs { width: 100%; }
+  .menu-picks-tab { flex: 1; }
+}
+
+/* ── Suasana: foto outlet asli dari Owner (slot suasana_1..4) ── */
+.atmosphere-grid { display: grid; gap: 10px; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: 220px; }
+.atmosphere-photo { margin: 0; overflow: hidden; border-radius: 14px; border: 1px solid var(--line); background: #15151b; }
+.atmosphere-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.atmosphere-count-1 { grid-template-columns: 1fr; grid-auto-rows: clamp(260px, 42vw, 520px); }
+.atmosphere-count-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: clamp(240px, 32vw, 420px); }
+.atmosphere-count-3 .atmosphere-photo:first-child,
+.atmosphere-count-4 .atmosphere-photo:first-child { grid-column: span 2; grid-row: span 2; }
+.atmosphere-count-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.atmosphere-count-3 .atmosphere-photo:first-child { grid-column: span 2; }
+@media (max-width: 768px) {
+  .atmosphere-grid, .atmosphere-count-2, .atmosphere-count-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 160px; }
+  .atmosphere-count-1 { grid-template-columns: 1fr; grid-auto-rows: 240px; }
+  .atmosphere-count-3 .atmosphere-photo:first-child,
+  .atmosphere-count-4 .atmosphere-photo:first-child { grid-column: span 2; grid-row: span 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .menu-picks-card, .menu-picks-tab { transition: none; }
+  .menu-picks-card:hover { transform: none; }
+}

@@ -24,16 +24,49 @@ type HealthRow = {
 const LEVEL_TONE = { critical: "red", warning: "amber", info: "blue" } as const;
 const LEVEL_LABEL = { critical: "Segera", warning: "Perlu dicek", info: "Info" } as const;
 
+type JobRow = { job: string; label: string; status: "ok" | "failing" | "unknown"; lastOkAt: string | null; lastErrorAt: string | null; consecutiveFailures: number };
+
+const timeWibShort = (iso: string) => new Date(iso).toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit" });
+
+/** Proses otomatis server (jam layanan, eskalasi, pengingat setoran): terakhir berhasil / bermasalah. */
+function BackgroundJobsLine({ jobs }: { jobs: JobRow[] }) {
+  if (!jobs.length) return null;
+  const failing = jobs.filter((j) => j.status === "failing");
+  return (
+    <div className={`mt-3 rounded-lg border p-3 ${failing.length ? "border-[#ff5a66]/60 bg-[#3a1015]" : "border-[#3a3a42] bg-black/20"}`} data-testid="partner-jobs-health">
+      <p className="text-sm font-semibold text-white">Proses otomatis</p>
+      <ul className="mt-1 grid gap-1 text-sm">
+        {jobs.map((job) => (
+          <li key={job.job} className="flex flex-wrap items-center gap-2 text-[#e4e4e8]">
+            <Chip tone={job.status === "failing" ? "red" : job.status === "ok" ? "green" : "default"}>
+              {job.status === "failing" ? "Bermasalah" : job.status === "ok" ? "Jalan" : "Belum ada data"}
+            </Chip>
+            <span className="min-w-0 flex-1">{job.label}</span>
+            <span className="text-xs text-[#b8b8bf]">
+              {job.status === "failing"
+                ? `gagal ${job.consecutiveFailures}× · terakhir berhasil ${job.lastOkAt ? timeWibShort(job.lastOkAt) : "-"}`
+                : job.lastOkAt
+                  ? `terakhir ${timeWibShort(job.lastOkAt)}`
+                  : "menunggu putaran pertama"}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 /** Ringkasan kesehatan semua mitra outlet. Hanya baca; tiap butir menunjuk ke tindakan di tab terkait. */
 export function PartnerHealthBoard({ refreshKey = 0 }: { refreshKey?: number }) {
   const [rows, setRows] = useState<HealthRow[] | null>(null);
+  const [jobs, setJobs] = useState<JobRow[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
     const load = () =>
-      api<{ enabled: boolean; partners: HealthRow[] }>("/api/partners/health")
-        .then((data) => alive && (setRows(data.partners), setError(null)))
+      api<{ enabled: boolean; partners: HealthRow[]; jobs?: JobRow[] }>("/api/partners/health")
+        .then((data) => alive && (setRows(data.partners), setJobs(data.jobs ?? []), setError(null)))
         .catch((err: Error) => alive && setError(err.message));
     void load();
     const id = window.setInterval(load, 60_000);
@@ -44,7 +77,7 @@ export function PartnerHealthBoard({ refreshKey = 0 }: { refreshKey?: number }) 
   }, [refreshKey]);
 
   if (error) return <Notice message={{ tone: "error", text: error }} />;
-  if (!rows || rows.length === 0) return null;
+  if (!rows || (rows.length === 0 && !jobs.some((j) => j.status === "failing"))) return null;
   const withAlerts = rows.filter((r) => r.alerts.length);
 
   return (
@@ -53,6 +86,7 @@ export function PartnerHealthBoard({ refreshKey = 0 }: { refreshKey?: number }) 
         <Activity className="size-4 text-[#ff5a66]" aria-hidden /> Kesehatan mitra
         <span className="ml-auto text-xs font-normal text-[#b8b8bf]">{rows.length} mitra aktif/dibekukan</span>
       </h2>
+      <BackgroundJobsLine jobs={jobs} />
       {withAlerts.length === 0 ? (
         <p className="mt-2 text-sm text-[#bbf7d0]">Semua mitra berjalan normal.</p>
       ) : (

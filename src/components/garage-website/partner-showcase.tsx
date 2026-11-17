@@ -20,13 +20,17 @@ type PartnerProduct = {
   priceFrom: number;
   multiPrice: boolean;
   availableNow: boolean;
+  /** "Tersedia sekarang" / "Buka 17.00" (di luar jam layanan mitra) / "Sedang tutup". */
+  statusText?: string;
 };
 
 const rupiah = (n: number) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n);
 const menuHref = (name: string) => `/order?${new URLSearchParams({ source: "qr_takeaway", campaign: "landing_mitra", q: name }).toString()}`;
 
-export function PartnerShowcase() {
-  const [products, setProducts] = useState<PartnerProduct[] | null>(null);
+// `limit`: homepage menampilkan maks 4 produk mitra (owner 16 Nov 2026: kurangi foto produk); sisanya di /order.
+export function PartnerShowcase({ limit }: { limit?: number } = {}) {
+  const [allProducts, setProducts] = useState<PartnerProduct[] | null>(null);
+  const products = allProducts && limit ? allProducts.slice(0, limit) : allProducts;
   useEffect(() => {
     let cancelled = false;
     fetch("/api/site/partner-products", { cache: "no-store" })
@@ -85,7 +89,7 @@ export function PartnerShowcase() {
                     <span className="gw-partner-badge">
                       <BadgeCheck className="size-3.5" aria-hidden /> Mitra resmi
                     </span>
-                    <span className={`gw-partner-status ${p.availableNow ? "is-open" : "is-closed"}`}>{p.availableNow ? "Tersedia sekarang" : "Sedang tutup"}</span>
+                    <span className={`gw-partner-status ${p.availableNow ? "is-open" : "is-closed"}`}>{p.statusText ?? (p.availableNow ? "Tersedia sekarang" : "Sedang tutup")}</span>
                   </span>
                   <span className="gw-partner-body">
                     <span className="gw-partner-brand">

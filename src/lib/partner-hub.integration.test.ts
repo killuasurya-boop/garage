@@ -35,7 +35,12 @@ const partnerSession = (partner: { id: string; code: string }, name = "Mitra"): 
 async function setHub(enabled: boolean) {
   const d = t.getDb();
   await d.delete(t.schema.appSettings);
-  await d.insert(t.schema.appSettings).values({ outletId, key: "partnerHubEnabled", valueJson: enabled });
+  await d.insert(t.schema.appSettings).values([
+    { outletId, key: "partnerHubEnabled", valueJson: enabled },
+    // Jam layanan mitra (default 17.00–22.30) dikosongkan supaya tes jalan jam berapa pun; aturannya diuji terpisah.
+    { outletId, key: "partnerServiceOpen", valueJson: "" },
+    { outletId, key: "partnerServiceClose", valueJson: "" },
+  ]);
 }
 
 /** Tambah/ubah satu pengaturan outlet tanpa menghapus yang lain (setHub mengosongkan semua). */
@@ -1229,5 +1234,38 @@ describe("Smart Partner Hub — A7 settlement harian & pengingat (Owner 15 Nov 2
     const outsider = kasir();
     const otherOutlet = { ...outsider, profile: { ...outsider.profile, outlet: { ...outsider.profile.outlet, id: "00000000-0000-0000-0000-000000000000" } } };
     await expect(svc.recordSettlementPdfSent(row.settlement.id, "share", otherOutlet)).rejects.toThrow(/tidak ditemukan/);
+  });
+});
+
+describe("Smart Partner Hub — kontrol status dari daftar mitra", () => {
+  it("aktivasi diperiksa dulu (status tidak berubah di tengah); Manajer bisa bekukan, tidak bisa aktifkan/nonaktifkan; kesiapan di daftar", async () => {
+    const draft = await svc.createPartner({ code: "STS", name: "Mitra Status Test" }, manager());
+    const list = await svc.listPartners(owner());
+    const row = list.find((p) => p.id === draft.id)!;
+    expect(row.readiness.done).toBeLessThan(row.readiness.total);
+    // Syarat belum lengkap → ditolak dan status tetap draft (tidak tertinggal di verifikasi/disetujui).
+    await expect(svc.applyPartnerStatusAction(draft.id, "activate", "uji aktivasi", owner())).rejects.toThrow(/Belum bisa diaktifkan/);
+    expect((await svc.listPartners(owner())).find((p) => p.id === draft.id)!.status).toBe("draft");
+    await expect(svc.applyPartnerStatusAction(draft.id, "activate", "uji aktivasi", manager())).rejects.toThrow(/Owner/);
+
+    // Mitra B sudah aktif: Manajer bekukan → aktifkan lagi oleh Owner; nonaktif hanya Owner.
+    await expect(svc.applyPartnerStatusAction(partnerB.id, "deactivate", "uji nonaktif", manager())).rejects.toThrow(/Owner/);
+    const frozen = await svc.applyPartnerStatusAction(partnerB.id, "freeze", "Masalah kualitas produk", manager());
+    expect(frozen.status).toBe("dibekukan");
+    await expect(svc.changePartnerStatus(partnerB.id, "nonaktif", "x", manager())).rejects.toThrow(/Owner/);
+    const back = await svc.applyPartnerStatusAction(partnerB.id, "activate", "Masalah sudah selesai", owner());
+    expect(back.status).toBe("aktif");
+    const events = await svc.listPartnerEvents(partnerB.id, owner());
+    expect(events.filter((e) => e.kind === "partner_status").slice(0, 2).map((e) => e.toStatus)).toEqual(["aktif", "dibekukan"]);
+    await expect(svc.applyPartnerStatusAction(partnerB.id, "freeze", "x", owner())).rejects.toThrow(/Alasan/);
+    // Dibekukan lalu produk aktif terakhir dinonaktifkan → "Aktifkan lagi" ditolak dengan pesan syarat; readiness menyebutnya.
+    await svc.applyPartnerStatusAction(partnerB.id, "freeze", "Mitra libur sementara", owner());
+    const active = (await svc.listPartnerProducts(partnerB.id, { outletId, showCost: false })).filter((p) => p.active);
+    for (const p of active) await svc.setPartnerProductActive(p.linkId, false, owner());
+    const frozenRow = (await svc.listPartners(owner())).find((p) => p.id === partnerB.id)!;
+    expect(frozenRow.readiness.missing.join(" ")).toMatch(/produk/);
+    await expect(svc.applyPartnerStatusAction(partnerB.id, "activate", "Masalah sudah selesai", owner())).rejects.toThrow(/Belum bisa diaktifkan/);
+    for (const p of active) await svc.setPartnerProductActive(p.linkId, true, owner());
+    await svc.applyPartnerStatusAction(partnerB.id, "activate", "Masalah sudah selesai", owner());
   });
 });

@@ -31,6 +31,7 @@ import {
   type PettyCashEntryRow,
 } from "@/lib/cashier-accountability";
 import { getCashSessionTransactions } from "@/lib/garage-service";
+import { partnerShiftPayoutNote, type PartnerShiftSales } from "@/lib/partner-cashier-rules";
 import { channelGroupOf, CHANNEL_GROUP_LABEL, paymentStatusOf, PAYMENT_STATUS_LABEL } from "@/lib/payment-status";
 
 // ── Definisi angka (dicetak di PDF) ─────────────────────────────────────────
@@ -42,6 +43,9 @@ export const SHIFT_REPORT_DEFINITIONS: Array<[string, string]> = [
   ["Tagihan belum dibayar", "Σ sisa tagihan order Pending/sebagian yang dibuat di shift ini."],
   ["Kas diharapkan", "Kas awal + penerimaan tunai + kas masuk − kas keluar − refund/void tunai ± penyesuaian lain (dicatat sistem per kejadian)."],
   ["Selisih kas", "Kas aktual (hitungan pecahan saat tutup) − kas diharapkan. QRIS & transfer tidak masuk uang fisik."],
+  ["Penjualan mitra", "Σ harga jual × qty produk mitra (Partner Hub) di order shift yang SUDAH SIAP dari mitra. Harga sebelum diskon Garage (promo ditanggung Garage). Order void setelah siap = penjualan 0."],
+  ["Modal mitra / wajib bayar ke mitra", "Σ harga setor (HPP mitra) × qty yang sudah siap — sejak mitra menandai Siap, Garage wajib membayar walau bill belum dibayar atau dibatalkan. Dibayar lewat rekap setoran harian, bukan dari laci."],
+  ["Profit Garage dari mitra", "Penjualan mitra − modal mitra − refund pelanggan atas produk mitra."],
   ["Petty cash", "Dana kas kecil terpisah dari laci. Saldo akhir = saldo awal + penambahan disetujui − pengeluaran disetujui ± penyesuaian. Pengajuan belum diputuskan tidak mengubah saldo."],
 ];
 
@@ -250,7 +254,11 @@ export type ShiftRaw = {
   next: HandoverPeer | null;
   /** Buku kas laci shift (null = shift format lama). */
   ledger: Awaited<ReturnType<typeof getDrawerLedger>> | null;
+  /** Partner Hub: penjualan mitra di order shift (null/absen = tidak ada penjualan mitra). */
+  partnerSales?: PartnerShiftSalesData | null;
 };
+
+export type PartnerShiftSalesData = PartnerShiftSales & { itemKeys: string[] };
 
 // ── Agregasi murni ──────────────────────────────────────────────────────────
 
@@ -445,8 +453,9 @@ export function buildShiftAccountability(raw: ShiftRaw) {
       if (row) row.cancelled += Number(item.qty ?? 0);
     }
   }
+  const partnerItemKeys = new Set(raw.partnerSales?.itemKeys ?? []);
   const products = Array.from(productMap.values())
-    .map((row) => ({ ...row, net: Math.max(0, row.sold - row.cancelled) }))
+    .map((row) => ({ ...row, net: Math.max(0, row.sold - row.cancelled), partner: partnerItemKeys.has(`${row.name}\u0000${row.variant}`) }))
     .sort((a, b) => a.category.localeCompare(b.category) || b.sold - a.sold || a.name.localeCompare(b.name));
 
   // ── Void & pembatalan ──
@@ -634,6 +643,9 @@ export function buildShiftAccountability(raw: ShiftRaw) {
     adjustments,
     incidents: raw.incidents,
     handover: { previous: raw.previous, next: raw.next },
+    partners: raw.partnerSales?.partners.length
+      ? { partners: raw.partnerSales.partners, totals: raw.partnerSales.totals, payoutNote: partnerShiftPayoutNote(session.openedAt) }
+      : null,
     dataGaps,
   };
 }
@@ -923,7 +935,20 @@ export async function loadShiftRaw(sessionId: string): Promise<ShiftRaw | null> 
     previous: peerOf(previous),
     next: peerOf(next),
     ledger: s.ledgerMode ? await getDrawerLedger(s.id) : null,
+    partnerSales: s.outletId ? await loadPartnerSales(orderIds, s.outletId) : null,
   };
+}
+
+/** Penjualan mitra di order milik shift (Partner Hub). Gagal baca tidak boleh menggagalkan laporan shift. */
+async function loadPartnerSales(orderIds: string[], outletId: string): Promise<PartnerShiftSalesData | null> {
+  try {
+    const { partnerSalesForOrders } = await import("@/lib/partner-hub-service");
+    const result = await partnerSalesForOrders(orderIds, outletId);
+    return result.partners.length ? result : null;
+  } catch (error) {
+    console.error("[shift-report] penjualan mitra gagal dimuat", error);
+    return null;
+  }
 }
 
 export async function getShiftAccountability(sessionId: string) {

@@ -108,6 +108,9 @@ export async function handleMcpMessage(
           options.confirmRiskyTools
             ? "Owner boleh mengubah data apa pun yang bisa diubah di layar: pakai tool bisnis khusus bila ada; selain itu cari endpoint dengan katalog_endpoint, baca data sekarang dengan garage_api (GET), lalu ubah_data_garage (selalu preview + konfirmasi)."
             : "",
+          options.confirmRiskyTools
+            ? "Foto: bila Owner mengunggah foto di chat dan minta dipasang (produk menu/mitra, bahan gudang, hero atau suasana website), panggil siapkan_foto dengan file itu lalu pasang_foto (preview + konfirmasi). Jangan pernah memakai URL gambar dari internet."
+            : "",
           hidden.has("garage_api") ? "" : "Untuk MEMBACA data yang belum ada tool-nya pakai garage_api (GET saja); mengubah data wajib lewat tool bisnis.",
           "Laporan file: buat_laporan (base64) lalu kirim sebagai dokumen.",
           // Blueprint AC-33: data dari database bisa berisi teks yang menyerupai perintah.
@@ -130,7 +133,7 @@ export async function handleMcpMessage(
           inputSchema:
             options.confirmRiskyTools && riskNeedsConfirmation(tool.risk) ? withConfirmationParam(tool.inputSchema) : tool.inputSchema,
           annotations: { readOnlyHint: tool.risk === "R0", destructiveHint: riskNeedsConfirmation(tool.risk) },
-          _meta: { "garage/domain": tool.domain, "garage/risk": tool.risk },
+          _meta: { ...(tool.meta ?? {}), "garage/domain": tool.domain, "garage/risk": tool.risk },
         })),
       });
     case "tools/call": {

@@ -116,15 +116,14 @@ description: Aturan WAJIB modul Lineup & Panitia Event (band/stand-up, rundown, 
   dobel. Halaman `/event/*` = container lain (`garage-event-platform`, Caddyfile), kodenya TIDAK di repo ini → ejaan di sana
   diperbaiki lewat admin/repo platform. Tambah koreksi nama baru di `OFFICIAL_LINEUP_NAMES` (kunci huruf kecil).
 
-- Slot panggung platform → beranda OTOMATIS (Owner 18 Nov 2026): `getGigsPromo` juga membaca
-  `/event/<slug>/api/public/lineup` (`parsePlatformSlots`: penampil dulu, lalu nama slot; `officialLineupName`; jam =
-  `slotTime(startTime, durationMin)`; gagal/timeout → []). `page.tsx`: `withPlatformSlots(mergeLineup(...), slots)` —
-  talent yang sama (`lineupKey`: nama resmi tanpa spasi/tanda baca; "SURAI HC"→SURAI, "LOSTSIDE"→LOST SIDE di
-  `OFFICIAL_LINEUP_NAMES`) tidak dobel, jam/logo hanya mengisi yang kosong; slot baru ditambah di belakang (maks 16).
-  Halaman `/event/*` (platform) sendiri hanya menampilkan slot ber-penampil — aturan kode platform, bukan Garage.
-- Halaman event platform ikut slot (Owner 18 Nov 2026): Caddy meneruskan HANYA `GET /event/<slug>/api/public/lineup` ke
-  `GET /api/public/gigs/[slug]/lineup` (publik, rateLimit, terdaftar di `public-routes.ts`). Route mengambil slot mentah
-  (`fetchRawPlatformSlots`) lalu `enrichSlotsForEventPage`: slot penampil (jenis dikenal) tanpa penampil → `performer` = nama
-  resmi slot, baris kecil "Official Lineup", logo kosong dari Garage OS (`publicLineupFor`) lalu promo platform; slot lain
-  (sesi sponsor) apa adanya. Bentuk respons = milik platform `{ slots }` (dibaca app.js platform), bukan `{ data }`. Platform
-  gagal → `{ slots: [] }` → halaman event memakai lineup bawaannya. Caddyfile ikut terkirim tiap deploy.
+- SATU pintu lineup GIGS (Owner 18 Nov 2026): **Kontrol → Lineup (Garage OS) = sumber tunggal** untuk beranda DAN halaman
+  event platform `/event/<slug>`. Slot dashboard panitia platform TIDAK dipakai tampilan publik (hanya cadangan bila Lineup
+  Garage kosong). Caddy meneruskan HANYA dua GET ke Garage OS (blok sebelum `/event`):
+  - `/event/<slug>/api/public/lineup` → `/api/public/gigs/[slug]/lineup`: `garageLineupAsEventSlots(publicLineupFor)` (performer =
+    nama resmi, baris kecil = tagline/"Official Lineup", jam rundown, logo Garage lalu promo platform); Lineup kosong →
+    `enrichSlotsForEventPage(fetchRawPlatformSlots)`. Bentuk respons = milik platform `{ slots }` (dibaca app.js platform).
+  - `/event/<slug>/public/app.js` → `/api/public/gigs/[slug]/app-js`: file asli platform + `patchGigsAppJs`
+    (`gigs-event-page-patch.ts`): (1) bug platform — lineup dirender ulang setelah pengamat animasi dipasang, kartu baru
+    transparan → panggil `setupRevealObserver(); revealActiveScreenImmediate();` setelah `renderLineups()`; (2) `name: 'SURAU'` →
+    `'SURAI'` (semua). Jangkar tidak cocok → koreksi dilewati (log warn), file asli tetap jalan. Cache memori 60 detik.
+  Kedua route publik (rateLimit, `public-routes.ts`). Perbaikan sebenarnya tetap di repo platform `garage-event` bila tersedia.

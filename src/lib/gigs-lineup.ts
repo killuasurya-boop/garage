@@ -23,19 +23,6 @@ export function lineupKey(name: string): string {
   return officialLineupName(name).toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
-/** Jam slot platform ("20:00"/"20.00" + durasi menit) → "20.00–20.30" seperti rundown Garage OS. Tidak valid → null. */
-export function slotTime(start: string | null | undefined, minutes: number | null | undefined): string | null {
-  const match = /^(\d{1,2})[:.](\d{2})$/.exec((start ?? "").trim());
-  if (!match) return null;
-  const from = Number(match[1]) * 60 + Number(match[2]);
-  if (Number(match[1]) > 23 || Number(match[2]) > 59) return null;
-  const fmt = (total: number) => {
-    const t = ((total % 1440) + 1440) % 1440;
-    return `${String(Math.floor(t / 60)).padStart(2, "0")}.${String(t % 60).padStart(2, "0")}`;
-  };
-  return minutes && minutes > 0 ? `${fmt(from)}–${fmt(from + minutes)}` : fmt(from);
-}
-
 export type LineupItem = {
   name: string;
   /** Nama asli di platform GIGS bila berbeda dari nama resmi (untuk mencocokkan impor; tidak ditampilkan). */
@@ -168,32 +155,6 @@ export function mergeLineup(
 }
 
 /**
- * Slot panggung dari dashboard panitia platform GIGS ikut tampil OTOMATIS di beranda (Owner 18 Nov 2026).
- * Talent yang sudah ada (cocok `lineupKey`) tidak dobel; jamnya hanya mengisi yang kosong. Slot baru ditambah di
- * belakang, urutan platform. Maks 16 kartu.
- */
-export function withPlatformSlots(lineup: LineupItem[], slots: LineupItem[] | undefined): LineupItem[] {
-  if (!slots?.length) return lineup;
-  const out = lineup.map((item) => ({ ...item }));
-  const byKey = new Map(out.map((item) => [lineupKey(item.name), item]));
-  for (const slot of slots) {
-    const key = lineupKey(slot.name);
-    if (!key) continue;
-    const existing = byKey.get(key);
-    if (existing) {
-      if (!existing.time && slot.time) existing.time = slot.time;
-      if (!existing.logo && slot.logo) existing.logo = slot.logo;
-      if (!existing.kind && slot.kind) existing.kind = slot.kind;
-      continue;
-    }
-    const added = { ...slot };
-    out.push(added);
-    byKey.set(key, added);
-  }
-  return out.slice(0, 16);
-}
-
-/**
  * Data slot untuk HALAMAN EVENT platform (`/event/<slug>`), dilewatkan Caddy → Garage OS (Owner 18 Nov 2026).
  * Kode halaman platform hanya menampilkan slot yang punya `performer`; panitia sering hanya mengisi nama slot. Di sini:
  * slot penampil (jenis dikenal) tanpa penampil → penampil = nama resmi slot; ejaan dikoreksi; logo kosong dilengkapi
@@ -211,4 +172,27 @@ export function enrichSlotsForEventPage(slots: unknown, logoByKey: ReadonlyMap<s
       const logo = (typeof slot.logo === "string" && slot.logo) || logoByKey.get(lineupKey(performer)) || "";
       return { ...slot, name: "Official Lineup", performer, logo };
     });
+}
+
+/**
+ * SATU pintu (Owner 18 Nov 2026): lineup terkonfirmasi di Garage OS (Kontrol → Lineup) → bentuk slot platform untuk
+ * halaman `/event/<slug>`. `performer` = nama, baris kecil = tagline (atau "Official Lineup"), jam = rentang rundown,
+ * logo = Garage OS lalu logo platform bernama sama. Durasi 0 → kartu tidak menulis "n menit".
+ */
+export function garageLineupAsEventSlots(
+  items: ReadonlyArray<{ name: string; kind: LineupKind | null; time?: string | null; logo?: string | null; tagline?: string | null }>,
+  logoByKey: ReadonlyMap<string, string>,
+): Array<Record<string, unknown>> {
+  return items.map((item, index) => {
+    const performer = officialLineupName(item.name);
+    return {
+      id: `garage-${index + 1}`,
+      name: item.tagline?.trim() || "Official Lineup",
+      category: item.kind ?? "band",
+      startTime: item.time ?? "",
+      durationMin: 0,
+      performer,
+      logo: item.logo || logoByKey.get(lineupKey(performer)) || "",
+    };
+  });
 }

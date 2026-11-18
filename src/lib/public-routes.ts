@@ -38,7 +38,8 @@ export const PUBLIC_API_ROUTES: Record<string, PublicRoute> = {
   "display/customer-queue": { reason: "Layar antrean pelanggan", abuseGuard: "rateLimit" },
   "invoice/[token]/live-status": { reason: "Invoice publik ber-token acak", abuseGuard: "token" },
   "public/events/[slug]/menu": { reason: "Menu event publik", abuseGuard: "readonly" },
-  "public/gigs/[slug]/lineup": { reason: "Slot lineup halaman event GIGS (via Caddy; nama/jenis/jam/logo saja)", abuseGuard: "rateLimit" },
+  "public/gigs/[slug]/lineup": { reason: "Lineup halaman event GIGS dari Lineup Garage OS (via Caddy; nama/jenis/jam/logo/tagline saja)", abuseGuard: "rateLimit" },
+  "public/gigs/[slug]/app-js": { reason: "app.js publik halaman event GIGS + koreksi kecil (via Caddy; tanpa data)", abuseGuard: "rateLimit" },
   "vouchers/validate": { reason: "Cek voucher saat checkout pelanggan", abuseGuard: "rateLimit" },
   "invitations/[token]/rsvp": { reason: "RSVP undangan ber-token", abuseGuard: "token" },
   // Akun member (auth sendiri: nomor/email + PIN, JWT cookie)

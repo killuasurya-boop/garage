@@ -21,6 +21,12 @@ export function startFakeGigsPlatform(initial: FakeGigsEvent) {
       res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ finance: { target: 0, budgetLines: current.budget ?? [] } }));
       return;
     }
+    if (req.method === "GET" && req.url === `/event/${current.slug}/public/app.js`) {
+      // Potongan app.js platform asli (jangkar tambalan Garage OS).
+      const js = "const LINEUPS = [{ name: 'SURAU', role: 'X' }];\nasync function loadPublicLineup() {\n  try {\n      LINEUPS.splice(0, 1, { name: 'NEXT', isCta: true });\n      renderLineups();\n    } catch {}\n}\n";
+      res.writeHead(200, { "content-type": "application/javascript" }).end(js);
+      return;
+    }
     if (req.method === "GET" && req.url === `/event/${current.slug}/api/public/lineup`) {
       res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ slots: current.slots ?? [] }));
       return;

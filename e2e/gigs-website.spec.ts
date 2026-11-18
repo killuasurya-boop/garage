@@ -139,7 +139,7 @@ test("Beranda HP: kartu lineup & sponsor tidak terpotong / tidak bergeser @mobil
   await login(page, "owner@garage.id");
   const event = await masterEvent(page);
   const longName = `Band Nama Panjang Sekali ${tag}`;
-  // Slot baru di dashboard panitia platform tampil otomatis di beranda (Owner 18 Nov 2026), tanpa impor.
+  // SATU pintu (Owner 18 Nov 2026): lineup Garage OS dipakai beranda DAN halaman event; slot dashboard platform tidak.
   const slotName = `Slot Baru ${tag}`;
   const platform = startFakeGigsPlatform({
     slug: `gigs-hp-${tag.toLowerCase()}`,
@@ -160,15 +160,23 @@ test("Beranda HP: kartu lineup & sponsor tidak terpotong / tidak bergeser @mobil
     const gigs = page.getByTestId("home-gigs-spotlight");
     await expect(gigs).toBeVisible({ timeout: 90_000 });
     await expect(gigs.getByText(longName)).toBeVisible();
-    const slotCard = gigs.locator("li").filter({ hasText: slotName });
-    await expect(slotCard).toBeVisible();
-    await expect(slotCard).toContainText("20.00–20.30 WIB");
+    await expect(gigs).not.toContainText(slotName);
 
-    // Halaman event platform (lewat Caddy → Garage OS): slot tanpa penampil diisi nama slot → langsung tampil di sana.
+    // Halaman event platform (Caddy → Garage OS): isi lineup = lineup Garage OS yang sama dengan beranda.
     const eventLineup = await page.request.get(`/api/public/gigs/gigs-hp-${tag.toLowerCase()}/lineup`);
     expect(eventLineup.ok(), await eventLineup.text()).toBeTruthy();
-    const { slots } = (await eventLineup.json()) as { slots: Array<{ performer: string; name: string; startTime: string }> };
-    expect(slots).toEqual([expect.objectContaining({ performer: slotName, name: "Official Lineup", startTime: "20:00" })]);
+    const { slots } = (await eventLineup.json()) as { slots: Array<{ performer: string }> };
+    expect(slots.map((slot) => slot.performer)).toContain(longName);
+    expect(slots.map((slot) => slot.performer)).not.toContain(slotName);
+
+    // app.js halaman event lewat Garage OS: kartu lineup baru langsung dimunculkan + SURAU → SURAI.
+    const appJs = await page.request.get(`/api/public/gigs/gigs-hp-${tag.toLowerCase()}/app-js`);
+    expect(appJs.ok(), await appJs.text()).toBeTruthy();
+    expect(appJs.headers()["content-type"]).toContain("javascript");
+    const js = await appJs.text();
+    expect(js).toContain("setupRevealObserver();");
+    expect(js).toContain("name: 'SURAI'");
+    expect(js).not.toContain("SURAU");
     await expect(page.getByTestId("home-gigs-partners").getByText(`Sponsor Dengan Nama Sangat Panjang ${tag}`)).toBeVisible();
     await noHorizontalOverflow(page);
     check();

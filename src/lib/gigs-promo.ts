@@ -1,7 +1,7 @@
 // Promosi GARAGE EVENT PLATFORM (mis. GIGS AKHIR TAHUN 2026) di beranda.
 // Sumber tunggal: platform event (stack Docker terpisah "garage-event") lewat jaringan internal.
 // Tidak ada tanggal/teks/lineup yang ditulis di sini. Gagal/timeout -> null -> beranda tampil normal.
-import { officialLineupName, parseLineupKind, slotTime, type LineupItem } from "@/lib/gigs-lineup";
+import { officialLineupName, parseLineupKind, type LineupItem } from "@/lib/gigs-lineup";
 
 export type GigsPromo = {
   slug: string;
@@ -21,8 +21,6 @@ export type GigsPromo = {
     pitch: string | null;
     programs: string[];
     lineup: LineupItem[];
-    /** Slot panggung dashboard panitia platform (`/event/<slug>/api/public/lineup`); beranda menambahkannya otomatis. */
-    slots?: LineupItem[];
     instagram: string | null;
   };
   sponsorMin: number | null;
@@ -92,28 +90,6 @@ function parsePlatformLineup(lineup: unknown): LineupItem[] {
     .slice(0, 16);
 }
 
-/**
- * Slot panggung platform → kartu lineup. Nama = penampil yang dipilih panitia, bila kosong nama slot; ejaan dikoreksi
- * (`officialLineupName`). Logo hanya jalur /event/..., jam dari jam mulai + durasi. Maks 16.
- */
-export function parsePlatformSlots(slots: unknown): LineupItem[] {
-  return (Array.isArray(slots) ? (slots as Array<Record<string, unknown> | null>) : [])
-    .map((slot) => {
-      const raw = text(slot?.performer, 40) ?? text(slot?.name, 40) ?? "";
-      const name = officialLineupName(raw);
-      return {
-        name,
-        ...(name !== raw ? { platformName: raw } : {}),
-        logo: safePath(slot?.logo),
-        kind: parseLineupKind(slot?.category),
-        time: slotTime(typeof slot?.startTime === "string" ? slot.startTime : null, num(slot?.durationMin)),
-      };
-    })
-    // Hanya slot penampil (band, stand-up, ...); sesi lain (mis. sesi sponsor) tidak jadi kartu lineup.
-    .filter((slot) => slot.name && slot.kind)
-    .slice(0, 16);
-}
-
 /** Slot panggung mentah satu event dari platform (jaringan internal). Slug/alamat tidak valid atau gagal → Error. */
 export async function fetchRawPlatformSlots(slug: string, timeoutMs = 1500): Promise<unknown[]> {
   const api = process.env.GARAGE_EVENT_API || DEFAULT_API;
@@ -122,11 +98,6 @@ export async function fetchRawPlatformSlots(slug: string, timeoutMs = 1500): Pro
   if (!res.ok) throw new Error(`Platform GIGS membalas ${res.status}.`);
   const json = (await res.json()) as { slots?: unknown };
   return Array.isArray(json?.slots) ? json.slots : [];
-}
-
-/** Slot panggung satu event untuk beranda. Gagal/timeout → [] (beranda tetap tampil). */
-async function fetchPlatformSlots(slug: string): Promise<LineupItem[]> {
-  return parsePlatformSlots(await fetchRawPlatformSlots(slug).catch(() => []));
 }
 
 /**
@@ -214,7 +185,6 @@ export async function getGigsPromo(now = Date.now()): Promise<GigsPromo | null> 
           .filter((p): p is string => Boolean(p))
           .slice(0, 8),
         lineup: parsePlatformLineup(promo.lineup),
-        slots: await fetchPlatformSlots(ev.slug),
         instagram:
           typeof promo.instagram === "string" && /^https:\/\/(www\.)?instagram\.com\/[A-Za-z0-9._/]+$/.test(promo.instagram)
             ? promo.instagram

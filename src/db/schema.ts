@@ -5956,6 +5956,8 @@ export const eventCrew = pgTable(
     role: text("role").notNull(),
     phone: text("phone"),
     duties: text("duties"),
+    // Akun login Garage OS panitia (Owner menautkan; opsional). Membuka halaman /panitia untuk event ini saja.
+    userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
     // aktif | nonaktif
     status: text("status").notNull().default("aktif"),
     createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
@@ -5965,6 +5967,7 @@ export const eventCrew = pgTable(
   (table) => ({
     eventIdx: index("event_crew_event_idx").on(table.eventName),
     eventIdIdx: index("event_crew_event_id_idx").on(table.eventId),
+    userIdx: index("event_crew_user_idx").on(table.userId),
     statusCheck: check("event_crew_status_check", sql`${table.status} in ('aktif','nonaktif')`),
   }),
 );

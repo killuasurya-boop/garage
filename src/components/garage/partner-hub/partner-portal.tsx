@@ -1,7 +1,7 @@
 "use client";
 
 // Portal Mitra (Smart Partner Hub, papan 03). Mobile-first; hanya data mitra yang login (partner_id dari sesi).
-// Mitra: Buka/Jeda/Tutup, Tersedia/Habis per produk, Terima → Proses → Siap Antar, keuangan & PDF miliknya.
+// Mitra: Buka/Jeda/Tutup, Tersedia/Habis & foto per produk, Terima → Proses → Siap Antar, keuangan & PDF miliknya.
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -16,6 +16,7 @@ import { GarageBrandLogo } from "@/components/garage/member-auth/garage-brand-lo
 
 import { usePartnerAlerts } from "./partner-portal-alerts";
 import { PartnerPerformancePanel, PartnerPricePanel } from "./partner-portal-growth";
+import { PartnerProductPhotos } from "./partner-portal-photos";
 import { PartnerEarnings, PartnerInfo, PartnerPayouts, PartnerPinChange, RejectPanel, type PartnerPayout, type PartnerProfile } from "./partner-portal-extras";
 
 type Ticket = {
@@ -433,6 +434,8 @@ export function PartnerPortal() {
             ))}
           </ul>
         </section>
+
+        <PartnerProductPhotos products={overview.products} onChanged={load} />
 
         <PartnerEarnings refreshKey={overview.activeTickets.map((t) => `${t.ticketNo}:${t.status}`).join("|") + `#${overview.today.liability}`} />
         <PartnerPerformancePanel />

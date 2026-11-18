@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
+  ClipboardPaste,
   AlertTriangle,
   Ban,
   Camera,
@@ -23,6 +24,8 @@ import { PageHeader } from "@/components/ceo/layout/PageHeader";
 import { Badge } from "@/components/ceo/ui/Badge";
 import { EventControlNav, StepHint } from "@/components/ceo/ui/EventControlNav";
 import { LogoUpload } from "@/components/ceo/ui/LogoUpload";
+import { PasteListDialog, type PasteResult } from "@/components/ceo/ui/PasteListDialog";
+import { parseSponsorRows, SPONSOR_COLUMNS } from "@/lib/paste-list";
 import { FormSection, ReadinessChips, SponsorCardPreview } from "@/components/ceo/ui/WebsitePreview";
 import { garageApi, GarageApiError } from "@/lib/api-client";
 import { INSTALLMENT_STATE_LABEL, OBLIGATION_STATE_LABEL, SPONSOR_STATUS_LABEL, type InstallmentState, type ObligationState } from "@/lib/event-sponsor-rules";
@@ -103,6 +106,10 @@ export function SponsorsPanel() {
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [form, setForm] = useState<null | { mode: "new" } | { mode: "edit"; sponsor: SponsorView }>(null);
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pasteEventId, setPasteEventId] = useState("");
+  const [pasteShow, setPasteShow] = useState(false);
+  const [pasteNotice, setPasteNotice] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -152,6 +159,17 @@ export function SponsorsPanel() {
             <button type="button" onClick={() => void load()} className={ghostBtn} aria-label="Muat ulang">
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin motion-reduce:animate-none" : ""}`} aria-hidden />
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                setPasteEventId((current) => current || data?.masterEvents[0]?.id || "");
+                setPasteOpen(true);
+              }}
+              className={ghostBtn}
+              title="Tempel daftar sponsor dari Excel, Google Sheets, atau WhatsApp"
+            >
+              <ClipboardPaste className="h-4 w-4" aria-hidden /> Tempel daftar
+            </button>
             <button type="button" onClick={() => setForm({ mode: "new" })} className={primaryBtn} data-testid="sponsor-new">
               <Plus className="h-4 w-4" aria-hidden /> Sponsor baru
             </button>
@@ -167,6 +185,51 @@ export function SponsorsPanel() {
           "Unggah logo + centang “Tampilkan di website” → muncul di “Didukung oleh”",
         ]}
       />
+
+      {pasteNotice ? (
+        <p role="status" className="flex items-start gap-2 rounded-md border border-amber-300/40 bg-amber-300/10 px-3 py-2 text-sm text-amber-100">
+          <span className="min-w-0">{pasteNotice}</span>
+          <button type="button" className="ml-auto shrink-0 text-amber-200 hover:text-white" aria-label="Tutup pesan" onClick={() => setPasteNotice(null)}>
+            <X className="h-4 w-4" aria-hidden />
+          </button>
+        </p>
+      ) : null}
+      {pasteOpen ? (
+        <PasteListDialog
+          title="Tempel daftar sponsor"
+          intro="Salin baris sponsor dari Excel, Google Sheets, atau WhatsApp. Yang disimpan hanya KESEPAKATAN; uang masuk tetap dicatat per pembayaran di detail sponsor. Sponsor yang namanya sudah ada di event dilewati."
+          columns={SPONSOR_COLUMNS}
+          example={"Nama\tPaket\tNilai\tInstagram\tKontak\tWA\nDesain Aja Dulu\tGold\tRp1.000.000\t@desainajadulu\tBudi\t081234567890\nKopi Nusantara\tSilver\t500rb\t@kopinusantara\t\t"}
+          parse={parseSponsorRows}
+          options={
+            <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+              <Field label="Event">
+                <select value={pasteEventId} onChange={(e) => setPasteEventId(e.target.value)} className={inputClass}>
+                  {!data?.masterEvents.length ? <option value="">Belum ada event, buat di menu Event</option> : null}
+                  {data?.masterEvents.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.title} · {m.date}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm text-zinc-100">
+                <input type="checkbox" className="size-4" checked={pasteShow} onChange={(e) => setPasteShow(e.target.checked)} />
+                Tampilkan di website
+              </label>
+            </div>
+          }
+          onSubmit={async (rows) => {
+            const master = data?.masterEvents.find((m) => m.id === pasteEventId);
+            if (!master) throw new Error("Pilih event dulu.");
+            const res = await garageApi.post<PasteResult>("/api/sponsors/bulk", { eventId: master.id, eventName: master.title, showOnWebsite: pasteShow, rows });
+            await load();
+            return res;
+          }}
+          onClose={() => setPasteOpen(false)}
+          onDone={setPasteNotice}
+        />
+      ) : null}
 
       {error ? (
         <p role="alert" className="rounded-md border border-[color-mix(in_srgb,var(--garage-red)_50%,transparent)] bg-[color-mix(in_srgb,var(--garage-red)_14%,transparent)] px-3 py-2 text-sm text-[#ffb1b1]">

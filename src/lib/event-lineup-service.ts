@@ -2,7 +2,7 @@ import { and, asc, eq, inArray, isNull, ne, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 
 import { getDb } from "@/db";
-import { eventCrew, eventCrewTasks, eventOpsChecks, eventPerformers, events, eventSponsorObligations, eventSponsors, staffProfiles } from "@/db/schema";
+import { eventCrew, eventCrewTasks, eventOpsChecks, eventPerformers, events, eventSponsorObligations, eventSponsors, staffProfiles, user } from "@/db/schema";
 import {
   buildRundown,
   cleanCrewPhone,
@@ -124,6 +124,7 @@ export const performerPatchSchema = performerInputSchema
 
 export const importPlatformSchema = z.object({ ...eventRef });
 
+
 export const reorderSchema = z.object({ eventId: z.string().uuid().nullable().optional(), eventName, ids: z.array(z.string().uuid()).min(1).max(200) });
 
 const crewFields = {
@@ -131,6 +132,8 @@ const crewFields = {
   role: z.enum(CREW_ROLES),
   phone: optionalText(24),
   duties: optionalText(1000),
+  // Akun login staf yang ditautkan (opsional): membuka /panitia untuk event ini saja.
+  userId: z.string().trim().min(1).max(100).nullable().optional(),
 };
 export const crewInputSchema = z.object({ ...eventRef, ...crewFields });
 export const crewPatchSchema = z.object({
@@ -138,8 +141,42 @@ export const crewPatchSchema = z.object({
   role: crewFields.role.optional(),
   phone: crewFields.phone,
   duties: crewFields.duties,
+  userId: crewFields.userId,
   status: z.enum(["aktif", "nonaktif"]).optional(),
 });
+
+// ─── Tempel daftar (Owner 17 Nov 2026) ──────────────────────────────────────
+const bulkLine = z.number().int().min(1).max(100_000).optional();
+export const bulkPasteSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("performer"),
+    ...eventRef,
+    status: z.enum(["calon", "konfirmasi"]).default("konfirmasi"),
+    rows: z
+      .array(
+        z.object({
+          line: bulkLine,
+          name: performerFields.name,
+          kind: performerFields.kind,
+          tagline: performerFields.tagline,
+          instagram: performerFields.instagram,
+          setStart: performerFields.setStart,
+          setMinutes: performerFields.setMinutes,
+          contactPhone: performerFields.contactPhone,
+        }),
+      )
+      .min(1, "Tidak ada baris untuk disimpan.")
+      .max(100, "Maksimal 100 baris sekali tempel."),
+  }),
+  z.object({
+    kind: z.literal("crew"),
+    ...eventRef,
+    rows: z
+      .array(z.object({ line: bulkLine, name: crewFields.name, role: crewFields.role, phone: crewFields.phone, duties: crewFields.duties }))
+      .min(1, "Tidak ada baris untuk disimpan.")
+      .max(100, "Maksimal 100 baris sekali tempel."),
+  }),
+]);
 
 export const taskInputSchema = z.object({
   ...eventRef,
@@ -349,10 +386,22 @@ export async function getLineupBoard(garage: GarageSession, requested: LineupBoa
     const list = (rows as unknown as { rows?: Array<{ performer_id: string; planned: number; paid: number }> }).rows ?? (rows as unknown as Array<{ performer_id: string; planned: number; paid: number }>);
     for (const r of list) honor[r.performer_id] = { planned: Number(r.planned), paid: Number(r.paid) };
   }
+  // Akun staf aktif untuk ditautkan ke panitia (Owner saja; tanpa nomor HP).
+  const accounts =
+    garage.profile.role === "Owner"
+      ? await db
+          .select({ userId: user.id, name: user.name, email: user.email, role: staffProfiles.role })
+          .from(staffProfiles)
+          .innerJoin(user, eq(user.id, staffProfiles.userId))
+          .where(eq(staffProfiles.status, "active"))
+          .orderBy(asc(user.name))
+          .limit(300)
+      : [];
   return {
     today,
     honor,
     sponsorNotes,
+    accounts,
     events: events_.includes(event) ? events_ : [event, ...events_],
     masterEvents,
     legacyEvents,
@@ -572,11 +621,88 @@ export async function importPlatformLineup(input: z.infer<typeof importPlatformS
   return { platformName: platform.name, ...result };
 }
 
+/**
+ * Simpan banyak talent / panitia sekaligus dari "Tempel daftar". Semua baris divalidasi DULU (WA, Instagram); satu salah
+ * = tidak ada yang disimpan (pesan per baris). Nama yang sudah ada di event (tanpa peduli huruf) dilewati, tidak ditimpa.
+ * Tiap baris disimpan lewat createPerformer/createCrew yang sama (audit per baris).
+ */
+export async function bulkPaste(input: z.infer<typeof bulkPasteSchema>, garage: GarageSession) {
+  assertOwnerHuman(garage);
+  const ref = await eventFor(input);
+  const errors: string[] = [];
+  input.rows.forEach((row, index) => {
+    const label = `Baris ${row.line ?? index + 1}`;
+    try {
+      if ("contactPhone" in row) phoneOrThrow(row.contactPhone, "WA");
+      if ("phone" in row) phoneOrThrow(row.phone, "WA");
+      if ("instagram" in row) instagramHandle(row.instagram);
+    } catch (error) {
+      errors.push(`${label}: ${error instanceof Error ? error.message : "tidak valid"}`);
+    }
+  });
+  if (errors.length) throw new LineupError("ROWS_INVALID", `Belum disimpan. Perbaiki dulu: ${errors.slice(0, 8).join(" · ")}`, 400);
+
+  const db = getDb();
+  const sameEvent = (table: typeof eventPerformers | typeof eventCrew) =>
+    ref.eventId ? eq(table.eventId, ref.eventId) : and(isNull(table.eventId), eq(table.eventName, ref.eventName));
+  const created: string[] = [];
+  const skipped: string[] = [];
+  if (input.kind === "performer") {
+    const existing = await db
+      .select({ name: eventPerformers.name, platformName: eventPerformers.platformName, slotOrder: eventPerformers.slotOrder })
+      .from(eventPerformers)
+      .where(sameEvent(eventPerformers));
+    const names = new Set(existing.flatMap((r) => [r.name, r.platformName ?? ""]).filter(Boolean).map((n) => n.trim().toLowerCase()));
+    let slot = existing.reduce((max, r) => Math.max(max, r.slotOrder ?? 0), 0);
+    for (const row of input.rows) {
+      const key = row.name.trim().toLowerCase();
+      if (names.has(key)) {
+        skipped.push(row.name);
+        continue;
+      }
+      slot += 1;
+      await createPerformer(
+        {
+          eventId: ref.eventId,
+          eventName: ref.eventName,
+          name: row.name,
+          kind: row.kind,
+          tagline: row.tagline,
+          instagram: row.instagram,
+          setStart: row.setStart,
+          setMinutes: row.setMinutes,
+          contactPhone: row.contactPhone,
+          status: input.status,
+          slotOrder: slot,
+        },
+        garage,
+      );
+      names.add(key);
+      created.push(row.name);
+    }
+  } else {
+    const existing = await db.select({ name: eventCrew.name }).from(eventCrew).where(and(sameEvent(eventCrew), eq(eventCrew.status, "aktif")));
+    const names = new Set(existing.map((r) => r.name.trim().toLowerCase()));
+    for (const row of input.rows) {
+      const key = row.name.trim().toLowerCase();
+      if (names.has(key)) {
+        skipped.push(row.name);
+        continue;
+      }
+      await createCrew({ eventId: ref.eventId, eventName: ref.eventName, name: row.name, role: row.role, phone: row.phone, duties: row.duties }, garage);
+      names.add(key);
+      created.push(row.name);
+    }
+  }
+  return { created, skipped };
+}
+
 // ─── Panitia ────────────────────────────────────────────────────────────────
 
 export async function createCrew(input: z.infer<typeof crewInputSchema>, garage: GarageSession) {
   assertOwnerHuman(garage);
   const ref = await eventFor(input);
+  const account = await crewAccountOrThrow(input.userId);
   const [row] = await getDb()
     .insert(eventCrew)
     .values({
@@ -586,11 +712,26 @@ export async function createCrew(input: z.infer<typeof crewInputSchema>, garage:
       role: input.role,
       phone: phoneOrThrow(input.phone, "Nomor panitia"),
       duties: emptyToNull(input.duties) ?? null,
+      userId: account ?? null,
       createdBy: garage.user.id,
     })
     .returning();
   await audit(garage, "Tambah panitia event", row.name, { eventName: row.eventName, crewId: row.id, role: row.role });
   return row;
+}
+
+/** Akun yang boleh ditautkan = akun staf AKTIF (bukan API key agent). null/kosong = lepas tautan. */
+async function crewAccountOrThrow(userId: string | null | undefined): Promise<string | null | undefined> {
+  if (userId === undefined) return undefined;
+  if (!userId) return null;
+  const [row] = await getDb()
+    .select({ id: user.id })
+    .from(user)
+    .innerJoin(staffProfiles, eq(staffProfiles.userId, user.id))
+    .where(and(eq(user.id, userId), eq(staffProfiles.status, "active")))
+    .limit(1);
+  if (!row) throw new LineupError("ACCOUNT_NOT_FOUND", "Akun staf tidak ditemukan atau tidak aktif.", 404);
+  return row.id;
 }
 
 export async function updateCrew(id: string, patch: z.infer<typeof crewPatchSchema>, garage: GarageSession) {
@@ -602,6 +743,8 @@ export async function updateCrew(id: string, patch: z.infer<typeof crewPatchSche
   if (patch.phone !== undefined) values.phone = phoneOrThrow(patch.phone, "Nomor panitia");
   if (patch.duties !== undefined) values.duties = emptyToNull(patch.duties);
   if (patch.status !== undefined) values.status = patch.status;
+  const account = await crewAccountOrThrow(patch.userId);
+  if (account !== undefined) values.userId = account;
   const [row] = await getDb().update(eventCrew).set(values).where(eq(eventCrew.id, id)).returning();
   const changed = Object.keys(values).filter((k) => k !== "updatedAt");
   await audit(garage, "Ubah panitia event", row.name, {

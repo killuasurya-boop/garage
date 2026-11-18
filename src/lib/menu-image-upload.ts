@@ -67,9 +67,17 @@ export async function storeMenuImage(request: Request, folder: "menu" | "event-m
     throw new MenuImageUploadError(400, "MENU_IMAGE_UNSUPPORTED", "Format belum didukung. Gunakan JPG, PNG, atau WebP.");
   }
 
+  return storeMenuImageBuffer(Buffer.from(await image.arrayBuffer()), folder, fileId);
+}
+
+/**
+ * Simpan gambar yang sudah ada di memori (mis. foto dari ChatGPT yang sudah divalidasi `mcp-photo-staging`):
+ * kompres ke webp ≤200 KB lalu tulis ke `/garage-uploads/<folder>` — sama persis dengan unggah form.
+ */
+export async function storeMenuImageBuffer(input: Buffer, folder: "menu" | "event-menu" | "event-lineup" | "event-sponsor", fileId: string) {
   let output: Awaited<ReturnType<typeof convertMenuImage>>;
   try {
-    output = await convertMenuImage(Buffer.from(await image.arrayBuffer()));
+    output = await convertMenuImage(input);
   } catch (error) {
     throw new MenuImageUploadError(400, "MENU_IMAGE_INVALID", error instanceof Error ? error.message : "Foto tidak bisa diproses.");
   }

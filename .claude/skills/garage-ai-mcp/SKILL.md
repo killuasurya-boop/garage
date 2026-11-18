@@ -28,7 +28,9 @@ description: Aturan WAJIB MCP ChatGPT, Owner AI Connect/Command Center, tool reg
   confirmation on stable `fotoId`) forwards the staged file as multipart (`callApiAsOwner` `form`) to an EXISTING upload route from a
   fixed list (`photoRoute`: produk_menu / produk_mitra — by `nama` via `resolveProductForPhoto` (Owner 18 Nov 2026: Garage AND
   partner products, not archived; a partner product found via produk_menu is routed to `/api/partners/products/<linkId>/image`;
-  exact name wins, ambiguous = `PRODUK_AMBIGU`) —, bahan_gudang, hero_website, suasana_website slot 1–4). Never add free paths or
+  exact name wins, ambiguous = `PRODUK_AMBIGU`) —, bahan_gudang, hero_website, suasana_website slot 1–4,
+  logo_sponsor / logo_talent (Owner 18 Nov 2026: by `nama`, `resolveEventLogoTarget`, not `batal`; stored DIRECTLY via
+  `storeMenuImageBuffer` + `setSponsorLogo`/`setPerformerLogo` because those routes are Owner-human-only and refuse the delegated key)). Never add free paths or
   money evidence (receipts, transfer proofs, documents) to that list. Signed `download_url`s never reach audit (`toolArgsPreview`
   redacts to host), `mcp_operations` or error text.
 - Owner AI Connect (blueprint GOS-AI-MCP V3 Phase 1, `docs/owner-ai/`, migration 0175): `/control/ai-connect` + navbar chip

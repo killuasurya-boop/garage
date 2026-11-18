@@ -19,7 +19,7 @@ import { z } from "zod";
 import { AgentToolError, type AgentTool } from "@/lib/agent-tool-core";
 import type { GarageSession } from "@/lib/server-auth";
 
-export const PHOTO_TARGETS = ["produk_menu", "produk_mitra", "bahan_gudang", "hero_website", "suasana_website"] as const;
+export const PHOTO_TARGETS = ["produk_menu", "produk_mitra", "bahan_gudang", "hero_website", "suasana_website", "logo_sponsor", "logo_talent"] as const;
 export type PhotoTarget = (typeof PHOTO_TARGETS)[number];
 
 const TARGET_LABEL: Record<PhotoTarget, string> = {
@@ -28,7 +28,12 @@ const TARGET_LABEL: Record<PhotoTarget, string> = {
   bahan_gudang: "Foto bahan/produk gudang",
   hero_website: "Foto hero website",
   suasana_website: "Foto suasana outlet di website",
+  logo_sponsor: "Logo sponsor event",
+  logo_talent: "Logo talent/band event",
 };
+
+/** Logo sponsor/talent disimpan LANGSUNG lewat service (Owner manusia), bukan rute delegasi (key agent ditolak di sana). */
+const EVENT_LOGO_TARGETS = new Set<PhotoTarget>(["logo_sponsor", "logo_talent"]);
 
 const SAFE_ID = /^[A-Za-z0-9_-]{1,80}$/;
 
@@ -49,6 +54,8 @@ export function photoRoute(tujuan: PhotoTarget, id: string | undefined, slot: nu
   }
   if (tujuan === "produk_menu") return { path: `/api/menu/${id}/image`, fields: {}, infoPath: `/api/menu/${id}`, label };
   if (tujuan === "produk_mitra") return { path: `/api/partners/products/${id}/image`, fields: {}, infoPath: null, label };
+  if (tujuan === "logo_sponsor") return { path: `/api/sponsors/${id}/logo`, fields: {}, infoPath: null, label };
+  if (tujuan === "logo_talent") return { path: `/api/event-lineup/performers/${id}/logo`, fields: {}, infoPath: null, label };
   return { path: `/api/wms/products/${id}/image`, fields: {}, infoPath: `/api/wms/products/${id}`, label };
 }
 
@@ -130,8 +137,36 @@ export async function resolveMenuProductId(nama: string) {
  * produk_menu / produk_mitra dengan `nama` → tujuan + id yang benar. `produk_menu` mencari produk Garage DAN mitra
  * (Owner cukup bilang "foto produk X"); bila ternyata produk mitra, foto dikirim ke endpoint mitra.
  */
+/**
+ * logo_sponsor / logo_talent dengan `nama`: sponsor/talent yang tidak batal. Nama persis menang; nama sama di beberapa
+ * event = pilih lewat `id` (pilihan menyebut nama event).
+ */
+export async function resolveEventLogoTarget(kind: "logo_sponsor" | "logo_talent", nama: string) {
+  const { and, ilike, ne } = await import("drizzle-orm");
+  const { getDb } = await import("@/db");
+  const { eventPerformers, eventSponsors } = await import("@/db/schema");
+  const pattern = `%${nama.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+  const table = kind === "logo_sponsor" ? eventSponsors : eventPerformers;
+  const rows = await getDb()
+    .select({ id: table.id, name: table.name, eventName: table.eventName })
+    .from(table)
+    .where(and(ne(table.status, "batal"), ilike(table.name, pattern)))
+    .limit(20);
+  const exact = rows.filter((r) => r.name.trim().toLowerCase() === nama.trim().toLowerCase());
+  const pick = exact.length === 1 ? exact : rows.length === 1 ? rows : [];
+  if (pick.length === 1) return pick[0];
+  const jenis = kind === "logo_sponsor" ? "sponsor" : "talent";
+  if (!rows.length) throw new AgentToolError("TIDAK_DITEMUKAN", `Tidak ada ${jenis} event bernama "${nama}". Tambahkan dulu (simpan_${jenis === "sponsor" ? "sponsor" : "talent"}).`, 404);
+  const pilihan = (exact.length > 1 ? exact : rows).slice(0, 8).map((r) => `${r.name} — ${r.eventName} (id ${r.id})`).join("; ");
+  throw new AgentToolError("NAMA_AMBIGU", `Ada beberapa ${jenis} yang cocok: ${pilihan}. Tanyakan Owner yang mana, lalu kirim \`id\`-nya.`, 409);
+}
+
 async function withResolvedId(args: Record<string, unknown>, outletId: string): Promise<{ tujuan: PhotoTarget; id: string | undefined; nama: string | null }> {
   const tujuan = args.tujuan as PhotoTarget;
+  if (EVENT_LOGO_TARGETS.has(tujuan) && !args.id && typeof args.nama === "string") {
+    const found = await resolveEventLogoTarget(tujuan as "logo_sponsor" | "logo_talent", args.nama);
+    return { tujuan, id: found.id, nama: `${found.name} (${found.eventName})` };
+  }
   if ((tujuan !== "produk_menu" && tujuan !== "produk_mitra") || args.id || typeof args.nama !== "string") {
     return { tujuan, id: args.id as string | undefined, nama: null };
   }
@@ -170,7 +205,7 @@ export const fotoTools: AgentTool[] = [
         const meta = await stagePhotoFromUrl({ userId: session.user.id, downloadUrl: foto.download_url });
         return {
           ...stagedSummary(meta),
-          langkahBerikut: "Panggil pasang_foto dengan fotoId ini + tujuan (produk_menu / produk_mitra / bahan_gudang / hero_website / suasana_website).",
+          langkahBerikut: "Panggil pasang_foto dengan fotoId ini + tujuan (produk_menu / produk_mitra / bahan_gudang / hero_website / suasana_website / logo_sponsor / logo_talent).",
         };
       } catch (error) {
         if (error instanceof PhotoStagingError) throw new AgentToolError(error.code, error.message, error.status);
@@ -182,7 +217,7 @@ export const fotoTools: AgentTool[] = [
     name: "pasang_foto",
     title: "Pasang foto ke Garage OS",
     description:
-      "Langkah 2 unggah foto: pasang foto dari siapkan_foto ke tujuan tetap — `produk_menu` (isi `nama` produk, mis. \"Nasi Goreng\" — produk Garage MAUPUN produk mitra; produk mitra otomatis ke foto mitra), `produk_mitra` (isi `nama` produk mitra atau id link), `bahan_gudang` (id produk gudang), `hero_website`, atau `suasana_website` (slot 1–4, foto suasana outlet di homepage). Mengganti foto yang ada. Selalu preview + konfirmasi Owner. Bukti uang (struk, bukti transfer, dokumen) tidak lewat sini. Menghapus foto suasana: ubah_data_garage DELETE /api/site/landing-hero?slot=suasana_N.",
+      "Langkah 2 unggah foto: pasang foto dari siapkan_foto ke tujuan tetap — `produk_menu` (isi `nama` produk, mis. \"Nasi Goreng\" — produk Garage MAUPUN produk mitra; produk mitra otomatis ke foto mitra), `produk_mitra` (isi `nama` produk mitra atau id link), `bahan_gudang` (id produk gudang), `hero_website`, `suasana_website` (slot 1–4, foto suasana outlet di homepage), `logo_sponsor` (isi `nama` sponsor event, mis. \"Desain Aja Dulu\") atau `logo_talent` (isi `nama` band/talent). Logo sponsor tampil di bagian \"Didukung oleh\" website hanya bila sponsor dicentang tampil di website. Mengganti foto yang ada. Selalu preview + konfirmasi Owner. Bukti uang (struk, bukti transfer, dokumen) tidak lewat sini. Menghapus foto suasana: ubah_data_garage DELETE /api/site/landing-hero?slot=suasana_N.",
     write: true,
     domain: "sistem",
     risk: "R2",
@@ -228,6 +263,21 @@ export const fotoTools: AgentTool[] = [
       const staged = await loadStagedPhoto(String(args.fotoId), session.user.id);
       if (!staged) {
         throw new AgentToolError("FOTO_TIDAK_DITEMUKAN", "Foto sementara tidak ada atau sudah kedaluwarsa. Jalankan siapkan_foto lagi.", 404);
+      }
+      if (EVENT_LOGO_TARGETS.has(resolved.tujuan)) {
+        // Sama dengan form Sponsor/Lineup: kompres webp ≤200 KB → simpan → setSponsorLogo/setPerformerLogo (audit di service).
+        const { storeMenuImageBuffer } = await import("@/lib/menu-image-upload");
+        const sponsor = resolved.tujuan === "logo_sponsor";
+        const logoUrl = await storeMenuImageBuffer(staged.data, sponsor ? "event-sponsor" : "event-lineup", resolved.id!);
+        if (sponsor) {
+          const { setSponsorLogo } = await import("@/lib/event-sponsor-service");
+          await setSponsorLogo(resolved.id!, logoUrl, session);
+        } else {
+          const { setPerformerLogo } = await import("@/lib/event-lineup-service");
+          await setPerformerLogo(resolved.id!, logoUrl, session);
+        }
+        await discardStagedPhoto(staged.meta.fotoId);
+        return { terpasang: `${route.label}: ${resolved.nama ?? resolved.id}`, alasan: args.alasan, fotoBaru: logoUrl, sidik: staged.meta.sha256.slice(0, 16) };
       }
       const form = new FormData();
       form.append("image", new Blob([new Uint8Array(staged.data)], { type: "image/webp" }), `chatgpt-${staged.meta.fotoId.slice(0, 8)}.webp`);

@@ -88,3 +88,13 @@ description: Aturan WAJIB modul Lineup & Panitia Event (band/stand-up, rundown, 
   panitia = ejaan lain LOST SIDE.
 - Impor lineup mengingat nama asli platform (`event_performers.platform_name`, migrasi 0201): dicocokkan lewat
   `platform_name` dulu, lalu nama sekarang, jadi talent yang diganti nama (SURAU → SURAI) tidak dibuat dobel saat impor ulang.
+- Tempel daftar (Owner 17 Nov 2026): `src/lib/paste-list.ts` (murni; tab/;/|/" - "/, judul & nomor diabaikan, jam/rupiah/WA/IG/
+  jenis/jabatan dikenali, tidak menebak) + `PasteListDialog`. `POST /api/event-lineup/bulk` (`bulkPaste`, kind performer|crew) &
+  `POST /api/sponsors/bulk` (`bulkCreateSponsors`): validasi semua baris dulu (satu salah = tidak ada yang disimpan), nama yang
+  ada dilewati, simpan lewat create* biasa (audit per baris). Sponsor = kesepakatan saja, tanpa buku kas. Owner saja.
+- Ruang Panitia (Owner 17 Nov 2026, migrasi 0202): `event_crew.user_id` = akun staf AKTIF yang ditautkan Owner (form panitia,
+  `crewAccountOrThrow`). `/panitia` + `/api/panitia/**` (`event-panitia-service.ts`, peran staf apa pun, agent key ditolak):
+  hanya event tempat akun itu panitia aktif. Semua: rundown terkonfirmasi tanpa kontak + ubah status tugas SENDIRI.
+  Ketua/Sekretaris: buat tugas (PIC harus panitia aktif event yang sama) + ubah status semua tugas event. Ketua/Bendahara:
+  ringkasan anggaran vs dibayar (baca saja). Tidak ada aksi uang, kontak sponsor/talent, atau data Owner lain. Audit `via=panitia`.
+  Nonaktifkan panitia = akses hilang seketika. Papan Owner `/api/event-lineup` tetap Owner/Manajer.

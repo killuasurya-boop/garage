@@ -12,6 +12,7 @@ import Link from "next/link";
 import { ArrowLeft, AudioLines, Bell, ChevronDown, Clock, LogIn, Menu as MenuIcon, Search, UserRound } from "lucide-react";
 
 import { AyaSoundToggle } from "@/components/garage/aya/aya-sound-toggle";
+import { WifiJoinButton } from "@/components/garage/wifi/wifi-join-button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 export type HeaderSubLink = { key: string; label: string; icon?: ReactNode; onSelect: () => void };
@@ -191,6 +192,7 @@ export function HeaderV5({
               <AudioLines className="size-[22px]" aria-hidden />
             </button>
           ) : null}
+          {staff ? null : <WifiJoinButton />}
           {staff ? null : <span className="hidden 2xl:inline-flex"><AyaSoundToggle audience="customer" /></span>}
           <span className="hidden sm:inline-flex">{tableChip}</span>
           {account}

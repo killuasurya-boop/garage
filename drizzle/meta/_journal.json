@@ -1422,6 +1422,13 @@
       "when": 1794958422492,
       "tag": "0202_event_crew_account",
       "breakpoints": true
+    },
+    {
+      "idx": 203,
+      "version": "7",
+      "when": 1794984748937,
+      "tag": "0203_wifi_guest_access",
+      "breakpoints": true
     }
   ]
 }

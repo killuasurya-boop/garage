@@ -12,6 +12,7 @@ import {
   normalizeQrTableNumber,
 } from "@/lib/garage-qr";
 import { getActiveTableNumbers } from "@/lib/garage-service";
+import { getWifiSettings, wifiJoinQrPayload } from "@/lib/wifi-hotspot";
 
 export const runtime = "nodejs";
 
@@ -108,6 +109,9 @@ export default async function QrPrintPage({ searchParams }: QrPrintPageProps) {
   // QR menu takeaway (meja kasir / pintu / brosur): /order tanpa meja → otomatis Take away.
   const takeawayUrl = new URL("/order?source=qr_takeaway", base.baseUrl).toString();
   const takeawayQr = await QRCode.toDataURL(takeawayUrl, { width: 480, margin: 2, errorCorrectionLevel: "M" });
+  // QR sambung WiFi (tetap, tidak perlu cetak ulang): password harian ada di login hotspot, bukan di QR.
+  const wifi = await getWifiSettings().catch(() => null);
+  const wifiQr = wifi?.enabled ? await QRCode.toDataURL(wifiJoinQrPayload(wifi.ssid), { width: 480, margin: 2, errorCorrectionLevel: "M" }) : null;
 
   return (
     <main className="qr-mgr">
@@ -196,6 +200,22 @@ export default async function QrPrintPage({ searchParams }: QrPrintPageProps) {
           </a>
         </div>
       </section>
+
+      {wifiQr && wifi ? (
+        <section className="takeaway-qr" aria-label="QR sambung WiFi">
+          <img src={wifiQr} alt={`QR sambung WiFi ${wifi.ssid}`} width={160} height={160} />
+          <div className="takeaway-text">
+            <span className="info-label">QR Sambung WiFi</span>
+            <p>
+              Scan dengan kamera HP → otomatis tersambung ke <b>{wifi.ssid}</b>, lalu login Garage terbuka sendiri. Password
+              berganti otomatis setiap hari di router; QR ini <b>tidak perlu dicetak ulang</b>.
+            </p>
+            <a className="qr-btn qr-btn-ghost" href={wifiQr} download="GARAGE-QR-WiFi.png">
+              <Download size={16} aria-hidden /> Unduh PNG
+            </a>
+          </div>
+        </section>
+      ) : null}
 
       <section className="card-grid" aria-label="Kartu QR per meja">
         {cards.map((card) => (

@@ -5,8 +5,8 @@ import { WifiMemberPortal } from "@/components/garage/wifi-member-portal";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "WiFi Gratis Member - Garage Coffee",
-  description: "Login atau daftar member Garage untuk menikmati WiFi gratis.",
+  title: "WiFi Gratis - Garage Coffee",
+  description: "Sambungkan WiFi gratis Garage: masuk cepat atau login member.",
   robots: { index: false, follow: false },
 };
 
@@ -27,6 +27,7 @@ export default async function WifiPage({ searchParams }: { searchParams: Promise
       ip={first(params, "ip")}
       loginUrl={first(params, "login")}
       dst={first(params, "dst")}
+      welcome={first(params, "welcome") === "guest"}
     />
   );
 }

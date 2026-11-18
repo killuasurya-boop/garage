@@ -16,6 +16,7 @@ export const PUBLIC_API_ROUTES: Record<string, PublicRoute> = {
   "agent/v1/openapi.json": { reason: "Spesifikasi API agent (tanpa data)", abuseGuard: "readonly" },
   "website-events": { reason: "Daftar event untuk website publik", abuseGuard: "readonly" },
   "wifi/config": { reason: "SSID & durasi WiFi member (tanpa password)", abuseGuard: "readonly" },
+  "wifi/guest": { reason: "Masuk cepat WiFi tamu (nama + WA; kredensial hanya ke router lokal)", abuseGuard: "rateLimit" },
   "site/live-tracking": { reason: "Statistik kunjungan website", abuseGuard: "rateLimit" },
   "site/live-visit": { reason: "Penghitung kunjungan website", abuseGuard: "rateLimit" },
   "site/partner-products": { reason: "Produk mitra pilihan untuk media marketing halaman utama (tanpa HPP)", abuseGuard: "rateLimit" },

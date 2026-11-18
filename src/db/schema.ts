@@ -817,6 +817,10 @@ export const wifiAccessLogs = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     customerId: uuid("customer_id").references(() => customers.id, { onDelete: "set null" }),
+    // "member" (login member) atau "guest" (masuk cepat: nama + WA, bukan baris customers).
+    kind: text("kind").notNull().default("member"),
+    guestName: text("guest_name"),
+    guestPhone: text("guest_phone"),
     mac: text("mac"),
     ip: text("ip"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -824,6 +828,7 @@ export const wifiAccessLogs = pgTable(
   (table) => ({
     customerIdx: index("wifi_access_logs_customer_idx").on(table.customerId),
     createdIdx: index("wifi_access_logs_created_idx").on(table.createdAt),
+    guestPhoneIdx: index("wifi_access_logs_guest_phone_idx").on(table.guestPhone),
   }),
 );
 

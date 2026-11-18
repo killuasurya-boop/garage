@@ -1,7 +1,7 @@
 import { fail } from "@/lib/api-response";
 import { rateLimit } from "@/lib/rate-limit";
 import { secretsMatch } from "@/lib/secret-compare";
-import { buildRouterScript, dailyWifiPassword, getWifiSettings, recordRouterSync, wifiDateKey, wifiSecret } from "@/lib/wifi-hotspot";
+import { buildRouterScript, dailyGuestWifiPassword, dailyWifiPassword, getWifiSettings, recordRouterSync, wifiDateKey, wifiSecret } from "@/lib/wifi-hotspot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,8 +26,9 @@ export async function GET(request: Request) {
         sessionHours: settings.sessionHours,
         sharedUsers: settings.maxDevices,
         dateKey,
+        guest: settings.guestEnabled ? { password: dailyGuestWifiPassword(secret, dateKey), sessionHours: settings.guestSessionHours } : null,
       })
-    : `# Garage OS - WiFi member nonaktif\n:if ([:len [/ip hotspot user find name="garage-member"]] > 0) do={ /ip hotspot user set [find name="garage-member"] disabled=yes }\n`;
+    : `# Garage OS - WiFi nonaktif\n:foreach u in={"garage-member";"garage-guest"} do={ :if ([:len [/ip hotspot user find name=$u]] > 0) do={ /ip hotspot user set [find name=$u] disabled=yes } }\n`;
   // Owner bisa melihat "password terakhir diambil router" di panel WiFi. Hanya dicatat bila skrip berisi password
   // hari ini (bukan skrip nonaktif). Ini = skrip diambil, bukan bukti terpasang. Gagal mencatat tidak menggagalkan skrip.
   if (settings.enabled) await recordRouterSync().catch(() => undefined);

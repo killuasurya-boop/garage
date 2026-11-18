@@ -76,3 +76,11 @@ Design consistency is a mandatory acceptance criterion for every member UI chang
   = every registration needs `otpToken`. Never name a public-route function `verifyMember*` (matches a guard pattern). Without Meta, "Kode klaim kasir" works the same way: POS
   `POST /api/pos/member/claim-code` (crm-only customer, 15 min, HMAC, `delivery_status='cashier'`) →
   member enters it via "Punya kode dari kasir?" (`/api/member/auth/claim/verify`) → same OTP token → `phoneVerified`.
+
+## WiFi pelanggan (Owner 18 Nov 2026)
+- `/wifi` (hotspot MikroTik): **masuk cepat** tamu = nama + nomor WA → internet `wifiGuestSessionHours` (bawaan 1 jam) lewat
+  user hotspot `garage-guest` (password harian sendiri, `dailyGuestWifiPassword`). Tamu **bukan** baris `customers`
+  (log `wifi_access_logs.kind='guest'`, `guest_name/guest_phone`), jadi aturan merge member/OTP tidak tersentuh.
+- Member login tetap `garage-member` (`wifiSessionHours`, 3 jam). Setelah tamu online, router membuka `/wifi?welcome=guest`
+  (ajakan jadi member: OTP WA baru bisa jalan saat sudah online). `wifiGuestEnabled=false` → WiFi khusus member.
+- QR sambung WiFi (`wifiJoinQrPayload`) tidak pernah memuat password; password harian hanya di skrip router.

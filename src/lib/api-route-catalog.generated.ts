@@ -647,6 +647,7 @@ export const API_ROUTE_CATALOG: ApiRouteEntry[] = [
   {"path":"/api/website-events","methods":["GET"],"note":""},
   {"path":"/api/wifi/access","methods":["POST"],"note":""},
   {"path":"/api/wifi/config","methods":["GET"],"note":""},
+  {"path":"/api/wifi/guest","methods":["POST"],"note":""},
   {"path":"/api/wifi/router-script","methods":["GET"],"note":""},
   {"path":"/api/wifi/usage","methods":["GET"],"note":""},
   {"path":"/api/wms/activity-log","methods":["GET"],"note":"WMS Activity Log — audit siapa melakukan perpindahan stok kapan."},

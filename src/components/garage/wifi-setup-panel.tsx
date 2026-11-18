@@ -10,7 +10,9 @@ type Usage = {
   configured: boolean;
   ssid: string;
   todayLogins: number;
-  recent: Array<{ id: string; name: string | null; phone: string | null; mac: string | null; createdAt: string }>;
+  todayMembers?: number;
+  todayGuests?: number;
+  recent: Array<{ id: string; kind?: "member" | "guest"; name: string | null; phone: string | null; mac: string | null; createdAt: string }>;
   joinQr?: string;
   routerSync?: { lastSync: string | null; syncedToday: boolean; late: boolean };
 };
@@ -106,6 +108,9 @@ export function WifiSetupPanel() {
             <div className="rounded-md border border-[#34343c] bg-[#1b1b22] px-3 py-2">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-[#a9a9b3]">Login WiFi hari ini</p>
               <p className="font-mono text-2xl font-bold tabular-nums text-white">{usage.todayLogins}</p>
+              <p className="text-xs text-[#c4c4cc]">
+                Member {usage.todayMembers ?? usage.todayLogins} · Tamu (masuk cepat) {usage.todayGuests ?? 0}
+              </p>
             </div>
             {!usage.configured ? (
               <p className="rounded-md border border-[#f5a742]/45 bg-[#f5a742]/10 px-3 py-2 text-xs leading-5 text-[#ffd79a]">
@@ -159,7 +164,12 @@ export function WifiSetupPanel() {
                 <ul className="divide-y divide-[#2a2a32] text-sm">
                   {usage.recent.map((row) => (
                     <li key={row.id} className="flex items-center justify-between gap-2 px-3 py-2">
-                      <span className="min-w-0 truncate text-white">{row.name ?? "Member"}</span>
+                      <span className="min-w-0 truncate text-white">
+                        {row.name ?? (row.kind === "guest" ? "Tamu" : "Member")}
+                        <span className="ml-1.5 text-xs text-[#a9a9b3]">
+                          {row.kind === "guest" ? `Tamu${row.phone ? ` · ${row.phone}` : ""}` : "Member"}
+                        </span>
+                      </span>
                       <span className="shrink-0 font-mono text-xs text-[#a9a9b3]">
                         {new Date(row.createdAt).toLocaleString("id-ID", {
                           day: "numeric",

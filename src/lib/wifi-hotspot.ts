@@ -17,6 +17,9 @@ import { getAppSettings } from "@/lib/garage-service";
 
 export const WIFI_HOTSPOT_USER = "garage-member";
 export const WIFI_HOTSPOT_PROFILE = "garage-member";
+// Masuk cepat tamu (Owner 18 Nov 2026): user & profile terpisah → batas sesi sendiri, password harian sendiri.
+export const WIFI_GUEST_USER = "garage-guest";
+export const WIFI_GUEST_PROFILE = "garage-guest";
 
 export function wifiSecret(): string | null {
   const value = process.env.GARAGE_WIFI_SECRET?.trim();
@@ -35,6 +38,17 @@ export function dailyWifiPassword(secret: string, dateKey: string): string {
   let out = "";
   for (let i = 0; i < 10; i += 1) out += alphabet[digest[i] % alphabet.length];
   return out;
+}
+
+/** Password harian tamu: label HMAC berbeda → tidak pernah sama dengan password member. */
+export function dailyGuestWifiPassword(secret: string, dateKey: string): string {
+  return dailyWifiPassword(secret, `guest:${dateKey}`);
+}
+
+/** Nomor WhatsApp Indonesia untuk masuk cepat (08xx / 628xx / +628xx). */
+export function normalizeGuestPhone(raw: string): string | null {
+  const phone = raw.replace(/[^\d+]/g, "").replace(/^(\+62|62)/, "0");
+  return /^08\d{8,11}$/.test(phone) ? phone : null;
 }
 
 /**
@@ -64,18 +78,34 @@ function rosQuote(value: string): string {
  * Skrip RouterOS v6/v7 (`/tool fetch` + `/import`): pastikan profile & user
  * hotspot member ada, lalu set password hari ini + batas sesi.
  */
-export function buildRouterScript(input: { password: string; sessionHours: number; sharedUsers: number; dateKey: string }): string {
-  const hours = Math.min(24, Math.max(1, Math.round(input.sessionHours)));
+export function buildRouterScript(input: {
+  password: string;
+  sessionHours: number;
+  sharedUsers: number;
+  dateKey: string;
+  guest?: { password: string; sessionHours: number } | null;
+}): string {
+  const clampHours = (h: number) => Math.min(24, Math.max(1, Math.round(h)));
   const shared = Math.min(500, Math.max(1, Math.round(input.sharedUsers)));
-  const user = rosQuote(WIFI_HOTSPOT_USER);
-  const profile = rosQuote(WIFI_HOTSPOT_PROFILE);
+  const userLines = (userName: string, profileName: string, password: string, sessionHours: number) => {
+    const user = rosQuote(userName);
+    const profile = rosQuote(profileName);
+    return [
+      `:if ([:len [/ip hotspot user profile find name=${profile}]] = 0) do={ /ip hotspot user profile add name=${profile} }`,
+      `/ip hotspot user profile set [find name=${profile}] shared-users=${shared} session-timeout=${clampHours(sessionHours)}h`,
+      `:if ([:len [/ip hotspot user find name=${user}]] = 0) do={ /ip hotspot user add name=${user} profile=${profile} }`,
+      `/ip hotspot user set [find name=${user}] password=${rosQuote(password)} profile=${profile} limit-uptime=0s disabled=no`,
+    ];
+  };
+  const guestUser = rosQuote(WIFI_GUEST_USER);
   return [
     `# Garage OS - WiFi member ${input.dateKey} (dibuat otomatis, jangan diedit)`,
-    `:if ([:len [/ip hotspot user profile find name=${profile}]] = 0) do={ /ip hotspot user profile add name=${profile} }`,
-    `/ip hotspot user profile set [find name=${profile}] shared-users=${shared} session-timeout=${hours}h`,
-    `:if ([:len [/ip hotspot user find name=${user}]] = 0) do={ /ip hotspot user add name=${user} profile=${profile} }`,
-    `/ip hotspot user set [find name=${user}] password=${rosQuote(input.password)} profile=${profile} limit-uptime=0s disabled=no`,
-    `:log info "Garage OS: password WiFi member diperbarui ${input.dateKey}"`,
+    ...userLines(WIFI_HOTSPOT_USER, WIFI_HOTSPOT_PROFILE, input.password, input.sessionHours),
+    ...(input.guest
+      ? userLines(WIFI_GUEST_USER, WIFI_GUEST_PROFILE, input.guest.password, input.guest.sessionHours)
+      : // Masuk cepat dimatikan Owner → user tamu dinonaktifkan.
+        [`:if ([:len [/ip hotspot user find name=${guestUser}]] > 0) do={ /ip hotspot user set [find name=${guestUser}] disabled=yes }`]),
+    `:log info "Garage OS: password WiFi diperbarui ${input.dateKey}"`,
     "",
   ].join("\n");
 }
@@ -120,6 +150,8 @@ export async function getWifiSettings() {
     sessionHours: settings.wifiSessionHours,
     maxDevices: settings.wifiMaxDevices,
     hotspotHost: settings.wifiHotspotHost,
+    guestEnabled: settings.wifiGuestEnabled,
+    guestSessionHours: settings.wifiGuestSessionHours,
     configured: Boolean(wifiSecret()),
   };
 }
@@ -161,17 +193,57 @@ export async function grantMemberWifi(
   };
 }
 
+/**
+ * Masuk cepat tamu (tanpa daftar member): nama + nomor WA → kredensial hotspot tamu hari ini + catat log.
+ * Tamu BUKAN baris `customers` (aturan merge member/OTP tidak tersentuh); datanya untuk CRM/promo dari log.
+ */
+export async function grantGuestWifi(
+  input: { name: string; phone: string; mac?: string | null; ip?: string | null; loginUrl?: string | null },
+  now = new Date(),
+) {
+  const settings = await getWifiSettings();
+  if (!settings.enabled) throw new WifiError(403, "WIFI_DISABLED", "WiFi sedang tidak aktif.");
+  if (!settings.guestEnabled) throw new WifiError(403, "WIFI_GUEST_DISABLED", "WiFi khusus member. Silakan masuk / daftar member.");
+  const secret = wifiSecret();
+  if (!secret) throw new WifiError(503, "WIFI_NOT_CONFIGURED", "WiFi belum dikonfigurasi di server.");
+  const name = input.name.replace(/\s+/g, " ").trim().slice(0, 60);
+  if (name.length < 2) throw new WifiError(400, "WIFI_GUEST_NAME", "Isi nama kamu (minimal 2 huruf).");
+  const phone = normalizeGuestPhone(input.phone);
+  if (!phone) throw new WifiError(400, "WIFI_GUEST_PHONE", "Nomor WhatsApp tidak valid (contoh 0812xxxxxxx).");
+  const loginUrl = safeHotspotLoginUrl(input.loginUrl, settings.hotspotHost);
+  if (!loginUrl) {
+    throw new WifiError(400, "WIFI_NOT_ON_HOTSPOT", "Buka halaman ini dari jaringan WiFi Garage (halaman login hotspot).");
+  }
+  const mac = input.mac && /^([0-9A-F]{2}[:-]){5}[0-9A-F]{2}$/i.test(input.mac) ? input.mac.toUpperCase() : null;
+  const ip = input.ip && /^[0-9.]{7,15}$/.test(input.ip) ? input.ip : null;
+  await getDb().insert(wifiAccessLogs).values({ kind: "guest", guestName: name, guestPhone: phone, mac, ip });
+  return {
+    loginUrl,
+    username: WIFI_GUEST_USER,
+    password: dailyGuestWifiPassword(secret, wifiDateKey(now)),
+    sessionHours: settings.guestSessionHours,
+    ssid: settings.ssid,
+  };
+}
+
 /** Ringkasan pemakaian WiFi (untuk Owner/Manajer). */
 export async function getWifiUsage(now = new Date()) {
   const db = getDb();
   const startOfDay = new Date(`${wifiDateKey(now)}T00:00:00+07:00`);
-  const [[today], recent] = await Promise.all([
-    db.select({ total: count(wifiAccessLogs.id) }).from(wifiAccessLogs).where(gte(wifiAccessLogs.createdAt, startOfDay)),
+  const [todayRows, recent] = await Promise.all([
+    db
+      .select({ kind: wifiAccessLogs.kind, total: count(wifiAccessLogs.id) })
+      .from(wifiAccessLogs)
+      .where(gte(wifiAccessLogs.createdAt, startOfDay))
+      .groupBy(wifiAccessLogs.kind),
     db
       .select({
         id: wifiAccessLogs.id,
-        name: customers.name,
-        phone: customers.phone,
+        kind: wifiAccessLogs.kind,
+        memberName: customers.name,
+        memberPhone: customers.phone,
+        guestName: wifiAccessLogs.guestName,
+        guestPhone: wifiAccessLogs.guestPhone,
         mac: wifiAccessLogs.mac,
         createdAt: wifiAccessLogs.createdAt,
       })
@@ -181,9 +253,24 @@ export async function getWifiUsage(now = new Date()) {
       .orderBy(desc(wifiAccessLogs.createdAt))
       .limit(30),
   ]);
+  const byKind = new Map(todayRows.map((r) => [r.kind, Number(r.total)]));
+  const todayMembers = byKind.get("member") ?? 0;
+  const todayGuests = byKind.get("guest") ?? 0;
   return {
-    todayLogins: Number(today?.total ?? 0),
-    recent: recent.map((row) => ({ ...row, createdAt: row.createdAt.toISOString() })),
+    todayLogins: todayMembers + todayGuests,
+    todayMembers,
+    todayGuests,
+    recent: recent.map((row) => {
+      const guest = row.kind === "guest";
+      return {
+        id: row.id,
+        kind: guest ? ("guest" as const) : ("member" as const),
+        name: guest ? row.guestName : row.memberName,
+        phone: guest ? row.guestPhone : row.memberPhone,
+        mac: row.mac,
+        createdAt: row.createdAt.toISOString(),
+      };
+    }),
   };
 }
 

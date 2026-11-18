@@ -11,6 +11,8 @@ export async function GET() {
     enabled: settings.enabled && settings.configured,
     ssid: settings.ssid,
     sessionHours: settings.sessionHours,
+    guestEnabled: settings.guestEnabled,
+    guestSessionHours: settings.guestSessionHours,
     joinQr: wifiJoinQrPayload(settings.ssid),
   });
 }

@@ -147,3 +147,38 @@ describe("CRM WA aktif", () => {
     expect(memberWhatsappSchema.safeParse("12345678").success).toBe(false);
   });
 });
+
+describe("WiFi masuk cepat (tamu)", () => {
+  it("nama + WA → kredensial tamu + log tamu; bukan baris customers; dimatikan → ditolak; nomor salah ditolak", async () => {
+    const wifi = await import("@/lib/wifi-hotspot");
+    const { eq } = await import("drizzle-orm");
+    const db = t.getDb();
+    const before = (await db.select().from(t.schema.customers)).length;
+    const now = new Date("2026-11-18T05:00:00Z");
+    const grant = await wifi.grantGuestWifi({ name: "  Budi  Tamu ", phone: "+62 812-3456-7899", mac: "aa:bb:cc:00:11:22", loginUrl: "http://10.5.50.1/login" }, now);
+    expect(grant).toMatchObject({ loginUrl: "http://10.5.50.1/login", username: "garage-guest", sessionHours: 1 });
+    expect(grant.password).toBe(wifi.dailyGuestWifiPassword("test-wifi-secret-0123456789", "2026-11-18"));
+    expect((await db.select().from(t.schema.customers)).length).toBe(before);
+    const log = (await db.select().from(t.schema.wifiAccessLogs)).find((r: any) => r.kind === "guest");
+    expect(log).toMatchObject({ guestName: "Budi Tamu", guestPhone: "081234567899", customerId: null, mac: "AA:BB:CC:00:11:22" });
+    const usage = await wifi.getWifiUsage(now);
+    expect(usage.todayGuests).toBe(1);
+    expect(usage.recent.find((r: any) => r.kind === "guest")).toMatchObject({ name: "Budi Tamu", phone: "081234567899" });
+
+    await expect(wifi.grantGuestWifi({ name: "X", phone: "081234567899", loginUrl: "http://10.5.50.1/login" })).rejects.toMatchObject({ code: "WIFI_GUEST_NAME" });
+    await expect(wifi.grantGuestWifi({ name: "Budi", phone: "12345", loginUrl: "http://10.5.50.1/login" })).rejects.toMatchObject({ code: "WIFI_GUEST_PHONE" });
+    await expect(wifi.grantGuestWifi({ name: "Budi", phone: "081234567899", loginUrl: "https://phish.example.com/login" })).rejects.toMatchObject({ code: "WIFI_NOT_ON_HOTSPOT" });
+
+    await db.insert(t.schema.appSettings).values({ outletId: null, key: "wifiGuestEnabled", valueJson: false } as any);
+    await expect(wifi.grantGuestWifi({ name: "Budi", phone: "081234567899", loginUrl: "http://10.5.50.1/login" })).rejects.toMatchObject({ code: "WIFI_GUEST_DISABLED" });
+    // Skrip router: user tamu dinonaktifkan saat masuk cepat dimatikan.
+    process.env.GARAGE_WIFI_ROUTER_KEY = "router-key-0123456789abcdef";
+    const route = await import("@/app/api/wifi/router-script/route");
+    const off = await (await route.GET(new Request("http://x/api/wifi/router-script?key=router-key-0123456789abcdef"))).text();
+    expect(off).toMatch(/find name="garage-guest"\] disabled=yes/);
+    await db.delete(t.schema.appSettings).where(eq(t.schema.appSettings.key, "wifiGuestEnabled"));
+    const on = await (await route.GET(new Request("http://x/api/wifi/router-script?key=router-key-0123456789abcdef"))).text();
+    expect(on).toMatch(/profile set \[find name="garage-guest"\] shared-users=\d+ session-timeout=1h/);
+  });
+});
+

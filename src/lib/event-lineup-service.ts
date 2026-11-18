@@ -583,11 +583,13 @@ export async function importPlatformLineup(input: z.infer<typeof importPlatformS
     const skipped: string[] = [];
     for (const item of platform.lineup) {
       const key = item.name.trim().toLowerCase();
-      const found = byPlatform.get(key) ?? byName.get(key);
+      // Nama resmi (SURAI) DAN ejaan asli platform (SURAU) sama-sama dikenali → tidak pernah dobel.
+      const rawKey = item.platformName?.trim().toLowerCase();
+      const found = byPlatform.get(key) ?? (rawKey ? byPlatform.get(rawKey) : undefined) ?? byName.get(key) ?? (rawKey ? byName.get(rawKey) : undefined);
       if (found) {
         const values: Partial<typeof eventPerformers.$inferInsert> = {};
         // Tautkan baris lama (dibuat manual / impor sebelum kolom ini) ke nama platformnya; tidak mengubah nama.
-        if (!found.platformName) values.platformName = item.name;
+        if (!found.platformName) values.platformName = item.platformName ?? item.name;
         if (!found.logoUrl && item.logo) values.logoUrl = item.logo;
         if (Object.keys(values).length) {
           await tx.update(eventPerformers).set({ ...values, updatedAt: new Date() }).where(eq(eventPerformers.id, found.id));
@@ -608,10 +610,10 @@ export async function importPlatformLineup(input: z.infer<typeof importPlatformS
         slotOrder: slot,
         showOnWebsite: true,
         notes: "Diimpor dari platform GIGS.",
-        platformName: item.name,
+        platformName: item.platformName ?? item.name,
         createdBy: garage.user.id,
       });
-      byPlatform.set(key, { id: "", name: item.name, platformName: item.name, logoUrl: item.logo, slotOrder: slot });
+      byPlatform.set(key, { id: "", name: item.name, platformName: item.platformName ?? item.name, logoUrl: item.logo, slotOrder: slot });
       created.push(item.name);
     }
     return { created, logoFilled, skipped };

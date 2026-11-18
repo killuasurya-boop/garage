@@ -6,8 +6,21 @@ export type LineupKind = "band" | "standup" | "akustik" | "dj" | "kreator";
 
 /** `time` = jam tampil (mis. "20.00–20.45") dari rundown Garage OS; platform event tidak mengirimnya. */
 /** `tagline` = baris kecil di bawah nama (mis. "Heavy / Metallic Roster"), diisi Owner di modul Lineup. */
+/**
+ * Nama resmi talent menurut Owner bila platform GIGS masih menulis ejaan lain (Owner 17–18 Nov 2026: "SURAU" → "SURAI").
+ * Dipakai untuk SEMUA data lineup dari platform (beranda, ticker, impor). Kunci = nama platform huruf kecil.
+ */
+export const OFFICIAL_LINEUP_NAMES: Readonly<Record<string, string>> = { surau: "SURAI" };
+
+/** Nama platform → nama resmi Garage (selain yang terdaftar: apa adanya). */
+export function officialLineupName(name: string): string {
+  return OFFICIAL_LINEUP_NAMES[name.trim().toLowerCase()] ?? name;
+}
+
 export type LineupItem = {
   name: string;
+  /** Nama asli di platform GIGS bila berbeda dari nama resmi (untuk mencocokkan impor; tidak ditampilkan). */
+  platformName?: string;
   logo: string | null;
   kind: LineupKind | null;
   time?: string | null;

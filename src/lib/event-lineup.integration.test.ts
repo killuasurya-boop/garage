@@ -237,3 +237,21 @@ describe("Lineup & Panitia — pengingat gagal disimpan", () => {
     }
   });
 });
+
+describe("nama resmi talent (Owner 18 Nov 2026: platform menulis SURAU, resmi SURAI)", () => {
+  it("impor dari platform yang masih 'SURAU' membuat/mengenali SURAI (nama asli platform disimpan) dan tidak dobel", async () => {
+    const OTHER = "GIGS NAMA RESMI";
+    const platform = { events: [{ slug: "gigs-nama-resmi", name: OTHER, promo: { lineup: [{ name: "SURAU", logo: "/event/uploads/surau.png", type: "band" }] } }] };
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(platform), { status: 200 })));
+    try {
+      const first = await svc.importPlatformLineup({ eventName: OTHER }, owner());
+      expect(first.created).toEqual(["SURAI"]);
+      const again = await svc.importPlatformLineup({ eventName: OTHER }, owner());
+      expect(again.created).toEqual([]);
+      const rows = (await t.getDb().select().from(t.schema.eventPerformers)).filter((r: any) => r.eventName === OTHER) as any[];
+      expect(rows.map((r) => [r.name, r.platformName])).toEqual([["SURAI", "SURAU"]]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});

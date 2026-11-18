@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { groupLineup, instagramUrl, lineupSummary, mergeLineup, parseInstagramHandle, parseLineupKind, type LineupItem } from "@/lib/gigs-lineup";
+import { groupLineup, instagramUrl, lineupSummary, mergeLineup, officialLineupName, parseInstagramHandle, parseLineupKind, type LineupItem } from "@/lib/gigs-lineup";
 
 const item = (name: string, kind: LineupItem["kind"] = null): LineupItem => ({ name, logo: null, kind });
 
@@ -72,3 +72,17 @@ describe("instagram", () => {
     expect(instagramUrl(null)).toBeNull();
   });
 });
+
+describe("officialLineupName (Owner: SURAU → SURAI)", () => {
+  it("ejaan platform diganti nama resmi, nama lain apa adanya", () => {
+    expect(officialLineupName("SURAU")).toBe("SURAI");
+    expect(officialLineupName(" surau ")).toBe("SURAI");
+    expect(officialLineupName("SURAI")).toBe("SURAI");
+    expect(officialLineupName("Lost Side")).toBe("Lost Side");
+  });
+  it("logo platform ikut ke kartu Garage OS bernama resmi", () => {
+    const platform: LineupItem[] = [{ name: officialLineupName("SURAU"), platformName: "SURAU", logo: "/event/uploads/surau.png", kind: "band" }];
+    expect(mergeLineup(platform, [{ name: "SURAI", kind: "band" }])[0]).toMatchObject({ name: "SURAI", logo: "/event/uploads/surau.png" });
+  });
+});
+

@@ -89,23 +89,25 @@ const pasangInput = z.object({
  * `hanya`: "mitra" = produk mitra saja, "garage" = produk Garage saja, kosong = keduanya.
  * Nama persis (tanpa beda huruf besar/kecil) menang; selain itu harus tepat satu yang mengandung kata itu.
  */
-export async function resolveProductForPhoto(nama: string, hanya?: "mitra" | "garage") {
+export async function resolveProductForPhoto(nama: string, hanya?: "mitra" | "garage", outletId?: string) {
   const { and, eq, ilike, ne } = await import("drizzle-orm");
   const { getDb } = await import("@/db");
-  const { menuItems, partnerProductLinks } = await import("@/db/schema");
+  const { menuItems, partnerProductLinks, partners } = await import("@/db/schema");
   const pattern = `%${nama.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
   const filters = [ne(menuItems.status, "archived"), ilike(menuItems.name, pattern)];
   if (hanya === "mitra") filters.push(eq(menuItems.productType, "partner"));
   if (hanya === "garage") filters.push(ne(menuItems.productType, "partner"));
   const found = await getDb()
-    .select({ menuId: menuItems.id, name: menuItems.name, productType: menuItems.productType, linkId: partnerProductLinks.id })
+    .select({ menuId: menuItems.id, name: menuItems.name, productType: menuItems.productType, linkId: partnerProductLinks.id, partnerOutletId: partners.outletId })
     .from(menuItems)
     .leftJoin(partnerProductLinks, eq(partnerProductLinks.menuItemId, menuItems.id))
+    .leftJoin(partners, eq(partners.id, partnerProductLinks.partnerId))
     .where(and(...filters))
     .limit(20);
-  // Produk mitra tanpa link (data rusak) tidak bisa diberi foto lewat endpoint mitra: lewati.
+  // Produk mitra tanpa link (data rusak) atau milik mitra outlet lain tidak bisa diberi foto dari sesi ini: lewati.
+  // (menu_items global, mitra per outlet — Codex review #244.)
   const rows = found
-    .filter((row) => row.productType !== "partner" || row.linkId)
+    .filter((row) => row.productType !== "partner" || (row.linkId && (!outletId || row.partnerOutletId === outletId)))
     .map((row) => (row.productType === "partner" ? { tujuan: "produk_mitra" as const, id: row.linkId!, name: row.name } : { tujuan: "produk_menu" as const, id: row.menuId, name: row.name }));
   const exact = rows.filter((row) => row.name.trim().toLowerCase() === nama.trim().toLowerCase());
   const pick = exact.length === 1 ? exact : rows.length === 1 ? rows : [];
@@ -128,12 +130,12 @@ export async function resolveMenuProductId(nama: string) {
  * produk_menu / produk_mitra dengan `nama` → tujuan + id yang benar. `produk_menu` mencari produk Garage DAN mitra
  * (Owner cukup bilang "foto produk X"); bila ternyata produk mitra, foto dikirim ke endpoint mitra.
  */
-async function withResolvedId(args: Record<string, unknown>): Promise<{ tujuan: PhotoTarget; id: string | undefined; nama: string | null }> {
+async function withResolvedId(args: Record<string, unknown>, outletId: string): Promise<{ tujuan: PhotoTarget; id: string | undefined; nama: string | null }> {
   const tujuan = args.tujuan as PhotoTarget;
   if ((tujuan !== "produk_menu" && tujuan !== "produk_mitra") || args.id || typeof args.nama !== "string") {
     return { tujuan, id: args.id as string | undefined, nama: null };
   }
-  const found = await resolveProductForPhoto(args.nama, tujuan === "produk_mitra" ? "mitra" : undefined);
+  const found = await resolveProductForPhoto(args.nama, tujuan === "produk_mitra" ? "mitra" : undefined, outletId);
   return { tujuan: found.tujuan, id: found.id, nama: found.name };
 }
 
@@ -189,7 +191,7 @@ export const fotoTools: AgentTool[] = [
     input: pasangInput,
     async preview(session, args) {
       assertOwnerViaChat(session);
-      const resolved = await withResolvedId(args);
+      const resolved = await withResolvedId(args, session.profile.outlet.id);
       const route = photoRoute(resolved.tujuan, resolved.id, args.slot as number | undefined);
       const { loadStagedPhoto } = await import("@/lib/mcp-photo-staging");
       const staged = await loadStagedPhoto(String(args.fotoId), session.user.id);
@@ -220,7 +222,7 @@ export const fotoTools: AgentTool[] = [
       if (!ctx.confirmedOperationId) {
         throw new AgentToolError("CONFIRMATION_REQUIRED", "pasang_foto hanya berjalan lewat konfirmasi Owner.", 403);
       }
-      const resolved = await withResolvedId(args);
+      const resolved = await withResolvedId(args, session.profile.outlet.id);
       const route = photoRoute(resolved.tujuan, resolved.id, args.slot as number | undefined);
       const { discardStagedPhoto, loadStagedPhoto } = await import("@/lib/mcp-photo-staging");
       const staged = await loadStagedPhoto(String(args.fotoId), session.user.id);

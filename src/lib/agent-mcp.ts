@@ -27,12 +27,32 @@ const RECOVERY: Record<string, string> = {
 export type ToolFailure = { code: string; message: string; requestId: string; retryable: boolean; recovery: string | null };
 
 /**
+ * Penolakan aturan bisnis dari service (PartnerHubError, error lineup/event, dll.: `code` HURUF_BESAR + `status` 4xx)
+ * = pesan yang SUDAH tampil di layar Garage OS lewat route API → aman diteruskan ke ChatGPT (Owner 18 Nov 2026:
+ * sebelumnya jadi "Tool gagal dijalankan" sehingga Owner tidak tahu alasannya). Error lain (SQL, jaringan, kode
+ * digit Postgres, tanpa status 4xx) tetap disembunyikan.
+ */
+export function domainRejection(error: unknown): { code: string; message: string } | null {
+  if (!(error instanceof Error)) return null;
+  const { code, status } = error as Error & { code?: unknown; status?: unknown };
+  if (typeof code !== "string" || !/^[A-Z][A-Z0-9_]{2,59}$/.test(code)) return null;
+  if (typeof status !== "number" || !Number.isInteger(status) || status < 400 || status > 499) return null;
+  const message = error.message.trim();
+  if (!message || message.length > 400 || /\b(select|insert|update|delete)\b.+\b(from|into|set)\b|relation "|constraint|\bat [A-Za-z.]+ \(/i.test(message)) return null;
+  return { code, message };
+}
+
+/**
  * Error tool → bentuk terstruktur (blueprint §6.4). Error tak terduga TIDAK diteruskan apa adanya
  * (bisa berisi detail SQL/internal) — diganti pesan umum + request id; detail hanya di log server.
  */
 export function toolFailure(error: unknown, requestId: string): ToolFailure {
   if (error instanceof AgentToolError) {
     return { code: error.code, message: error.message, requestId, retryable: RETRYABLE.has(error.code), recovery: RECOVERY[error.code] ?? null };
+  }
+  const domain = domainRejection(error);
+  if (domain) {
+    return { code: domain.code, message: domain.message, requestId, retryable: false, recovery: RECOVERY[domain.code] ?? null };
   }
   console.error(`[mcp] tool error ${requestId}`, error);
   return {

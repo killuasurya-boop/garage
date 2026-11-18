@@ -191,12 +191,25 @@ Selama `GARAGE_MCP_CHATGPT_ENABLED` bukan `true`: tidak ada endpoint OAuth, `/.w
      disimpan sementara 30 menit (non-publik, terikat Owner). Belum mengubah data; balasannya `fotoId`.
   2. `pasang_foto` (R2, preview → konfirmasi): pasang `fotoId` ke tujuan tetap — `produk_menu` (cukup `nama` produk,
      mis. "Nasi Goreng": nama persis menang, nama ambigu → `PRODUK_AMBIGU` + daftar pilihan; atau `id`),
-     `produk_mitra` (id link), `bahan_gudang` (id), `hero_website`, `suasana_website` (slot 1–4). Diteruskan ke
-     endpoint unggah yang sudah ada (kompresi & audit route itu tetap jalan).
+     `produk_mitra` (`nama` produk mitra atau id link; produk mitra yang disebut lewat `produk_menu` otomatis ke
+     endpoint foto mitra; hanya mitra outlet sendiri), `bahan_gudang` (id), `hero_website`, `suasana_website`
+     (slot 1–4). Diteruskan ke endpoint unggah yang sudah ada (kompresi & audit route itu tetap jalan).
   - Bukti uang (struk kas, bukti transfer, dokumen) tidak bisa lewat jalur ini. URL unduhan tidak pernah
     masuk audit/log. Host tambahan (bila OpenAI mengganti domain file): env `GARAGE_MCP_PHOTO_HOSTS`
     (dipisah koma) — hanya operator VPS.
   - Menghapus foto suasana: `ubah_data_garage` DELETE `/api/site/landing-hero?slot=suasana_N`.
+- **Cukup nama** (Owner, 18 Nov 2026) — tool khusus supaya ChatGPT tidak menebak id/endpoint:
+  - Produk: `buat_produk` (R2: nama + kategori + harga/varian, SKU otomatis), `ubah_harga_produk` (R2: nama + varian).
+  - Mitra: `daftar_mitra`, `produk_mitra`, `pesanan_mitra`, `usulan_harga_mitra` (R0); `tambah_produk_mitra` (R2, produk
+    masuk nonaktif), `setujui_produk_mitra`, `ubah_harga_mitra`, `putuskan_usulan_harga_mitra` (R2, Owner),
+    `ubah_status_mitra` (R2). Settlement/pembayaran mitra tidak ada di chat.
+  - Event (Owner): `papan_event` (R0), `simpan_talent` / `simpan_panitia` / `simpan_tugas_panitia` (R1, cocok dari nama:
+    ada = ubah, belum = tambah), `tempel_daftar_event` (R2, teks Excel/WA; satu baris salah = tidak ada yang disimpan),
+    `simpan_sponsor` (R2, kesepakatan saja — tanpa buku kas). Event kosong = event terdekat.
+  - `briefing_pagi` (R0): merangkum `ringkasan_hari_ini`, `laporan_penjualan` kemarin, `status_closing_harian`,
+    `daftar_approval`, `cek_stok_bahan`, `pesanan_mitra`, `usulan_harga_mitra`, `papan_event`; bagian gagal = keterangan.
+  - Penolakan aturan bisnis dari service (`code` HURUF_BESAR + status 4xx, mis. `PRICE_BELOW_COST`) kini diteruskan ke
+    ChatGPT apa adanya (`domainRejection` di `agent-mcp.ts`); error lain tetap `EXECUTION_FAILED` + ref.
 - **Sakelar Owner:** Pengaturan → Keamanan → *ChatGPT boleh mengubah data* (`mcpChatgptWriteEnabled`, default
   hidup). Mati = semua tool yang mengubah data ditolak `MCP_WRITE_DISABLED`; membaca tetap jalan. Tidak bisa
   diubah lewat API key/ChatGPT (prefix `mcpChatgpt` terlindungi).

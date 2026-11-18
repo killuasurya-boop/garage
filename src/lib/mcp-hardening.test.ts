@@ -30,6 +30,24 @@ describe("toolFailure — error MCP terstruktur", () => {
     expect(spy).toHaveBeenCalled();
     spy.mockRestore();
   });
+
+  it("penolakan aturan bisnis (code HURUF_BESAR + status 4xx) diteruskan; kode Postgres/jaringan tetap disembunyikan", () => {
+    class DomainError extends Error {
+      constructor(public code: string, message: string, public status = 400) {
+        super(message);
+      }
+    }
+    expect(toolFailure(new DomainError("PRICE_BELOW_COST", "Harga jual Regular di bawah HPP mitra."), "r1")).toMatchObject({
+      code: "PRICE_BELOW_COST",
+      message: "Harga jual Regular di bawah HPP mitra.",
+    });
+    const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    expect(toolFailure(new DomainError("23505", "duplicate key value"), "r2").code).toBe("EXECUTION_FAILED");
+    expect(toolFailure(Object.assign(new Error("connect ECONNREFUSED"), { code: "ECONNREFUSED" }), "r3").code).toBe("EXECUTION_FAILED");
+    expect(toolFailure(new DomainError("BAD", 'insert into "x" violates constraint y'), "r4").code).toBe("EXECUTION_FAILED");
+    expect(toolFailure(new DomainError("SERVER_DOWN", "Gagal", 500), "r5").code).toBe("EXECUTION_FAILED");
+    spy.mockRestore();
+  });
 });
 
 describe("mcp-load-guard", () => {

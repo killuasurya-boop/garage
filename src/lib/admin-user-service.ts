@@ -55,7 +55,8 @@ export async function countOwners() {
  * diatur Owner (Manajemen User). Gagal pasang absen tidak menggagalkan user.
  */
 export async function attachAbsenIdentity(userId: string, role: Role, position?: string | null) {
-  if (role === "Owner") return;
+  // Panitia event bukan karyawan kafe: tidak ikut absen, gaji, atau fee (Owner 18 Nov 2026).
+  if (role === "Owner" || role === "Panitia") return;
   try {
     const { ensureAbsenIdentity } = await import("@/lib/garage-absen-employees");
     await ensureAbsenIdentity(userId, {

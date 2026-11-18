@@ -6,7 +6,8 @@ import { canAccessModuleAs, homeModuleFor } from "@/lib/role-access";
 import { requireGarageSession } from "@/lib/server-auth";
 
 export async function requireModulePageAccess(moduleId: ModuleId) {
-  const session = await requireGarageSession();
+  // Panitia diizinkan di sini hanya untuk dialihkan ke Ruang Panitia (bukan login berulang).
+  const session = await requireGarageSession(["Owner", "Manajer", "Kasir", "Waiter", "Panitia"]);
   if (session.response) {
     const next = encodeURIComponent(`/os?module=${moduleId}`);
     if (session.response.status === 401) {
@@ -17,6 +18,7 @@ export async function requireModulePageAccess(moduleId: ModuleId) {
   }
 
   const role = session.data.profile.role;
+  if (role === "Panitia") redirect("/panitia");
   if (session.data.profile.passwordResetRequired) {
     redirect("/account/password?required=1");
   }

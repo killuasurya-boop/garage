@@ -46,7 +46,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { AdminUserRow, AdminUserStatus } from "@/lib/admin-user-service";
-import { roles as ROLES, type Role } from "@/lib/garage-data";
+import { accountRoles as ROLES, type Role } from "@/lib/garage-data";
 import { WORKSTATION_OPTIONS } from "@/lib/garage-production-rules";
 import { permissionsForRole, protectedRoleRank as roleRank } from "@/lib/role-access";
 

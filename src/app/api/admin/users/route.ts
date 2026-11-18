@@ -9,7 +9,7 @@ import { requirePermission } from "@/lib/server-auth";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ROLE_VALUES: [Role, ...Role[]] = ["Owner", "Manajer", "Kasir", "Waiter"];
+const ROLE_VALUES: [Role, ...Role[]] = ["Owner", "Manajer", "Kasir", "Waiter", "Panitia"];
 
 const createSchema = z.object({
   email: z.string().email("Email tidak valid"),

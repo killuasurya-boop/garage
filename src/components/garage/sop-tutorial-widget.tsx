@@ -29,6 +29,7 @@ const roleCategoryMap: Record<Role, string[]> = {
   Manajer: ["dashboard", "pos", "kitchen", "waitress", "inventory", "finance", "hrd", "audit", "crm"],
   Kasir: ["pos", "finance", "crm", "kitchen", "inventory"],
   Waiter: ["waitress", "pos", "crm"],
+  Panitia: [],
 };
 
 const moduleCategoryMap: Partial<Record<ModuleId, string[]>> = {

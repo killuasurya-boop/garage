@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: "Ruang Panitia — Garage OS", robots
 
 // Ruang Panitia (Owner 17 Nov 2026): akun staf yang ditautkan Owner sebagai panitia event. Hak per jabatan dicek di API.
 export default async function PanitiaPage() {
-  const session = await requireGarageSession(["Owner", "Manajer", "Kasir", "Waiter"]);
+  const session = await requireGarageSession(["Owner", "Manajer", "Kasir", "Waiter", "Panitia"]);
   if (session.response) redirect("/login?next=/panitia");
   if (session.data.profile.passwordResetRequired) redirect("/account/password?required=1");
   return (

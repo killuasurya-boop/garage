@@ -641,6 +641,7 @@ export const roleDisplayName: Record<Role, string> = {
   Manajer: "Manajer",
   Kasir: "Kasir",
   Waiter: "Waiter",
+  Panitia: "Panitia",
 };
 
 const receiptBrand = {

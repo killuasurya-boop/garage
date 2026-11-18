@@ -138,6 +138,14 @@ export async function requireGarageSession(allowedRoles?: Role[]) {
       });
   }
 
+  // Peran Panitia (Owner 18 Nov 2026): hanya rute yang EKSPLISIT mengizinkan "Panitia" (Ruang Panitia).
+  // Ditolak terpusat di sini, termasuk rute lama yang menerima "semua peran" (requireGarageSession() tanpa daftar).
+  if (row.role === "Panitia" && !allowedRoles?.includes("Panitia")) {
+    return {
+      data: null,
+      response: fail(403, "PANITIA_ONLY", "Akun panitia hanya bisa membuka Ruang Panitia (/panitia)."),
+    };
+  }
   if (allowedRoles?.length && !allowedRoles.includes(row.role as Role)) {
     return {
       data: null,

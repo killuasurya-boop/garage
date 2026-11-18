@@ -32,7 +32,7 @@ import {
   Handshake,
 } from "lucide-react";
 
-export type Role = "Owner" | "Manajer" | "Kasir" | "Waiter";
+export type Role = "Owner" | "Manajer" | "Kasir" | "Waiter" | "Panitia";
 
 export type ModuleId =
   | "dashboard"
@@ -137,7 +137,10 @@ export type GarageMenuItem = {
   }>;
 };
 
+// Peran STAF KAFE (dipakai banyak rute sebagai "semua staf"). Panitia sengaja TIDAK di sini.
 export const roles: Role[] = ["Owner", "Manajer", "Kasir", "Waiter"];
+// Semua peran akun yang bisa dibuat di Kelola Staff, termasuk Panitia (hanya Ruang Panitia /panitia).
+export const accountRoles: Role[] = ["Owner", "Manajer", "Kasir", "Waiter", "Panitia"];
 
 export const roleNotes: Record<Role, string> = {
   Owner: "Dashboard penuh, approval akhir, kontrol sistem, dan semua laporan",
@@ -145,6 +148,7 @@ export const roleNotes: Record<Role, string> = {
     "Akses operasional setara Owner — POS, KDS, inventory, finance, approval, payroll — kecuali kelola akun Owner dan setting sistem inti",
   Kasir: "POS transaksi, KDS dapur/bar, stok gudang, payment, dan membership lookup",
   Waiter: "Order meja, table service, antar pesanan, dan handoff ke kasir",
+  Panitia: "Hanya Ruang Panitia event (/panitia): rundown, tugas, dan sesuai jabatan di panitia. Tidak bisa membuka kasir, menu, stok, atau keuangan kafe",
 };
 
 export const modules = [

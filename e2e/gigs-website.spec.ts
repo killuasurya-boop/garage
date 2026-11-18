@@ -282,3 +282,51 @@ test("Tempel daftar talent (UI) + Ruang Panitia: akun waiter ditautkan sebagai k
   await ctx.close();
   check();
 });
+
+test("Peran Panitia: akun hanya bisa membuka Ruang Panitia (kasir, menu, data kafe ditolak)", async ({ page, browser }, info) => {
+  test.skip(info.project.name !== "desktop-1366", "alur Owner diuji di desktop");
+  test.setTimeout(500_000);
+  const check = failOnPageErrors(page);
+  const tag = Math.random().toString(36).slice(2, 7).toLowerCase();
+  const email = `panitia.${tag}@garage.id`;
+  const password = `Panitia-${tag}-E2E!`;
+  await login(page, "owner@garage.id");
+  const event = await masterEvent(page);
+
+  // Owner membuat akun peran Panitia lewat Kelola Staff (API yang sama dengan layar).
+  const list = (await (await page.request.get("/api/admin/users?limit=5")).json()).data;
+  const rows = (list.users ?? list.items ?? list.rows ?? list) as Array<{ outletId: string }>;
+  const created = await page.request.post("/api/admin/users", {
+    data: { email, name: `Panitia ${tag}`, password, role: "Panitia", outletId: rows[0].outletId, requirePasswordChange: false },
+  });
+  expect(created.ok(), await created.text()).toBeTruthy();
+  const board = (await (await page.request.get(`/api/event-lineup?eventId=${event.id}`)).json()).data;
+  const account = board.accounts.find((a: { email: string }) => a.email === email);
+  expect(account?.role).toBe("Panitia");
+  const crew = await page.request.post("/api/event-lineup/crew", { data: { eventId: event.id, eventName: event.title, name: `Sekretaris ${tag}`, role: "sekretaris", userId: account.userId } });
+  expect(crew.ok(), await crew.text()).toBeTruthy();
+
+  // Login sebagai Panitia: mendarat di Ruang Panitia, bukan aplikasi kasir.
+  const ctx = await browser.newContext();
+  const pp = await ctx.newPage();
+  const pcheck = failOnPageErrors(pp);
+  await pp.goto("/login?next=/panitia");
+  await pp.getByPlaceholder("nama@garage.id").fill(email);
+  await pp.getByPlaceholder("Masukkan password").fill(password);
+  await pp.getByRole("button", { name: /^Masuk$/ }).click();
+  await expect(pp).toHaveURL(/\/panitia$/, { timeout: 90_000 });
+  const ws = pp.getByTestId("panitia-workspace");
+  await expect(ws.getByRole("region", { name: event.title }).getByText("Sekretaris")).toBeVisible({ timeout: 90_000 });
+  await expect(ws.getByRole("button", { name: "Tambah tugas" })).toBeVisible();
+
+  // Aplikasi kafe dialihkan ke Ruang Panitia; API kafe ditolak terpusat.
+  await pp.goto("/os?module=pos");
+  await expect(pp).toHaveURL(/\/panitia$/, { timeout: 60_000 });
+  for (const url of ["/api/event-lineup?eventId=" + event.id, "/api/sponsors", "/api/admin/users", "/api/event-finance"]) {
+    const res = await pp.request.get(url);
+    expect(res.status(), url).toBe(403);
+  }
+  pcheck();
+  await ctx.close();
+  check();
+});

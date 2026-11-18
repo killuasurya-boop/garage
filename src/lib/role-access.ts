@@ -75,6 +75,8 @@ const ownerPermissions: Permission[] = [
 
 export const rolePermissions: Record<Role, Permission[]> = {
   Owner: ownerPermissions,
+  // Panitia: tanpa izin modul apa pun (hanya Ruang Panitia, dicek terpisah per jabatan event).
+  Panitia: [],
   // Manajer = union Admin + Manager Operasional + Finance/CFO + Supervisor
   // Shift lama. Hampir setara Owner, KECUALI ai:manage & company:* (setting
   // sistem inti/provider AI — tetap Owner-only, sesuai keputusan konsolidasi
@@ -141,6 +143,8 @@ export const rolePermissions: Record<Role, Permission[]> = {
 };
 
 export const roleModules: Record<Role, ModuleId[]> = {
+  // Panitia (Owner 18 Nov 2026): tidak ada modul Garage OS; hanya halaman /panitia.
+  Panitia: [],
   Owner: [
     "dashboard",
     "pos",
@@ -322,6 +326,7 @@ export const protectedRoleRank: Record<Role, number> = {
   Manajer: 70,
   Kasir: 30,
   Waiter: 20,
+  Panitia: 10,
 };
 
 // =============================================================================

@@ -8,7 +8,7 @@ import { requirePermission } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
 
-const ROLE_VALUES: [Role, ...Role[]] = ["Owner", "Manajer", "Kasir", "Waiter"];
+const ROLE_VALUES: [Role, ...Role[]] = ["Owner", "Manajer", "Kasir", "Waiter", "Panitia"];
 
 const patchSchema = z.object({
   name: z.string().min(2).optional(),

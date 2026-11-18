@@ -63,7 +63,8 @@ async function resolvePartnerProduct(session: GarageSession, produk: string, mit
   const pick = exact.length === 1 ? exact[0] : partial.length === 1 ? partial[0] : null;
   if (pick) return pick;
   if (!partial.length) throw new AgentToolError("PRODUK_TIDAK_DITEMUKAN", `Produk mitra "${produk}" tidak ada.`, 404);
-  throw new AgentToolError("PRODUK_AMBIGU", `"${produk}" cocok dengan ${partial.map((r) => `${r.name} (${r.partner.name})`).join(", ")}. Sebut nama lengkap.`, 409);
+  const hint = exact.length > 1 ? "Nama sama di beberapa mitra — sebut juga nama mitranya (argumen mitra)." : "Sebut nama lengkap.";
+  throw new AgentToolError("PRODUK_AMBIGU", `"${produk}" cocok dengan ${partial.map((r) => `${r.name} (${r.partner.name})`).join(", ")}. ${hint}`, 409);
 }
 
 function pickVariant(product: ProductRow, varian: string | undefined) {
@@ -87,6 +88,8 @@ const STATUS_KIND = { aktifkan: "activate", bekukan: "freeze", nonaktifkan: "dea
 type ProposalRow = {
   id: string;
   proposalNo: string;
+  linkId: string;
+  variantId: string;
   partnerName: string;
   itemName: string;
   variantLabel: string;
@@ -102,6 +105,21 @@ type ProposalRow = {
 async function proposals(session: GarageSession, status?: string) {
   const { listPartnerPriceProposals } = await import("@/lib/partner-hub-service");
   return (await listPartnerPriceProposals({ outletId: session.profile.outlet.id, status, withImpact: false, limit: 200 })) as unknown as ProposalRow[];
+}
+
+/** Harga jual & setor master SAAT INI untuk satu varian produk mitra (bukan snapshot usulan). */
+async function liveVariant(linkId: string, variantId: string) {
+  const { getDb } = await import("@/db");
+  const { menuVariants, partnerProductLinks } = await import("@/db/schema");
+  const { and, eq } = await import("drizzle-orm");
+  const [row] = await getDb()
+    .select({ price: menuVariants.price, cost: menuVariants.baseCost })
+    .from(partnerProductLinks)
+    .innerJoin(menuVariants, and(eq(menuVariants.itemId, partnerProductLinks.menuItemId), eq(menuVariants.variantId, variantId)))
+    .where(eq(partnerProductLinks.id, linkId))
+    .limit(1);
+  if (!row) throw new AgentToolError("PRODUK_TIDAK_DITEMUKAN", "Varian produk mitra untuk usulan ini tidak ditemukan.", 404);
+  return row;
 }
 
 async function findProposal(session: GarageSession, nomor: string) {
@@ -273,6 +291,7 @@ export const mitraTools: AgentTool[] = [
     permission: "inventory:write",
     input: z.object({
       produk: z.string().trim().min(2).max(120),
+      mitra: z.string().trim().max(80).optional().describe("Isi bila ada dua mitra dengan nama produk sama"),
       varian: z.string().trim().max(40).optional(),
       hargaJual: z.number().int().min(1).max(100_000_000).optional(),
       hargaSetor: z.number().int().min(0).max(100_000_000).optional(),
@@ -280,7 +299,7 @@ export const mitraTools: AgentTool[] = [
     }),
     async preview(session, args) {
       assertOwner(session);
-      const p = await resolvePartnerProduct(session, String(args.produk));
+      const p = await resolvePartnerProduct(session, String(args.produk), args.mitra as string | undefined);
       const v = pickVariant(p, args.varian as string | undefined);
       const sell = (args.hargaJual as number | undefined) ?? v.sellPrice;
       const cost = (args.hargaSetor as number | undefined) ?? v.unitCost ?? 0;
@@ -295,7 +314,7 @@ export const mitraTools: AgentTool[] = [
     async run(session, args) {
       assertOwner(session);
       if (args.hargaJual === undefined && args.hargaSetor === undefined) throw new AgentToolError("VALIDATION_ERROR", "Isi hargaJual dan/atau hargaSetor.");
-      const p = await resolvePartnerProduct(session, String(args.produk));
+      const p = await resolvePartnerProduct(session, String(args.produk), args.mitra as string | undefined);
       const v = pickVariant(p, args.varian as string | undefined);
       const { setPartnerProductPrice } = await import("@/lib/partner-hub-service");
       await setPartnerProductPrice(
@@ -355,9 +374,21 @@ export const mitraTools: AgentTool[] = [
     async preview(session, args) {
       assertOwner(session);
       const row = await findProposal(session, String(args.nomor));
+      if (!args.setuju) {
+        return { aksi: `TOLAK usulan ${row.proposalNo} — ${row.partnerName} · ${row.itemName} (${row.variantLabel})`, hargaTidakBerubah: true, catatan: args.catatan ?? null };
+      }
+      // Harga jual efektif = aturan yang SAMA dengan decidePartnerPriceProposal (bisa ikut naik bila hargaJual kosong).
+      const live = await liveVariant(row.linkId, row.variantId);
+      const unitCost = (args.hargaSetor as number | undefined) ?? row.proposedUnitCost;
+      const { defaultApprovedSellPrice } = await import("@/lib/partner-hub-insights");
+      const sellPrice =
+        (args.hargaJual as number | undefined) ??
+        defaultApprovedSellPrice({ currentUnitCost: live.cost, currentSellPrice: live.price, proposedUnitCost: unitCost, suggestedSellPrice: row.suggestedSellPrice });
       return {
-        aksi: `${args.setuju ? "SETUJUI" : "TOLAK"} usulan ${row.proposalNo} — ${row.partnerName} · ${row.itemName} (${row.variantLabel})`,
-        setor: `${rupiah(row.currentUnitCost)} → ${rupiah((args.hargaSetor as number | undefined) ?? row.proposedUnitCost)}`,
+        aksi: `SETUJUI usulan ${row.proposalNo} — ${row.partnerName} · ${row.itemName} (${row.variantLabel})`,
+        hargaSetor: `${rupiah(live.cost)} → ${rupiah(unitCost)}`,
+        hargaJualKePelanggan: sellPrice === live.price ? `tetap ${rupiah(live.price)}` : `${rupiah(live.price)} → ${rupiah(sellPrice)} (IKUT BERUBAH)`,
+        untungGaragePerPorsi: `${rupiah(live.price - live.cost)} → ${rupiah(sellPrice - unitCost)}`,
         catatan: args.catatan ?? null,
       };
     },

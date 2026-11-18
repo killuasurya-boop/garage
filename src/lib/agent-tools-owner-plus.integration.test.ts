@@ -93,12 +93,26 @@ describe("produk cepat", () => {
 
   it("ubah_harga_produk: varian wajib bila lebih dari satu; harga berubah hanya varian itu", async () => {
     await expect(call(owner(), "ubah_harga_produk", { nama: "kopi plus aren", hargaBaru: 21_000, alasan: "naik" })).rejects.toMatchObject({ code: "VARIAN_PERLU_DIPILIH" });
-    const { preview } = await confirmed(owner(), "ubah_harga_produk", { nama: "kopi plus aren", varian: "ice", hargaBaru: 21_000, alasan: "naik" });
+    // Tanpa hargaLama: tool menyebut harga sekarang (ChatGPT mengulang dengan angka itu).
+    await expect(call(owner(), "ubah_harga_produk", { nama: "kopi plus aren", varian: "ice", hargaBaru: 21_000, alasan: "naik" })).rejects.toMatchObject({
+      code: "HARGA_LAMA_DIPERLUKAN",
+      message: expect.stringContaining("20.000"),
+    });
+    const { preview } = await confirmed(owner(), "ubah_harga_produk", { nama: "kopi plus aren", varian: "ice", hargaLama: 20_000, hargaBaru: 21_000, alasan: "naik" });
     expect(preview.ringkasan.hargaSaatIni).toContain("20.000");
     const item = (await t.getDb().select().from(t.schema.menuItems)).find((r: any) => r.name === "Kopi Plus Aren") as any;
     const variants = (await t.getDb().select().from(t.schema.menuVariants)).filter((v: any) => v.itemId === item.id) as any[];
     expect(variants.find((v) => v.label === "Ice")?.price).toBe(21_000);
     expect(variants.find((v) => v.label === "Hot")?.price).toBe(18_000);
+
+    // Harga diubah orang lain di antara pratinjau & konfirmasi → ditolak, tidak tertimpa diam-diam (Codex #245).
+    const args = { nama: "kopi plus aren", varian: "hot", hargaLama: 18_000, hargaBaru: 19_000, alasan: "naik" };
+    const pv = await call(owner(), "ubah_harga_produk", args);
+    const { and, eq } = await import("drizzle-orm");
+    await t.getDb().update(t.schema.menuVariants).set({ price: 25_000 }).where(and(eq(t.schema.menuVariants.itemId, item.id), eq(t.schema.menuVariants.label, "Hot")));
+    await expect(call(owner(), "ubah_harga_produk", { ...args, konfirmasi: pv.konfirmasi })).rejects.toMatchObject({ code: "STALE_PRICE" });
+    const hot = (await t.getDb().select().from(t.schema.menuVariants)).find((v: any) => v.itemId === item.id && v.label === "Hot") as any;
+    expect(hot.price).toBe(25_000);
   });
 });
 
@@ -129,9 +143,32 @@ describe("mitra dari chat", () => {
     expect(daftar.map((m: any) => m.mitra)).toContain("Mitra Plus Dimsum");
   });
 
+  it("nama produk sama di dua mitra: wajib sebut mitra; usulan harga menampilkan harga jual yang ikut berubah", async () => {
+    const svc = await import("@/lib/partner-hub-service");
+    await svc.createPartner({ code: "PL2", name: "Mitra Kedua" } as any, owner());
+    await confirmed(owner(), "tambah_produk_mitra", { mitra: "Mitra Kedua", nama: "Dimsum Udang Plus", kategori: "Dimsum", varian: [{ label: "Regular", hargaJual: 24_000, hargaSetor: 18_000 }] });
+    await expect(call(owner(), "ubah_harga_mitra", { produk: "Dimsum Udang Plus", hargaJual: 26_000, alasan: "uji" })).rejects.toMatchObject({ code: "PRODUK_AMBIGU", message: expect.stringContaining("sebut juga nama mitranya") });
+    await confirmed(owner(), "ubah_harga_mitra", { produk: "Dimsum Udang Plus", mitra: "Mitra Kedua", hargaJual: 26_000, alasan: "uji" });
+    const kedua = await call(owner(), "produk_mitra", { mitra: "Mitra Kedua" });
+    expect(kedua.produk[0].harga[0]).toContain("26.000");
+
+    // Usulan setor 27.000 > harga jual 26.000 → bila hargaJual kosong, harga jual ke pelanggan IKUT naik (aturan service).
+    const partners = await t.getDb().select().from(t.schema.partners);
+    const p2 = partners.find((p: any) => p.code === "PL2") as any;
+    const links = await t.getDb().select().from(t.schema.partnerProductLinks);
+    const link = links.find((l: any) => l.partnerId === p2.id) as any;
+    const session = { account: { id: "acc-pl2", displayName: "Mitra Kedua", phone: "081200000000" }, partner: { id: p2.id, code: "PL2", name: "Mitra Kedua", outletId, status: "aktif", operationalStatus: "buka" } };
+    await svc.submitPartnerPriceProposal(session as any, { linkId: link.id, variantId: "regular", proposedUnitCost: 27_000, reason: "bahan naik" });
+    const usulan = await call(owner(), "usulan_harga_mitra", {});
+    const nomor = usulan.find((u: any) => u.mitra === "Mitra Kedua").nomor;
+    const pv = await call(owner(), "putuskan_usulan_harga_mitra", { nomor, setuju: true });
+    expect(pv.ringkasan.hargaSetor).toContain("27.000");
+    expect(pv.ringkasan.hargaJualKePelanggan).toMatch(/26\.000 → .*IKUT BERUBAH/);
+  });
+
   it("penolakan aturan bisnis sampai ke ChatGPT apa adanya (harga jual di bawah setor)", async () => {
-    const preview = await call(owner(), "ubah_harga_mitra", { produk: "Dimsum Udang Plus", hargaJual: 10_000, alasan: "uji" });
-    const error = await call(owner(), "ubah_harga_mitra", { produk: "Dimsum Udang Plus", hargaJual: 10_000, alasan: "uji", konfirmasi: preview.konfirmasi }).catch((e) => e);
+    const preview = await call(owner(), "ubah_harga_mitra", { produk: "Dimsum Udang Plus", mitra: "Mitra Plus Dimsum", hargaJual: 10_000, alasan: "uji" });
+    const error = await call(owner(), "ubah_harga_mitra", { produk: "Dimsum Udang Plus", mitra: "Mitra Plus Dimsum", hargaJual: 10_000, alasan: "uji", konfirmasi: preview.konfirmasi }).catch((e) => e);
     const { toolFailure } = await import("@/lib/agent-mcp");
     const failure = toolFailure(error, "req-plus");
     expect(failure.code).toBe("PRICE_BELOW_COST");

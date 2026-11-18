@@ -98,6 +98,16 @@ async function resolveGarageVariant(nama: string, varian: string | undefined) {
   return { product, variant: pick[0] };
 }
 
+/** Harga lama wajib ikut di argumen (terikat konfirmasi). Kosong/beda = tolak sambil menyebut harga sekarang. */
+function assertKnownOldPrice(args: Record<string, unknown>, name: string, variant: { label: string; price: number }) {
+  if (args.hargaLama === undefined) {
+    throw new AgentToolError("HARGA_LAMA_DIPERLUKAN", `Harga ${name} (${variant.label}) sekarang ${rupiah(variant.price)}. Ulangi dengan hargaLama: ${variant.price}.`, 409);
+  }
+  if (Number(args.hargaLama) !== variant.price) {
+    throw new AgentToolError("STALE_PRICE", `Harga ${name} (${variant.label}) sudah berubah menjadi ${rupiah(variant.price)}. Tanyakan Owner lagi, lalu ulangi dengan hargaLama: ${variant.price}.`, 409);
+  }
+}
+
 export const produkCepatTools: AgentTool[] = [
   {
     name: "buat_produk",
@@ -160,7 +170,7 @@ export const produkCepatTools: AgentTool[] = [
     name: "ubah_harga_produk",
     title: "Ubah harga produk Garage (pakai nama)",
     description:
-      "Ubah harga jual satu varian produk Garage cukup dengan nama produk (+ nama varian bila lebih dari satu, mis. \"Ice\"). Harga lama dibaca otomatis dan dicek lagi saat eksekusi. Resep, HPP, SKU tetap; order lama tetap harga lama. Produk mitra: ubah_harga_mitra. Owner/Manajer.",
+      "Ubah harga jual satu varian produk Garage cukup dengan nama produk (+ nama varian bila lebih dari satu, mis. \"Ice\"). Isi hargaLama (harga sekarang); bila kosong tool menyebutkan harga sekarang untuk diulang — mencegah menimpa perubahan orang lain. Resep, HPP, SKU tetap; order lama tetap harga lama. Produk mitra: ubah_harga_mitra. Owner/Manajer.",
     write: true,
     domain: "produk_harga",
     risk: "R2",
@@ -168,12 +178,14 @@ export const produkCepatTools: AgentTool[] = [
     input: z.object({
       nama: z.string().trim().min(2).max(120),
       varian: z.string().trim().max(40).optional(),
+      hargaLama: z.number().int().min(0).max(100_000_000).optional().describe("Harga sekarang; bila kosong tool menyebutkannya lalu ulangi dengan hargaLama"),
       hargaBaru: z.number().int().min(1).max(100_000_000),
       alasan: z.string().trim().min(3).max(300),
     }),
     async preview(session, args) {
       assertOwnerOrManager(session);
       const { product, variant } = await resolveGarageVariant(String(args.nama), args.varian as string | undefined);
+      assertKnownOldPrice(args, product.name, variant);
       const next = Number(args.hargaBaru);
       return {
         aksi: `UBAH HARGA ${product.name} (${variant.label})`,
@@ -187,12 +199,15 @@ export const produkCepatTools: AgentTool[] = [
     async run(session, args) {
       assertOwnerOrManager(session);
       const { product, variant } = await resolveGarageVariant(String(args.nama), args.varian as string | undefined);
+      assertKnownOldPrice(args, product.name, variant);
       const { updateVariantPrice } = await import("@/lib/product-management");
+      // expectedPrice = harga yang Owner lihat saat pratinjau (argumen terkonfirmasi), bukan bacaan ulang: perubahan
+      // orang lain di antara pratinjau & konfirmasi → ditolak STALE_PRICE, tidak tertimpa diam-diam.
       await updateVariantPrice(
-        { itemId: product.id, variantId: variant.variantId, price: Number(args.hargaBaru), expectedPrice: variant.price, reason: String(args.alasan) },
+        { itemId: product.id, variantId: variant.variantId, price: Number(args.hargaBaru), expectedPrice: Number(args.hargaLama), reason: String(args.alasan) },
         session,
       );
-      return { produk: product.name, varian: variant.label, hargaLama: rupiah(variant.price), hargaBaru: rupiah(Number(args.hargaBaru)) };
+      return { produk: product.name, varian: variant.label, hargaLama: rupiah(Number(args.hargaLama)), hargaBaru: rupiah(Number(args.hargaBaru)) };
     },
   },
 ];

@@ -116,3 +116,9 @@ description: Aturan WAJIB modul Lineup & Panitia Event (band/stand-up, rundown, 
   dobel. Halaman `/event/*` = container lain (`garage-event-platform`, Caddyfile), kodenya TIDAK di repo ini → ejaan di sana
   diperbaiki lewat admin/repo platform. Tambah koreksi nama baru di `OFFICIAL_LINEUP_NAMES` (kunci huruf kecil).
 
+- Slot panggung platform → beranda OTOMATIS (Owner 18 Nov 2026): `getGigsPromo` juga membaca
+  `/event/<slug>/api/public/lineup` (`parsePlatformSlots`: penampil dulu, lalu nama slot; `officialLineupName`; jam =
+  `slotTime(startTime, durationMin)`; gagal/timeout → []). `page.tsx`: `withPlatformSlots(mergeLineup(...), slots)` —
+  talent yang sama (`lineupKey`: nama resmi tanpa spasi/tanda baca; "SURAI HC"→SURAI, "LOSTSIDE"→LOST SIDE di
+  `OFFICIAL_LINEUP_NAMES`) tidak dobel, jam/logo hanya mengisi yang kosong; slot baru ditambah di belakang (maks 16).
+  Halaman `/event/*` (platform) sendiri hanya menampilkan slot ber-penampil — aturan kode platform, bukan Garage.

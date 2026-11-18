@@ -8,6 +8,8 @@ export type FakeGigsEvent = {
   slug: string;
   name: string;
   lineup: Array<{ name: string; type: string; logo?: string }>;
+  /** Slot panggung dashboard panitia (`/event/<slug>/api/public/lineup`). */
+  slots?: Array<{ name: string; category: string; startTime?: string; durationMin?: number; performer?: string; logo?: string }>;
   /** RAB untuk /event/<slug>/api/public/config (opsional). */
   budget?: Array<{ code: string; name: string; budget: number; purpose?: string; pic?: string }>;
 };
@@ -17,6 +19,10 @@ export function startFakeGigsPlatform(initial: FakeGigsEvent) {
   const server: Server = createServer((req, res) => {
     if (req.method === "GET" && req.url === `/event/${current.slug}/api/public/config`) {
       res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ finance: { target: 0, budgetLines: current.budget ?? [] } }));
+      return;
+    }
+    if (req.method === "GET" && req.url === `/event/${current.slug}/api/public/lineup`) {
+      res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ slots: current.slots ?? [] }));
       return;
     }
     if (req.method !== "GET" || !req.url?.startsWith("/event/api/events")) {

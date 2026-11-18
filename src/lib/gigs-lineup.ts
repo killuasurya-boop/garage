@@ -10,11 +10,30 @@ export type LineupKind = "band" | "standup" | "akustik" | "dj" | "kreator";
  * Nama resmi talent menurut Owner bila platform GIGS masih menulis ejaan lain (Owner 17–18 Nov 2026: "SURAU" → "SURAI").
  * Dipakai untuk SEMUA data lineup dari platform (beranda, ticker, impor). Kunci = nama platform huruf kecil.
  */
-export const OFFICIAL_LINEUP_NAMES: Readonly<Record<string, string>> = { surau: "SURAI" };
+// "SURAI HC" / "LOSTSIDE" = nama slot di dashboard panitia platform untuk talent yang sama (Owner 18 Nov 2026).
+export const OFFICIAL_LINEUP_NAMES: Readonly<Record<string, string>> = { surau: "SURAI", "surai hc": "SURAI", lostside: "LOST SIDE" };
 
 /** Nama platform → nama resmi Garage (selain yang terdaftar: apa adanya). */
 export function officialLineupName(name: string): string {
   return OFFICIAL_LINEUP_NAMES[name.trim().toLowerCase()] ?? name;
+}
+
+/** Kunci pencocokan talent: nama resmi, huruf kecil, tanpa spasi/tanda baca ("LOST SIDE" = "Lost-Side"). */
+export function lineupKey(name: string): string {
+  return officialLineupName(name).toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+/** Jam slot platform ("20:00"/"20.00" + durasi menit) → "20.00–20.30" seperti rundown Garage OS. Tidak valid → null. */
+export function slotTime(start: string | null | undefined, minutes: number | null | undefined): string | null {
+  const match = /^(\d{1,2})[:.](\d{2})$/.exec((start ?? "").trim());
+  if (!match) return null;
+  const from = Number(match[1]) * 60 + Number(match[2]);
+  if (Number(match[1]) > 23 || Number(match[2]) > 59) return null;
+  const fmt = (total: number) => {
+    const t = ((total % 1440) + 1440) % 1440;
+    return `${String(Math.floor(t / 60)).padStart(2, "0")}.${String(t % 60).padStart(2, "0")}`;
+  };
+  return minutes && minutes > 0 ? `${fmt(from)}–${fmt(from + minutes)}` : fmt(from);
 }
 
 export type LineupItem = {
@@ -146,4 +165,30 @@ export function mergeLineup(
       instagram: item.instagram ?? null,
     };
   });
+}
+
+/**
+ * Slot panggung dari dashboard panitia platform GIGS ikut tampil OTOMATIS di beranda (Owner 18 Nov 2026).
+ * Talent yang sudah ada (cocok `lineupKey`) tidak dobel; jamnya hanya mengisi yang kosong. Slot baru ditambah di
+ * belakang, urutan platform. Maks 16 kartu.
+ */
+export function withPlatformSlots(lineup: LineupItem[], slots: LineupItem[] | undefined): LineupItem[] {
+  if (!slots?.length) return lineup;
+  const out = lineup.map((item) => ({ ...item }));
+  const byKey = new Map(out.map((item) => [lineupKey(item.name), item]));
+  for (const slot of slots) {
+    const key = lineupKey(slot.name);
+    if (!key) continue;
+    const existing = byKey.get(key);
+    if (existing) {
+      if (!existing.time && slot.time) existing.time = slot.time;
+      if (!existing.logo && slot.logo) existing.logo = slot.logo;
+      if (!existing.kind && slot.kind) existing.kind = slot.kind;
+      continue;
+    }
+    const added = { ...slot };
+    out.push(added);
+    byKey.set(key, added);
+  }
+  return out.slice(0, 16);
 }

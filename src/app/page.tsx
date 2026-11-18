@@ -4,7 +4,7 @@ import { getAtmosphereAssets, getLandingHeroAsset } from "@/lib/site-assets";
 import { getBusinessInfo } from "@/lib/garage-service";
 import { getHomeFeaturedEvent } from "@/lib/event-service";
 import { getGigsPromo } from "@/lib/gigs-promo";
-import { mergeLineup } from "@/lib/gigs-lineup";
+import { mergeLineup, withPlatformSlots } from "@/lib/gigs-lineup";
 import { publicLineupFor } from "@/lib/event-lineup-service";
 import { publicSponsorsFor } from "@/lib/event-sponsor-service";
 
@@ -52,14 +52,19 @@ export default async function Home() {
     getAtmosphereAssets().catch(() => []),
   ]);
 
-  // Lineup GIGS: penampil terkonfirmasi dari modul Lineup & Panitia (Garage OS) menggantikan daftar platform event.
+  // Lineup GIGS: penampil terkonfirmasi dari modul Lineup & Panitia (Garage OS) menggantikan daftar platform event,
+  // ditambah slot panggung dari dashboard panitia platform (otomatis).
   // Sponsor yang dicentang "tampil di website" di modul Sponsor (nama/logo/tautan saja, tanpa nilai uang).
   const gigsRef = gigsPromo ? { slug: gigsPromo.slug, name: gigsPromo.name } : null;
   const [garageLineup, partners] = gigsRef
     ? await Promise.all([publicLineupFor(gigsRef).catch(() => []), publicSponsorsFor(gigsRef).catch(() => [])])
     : [[], []];
+  // Slot panggung yang ditambah panitia di dashboard platform ikut otomatis (tanpa dobel nama yang sudah ada).
   const gigs = gigsPromo
-    ? { ...gigsPromo, partners, promo: { ...gigsPromo.promo, lineup: mergeLineup(gigsPromo.promo.lineup, garageLineup) } }
+    ? (() => {
+        const { slots, ...promo } = gigsPromo.promo;
+        return { ...gigsPromo, partners, promo: { ...promo, lineup: withPlatformSlots(mergeLineup(promo.lineup, garageLineup), slots) } };
+      })()
     : null;
 
   // Hero hanya butuh tanda "ada foto hero"; teks alt lama (brand "Coffee & Motor") tidak dikirim ke klien.

@@ -139,7 +139,14 @@ test("Beranda HP: kartu lineup & sponsor tidak terpotong / tidak bergeser @mobil
   await login(page, "owner@garage.id");
   const event = await masterEvent(page);
   const longName = `Band Nama Panjang Sekali ${tag}`;
-  const platform = startFakeGigsPlatform({ slug: `gigs-hp-${tag.toLowerCase()}`, name: event.title, lineup: [{ name: longName, type: "band" }] });
+  // Slot baru di dashboard panitia platform tampil otomatis di beranda (Owner 18 Nov 2026), tanpa impor.
+  const slotName = `Slot Baru ${tag}`;
+  const platform = startFakeGigsPlatform({
+    slug: `gigs-hp-${tag.toLowerCase()}`,
+    name: event.title,
+    lineup: [{ name: longName, type: "band" }],
+    slots: [{ name: slotName, category: "band", startTime: "20:00", durationMin: 30 }],
+  });
   await platform.listen();
   try {
     const imported = await page.request.post("/api/event-lineup/import-platform", { data: { eventId: event.id } });
@@ -153,6 +160,9 @@ test("Beranda HP: kartu lineup & sponsor tidak terpotong / tidak bergeser @mobil
     const gigs = page.getByTestId("home-gigs-spotlight");
     await expect(gigs).toBeVisible({ timeout: 90_000 });
     await expect(gigs.getByText(longName)).toBeVisible();
+    const slotCard = gigs.locator("li").filter({ hasText: slotName });
+    await expect(slotCard).toBeVisible();
+    await expect(slotCard).toContainText("20.00–20.30 WIB");
     await expect(page.getByTestId("home-gigs-partners").getByText(`Sponsor Dengan Nama Sangat Panjang ${tag}`)).toBeVisible();
     await noHorizontalOverflow(page);
     check();

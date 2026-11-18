@@ -1,7 +1,7 @@
 // Promosi GARAGE EVENT PLATFORM (mis. GIGS AKHIR TAHUN 2026) di beranda.
 // Sumber tunggal: platform event (stack Docker terpisah "garage-event") lewat jaringan internal.
 // Tidak ada tanggal/teks/lineup yang ditulis di sini. Gagal/timeout -> null -> beranda tampil normal.
-import { officialLineupName, parseLineupKind, type LineupItem } from "@/lib/gigs-lineup";
+import { officialLineupName, parseLineupKind, slotTime, type LineupItem } from "@/lib/gigs-lineup";
 
 export type GigsPromo = {
   slug: string;
@@ -21,6 +21,8 @@ export type GigsPromo = {
     pitch: string | null;
     programs: string[];
     lineup: LineupItem[];
+    /** Slot panggung dashboard panitia platform (`/event/<slug>/api/public/lineup`); beranda menambahkannya otomatis. */
+    slots?: LineupItem[];
     instagram: string | null;
   };
   sponsorMin: number | null;
@@ -88,6 +90,40 @@ function parsePlatformLineup(lineup: unknown): LineupItem[] {
     })
     .filter((x) => x.name)
     .slice(0, 16);
+}
+
+/**
+ * Slot panggung platform → kartu lineup. Nama = penampil yang dipilih panitia, bila kosong nama slot; ejaan dikoreksi
+ * (`officialLineupName`). Logo hanya jalur /event/..., jam dari jam mulai + durasi. Maks 16.
+ */
+export function parsePlatformSlots(slots: unknown): LineupItem[] {
+  return (Array.isArray(slots) ? (slots as Array<Record<string, unknown> | null>) : [])
+    .map((slot) => {
+      const raw = text(slot?.performer, 40) ?? text(slot?.name, 40) ?? "";
+      const name = officialLineupName(raw);
+      return {
+        name,
+        ...(name !== raw ? { platformName: raw } : {}),
+        logo: safePath(slot?.logo),
+        kind: parseLineupKind(slot?.category),
+        time: slotTime(typeof slot?.startTime === "string" ? slot.startTime : null, num(slot?.durationMin)),
+      };
+    })
+    .filter((slot) => slot.name)
+    .slice(0, 16);
+}
+
+/** Slot panggung satu event (slug sudah dari daftar platform). Gagal/timeout → [] (beranda tetap tampil). */
+async function fetchPlatformSlots(api: string, slug: string): Promise<LineupItem[]> {
+  if (!/^[a-z0-9][a-z0-9-]{0,80}$/.test(slug) || !/\/api\/events\/?$/.test(api)) return [];
+  try {
+    const res = await fetch(api.replace(/\/api\/events\/?$/, `/${slug}/api/public/lineup`), { cache: "no-store", signal: AbortSignal.timeout(1500) });
+    if (!res.ok) return [];
+    const json = (await res.json()) as { slots?: unknown };
+    return parsePlatformSlots(json?.slots);
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -175,6 +211,7 @@ export async function getGigsPromo(now = Date.now()): Promise<GigsPromo | null> 
           .filter((p): p is string => Boolean(p))
           .slice(0, 8),
         lineup: parsePlatformLineup(promo.lineup),
+        slots: await fetchPlatformSlots(api, ev.slug),
         instagram:
           typeof promo.instagram === "string" && /^https:\/\/(www\.)?instagram\.com\/[A-Za-z0-9._/]+$/.test(promo.instagram)
             ? promo.instagram

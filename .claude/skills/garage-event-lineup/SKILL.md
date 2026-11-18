@@ -110,4 +110,9 @@ description: Aturan WAJIB modul Lineup & Panitia Event (band/stand-up, rundown, 
   Cari tamu `searchCheckinGuests` (nama ilike / ≥5 digit HP, maks 20, undangan dicabut & tamu arsip tidak ikut) TIDAK pernah
   mengirim nomor HP; check-in dari hasil cari memakai `invitationId` (wajib undangan event yang sama). Halaman undangan:
   `getPublicInvitation().checkedIn` → "Sudah masuk pukul … · n orang"; QR disembunyikan bila semua kuota sudah masuk. Tanpa migrasi.
+- Nama resmi talent di sisi Garage (Owner 18 Nov 2026, "semua jadi SURAI"): `OFFICIAL_LINEUP_NAMES` + `officialLineupName`
+  (`gigs-lineup.ts`) dipakai `parsePlatformLineup`/`getGigsPromo` (beranda, ticker live) dan impor. Item yang dikoreksi membawa
+  `platformName` (ejaan asli platform); impor mencocokkan nama resmi DAN ejaan asli, `platform_name` menyimpan ejaan asli → tidak
+  dobel. Halaman `/event/*` = container lain (`garage-event-platform`, Caddyfile), kodenya TIDAK di repo ini → ejaan di sana
+  diperbaiki lewat admin/repo platform. Tambah koreksi nama baru di `OFFICIAL_LINEUP_NAMES` (kunci huruf kecil).
 

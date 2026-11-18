@@ -1,7 +1,7 @@
 // Promosi GARAGE EVENT PLATFORM (mis. GIGS AKHIR TAHUN 2026) di beranda.
 // Sumber tunggal: platform event (stack Docker terpisah "garage-event") lewat jaringan internal.
 // Tidak ada tanggal/teks/lineup yang ditulis di sini. Gagal/timeout -> null -> beranda tampil normal.
-import { parseLineupKind, type LineupItem } from "@/lib/gigs-lineup";
+import { officialLineupName, parseLineupKind, type LineupItem } from "@/lib/gigs-lineup";
 
 export type GigsPromo = {
   slug: string;
@@ -76,11 +76,16 @@ const num = (value: unknown) => (typeof value === "number" && Number.isFinite(va
 /** Lineup dari platform: nama wajib, logo hanya jalur /event/..., jenis hanya nilai yang dikenal. Maks 16. */
 function parsePlatformLineup(lineup: unknown): LineupItem[] {
   return (Array.isArray(lineup) ? (lineup as Array<Record<string, unknown> | null>) : [])
-    .map((x) => ({
-      name: text(x?.name, 40) ?? "",
-      logo: safePath(x?.logo),
-      kind: parseLineupKind(x?.type ?? x?.kind ?? x?.category),
-    }))
+    .map((x) => {
+      const raw = text(x?.name, 40) ?? "";
+      const name = officialLineupName(raw);
+      return {
+        name,
+        ...(name !== raw ? { platformName: raw } : {}),
+        logo: safePath(x?.logo),
+        kind: parseLineupKind(x?.type ?? x?.kind ?? x?.category),
+      };
+    })
     .filter((x) => x.name)
     .slice(0, 16);
 }
@@ -158,7 +163,7 @@ export async function getGigsPromo(now = Date.now()): Promise<GigsPromo | null> 
       endsAt: new Date(end).toISOString(),
       status: ev.status ?? "segera",
       readiness: num(ev.readiness) === null ? null : Math.max(0, Math.min(100, Math.round(ev.readiness as number))),
-      live: ev.live?.name ? { name: ev.live.name, performer: ev.live.performer ?? "" } : null,
+      live: ev.live?.name ? { name: ev.live.name, performer: officialLineupName(ev.live.performer ?? "") } : null,
       url,
       logo: safePath(ev.logo),
       poster: safePath(ev.poster),

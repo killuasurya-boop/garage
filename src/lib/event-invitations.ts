@@ -2,7 +2,7 @@ import { and, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { getDb } from "@/db";
-import { eventActivityLogs, eventGuests, eventInvitations, eventRsvps, events } from "@/db/schema";
+import { eventActivityLogs, eventCheckins, eventGuests, eventInvitations, eventRsvps, events } from "@/db/schema";
 import { parseImportFile, parseLocaleNumber, type ImportColumn } from "@/lib/bulk-import";
 import type { PublicEvent } from "@/lib/event-format";
 import {
@@ -450,6 +450,8 @@ export type PublicInvitation = {
   event: PublicEvent;
   rsvp: { response: RsvpResponse; pax: number; note: string | null; respondedAt: string } | null;
   canChange: boolean;
+  /** Check-in pintu yang masih aktif (Owner 18 Nov 2026): kartu masuk berganti "Sudah masuk pukul …". */
+  checkedIn: { at: string; pax: number } | null;
 };
 
 export async function findInvitationByToken(token: string) {
@@ -480,6 +482,10 @@ export async function getPublicInvitation(token: string, now = new Date()): Prom
   const row = await findInvitationByToken(token);
   if (!row) return null;
   const [rsvp] = await getDb().select().from(eventRsvps).where(eq(eventRsvps.invitationId, row.invitation.id)).limit(1);
+  const [inside] = await getDb()
+    .select({ pax: sql<number>`coalesce(sum(${eventCheckins.pax}), 0)::int`, first: sql<string | null>`min(${eventCheckins.createdAt})` })
+    .from(eventCheckins)
+    .where(and(eq(eventCheckins.invitationId, row.invitation.id), eq(eventCheckins.status, "aktif")));
   return {
     guestName: row.guest.fullName,
     maxPax: row.guest.maxPax,
@@ -488,6 +494,7 @@ export async function getPublicInvitation(token: string, now = new Date()): Prom
       ? { response: rsvp.response as RsvpResponse, pax: rsvp.pax, note: rsvp.note, respondedAt: rsvp.updatedAt.toISOString() }
       : null,
     canChange: rsvpOpen(row.event, now),
+    checkedIn: inside?.first && Number(inside.pax) > 0 ? { at: new Date(inside.first).toISOString(), pax: Number(inside.pax) } : null,
   };
 }
 

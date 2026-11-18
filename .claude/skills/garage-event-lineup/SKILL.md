@@ -103,3 +103,11 @@ description: Aturan WAJIB modul Lineup & Panitia Event (band/stand-up, rundown, 
   (dengan Panitia) hanya untuk Kelola Staff. `requireGarageSession` menolak Panitia TERPUSAT (`PANITIA_ONLY`) kecuali `allowedRoles`
   menyebut "Panitia" secara eksplisit — JANGAN tambahkan "Panitia" ke rute lain tanpa izin Owner. `/os` (page-access) mengalihkan
   Panitia ke `/panitia`; `/panitia` tujuan login yang sah. `attachAbsenIdentity` melewati Panitia (tidak absen/gaji/fee).
+- Meja pintu Hari-H (Owner 18 Nov 2026, dari PR #219 yang ditutup karena bentrok tabel `event_checkins`): Kasir & Waiter boleh
+  membuka `/event-day` (+ `GET /api/event-day`, `POST /api/event-day/checkins`, `GET /api/event-day/checkins/search`) lewat
+  `assertCheckinDesk` — hanya tab Check-in (respons `stage: null`, panel menyembunyikan Panggung/Tugas/Kesiapan dan tombol
+  Batalkan). Batal check-in, panggung, agenda, checklist tetap `assertEventCrew` (Owner/Manajer). Selain Owner: event outlet sendiri.
+  Cari tamu `searchCheckinGuests` (nama ilike / ≥5 digit HP, maks 20, undangan dicabut & tamu arsip tidak ikut) TIDAK pernah
+  mengirim nomor HP; check-in dari hasil cari memakai `invitationId` (wajib undangan event yang sama). Halaman undangan:
+  `getPublicInvitation().checkedIn` → "Sudah masuk pukul … · n orang"; QR disembunyikan bila semua kuota sudah masuk. Tanpa migrasi.
+

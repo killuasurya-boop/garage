@@ -2,7 +2,7 @@ import { and, asc, desc, eq, isNotNull, isNull, ne, or, sql } from "drizzle-orm"
 import { z } from "zod";
 
 import { getDb } from "@/db";
-import { eventCheckins, eventInvitations, eventOpsChecks, eventPerformers, eventRsvps, events } from "@/db/schema";
+import { eventCheckins, eventGuests, eventInvitations, eventOpsChecks, eventPerformers, eventRsvps, events } from "@/db/schema";
 import { checkinDecision, clockDot, extractInvitationToken, OPS_CHECK_TEMPLATE, stageState } from "@/lib/event-day-rules";
 import { findInvitationByToken } from "@/lib/event-invitations";
 import { buildRundown, type LineupKind, type PerformerStatus } from "@/lib/event-lineup-rules";
@@ -14,6 +14,8 @@ import type { GarageSession } from "@/lib/server-auth";
 // =============================================================================
 // Hari-H event (GIGS EO Fase 3, Owner 17 Nov 2026): check-in pintu, mode stage manager, salin rundown ke agenda.
 // Akses panitia: Owner atau Manajer (login langsung; API key agent ditolak). Tidak ada uang di modul ini.
+// Meja pintu (Owner 18 Nov 2026, dari PR #219): Kasir & Waiter boleh CHECK-IN + cari tamu saja (tab Check-in);
+// batal check-in, panggung, tugas & checklist tetap Owner/Manajer.
 // Check-in append-only (koreksi = batal + alasan). Jadwal rencana penampil tidak pernah diubah oleh mode stage.
 // =============================================================================
 
@@ -35,6 +37,16 @@ export function assertEventCrew(garage: GarageSession) {
   if (garage.profile.agentKey) throw new EventDayError("HUMAN_SESSION_REQUIRED", "Hari-H event hanya untuk staf yang login langsung.", 403);
 }
 
+const DESK_ROLES = new Set(["Owner", "Manajer", "Kasir", "Waiter"]);
+
+/** Meja pintu: staf mana pun yang login langsung boleh check-in & mencari tamu. */
+export function assertCheckinDesk(garage: GarageSession) {
+  if (!DESK_ROLES.has(garage.profile.role)) throw new EventDayError("FORBIDDEN", "Check-in pintu hanya untuk staf Garage.", 403);
+  if (garage.profile.agentKey) throw new EventDayError("HUMAN_SESSION_REQUIRED", "Check-in pintu hanya untuk staf yang login langsung.", 403);
+}
+
+const isEventCrew = (garage: GarageSession) => garage.profile.role === "Owner" || garage.profile.role === "Manajer";
+
 async function audit(garage: GarageSession, action: string, object: string, metadata: Record<string, unknown>) {
   await createAuditLog({
     actor: garage.user.name ?? garage.profile.role,
@@ -48,8 +60,8 @@ async function audit(garage: GarageSession, action: string, object: string, meta
 async function loadEvent(eventId: string, garage: GarageSession) {
   const [row] = await getDb().select().from(events).where(eq(events.id, eventId)).limit(1);
   if (!row) throw new EventDayError("EVENT_NOT_FOUND", "Event tidak ditemukan.", 404);
-  // Manajer hanya event outletnya (event tanpa outlet = semua).
-  if (garage.profile.role === "Manajer" && row.outletId && row.outletId !== garage.profile.outlet.id) {
+  // Selain Owner: hanya event outletnya (event tanpa outlet = semua).
+  if (garage.profile.role !== "Owner" && row.outletId && row.outletId !== garage.profile.outlet.id) {
     throw new EventDayError("EVENT_NOT_FOUND", "Event tidak ditemukan.", 404);
   }
   return row;
@@ -61,9 +73,10 @@ const performerOfEvent = (event: { id: string; title: string }) =>
 // ─── Baca ───────────────────────────────────────────────────────────────────
 
 export async function getEventDay(garage: GarageSession, eventId: string | null, now = new Date()) {
-  assertEventCrew(garage);
-  // Manajer: daftar & default hanya event outletnya (event outlet lain tidak bisa dibuka → jangan jadi default).
-  const masterEvents = await listMasterEvents({ outletId: garage.profile.role === "Manajer" ? garage.profile.outlet.id : null });
+  assertCheckinDesk(garage);
+  const crew = isEventCrew(garage);
+  // Selain Owner: daftar & default hanya event outletnya (event outlet lain tidak bisa dibuka → jangan jadi default).
+  const masterEvents = await listMasterEvents({ outletId: garage.profile.role === "Owner" ? null : garage.profile.outlet.id });
   const id = eventId ?? masterEvents[0]?.id ?? null;
   if (!id) return { masterEvents, event: null };
   const event = await loadEvent(id, garage);
@@ -102,7 +115,10 @@ export async function getEventDay(garage: GarageSession, eventId: string | null,
       rsvpAttendingInvitations: Number(rsvpRows[0]?.n ?? 0),
       recent: checkins.slice(0, 40).map((c) => ({ id: c.id, guestName: c.guestName, pax: c.pax, kind: c.kind, status: c.status, voidReason: c.voidReason, at: c.createdAt.toISOString() })),
     },
-    stage: {
+    // Kasir/Waiter (meja pintu): tanpa panggung.
+    stage: !crew
+      ? null
+      : {
       ...stage,
       slots: rundown.map((r) => {
         const p = byId.get(r.id)!;
@@ -120,7 +136,7 @@ export async function getEventDay(garage: GarageSession, eventId: string | null,
           next: stage.nextId === r.id,
         };
       }),
-    },
+        },
   };
 }
 
@@ -129,12 +145,14 @@ export async function getEventDay(garage: GarageSession, eventId: string | null,
 export const checkinSchema = z.object({
   eventId: z.string().uuid(),
   code: z.string().trim().max(400).optional(),
+  // Dari pencarian nama/HP di meja pintu (tanpa memindai QR).
+  invitationId: z.string().uuid().optional(),
   walkInName: z.string().trim().min(2).max(80).optional(),
   pax: z.number().int().min(1).max(50),
 });
 
 export async function checkIn(input: z.infer<typeof checkinSchema>, garage: GarageSession) {
-  assertEventCrew(garage);
+  assertCheckinDesk(garage);
   const event = await loadEvent(input.eventId, garage);
   if (event.status === "archived") throw new EventDayError("EVENT_ARCHIVED", "Event sudah diarsipkan.", 409);
   let invitationId: string | null = null;
@@ -146,6 +164,19 @@ export async function checkIn(input: z.infer<typeof checkinSchema>, garage: Gara
     const row = await findInvitationByToken(token);
     if (!row) throw new EventDayError("INVITATION_INVALID", "Undangan tidak berlaku (dicabut, tamu diarsipkan, atau salah).", 404);
     if (row.event.id !== event.id) throw new EventDayError("INVITATION_OTHER_EVENT", `Undangan ini untuk event lain (${row.event.title}).`, 409);
+    invitationId = row.invitation.id;
+    guestName = row.guest.fullName;
+    maxPax = row.guest.maxPax;
+  } else if (input.invitationId) {
+    const [row] = await getDb()
+      .select({ invitation: eventInvitations, guest: eventGuests })
+      .from(eventInvitations)
+      .innerJoin(eventGuests, eq(eventGuests.id, eventInvitations.guestId))
+      .where(and(eq(eventInvitations.id, input.invitationId), eq(eventInvitations.eventId, event.id)))
+      .limit(1);
+    if (!row || row.invitation.status === "revoked" || row.guest.status !== "active") {
+      throw new EventDayError("INVITATION_INVALID", "Undangan tidak berlaku (dicabut atau tamu diarsipkan).", 404);
+    }
     invitationId = row.invitation.id;
     guestName = row.guest.fullName;
     maxPax = row.guest.maxPax;
@@ -177,6 +208,46 @@ export async function checkIn(input: z.infer<typeof checkinSchema>, garage: Gara
   });
   await audit(garage, "Check-in tamu event", guestName, { eventId: event.id, checkinId: row.id, pax: row.pax, kind: row.kind });
   return { id: row.id, guestName: row.guestName, pax: row.pax, kind: row.kind };
+}
+
+/**
+ * Cari tamu undangan (nama atau nomor HP) di meja pintu. Nomor HP TIDAK dikirim balik — hanya nama, batas orang,
+ * dan yang sudah masuk. Maks 20 hasil; undangan dicabut / tamu diarsipkan tidak ikut.
+ */
+export async function searchCheckinGuests(eventId: string, query: string, garage: GarageSession) {
+  assertCheckinDesk(garage);
+  const event = await loadEvent(eventId, garage);
+  const q = query.trim();
+  if (q.length < 2) return [];
+  const digits = q.replace(/\D/g, "");
+  const nameMatch = sql`${eventGuests.fullName} ilike ${`%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`}`;
+  // Nomor: cocokkan 5+ digit terakhir apa pun awalannya (08… / 628… / +62…).
+  const phoneMatch = digits.length >= 5 ? sql`${eventGuests.phoneNormalized} like ${`%${digits.replace(/^0|^62/, "")}%`}` : sql`false`;
+  const db = getDb();
+  const rows = await db
+    .select({ invitationId: eventInvitations.id, name: eventGuests.fullName, maxPax: eventGuests.maxPax })
+    .from(eventInvitations)
+    .innerJoin(eventGuests, eq(eventGuests.id, eventInvitations.guestId))
+    .where(and(eq(eventInvitations.eventId, event.id), ne(eventInvitations.status, "revoked"), eq(eventGuests.status, "active"), or(nameMatch, phoneMatch)))
+    .orderBy(asc(eventGuests.fullName))
+    .limit(20);
+  if (!rows.length) return [];
+  const inside = await db
+    .select({ invitationId: eventCheckins.invitationId, pax: sql<number>`coalesce(sum(${eventCheckins.pax}), 0)::int`, first: sql<string>`min(${eventCheckins.createdAt})` })
+    .from(eventCheckins)
+    .where(and(eq(eventCheckins.eventId, event.id), eq(eventCheckins.status, "aktif"), isNotNull(eventCheckins.invitationId)))
+    .groupBy(eventCheckins.invitationId);
+  const byInvitation = new Map(inside.map((r) => [r.invitationId, r]));
+  return rows.map((r) => {
+    const done = byInvitation.get(r.invitationId);
+    return {
+      invitationId: r.invitationId,
+      name: r.name,
+      maxPax: r.maxPax,
+      checkedInPax: Number(done?.pax ?? 0),
+      checkedInAt: done?.first ? new Date(done.first).toISOString() : null,
+    };
+  });
 }
 
 export async function voidCheckin(id: string, reason: string, garage: GarageSession) {

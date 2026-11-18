@@ -181,12 +181,21 @@ export default async function InvitationPage({ params }: { params: Promise<{ tok
           </div>
         </section>
 
-        {invitation.rsvp?.response === "attending" ? (
+        {invitation.rsvp?.response === "attending" || invitation.checkedIn ? (
           <section aria-labelledby="entry-title" className="gp-invite-card gp-reveal flex flex-col items-center gap-4 p-6 text-center sm:p-8">
             <h2 id="entry-title" className="gp-display text-[30px] sm:text-[36px]" style={TIGHT}>
               Tiket masuk
             </h2>
-            <EntryQr url={pageUrl} guestName={invitation.guestName} maxPax={invitation.maxPax} />
+            {invitation.checkedIn ? (
+              <p className="text-base font-semibold text-[#a8f0c4]" role="status" data-testid="entry-checked-in">
+                Sudah masuk pukul{" "}
+                {new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: invitation.event.timezone || "Asia/Jakarta" }).format(new Date(invitation.checkedIn.at))}{" "}
+                · {invitation.checkedIn.pax} orang. Selamat menikmati!
+              </p>
+            ) : null}
+            {invitation.checkedIn && invitation.checkedIn.pax >= invitation.maxPax ? null : (
+              <EntryQr url={pageUrl} guestName={invitation.guestName} maxPax={invitation.maxPax} />
+            )}
           </section>
         ) : null}
 

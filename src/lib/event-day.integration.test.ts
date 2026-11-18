@@ -72,9 +72,12 @@ afterAll(async () => {
 });
 
 describe("Hari-H: akses", () => {
-  it("Owner & Manajer boleh; Kasir & API key agent ditolak; agenda hanya Owner", async () => {
+  it("Owner & Manajer boleh; Kasir/Waiter = meja pintu (tanpa panggung); Panitia & API key agent ditolak; agenda hanya Owner", async () => {
     await expect(day.getEventDay(manajer(), eventId)).resolves.toMatchObject({ event: { id: eventId } });
-    await expect(day.getEventDay(session("Kasir" as Role), eventId)).rejects.toMatchObject({ code: "FORBIDDEN" });
+    const desk = await day.getEventDay(session("Kasir" as Role), eventId);
+    expect(desk).toMatchObject({ event: { id: eventId }, role: "Kasir", stage: null });
+    await expect(day.setSlotState(standup, "start", session("Waiter" as Role))).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(day.getEventDay(session("Panitia" as Role), eventId)).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(day.getEventDay(session("Owner" as Role, { agentKey: { id: "k" } }), eventId)).rejects.toMatchObject({ code: "HUMAN_SESSION_REQUIRED" });
     await expect(day.syncAgendaFromRundown(eventId, manajer())).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
@@ -100,6 +103,32 @@ describe("Hari-H: check-in", () => {
     const view = await day.getEventDay(owner(), eventId);
     expect(view.checkin).toMatchObject({ totalActive: 3, capacity: 5, byKind: { undangan: 2, walkin: 1 } });
     expect(view.checkin.recent.some((r: any) => r.status === "batal" && r.voidReason === "Salah hitung")).toBe(true);
+  });
+
+  it("meja pintu (Kasir): cari nama/HP tanpa membocorkan HP, check-in dari hasil cari, batal tetap Owner/Manajer; undangan menampilkan 'sudah masuk'", async () => {
+    const inv = await import("@/lib/event-invitations");
+    const actor = { userId: OWNER, name: "Owner Eday" };
+    await inv.createGuest(eventId, { fullName: "Sari Dewi", phone: "081299998888", maxPax: 2 } as any, actor);
+    await inv.createInvitations(eventId, null, actor);
+    const kasir = session("Kasir" as Role);
+    const byName = await day.searchCheckinGuests(eventId, "sari", kasir);
+    expect(byName).toEqual([{ invitationId: expect.any(String), name: "Sari Dewi", maxPax: 2, checkedInPax: 0, checkedInAt: null }]);
+    expect(JSON.stringify(byName)).not.toContain("99998888");
+    const byPhone = await day.searchCheckinGuests(eventId, "0812-9999-8888", kasir);
+    expect(byPhone.map((h: any) => h.name)).toEqual(["Sari Dewi"]);
+    expect(await day.searchCheckinGuests(eventId, "x", kasir)).toEqual([]);
+
+    const done = await day.checkIn({ eventId, invitationId: byName[0].invitationId, pax: 1 }, kasir);
+    expect(done).toMatchObject({ guestName: "Sari Dewi", kind: "undangan", pax: 1 });
+    expect((await day.searchCheckinGuests(eventId, "sari dewi", kasir))[0]).toMatchObject({ checkedInPax: 1, checkedInAt: expect.any(String) });
+    await expect(day.checkIn({ eventId: otherEventId, invitationId: byName[0].invitationId, pax: 1 }, owner())).rejects.toMatchObject({ code: "INVITATION_INVALID" });
+    await expect(day.voidCheckin(done.id, "salah orang", kasir)).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    const [guest] = (await inv.listGuests(eventId)).filter((g: any) => g.fullName === "Sari Dewi");
+    const share = await inv.getInvitationShareInfo(eventId, guest.invitation!.id);
+    const page = await inv.getPublicInvitation(share.url.split("/undangan/")[1]);
+    expect(page?.checkedIn).toMatchObject({ pax: 1, at: expect.any(String) });
+    expect((await inv.getPublicInvitation(token))?.checkedIn).toMatchObject({ pax: 2 });
   });
 });
 

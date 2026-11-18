@@ -206,6 +206,22 @@ test("UAT-C: Portal Mitra terima → proses → siap; 2 waiter klaim bersamaan, 
     await button.click();
     await expect(page.getByRole("status").or(page.getByText(/diterima|diproses|waiter diberi tahu/i)).first()).toBeVisible({ timeout: 30_000 });
   }
+  // Mitra mengunggah foto produknya sendiri dari Portal Mitra (Owner 18 Nov 2026).
+  const photos = page.getByRole("region", { name: "Foto produk" });
+  await photos.scrollIntoViewIfNeeded();
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAGUlEQVQokWM4ISdHEmIY1SA3GkonhmvSAADkYgQQjClmVwAAAABJRU5ErkJggg==", "base64");
+  await photos.locator('input[type="file"]').first().setInputFiles({ name: "produk.png", mimeType: "image/png", buffer: png });
+  await expect(photos.getByRole("status")).toContainText(/Foto .+ diperbarui/, { timeout: 30_000 });
+  const photo = photos.locator("img").first();
+  await expect(photo).toBeVisible();
+  const src = await photo.getAttribute("src");
+  expect(src).toMatch(/^\/garage-uploads\/menu\/mitra-.+\.webp$/);
+  const served = await page.request.get(src!);
+  expect(served.status()).toBe(200);
+  expect(served.headers()["content-type"]).toMatch(/^image\//);
+  // Produk mitra lain tidak bisa diubah dari sesi ini.
+  expect((await page.request.post("/api/partner/products/link-bukan-milik/image", { multipart: { image: { name: "x.png", mimeType: "image/png", buffer: png } } })).status()).toBe(404);
+
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(1);
   assertNoErrors();

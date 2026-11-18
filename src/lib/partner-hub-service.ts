@@ -954,7 +954,10 @@ export async function setPartnerProductImage(
   who: { partner?: PartnerSession; garage?: GarageSession },
 ) {
   const db = getDb();
-  const [link] = await db.select().from(partnerProductLinks).where(eq(partnerProductLinks.id, linkId)).limit(1);
+  // ID bukan UUID = tidak ditemukan (bukan error 500 dari database).
+  const [link] = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(linkId)
+    ? await db.select().from(partnerProductLinks).where(eq(partnerProductLinks.id, linkId)).limit(1)
+    : [];
   if (!link) throw new PartnerHubError("PRODUCT_NOT_FOUND", "Produk mitra tidak ditemukan.", 404);
   if (who.partner && who.partner.partner.id !== link.partnerId) throw new PartnerHubError("PRODUCT_NOT_FOUND", "Produk mitra tidak ditemukan.", 404);
   if (who.garage) {

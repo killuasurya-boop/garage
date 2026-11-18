@@ -250,6 +250,7 @@ describe("Smart Partner Hub — Portal Mitra & isolasi", () => {
       return url;
     };
     await expect(svc.setPartnerProductImage(linkA, store("/garage-uploads/menu/x.webp"), { partner: partnerSession(partnerB) })).rejects.toThrow(/tidak ditemukan/);
+    await expect(svc.setPartnerProductImage("bukan-uuid", store("/garage-uploads/menu/x.webp"), { partner: partnerSession(partnerA) })).rejects.toMatchObject({ code: "PRODUCT_NOT_FOUND" });
     await expect(svc.setPartnerProductImage(linkA, store("/garage-uploads/menu/x.webp"), { garage: kasir() })).rejects.toThrow();
     expect(writes).toBe(0);
     await svc.setPartnerProductImage(linkA, store("/garage-uploads/menu/mitra-a.webp"), { partner: partnerSession(partnerA) });

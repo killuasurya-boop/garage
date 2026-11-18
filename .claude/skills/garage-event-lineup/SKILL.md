@@ -127,3 +127,12 @@ description: Aturan WAJIB modul Lineup & Panitia Event (band/stand-up, rundown, 
     transparan → panggil `setupRevealObserver(); revealActiveScreenImmediate();` setelah `renderLineups()`; (2) `name: 'SURAU'` →
     `'SURAI'` (semua). Jangkar tidak cocok → koreksi dilewati (log warn), file asli tetap jalan. Cache memori 60 detik.
   Kedua route publik (rateLimit, `public-routes.ts`). Perbaikan sebenarnya tetap di repo platform `garage-event` bila tersedia.
+- Banner "Sedang tampil" halaman event = mode panggung Garage (Owner 18 Nov 2026): Caddy `@gigsLineup` juga meneruskan
+  `/event/<slug>/api/public/live` → `/api/public/gigs/[slug]/live` (`publicStageForPlatform` di `event-day-service.ts`: master
+  via slug/nama, penampil konfirmasi + tampil website, `stageState`; bentuk platform `{ current, since, next }`; tanpa data
+  Garage → data platform apa adanya).
+- Akun **Panitia** di Hari-H (Owner 18 Nov 2026): `/event-day` + `GET /api/event-day`, check-in, cari tamu, `POST slots/[id]`
+  mengizinkan "Panitia"; `loadEvent`/`setSlotState` mewajibkan panitia AKTIF event itu (`event_crew.user_id`, data lama via
+  judul); Panitia melihat tab Check-in + Panggung saja (tanpa batal check-in, tugas, kesiapan, agenda). Ruang Panitia punya
+  tombol "Hari-H". Tombol "Login Panitia" (`/login?next=/panitia`) di beranda GIGS dan menu halaman event (tambalan app.js
+  `PANITIA_LOGIN_SNIPPET`, sekali).

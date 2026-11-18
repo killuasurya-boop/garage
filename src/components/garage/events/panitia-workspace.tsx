@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, ArrowLeft, CalendarDays, CheckCircle2, ClipboardList, Clock3, ListOrdered, Plus, RefreshCw, Users, Wallet } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CalendarDays, CheckCircle2, ClipboardList, Clock3, ListOrdered, Mic2, Plus, RefreshCw, Users, Wallet } from "lucide-react";
 
 import { garageApi, GarageApiError } from "@/lib/api-client";
 import { TASK_STATUS_LABEL, type TaskStatus } from "@/lib/event-lineup-rules";
@@ -131,6 +131,15 @@ function EventSection({ ev, onChanged }: { ev: EventView; onChanged: () => Promi
           ))}
         </ul>
         <p className="text-sm text-zinc-300">{openMine ? `${openMine} tugas Anda belum selesai.` : "Tidak ada tugas Anda yang terbuka."}</p>
+        {ev.eventId ? (
+          // Hari-H (Owner 18 Nov 2026): panitia aktif boleh check-in tamu & Mulai/Selesai penampil.
+          <a
+            href={`/event-day?event=${ev.eventId}`}
+            className="inline-flex min-h-11 items-center gap-2 rounded-md border border-[color-mix(in_srgb,var(--garage-red)_70%,transparent)] bg-[color-mix(in_srgb,var(--garage-red)_18%,transparent)] px-3 text-sm font-bold text-zinc-50 hover:bg-[color-mix(in_srgb,var(--garage-red)_28%,transparent)]"
+          >
+            <Mic2 size={16} aria-hidden /> Hari-H: check-in tamu & panggung
+          </a>
+        ) : null}
       </div>
 
       <div className={`${card} space-y-2`}>

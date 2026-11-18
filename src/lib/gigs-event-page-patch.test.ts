@@ -26,7 +26,8 @@ const SAMPLE = [
 describe("patchGigsAppJs (halaman event platform, Owner 18 Nov 2026)", () => {
   it("memasang ulang animasi muncul setelah lineup dirender dan mengganti semua SURAU → SURAI", () => {
     const { code, applied, skipped } = patchGigsAppJs(SAMPLE);
-    expect(applied).toEqual(["lineup-reveal", "surai-name"]);
+    expect(applied).toEqual(["lineup-reveal", "surai-name", "panitia-login"]);
+    expect(code).toContain("/login?next=/panitia");
     expect(skipped).toEqual([]);
     expect(code).toContain("renderLineups();\n      setupRevealObserver();\n      revealActiveScreenImmediate();\n");
     expect(code).not.toContain("SURAU");
@@ -36,8 +37,8 @@ describe("patchGigsAppJs (halaman event platform, Owner 18 Nov 2026)", () => {
   it("file platform berubah (jangkar tidak ada / dobel) → koreksi itu dilewati, isi lain tidak disentuh", () => {
     const changed = "renderLineups();\nrenderLineups();\nconst x = 1;\n";
     const { code, applied, skipped } = patchGigsAppJs(changed);
-    expect(code).toBe(changed);
-    expect(applied).toEqual([]);
+    expect(code.startsWith(changed)).toBe(true);
+    expect(applied).toEqual(["panitia-login"]);
     expect(skipped).toEqual(["lineup-reveal", "surai-name"]);
   });
 
@@ -45,5 +46,6 @@ describe("patchGigsAppJs (halaman event platform, Owner 18 Nov 2026)", () => {
     const once = patchGigsAppJs(SAMPLE).code;
     const twice = patchGigsAppJs(once);
     expect(twice.code.match(/setupRevealObserver\(\);/g)).toHaveLength(1);
+    expect(twice.code.match(/__garagePanitiaLogin = true/g)).toHaveLength(1);
   });
 });

@@ -573,6 +573,7 @@ export const API_ROUTE_CATALOG: ApiRouteEntry[] = [
   {"path":"/api/public/events/{slug}/menu","methods":["GET"],"note":""},
   {"path":"/api/public/gigs/{slug}/app-js","methods":["GET"],"note":""},
   {"path":"/api/public/gigs/{slug}/lineup","methods":["GET"],"note":""},
+  {"path":"/api/public/gigs/{slug}/live","methods":["GET"],"note":""},
   {"path":"/api/push/subscribe","methods":["GET","POST","DELETE"],"note":""},
   {"path":"/api/push/vapid","methods":["GET"],"note":""},
   {"path":"/api/recruitment/analytics","methods":["GET"],"note":""},

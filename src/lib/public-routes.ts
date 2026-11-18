@@ -39,6 +39,7 @@ export const PUBLIC_API_ROUTES: Record<string, PublicRoute> = {
   "invoice/[token]/live-status": { reason: "Invoice publik ber-token acak", abuseGuard: "token" },
   "public/events/[slug]/menu": { reason: "Menu event publik", abuseGuard: "readonly" },
   "public/gigs/[slug]/lineup": { reason: "Lineup halaman event GIGS dari Lineup Garage OS (via Caddy; nama/jenis/jam/logo/tagline saja)", abuseGuard: "rateLimit" },
+  "public/gigs/[slug]/live": { reason: "Banner Sedang tampil halaman event GIGS dari mode panggung Garage OS (via Caddy; nama/jenis/jam)", abuseGuard: "rateLimit" },
   "public/gigs/[slug]/app-js": { reason: "app.js publik halaman event GIGS + koreksi kecil (via Caddy; tanpa data)", abuseGuard: "rateLimit" },
   "vouchers/validate": { reason: "Cek voucher saat checkout pelanggan", abuseGuard: "rateLimit" },
   "invitations/[token]/rsvp": { reason: "RSVP undangan ber-token", abuseGuard: "token" },

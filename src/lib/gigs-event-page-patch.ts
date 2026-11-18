@@ -22,6 +22,39 @@ export const GIGS_APP_JS_PATCHES: readonly AppJsPatch[] = [
   },
 ];
 
+/**
+ * Tombol "Login Panitia" (Owner 18 Nov 2026) di menu halaman event: desktop (#mainNavLinks) dan HP (.gigs-drawer-nav),
+ * menuju login Garage OS → Ruang Panitia. Ditambahkan di akhir file, sekali saja (penanda `__garagePanitiaLogin`).
+ */
+export const PANITIA_LOGIN_SNIPPET = `
+;(() => {
+  if (window.__garagePanitiaLogin) return;
+  window.__garagePanitiaLogin = true;
+  const href = '/login?next=/panitia';
+  const add = () => {
+    const nav = document.getElementById('mainNavLinks');
+    if (nav && !nav.querySelector('[data-garage-panitia]')) {
+      const a = document.createElement('a');
+      a.className = 'gigs-nav-item';
+      a.href = href;
+      a.dataset.garagePanitia = '1';
+      a.textContent = 'LOGIN PANITIA';
+      nav.append(a);
+    }
+    const drawer = document.querySelector('.gigs-drawer-nav');
+    if (drawer && !drawer.querySelector('[data-garage-panitia]')) {
+      const a = document.createElement('a');
+      a.className = 'gigs-drawer-link is-compact';
+      a.href = href;
+      a.dataset.garagePanitia = '1';
+      a.innerHTML = '<span class="gigs-drawer-idx">P</span><span class="gigs-drawer-copy"><strong>Login Panitia</strong><small>Check-in, panggung &amp; tugas</small></span><span class="gigs-drawer-arrow" aria-hidden="true">&rarr;</span>';
+      drawer.append(a);
+    }
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', add); else add();
+})();
+`;
+
 function countOf(haystack: string, needle: string) {
   let count = 0;
   for (let at = haystack.indexOf(needle); at !== -1; at = haystack.indexOf(needle, at + needle.length)) count += 1;
@@ -46,6 +79,10 @@ export function patchGigsAppJs(source: string, patches: readonly AppJsPatch[] = 
     } else {
       skipped.push(patch.id);
     }
+  }
+  if (!code.includes("__garagePanitiaLogin")) {
+    code += PANITIA_LOGIN_SNIPPET;
+    applied.push("panitia-login");
   }
   return { code, applied, skipped };
 }

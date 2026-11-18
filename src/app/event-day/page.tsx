@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: "Hari-H Event — Garage OS", robots:
 
 // Hari-H event (GIGS EO Fase 3): layar HP panitia — Owner & Manajer; Kasir/Waiter = meja pintu (tab Check-in saja).
 export default async function EventDayPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const session = await requireGarageSession(["Owner", "Manajer", "Kasir", "Waiter"]);
+  const session = await requireGarageSession(["Owner", "Manajer", "Kasir", "Waiter", "Panitia"]);
   if (session.response) redirect("/login?next=/event-day");
   if (session.data.profile.passwordResetRequired) redirect("/account/password?required=1");
   const params = await searchParams;

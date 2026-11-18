@@ -14,13 +14,13 @@
 
 	# IP klien asli dari koneksi (bukan header kiriman klien) untuk rate limit.
 	# SATU pintu lineup GIGS (Owner 18 Nov 2026): lineup halaman event = Lineup Garage OS (sama dengan beranda).
-	# Hanya GET /event/<slug>/api/public/lineup dan /public/app.js ke Garage; selain itu tetap ke platform di bawah.
+	# Hanya GET /event/<slug>/api/public/lineup|live dan /public/app.js ke Garage; selain itu tetap ke platform di bawah.
 	@gigsLineup {
 		method GET
-		path_regexp gigsLineup ^/event/([a-z0-9][a-z0-9-]{0,80})/api/public/lineup/?$
+		path_regexp gigsLineup ^/event/([a-z0-9][a-z0-9-]{0,80})/api/public/(lineup|live)/?$
 	}
 	handle @gigsLineup {
-		rewrite * /api/public/gigs/{re.gigsLineup.1}/lineup
+		rewrite * /api/public/gigs/{re.gigsLineup.1}/{re.gigsLineup.2}
 		reverse_proxy app:3000 {
 			header_up X-Real-IP {remote_host}
 		}

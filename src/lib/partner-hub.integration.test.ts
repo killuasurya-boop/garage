@@ -241,6 +241,30 @@ describe("Smart Partner Hub — Portal Mitra & isolasi", () => {
     await expect(d.delete(t.schema.partnerEvents)).rejects.toThrow();
   });
 
+  it("foto produk: mitra pemilik & Owner/Manajer boleh; mitra lain / Kasir ditolak tanpa menulis file", async () => {
+    const d = t.getDb();
+    const { eq } = await import("drizzle-orm");
+    let writes = 0;
+    const store = (url: string) => async () => {
+      writes += 1;
+      return url;
+    };
+    await expect(svc.setPartnerProductImage(linkA, store("/garage-uploads/menu/x.webp"), { partner: partnerSession(partnerB) })).rejects.toThrow(/tidak ditemukan/);
+    await expect(svc.setPartnerProductImage("bukan-uuid", store("/garage-uploads/menu/x.webp"), { partner: partnerSession(partnerA) })).rejects.toMatchObject({ code: "PRODUCT_NOT_FOUND" });
+    await expect(svc.setPartnerProductImage(linkA, store("/garage-uploads/menu/x.webp"), { garage: kasir() })).rejects.toThrow();
+    expect(writes).toBe(0);
+    await svc.setPartnerProductImage(linkA, store("/garage-uploads/menu/mitra-a.webp"), { partner: partnerSession(partnerA) });
+    const [afterPartner] = await d.select({ imageUrl: t.schema.menuItems.imageUrl }).from(t.schema.menuItems).where(eq(t.schema.menuItems.id, menuA));
+    expect(afterPartner.imageUrl).toBe("/garage-uploads/menu/mitra-a.webp");
+    await svc.setPartnerProductImage(linkA, store("/garage-uploads/menu/mgr-a.webp"), { garage: manager() });
+    const [afterStaff] = await d.select({ imageUrl: t.schema.menuItems.imageUrl }).from(t.schema.menuItems).where(eq(t.schema.menuItems.id, menuA));
+    expect(afterStaff.imageUrl).toBe("/garage-uploads/menu/mgr-a.webp");
+    expect(writes).toBe(2);
+    const events = await d.select().from(t.schema.partnerEvents).where(eq(t.schema.partnerEvents.kind, "product_photo"));
+    expect(events.map((e: { actorType: string }) => e.actorType)).toEqual(expect.arrayContaining(["partner"]));
+    expect(events).toHaveLength(2);
+  });
+
   it("keuangan per mitra: 2 × Es Krim Pokat = jual 44.000, HPP 38.000, profit 6.000", async () => {
     const from = new Date(Date.now() - 86_400_000);
     const to = new Date(Date.now() + 86_400_000);

@@ -145,3 +145,5 @@ testsprite_tests\tmp\config.json
 # Logo talent & sponsor event unggahan Owner (runtime, persisten via volume garage-uploads di prod)
 /public/garage-uploads/event-lineup/
 /public/garage-uploads/event-sponsor/
+# Foto produk mitra unggahan Portal Mitra / Kelola Mitra (runtime, termasuk dari E2E)
+/public/garage-uploads/menu/mitra-*.webp

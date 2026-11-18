@@ -610,6 +610,7 @@ const EVENT_LABEL: Record<string, string> = {
   price_proposal_rejected: "Pengajuan harga ditolak",
   price_proposal_cancelled: "Pengajuan harga dibatalkan mitra",
   product_settings: "Pengaturan produk diubah",
+  product_photo: "Foto produk diganti",
   price_changed: "Harga diubah",
   variant_added: "Varian ditambah",
   variant_removed: "Varian dihapus",

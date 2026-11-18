@@ -943,6 +943,38 @@ export async function setPartnerProductAvailability(
   });
 }
 
+/**
+ * Foto produk mitra — boleh diunggah mitra pemilik (Portal Mitra) maupun Owner/Manajer (Garage OS).
+ * Hak akses dicek DULU, baru `store()` menulis file, lalu menu_items.image_url diganti + event `product_photo`.
+ * Hanya tampilan: harga, status persetujuan, dan Promo Website tidak berubah.
+ */
+export async function setPartnerProductImage(
+  linkId: string,
+  store: () => Promise<string>,
+  who: { partner?: PartnerSession; garage?: GarageSession },
+) {
+  const db = getDb();
+  // ID bukan UUID = tidak ditemukan (bukan error 500 dari database).
+  const [link] = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(linkId)
+    ? await db.select().from(partnerProductLinks).where(eq(partnerProductLinks.id, linkId)).limit(1)
+    : [];
+  if (!link) throw new PartnerHubError("PRODUCT_NOT_FOUND", "Produk mitra tidak ditemukan.", 404);
+  if (who.partner && who.partner.partner.id !== link.partnerId) throw new PartnerHubError("PRODUCT_NOT_FOUND", "Produk mitra tidak ditemukan.", 404);
+  if (who.garage) {
+    assertOwnerOrManager(who.garage, "Mengubah foto produk mitra");
+    await loadPartner(db, link.partnerId, who.garage.profile.outlet.id);
+  }
+  if (!who.partner && !who.garage) throw new PartnerHubError("FORBIDDEN", "Tidak berhak mengubah foto produk.", 403);
+  const actor = who.partner ? partnerActor(who.partner) : staffActor(who.garage!);
+  const imageUrl = await store();
+  return db.transaction(async (tx) => {
+    const [item] = await tx.select({ imageUrl: menuItems.imageUrl }).from(menuItems).where(eq(menuItems.id, link.menuItemId)).limit(1);
+    await tx.update(menuItems).set({ imageUrl, updatedAt: new Date() }).where(eq(menuItems.id, link.menuItemId));
+    await logEvent(tx, { partnerId: link.partnerId, kind: "product_photo", subjectId: linkId, actor, metadata: { before: item?.imageUrl ?? null, after: imageUrl } });
+    return { linkId, imageUrl };
+  });
+}
+
 export async function setPartnerOperationalStatus(
   partnerId: string,
   status: string,

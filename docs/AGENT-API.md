@@ -193,7 +193,8 @@ Selama `GARAGE_MCP_CHATGPT_ENABLED` bukan `true`: tidak ada endpoint OAuth, `/.w
      mis. "Nasi Goreng": nama persis menang, nama ambigu → `PRODUK_AMBIGU` + daftar pilihan; atau `id`),
      `produk_mitra` (`nama` produk mitra atau id link; produk mitra yang disebut lewat `produk_menu` otomatis ke
      endpoint foto mitra; hanya mitra outlet sendiri), `bahan_gudang` (id), `hero_website`, `suasana_website`
-     (slot 1–4). Diteruskan ke endpoint unggah yang sudah ada (kompresi & audit route itu tetap jalan).
+     (slot 1–4), `logo_sponsor` / `logo_talent` (cukup `nama` sponsor/talent event; disimpan langsung lewat service
+     sponsor/lineup dengan kompresi yang sama). Selain logo event, diteruskan ke endpoint unggah yang sudah ada.
   - Bukti uang (struk kas, bukti transfer, dokumen) tidak bisa lewat jalur ini. URL unduhan tidak pernah
     masuk audit/log. Host tambahan (bila OpenAI mengganti domain file): env `GARAGE_MCP_PHOTO_HOSTS`
     (dipisah koma) — hanya operator VPS.

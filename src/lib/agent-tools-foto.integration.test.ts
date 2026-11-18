@@ -297,3 +297,37 @@ describe("pasang_foto produk menu berdasarkan nama", () => {
     await expect(call(owner(), "pasang_foto", { fotoId: fotoId2, tujuan: "produk_mitra", nama: "Nasi Goreng", alasan: "foto" })).rejects.toMatchObject({ code: "PRODUK_TIDAK_DITEMUKAN" });
   });
 });
+
+describe("pasang_foto logo sponsor & talent event (Owner 18 Nov 2026)", () => {
+  async function stage() {
+    return (await call(owner(), "siapkan_foto", { foto: { download_url: SRC } })).fotoId as string;
+  }
+
+  it("cukup nama: logo tersimpan lewat service (bukan rute delegasi), tanpa permintaan HTTP ke /api; nama tidak ada ditolak", async () => {
+    const sponsorSvc = await import("@/lib/event-sponsor-service");
+    const lineupSvc = await import("@/lib/event-lineup-service");
+    const sponsor = await sponsorSvc.createSponsor({ eventName: "GIGS FOTO", name: "Desain Aja Dulu", agreedAmount: 0 } as any, owner());
+    const talent = await lineupSvc.createPerformer({ eventName: "GIGS FOTO", name: "Surai Foto", kind: "band", status: "konfirmasi" } as any, owner());
+
+    stubFetch();
+    const fotoId = await stage();
+    const args = { fotoId, tujuan: "logo_sponsor", nama: "desain aja dulu", alasan: "logo sponsor GIGS" };
+    const preview = await call(owner(), "pasang_foto", args);
+    expect(preview.ringkasan.produk).toContain("Desain Aja Dulu (GIGS FOTO)");
+    const done = await call(owner(), "pasang_foto", { ...args, konfirmasi: preview.konfirmasi });
+    expect(done.hasil.fotoBaru).toMatch(/^\/garage-uploads\/event-sponsor\/.+\.webp$/);
+    expect(seen.filter((s) => s.url.startsWith("/api"))).toHaveLength(0);
+    const { eq } = await import("drizzle-orm");
+    const [row] = await t.getDb().select().from(t.schema.eventSponsors).where(eq(t.schema.eventSponsors.id, sponsor.id));
+    expect((row as any).logoUrl).toBe(done.hasil.fotoBaru);
+
+    const fotoId2 = await stage();
+    const tArgs = { fotoId: fotoId2, tujuan: "logo_talent", nama: "Surai Foto", alasan: "logo band" };
+    const tPreview = await call(owner(), "pasang_foto", tArgs);
+    const tDone = await call(owner(), "pasang_foto", { ...tArgs, konfirmasi: tPreview.konfirmasi });
+    const [perf] = await t.getDb().select().from(t.schema.eventPerformers).where(eq(t.schema.eventPerformers.id, talent.id));
+    expect((perf as any).logoUrl).toBe(tDone.hasil.fotoBaru);
+
+    await expect(call(owner(), "pasang_foto", { fotoId: fotoId2, tujuan: "logo_sponsor", nama: "Sponsor Hantu", alasan: "x y z" })).rejects.toMatchObject({ code: "TIDAK_DITEMUKAN" });
+  });
+});

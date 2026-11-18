@@ -163,6 +163,12 @@ test("Beranda HP: kartu lineup & sponsor tidak terpotong / tidak bergeser @mobil
     const slotCard = gigs.locator("li").filter({ hasText: slotName });
     await expect(slotCard).toBeVisible();
     await expect(slotCard).toContainText("20.00–20.30 WIB");
+
+    // Halaman event platform (lewat Caddy → Garage OS): slot tanpa penampil diisi nama slot → langsung tampil di sana.
+    const eventLineup = await page.request.get(`/api/public/gigs/gigs-hp-${tag.toLowerCase()}/lineup`);
+    expect(eventLineup.ok(), await eventLineup.text()).toBeTruthy();
+    const { slots } = (await eventLineup.json()) as { slots: Array<{ performer: string; name: string; startTime: string }> };
+    expect(slots).toEqual([expect.objectContaining({ performer: slotName, name: "Official Lineup", startTime: "20:00" })]);
     await expect(page.getByTestId("home-gigs-partners").getByText(`Sponsor Dengan Nama Sangat Panjang ${tag}`)).toBeVisible();
     await noHorizontalOverflow(page);
     check();

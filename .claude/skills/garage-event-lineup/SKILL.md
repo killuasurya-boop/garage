@@ -122,3 +122,9 @@ description: Aturan WAJIB modul Lineup & Panitia Event (band/stand-up, rundown, 
   talent yang sama (`lineupKey`: nama resmi tanpa spasi/tanda baca; "SURAI HC"→SURAI, "LOSTSIDE"→LOST SIDE di
   `OFFICIAL_LINEUP_NAMES`) tidak dobel, jam/logo hanya mengisi yang kosong; slot baru ditambah di belakang (maks 16).
   Halaman `/event/*` (platform) sendiri hanya menampilkan slot ber-penampil — aturan kode platform, bukan Garage.
+- Halaman event platform ikut slot (Owner 18 Nov 2026): Caddy meneruskan HANYA `GET /event/<slug>/api/public/lineup` ke
+  `GET /api/public/gigs/[slug]/lineup` (publik, rateLimit, terdaftar di `public-routes.ts`). Route mengambil slot mentah
+  (`fetchRawPlatformSlots`) lalu `enrichSlotsForEventPage`: slot penampil (jenis dikenal) tanpa penampil → `performer` = nama
+  resmi slot, baris kecil "Official Lineup", logo kosong dari Garage OS (`publicLineupFor`) lalu promo platform; slot lain
+  (sesi sponsor) apa adanya. Bentuk respons = milik platform `{ slots }` (dibaca app.js platform), bukan `{ data }`. Platform
+  gagal → `{ slots: [] }` → halaman event memakai lineup bawaannya. Caddyfile ikut terkirim tiap deploy.

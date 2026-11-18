@@ -13,6 +13,19 @@
 	}
 
 	# IP klien asli dari koneksi (bukan header kiriman klien) untuk rate limit.
+	# Lineup halaman event GIGS lewat Garage OS (Owner 18 Nov 2026): slot dashboard panitia langsung tampil dengan nama
+	# resmi & logo Garage OS. Hanya GET /event/<slug>/api/public/lineup; selain itu tetap ke platform di bawah.
+	@gigsLineup {
+		method GET
+		path_regexp gigsLineup ^/event/([a-z0-9][a-z0-9-]{0,80})/api/public/lineup/?$
+	}
+	handle @gigsLineup {
+		rewrite * /api/public/gigs/{re.gigsLineup.1}/lineup
+		reverse_proxy app:3000 {
+			header_up X-Real-IP {remote_host}
+		}
+	}
+
 	# GARAGE EVENT PLATFORM (stack terpisah "garage-event", /root/garage-event)
 	@garageEvent path /event /event/*
 	handle @garageEvent {

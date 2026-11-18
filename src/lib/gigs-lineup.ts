@@ -192,3 +192,23 @@ export function withPlatformSlots(lineup: LineupItem[], slots: LineupItem[] | un
   }
   return out.slice(0, 16);
 }
+
+/**
+ * Data slot untuk HALAMAN EVENT platform (`/event/<slug>`), dilewatkan Caddy → Garage OS (Owner 18 Nov 2026).
+ * Kode halaman platform hanya menampilkan slot yang punya `performer`; panitia sering hanya mengisi nama slot. Di sini:
+ * slot penampil (jenis dikenal) tanpa penampil → penampil = nama resmi slot; ejaan dikoreksi; logo kosong dilengkapi
+ * dari Garage OS / promo platform (kunci `lineupKey`); baris kecil di kartu = "Official Lineup". Slot lain (mis. sesi
+ * sponsor) dikirim apa adanya. Bentuk respons tetap milik platform (`{ slots: [...] }`).
+ */
+export function enrichSlotsForEventPage(slots: unknown, logoByKey: ReadonlyMap<string, string>): Array<Record<string, unknown>> {
+  return (Array.isArray(slots) ? slots : [])
+    .filter((slot): slot is Record<string, unknown> => Boolean(slot) && typeof slot === "object")
+    .map((slot) => {
+      if (!parseLineupKind(slot.category)) return slot;
+      const raw = (typeof slot.performer === "string" && slot.performer.trim()) || (typeof slot.name === "string" && slot.name.trim()) || "";
+      if (!raw) return slot;
+      const performer = officialLineupName(raw);
+      const logo = (typeof slot.logo === "string" && slot.logo) || logoByKey.get(lineupKey(performer)) || "";
+      return { ...slot, name: "Official Lineup", performer, logo };
+    });
+}

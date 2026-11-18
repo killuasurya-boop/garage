@@ -109,21 +109,24 @@ export function parsePlatformSlots(slots: unknown): LineupItem[] {
         time: slotTime(typeof slot?.startTime === "string" ? slot.startTime : null, num(slot?.durationMin)),
       };
     })
-    .filter((slot) => slot.name)
+    // Hanya slot penampil (band, stand-up, ...); sesi lain (mis. sesi sponsor) tidak jadi kartu lineup.
+    .filter((slot) => slot.name && slot.kind)
     .slice(0, 16);
 }
 
-/** Slot panggung satu event (slug sudah dari daftar platform). Gagal/timeout → [] (beranda tetap tampil). */
-async function fetchPlatformSlots(api: string, slug: string): Promise<LineupItem[]> {
-  if (!/^[a-z0-9][a-z0-9-]{0,80}$/.test(slug) || !/\/api\/events\/?$/.test(api)) return [];
-  try {
-    const res = await fetch(api.replace(/\/api\/events\/?$/, `/${slug}/api/public/lineup`), { cache: "no-store", signal: AbortSignal.timeout(1500) });
-    if (!res.ok) return [];
-    const json = (await res.json()) as { slots?: unknown };
-    return parsePlatformSlots(json?.slots);
-  } catch {
-    return [];
-  }
+/** Slot panggung mentah satu event dari platform (jaringan internal). Slug/alamat tidak valid atau gagal → Error. */
+export async function fetchRawPlatformSlots(slug: string, timeoutMs = 1500): Promise<unknown[]> {
+  const api = process.env.GARAGE_EVENT_API || DEFAULT_API;
+  if (!/^[a-z0-9][a-z0-9-]{0,80}$/.test(slug) || !/\/api\/events\/?$/.test(api)) throw new Error("Slug atau alamat platform tidak valid.");
+  const res = await fetch(api.replace(/\/api\/events\/?$/, `/${slug}/api/public/lineup`), { cache: "no-store", signal: AbortSignal.timeout(timeoutMs) });
+  if (!res.ok) throw new Error(`Platform GIGS membalas ${res.status}.`);
+  const json = (await res.json()) as { slots?: unknown };
+  return Array.isArray(json?.slots) ? json.slots : [];
+}
+
+/** Slot panggung satu event untuk beranda. Gagal/timeout → [] (beranda tetap tampil). */
+async function fetchPlatformSlots(slug: string): Promise<LineupItem[]> {
+  return parsePlatformSlots(await fetchRawPlatformSlots(slug).catch(() => []));
 }
 
 /**
@@ -211,7 +214,7 @@ export async function getGigsPromo(now = Date.now()): Promise<GigsPromo | null> 
           .filter((p): p is string => Boolean(p))
           .slice(0, 8),
         lineup: parsePlatformLineup(promo.lineup),
-        slots: await fetchPlatformSlots(api, ev.slug),
+        slots: await fetchPlatformSlots(ev.slug),
         instagram:
           typeof promo.instagram === "string" && /^https:\/\/(www\.)?instagram\.com\/[A-Za-z0-9._/]+$/.test(promo.instagram)
             ? promo.instagram

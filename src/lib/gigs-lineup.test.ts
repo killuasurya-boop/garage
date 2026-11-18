@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { groupLineup, instagramUrl, lineupSummary, mergeLineup, officialLineupName, parseInstagramHandle, parseLineupKind, slotTime, withPlatformSlots, type LineupItem } from "@/lib/gigs-lineup";
+import { groupLineup, instagramUrl, lineupSummary, mergeLineup, officialLineupName, parseInstagramHandle, parseLineupKind, slotTime, withPlatformSlots, enrichSlotsForEventPage, lineupKey, type LineupItem } from "@/lib/gigs-lineup";
 import { parsePlatformSlots } from "@/lib/gigs-promo";
 
 const item = (name: string, kind: LineupItem["kind"] = null): LineupItem => ({ name, logo: null, kind });
@@ -128,5 +128,31 @@ describe("slot panggung platform → beranda otomatis (Owner 18 Nov 2026)", () =
     expect(out[1].time).toBe("20.00–20.30");
     expect(base[1].time).toBeNull();
     expect(withPlatformSlots(base, [])).toBe(base);
+  });
+});
+
+describe("enrichSlotsForEventPage (halaman event platform, Owner 18 Nov 2026)", () => {
+  it("slot penampil kosong → penampil = nama resmi slot, logo dilengkapi; sesi non-penampil apa adanya", () => {
+    const logos = new Map([[lineupKey("LOST SIDE"), "/event/x/lost-side.jpg"], [lineupKey("SURAI"), "/garage-uploads/event-lineup/surai.webp"]]);
+    const out = enrichSlotsForEventPage(
+      [
+        { id: "1", name: "SURAI HC", category: "band", startTime: "20:00", durationMin: 30, performer: "", logo: "" },
+        { id: "2", name: "LOSTSIDE", category: "band", startTime: "", durationMin: 30, performer: "", logo: "" },
+        { id: "3", name: "Slot Komika", category: "komika", startTime: "", durationMin: 20, performer: "Standup Tebing", logo: "/event/x/su.png" },
+        { id: "4", name: "Sesi sponsor 1", category: "sponsor", startTime: "", durationMin: 5, performer: "", logo: "" },
+        null,
+      ],
+      logos,
+    );
+    expect(out).toEqual([
+      { id: "1", name: "Official Lineup", category: "band", startTime: "20:00", durationMin: 30, performer: "SURAI", logo: "/garage-uploads/event-lineup/surai.webp" },
+      { id: "2", name: "Official Lineup", category: "band", startTime: "", durationMin: 30, performer: "LOST SIDE", logo: "/event/x/lost-side.jpg" },
+      { id: "3", name: "Official Lineup", category: "komika", startTime: "", durationMin: 20, performer: "Standup Tebing", logo: "/event/x/su.png" },
+      { id: "4", name: "Sesi sponsor 1", category: "sponsor", startTime: "", durationMin: 5, performer: "", logo: "" },
+    ]);
+    expect(enrichSlotsForEventPage("bukan array", logos)).toEqual([]);
+  });
+  it("parsePlatformSlots: sesi non-penampil tidak jadi kartu beranda", () => {
+    expect(parsePlatformSlots([{ name: "Sesi sponsor", category: "sponsor", performer: "" }])).toEqual([]);
   });
 });

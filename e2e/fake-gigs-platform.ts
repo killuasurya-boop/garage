@@ -18,7 +18,13 @@ export function startFakeGigsPlatform(initial: FakeGigsEvent) {
   let current = initial;
   const server: Server = createServer((req, res) => {
     if (req.method === "GET" && req.url === `/event/${current.slug}/api/public/config`) {
-      res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ finance: { target: 0, budgetLines: current.budget ?? [] } }));
+      res
+        .writeHead(200, { "content-type": "application/json" })
+        .end(JSON.stringify({ open: true, locked: false, sponsorMin: 300000, finance: { target: 0, budgetLines: current.budget ?? [], notes: [] } }));
+      return;
+    }
+    if (req.method === "GET" && req.url === `/event/${current.slug}/api/sponsor/summary`) {
+      res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ verified_amount: 0, verified_expense: 0, balance: 0, transaction_count: 0, income_history: [], expense_history: [], budget_status: [] }));
       return;
     }
     if (req.method === "GET" && req.url === `/event/${current.slug}/public/app.js`) {

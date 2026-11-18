@@ -88,6 +88,7 @@ Aturan modul yang berlaku: skill `garage-event-lineup` (bagian "GIGS EO"), `gara
 
 | Tanggal | Fase/Item | PR | Catatan |
 |---|---|---|---|
+| 18 Nov 2026 | Satu pintu (lineup, panggung, panitia, pendaftaran, transparansi) | #250 | Halaman event platform membaca Garage lewat Caddy (lineup, live, config, sponsor/summary, register, app.js tambalan). Migrasi 0204. Item 5 sebagian: angka transparansi kini diatur Owner di Garage (bebas, bukan buku kas). |
 | 17 Nov 2026 | Dokumen acuan dibuat | fase1 | Belum ada yang di-merge/deploy (perintah Owner). |
 | 17 Nov 2026 | Item 10–16 selesai | fase4 | Migrasi 0200. Tes `event-eo-fase4.integration.test.ts`, E2E `gigs-eo.spec.ts`. Sisa BLOKIR: 5, 17, tiket. |
 | 17 Nov 2026 | Item 6–9 selesai | fase3 | Migrasi 0199 (`event_checkins`, `events.capacity`, jam tampil nyata). Tes `event-day*.test.ts`. |

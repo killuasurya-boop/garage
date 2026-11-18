@@ -70,6 +70,10 @@ DELETE FROM partner_push_subscriptions;
 UPDATE event_sponsors SET contact_name = CASE WHEN contact_name IS NULL THEN NULL ELSE pg_temp.anon_name(contact_name, 'Kontak') END,
   contact_phone = CASE WHEN contact_phone IS NULL THEN NULL ELSE pg_temp.anon_phone(contact_phone) END;
 
+-- Pendaftar GIGS (18 Nov 2026): kontak & alamat disamarkan; nama grup/sponsor tetap (tampil publik).
+UPDATE event_registrations SET pic = pg_temp.anon_name(pic, 'Kontak'), whatsapp = pg_temp.anon_phone(whatsapp),
+  address = CASE WHEN address IS NULL THEN NULL ELSE 'Alamat disamarkan' END, diet = NULL;
+
 -- Token, sesi, kunci & antrean keluar: staging tidak boleh memakai akses produksi
 -- atau mengirim apa pun ke pelanggan/staf.
 DELETE FROM session;

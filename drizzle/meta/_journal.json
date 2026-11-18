@@ -1429,6 +1429,13 @@
       "when": 1794984748937,
       "tag": "0203_wifi_guest_access",
       "breakpoints": true
+    },
+    {
+      "idx": 204,
+      "version": "7",
+      "when": 1795034888938,
+      "tag": "0204_event_registrations_public_finance",
+      "breakpoints": true
     }
   ]
 }

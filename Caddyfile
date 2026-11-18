@@ -14,13 +14,38 @@
 
 	# IP klien asli dari koneksi (bukan header kiriman klien) untuk rate limit.
 	# SATU pintu lineup GIGS (Owner 18 Nov 2026): lineup halaman event = Lineup Garage OS (sama dengan beranda).
-	# Hanya GET /event/<slug>/api/public/lineup|live dan /public/app.js ke Garage; selain itu tetap ke platform di bawah.
+	# Hanya GET /event/<slug>/api/public/lineup|live|config, /api/sponsor/summary dan /public/app.js ke Garage; sisanya ke platform.
 	@gigsLineup {
 		method GET
-		path_regexp gigsLineup ^/event/([a-z0-9][a-z0-9-]{0,80})/api/public/(lineup|live)/?$
+		path_regexp gigsLineup ^/event/([a-z0-9][a-z0-9-]{0,80})/api/public/(lineup|live|config)/?$
 	}
 	handle @gigsLineup {
 		rewrite * /api/public/gigs/{re.gigsLineup.1}/{re.gigsLineup.2}
+		reverse_proxy app:3000 {
+			header_up X-Real-IP {remote_host}
+		}
+	}
+
+	# Transparansi dana (Owner 18 Nov 2026): ringkasan dana publik dari Garage bila Owner mengaktifkannya.
+	@gigsSummary {
+		method GET
+		path_regexp gigsSummary ^/event/([a-z0-9][a-z0-9-]{0,80})/api/sponsor/summary/?$
+	}
+	handle @gigsSummary {
+		rewrite * /api/public/gigs/{re.gigsSummary.1}/sponsor-summary
+		reverse_proxy app:3000 {
+			header_up X-Real-IP {remote_host}
+		}
+	}
+
+	# Pendaftaran kreator/sponsor/kru dari form halaman event (POST) → Garage OS (Owner 18 Nov 2026). Event belum tertaut /
+	# ID pendaftaran lama → Garage meneruskannya kembali ke platform.
+	@gigsRegister {
+		method POST
+		path_regexp gigsRegister ^/event/([a-z0-9][a-z0-9-]{0,80})/api/public/(register|registration/(?:lookup|update|setlist))$
+	}
+	handle @gigsRegister {
+		rewrite * /api/public/gigs/{re.gigsRegister.1}/{re.gigsRegister.2}
 		reverse_proxy app:3000 {
 			header_up X-Real-IP {remote_host}
 		}

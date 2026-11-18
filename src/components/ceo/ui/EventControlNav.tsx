@@ -1,12 +1,12 @@
 "use client";
 
-import { Calculator, CalendarHeart, HandCoins, Mic2, ScanLine, type LucideIcon } from "lucide-react";
+import { Calculator, CalendarHeart, Eye, HandCoins, Inbox, Mic2, ScanLine, type LucideIcon } from "lucide-react";
 
 // Satu bar "Kontrol Event" di semua layar event (owner 17 Nov 2026: "1 kontrol 1 komando").
 // Menu event tersebar di beberapa layar (Event & Undangan di aplikasi utama, Lineup/Sponsor/Keuangan di Control,
 // Hari-H di layar HP). Bar ini menautkan semuanya dan membawa event yang sedang dipilih bila layarnya mendukung.
 
-export type EventControlKey = "event" | "lineup" | "sponsor" | "keuangan" | "harih";
+export type EventControlKey = "event" | "lineup" | "pendaftar" | "sponsor" | "keuangan" | "transparansi" | "harih";
 
 type Item = { key: EventControlKey; label: string; purpose: string; icon: LucideIcon; href: (eventId: string | null) => string };
 
@@ -19,6 +19,13 @@ const ITEMS: Item[] = [
     icon: Mic2,
     href: (id) => (id ? `/control/lineup?eventId=${id}` : "/control/lineup"),
   },
+  {
+    key: "pendaftar",
+    label: "Pendaftar",
+    purpose: "Kreator, sponsor, kru dari website",
+    icon: Inbox,
+    href: (id) => (id ? `/control/registrations?eventId=${id}` : "/control/registrations"),
+  },
   { key: "sponsor", label: "Sponsor", purpose: "Sponsor, uang masuk, logo di website", icon: HandCoins, href: () => "/control/sponsors" },
   {
     key: "keuangan",
@@ -26,6 +33,13 @@ const ITEMS: Item[] = [
     purpose: "Anggaran, biaya, untung/rugi",
     icon: Calculator,
     href: (id) => (id ? `/control/event-finance?eventId=${id}` : "/control/event-finance"),
+  },
+  {
+    key: "transparansi",
+    label: "Transparansi",
+    purpose: "Angka dana di halaman event",
+    icon: Eye,
+    href: (id) => (id ? `/control/event-transparency?eventId=${id}` : "/control/event-transparency"),
   },
   {
     key: "harih",

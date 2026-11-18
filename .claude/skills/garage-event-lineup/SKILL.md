@@ -136,3 +136,18 @@ description: Aturan WAJIB modul Lineup & Panitia Event (band/stand-up, rundown, 
   judul); Panitia melihat tab Check-in + Panggung saja (tanpa batal check-in, tugas, kesiapan, agenda). Ruang Panitia punya
   tombol "Hari-H". Tombol "Login Panitia" (`/login?next=/panitia`) di beranda GIGS dan menu halaman event (tambalan app.js
   `PANITIA_LOGIN_SNIPPET`, sekali).
+- Pendaftaran GIGS di Garage (Owner 18 Nov 2026, migrasi 0204, `event_registrations`): form platform (`daftar.js`) POST
+  `/event/<slug>/api/public/register|registration/(lookup|update|setlist)` → Caddy `@gigsRegister` → `/api/public/gigs/[slug]/register`
+  & `/registration/[action]` (rateLimit). Bentuk respons = milik platform: `{ id, code, entry }` / `entry` / `{ setlist }`, error
+  `{ error: "pesan" }`. Kode edit 12 hex, disimpan HMAC (`registrationCodeHash`, BETTER_AUTH_SECRET). Event belum tertaut master
+  ATAU ID tidak dikenal Garage (pendaftaran lama) → diteruskan ke platform (`forwardToPlatform`). Ubah isian → status kembali
+  "diajukan". Owner `/control/registrations` (`decideRegistration`): setujui = penampil konfirmasi+tampil website (nama sama di
+  lineup → ditautkan, tidak dobel) / sponsor tampil website (nilai = kesepakatan, TANPA uang masuk) / panitia (peran dari bidang,
+  `crewRoleFor`); revisi/tolak wajib catatan. Ketua/sekretaris panitia: `/api/panitia/registrations` lihat saja (tanpa WA/alamat/
+  nominal). Pendaftar baru → `notifyStaff` Owner (`gigs_registration`). Logo → `storeMenuImageBuffer` (event-lineup/event-sponsor).
+- Transparansi dana publik (Owner 18 Nov 2026: "bisa diubah bebas", migrasi 0204, `event_public_finance` 1 baris/event, data
+  JSON divalidasi `publicFinanceSchema`): Owner `/control/event-transparency` (isi dari angka platform, target, pos RAB + tahap,
+  dana masuk/keluar, komitmen, catatan; aktif/nonaktif). BUKAN buku kas — tidak ada baris `cash_ledger_entries`. Bila aktif, Caddy
+  meneruskan `/event/<slug>/api/public/config` (config platform apa adanya, `finance` diganti `toPlatformFinance`) dan
+  `/event/<slug>/api/sponsor/summary` (`toPlatformSummary`; nonaktif → data platform). Riwayat perubahan (`api/public/changes`)
+  tetap dari platform.

@@ -123,3 +123,8 @@ description: Aturan WAJIB Smart Partner Hub (mitra resmi, produk partner, portal
     - Pesanan Mitra keeps the last cards and shows an offline banner when polling fails.
     - E2E `e2e/partner-cashier.spec.ts` runs in release-check: own partner `KSR`, Owner QRIS without a shift, frozen at the end.
   - Index `partner_order_lines_order_idx` (migration 0195, `CREATE INDEX IF NOT EXISTS`) serves per-order reads (shift report, cross-check).
+- Foto produk (Owner 18 Nov 2026, no migration): mitra AND Garage OS may upload a partner product photo. Portal `POST /api/partner/products/[linkId]/image`
+  (partner session, other partner's link = 404) and staff `POST /api/partners/products/[linkId]/image` (Owner/Manajer) share
+  `partner-product-image.ts` (multipart `image`, JPG/PNG/WebP ≤8 MB → WebP ≤200 KB, `/garage-uploads/menu`) and the single writer
+  `setPartnerProductImage` (access checked BEFORE the file is written; event `product_photo`). Display only: price, approval and
+  Promo Website pick are unchanged. Portal section "Foto produk" (`partner-portal-photos.tsx`) lists all the partner's products incl. pending.

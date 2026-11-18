@@ -558,7 +558,7 @@ export async function importPlatformLineup(input: z.infer<typeof importPlatformS
       404,
     );
   }
-  if (!platform.lineup.length) return { platformName: platform.name, created: [] as string[], logoFilled: [] as string[], skipped: [] as string[] };
+  if (!platform.lineup.length) return { platformName: platform.name, created: [] as string[], logoFilled: [] as string[], skipped: [] as string[], renamed: [] as string[] };
 
   const result = await db.transaction(async (tx) => {
     const existing = await tx
@@ -581,6 +581,7 @@ export async function importPlatformLineup(input: z.infer<typeof importPlatformS
     const created: string[] = [];
     const logoFilled: string[] = [];
     const skipped: string[] = [];
+    const renamed: string[] = [];
     for (const item of platform.lineup) {
       const key = item.name.trim().toLowerCase();
       // Nama resmi (SURAI) DAN ejaan asli platform (SURAU) sama-sama dikenali → tidak pernah dobel.
@@ -588,15 +589,18 @@ export async function importPlatformLineup(input: z.infer<typeof importPlatformS
       const found = byPlatform.get(key) ?? (rawKey ? byPlatform.get(rawKey) : undefined) ?? byName.get(key) ?? (rawKey ? byName.get(rawKey) : undefined);
       if (found) {
         const values: Partial<typeof eventPerformers.$inferInsert> = {};
-        // Tautkan baris lama (dibuat manual / impor sebelum kolom ini) ke nama platformnya; tidak mengubah nama.
+        // Tautkan baris lama (dibuat manual / impor sebelum kolom ini) ke nama platformnya.
         if (!found.platformName) values.platformName = item.platformName ?? item.name;
         if (!found.logoUrl && item.logo) values.logoUrl = item.logo;
+        // Nama yang masih persis ejaan platform yang dikoreksi Owner (SURAU) → nama resmi (SURAI). Nama lain tidak ditimpa.
+        if (rawKey && found.name.trim().toLowerCase() === rawKey && found.name !== item.name) values.name = item.name;
         if (Object.keys(values).length) {
           await tx.update(eventPerformers).set({ ...values, updatedAt: new Date() }).where(eq(eventPerformers.id, found.id));
           byPlatform.set(key, { ...found, ...values } as Existing);
         }
-        if (values.logoUrl) logoFilled.push(found.name);
-        else skipped.push(found.name);
+        if (values.name) renamed.push(`${found.name} → ${item.name}`);
+        if (values.logoUrl) logoFilled.push(values.name ?? found.name);
+        else if (!values.name) skipped.push(found.name);
         continue;
       }
       slot += 1;
@@ -616,7 +620,7 @@ export async function importPlatformLineup(input: z.infer<typeof importPlatformS
       byPlatform.set(key, { id: "", name: item.name, platformName: item.platformName ?? item.name, logoUrl: item.logo, slotOrder: slot });
       created.push(item.name);
     }
-    return { created, logoFilled, skipped };
+    return { created, logoFilled, skipped, renamed };
   });
   // Audit setelah transaksi (PGlite satu koneksi).
   await audit(garage, "Impor lineup dari platform GIGS", ref.eventName, { eventName: ref.eventName, platform: platform.slug, ...result });

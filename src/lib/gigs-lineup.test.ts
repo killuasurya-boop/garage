@@ -84,5 +84,11 @@ describe("officialLineupName (Owner: SURAU → SURAI)", () => {
     const platform: LineupItem[] = [{ name: officialLineupName("SURAU"), platformName: "SURAU", logo: "/event/uploads/surau.png", kind: "band" }];
     expect(mergeLineup(platform, [{ name: "SURAI", kind: "band" }])[0]).toMatchObject({ name: "SURAI", logo: "/event/uploads/surau.png" });
   });
+  it("baris Garage OS yang masih tersimpan 'SURAU' (impor lama) tampil SURAI di beranda, logo platform tetap ikut", () => {
+    const platform: LineupItem[] = [{ name: officialLineupName("SURAU"), platformName: "SURAU", logo: "/event/uploads/surau.png", kind: "band" }];
+    const out = mergeLineup(platform, [{ name: "LOST SIDE", kind: "band" }, { name: "SURAU", kind: "band" }]);
+    expect(out.map((item) => item.name)).toEqual(["LOST SIDE", "SURAI"]);
+    expect(out[1].logo).toBe("/event/uploads/surau.png");
+  });
 });
 

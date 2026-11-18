@@ -133,13 +133,17 @@ export function mergeLineup(
 ): LineupItem[] {
   if (!garage.length) return platform;
   const logoByName = new Map(platform.map((item) => [item.name.trim().toLowerCase(), item.logo]));
-  return garage.map((item) => ({
-    name: item.name,
-    kind: item.kind,
-    logo: item.logo || logoByName.get(item.name.trim().toLowerCase()) || null,
-    time: item.time ?? null,
-    live: item.live ?? false,
-    tagline: item.tagline ?? null,
-    instagram: item.instagram ?? null,
-  }));
+  return garage.map((item) => {
+    // Baris lama di Garage OS bisa masih bernama ejaan platform (mis. "SURAU" diimpor sebelum koreksi) → tampil nama resmi.
+    const name = officialLineupName(item.name);
+    return {
+      name,
+      kind: item.kind,
+      logo: item.logo || logoByName.get(name.trim().toLowerCase()) || null,
+      time: item.time ?? null,
+      live: item.live ?? false,
+      tagline: item.tagline ?? null,
+      instagram: item.instagram ?? null,
+    };
+  });
 }

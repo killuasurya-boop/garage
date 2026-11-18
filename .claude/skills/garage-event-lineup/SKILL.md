@@ -98,3 +98,8 @@ description: Aturan WAJIB modul Lineup & Panitia Event (band/stand-up, rundown, 
   Ketua/Sekretaris: buat tugas (PIC harus panitia aktif event yang sama) + ubah status semua tugas event. Ketua/Bendahara:
   ringkasan anggaran vs dibayar (baca saja). Tidak ada aksi uang, kontak sponsor/talent, atau data Owner lain. Audit `via=panitia`.
   Nonaktifkan panitia = akses hilang seketika. Papan Owner `/api/event-lineup` tetap Owner/Manajer.
+- Peran **Panitia** (Owner 18 Nov 2026): akun yang HANYA membuka Ruang Panitia. `Role` + "Panitia" (tanpa modul/izin,
+  `protectedRoleRank` 10). `roles` (garage-data) tetap = peran staf kafe (dipakai rute AI sebagai "semua staf"); `accountRoles`
+  (dengan Panitia) hanya untuk Kelola Staff. `requireGarageSession` menolak Panitia TERPUSAT (`PANITIA_ONLY`) kecuali `allowedRoles`
+  menyebut "Panitia" secara eksplisit — JANGAN tambahkan "Panitia" ke rute lain tanpa izin Owner. `/os` (page-access) mengalihkan
+  Panitia ke `/panitia`; `/panitia` tujuan login yang sah. `attachAbsenIdentity` melewati Panitia (tidak absen/gaji/fee).

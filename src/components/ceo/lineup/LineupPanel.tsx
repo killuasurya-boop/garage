@@ -1089,7 +1089,7 @@ function CrewForm({
         </Field>
         <Field
           label="Akun login (opsional)"
-          hint="Panitia ini bisa membuka Ruang Panitia (/panitia) untuk event ini: rundown, tugas, dan ubah status tugasnya. Ketua & Sekretaris bisa membuat tugas; Ketua & Bendahara melihat ringkasan anggaran. Tidak bisa mencatat uang."
+          hint="Panitia ini bisa membuka Ruang Panitia (/panitia) untuk event ini: rundown, tugas, dan ubah status tugasnya. Ketua & Sekretaris bisa membuat tugas; Ketua & Bendahara melihat ringkasan anggaran. Tidak bisa mencatat uang. Belum punya akun? Buat di Kelola Staff dengan peran Panitia: akun itu HANYA bisa membuka Ruang Panitia (tidak bisa kasir, menu, stok, keuangan; tidak ikut absen/gaji)."
         >
           <select className={inputClass} value={f.userId} onChange={(e) => setF((s) => ({ ...s, userId: e.target.value }))}>
             <option value="">Tidak ditautkan</option>

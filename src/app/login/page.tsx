@@ -11,7 +11,7 @@ type LoginPageProps = {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 };
 
-const allowedReturnTargets = new Set(["/os", "/dashboard", "/pos", "/control"]);
+const allowedReturnTargets = new Set(["/os", "/dashboard", "/pos", "/control", "/panitia"]);
 const allowedReturnPrefixes = ["/control/"];
 
 function safeReturnTo(value: string | string[] | undefined) {

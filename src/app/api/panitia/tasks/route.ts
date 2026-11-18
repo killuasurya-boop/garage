@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 
 /** Buat tugas panitia (Ketua/Sekretaris event itu saja). */
 export async function POST(request: Request) {
-  const session = await requireGarageSession(["Owner", "Manajer", "Kasir", "Waiter"]);
+  const session = await requireGarageSession(["Owner", "Manajer", "Kasir", "Waiter", "Panitia"]);
   if (session.response) return session.response;
   const body = await readJson(request, panitiaTaskInputSchema);
   if (body.error) return body.error;

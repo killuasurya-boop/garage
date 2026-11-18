@@ -970,6 +970,7 @@ function staffMonitorActionAgents(role: Role) {
     Manajer: ["supervisor", "approval_agent", "daily_brief_agent", "finance_guard_agent"],
     Kasir: ["pos_agent", "kitchen_agent", "inventory_agent", "approval_agent"],
     Waiter: ["pos_agent"],
+    Panitia: [],
   };
 
   return mapping[role];

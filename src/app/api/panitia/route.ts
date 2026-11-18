@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 
 /** Ruang panitia: event tempat akun ini ditautkan sebagai panitia aktif (hak per jabatan dicek di server). */
 export async function GET() {
-  const session = await requireGarageSession(["Owner", "Manajer", "Kasir", "Waiter"]);
+  const session = await requireGarageSession(["Owner", "Manajer", "Kasir", "Waiter", "Panitia"]);
   if (session.response) return session.response;
   return lineupRoute(() => getPanitiaWorkspace(session.data));
 }

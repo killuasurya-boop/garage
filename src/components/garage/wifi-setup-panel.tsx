@@ -1,14 +1,20 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, Copy, Loader2, Wifi } from "lucide-react";
+import { Check, Copy, Loader2, Printer, Wifi } from "lucide-react";
+
+import { WifiJoinQr } from "@/components/garage/wifi/wifi-join-qr";
 
 type Usage = {
   enabled: boolean;
   configured: boolean;
   ssid: string;
   todayLogins: number;
-  recent: Array<{ id: string; name: string | null; phone: string | null; mac: string | null; createdAt: string }>;
+  todayMembers?: number;
+  todayGuests?: number;
+  recent: Array<{ id: string; kind?: "member" | "guest"; name: string | null; phone: string | null; mac: string | null; createdAt: string }>;
+  joinQr?: string;
+  routerSync?: { lastSync: string | null; syncedToday: boolean; late: boolean };
 };
 
 // Pengaturan → Integrasi: status WiFi member + perintah RouterOS siap salin.
@@ -102,6 +108,9 @@ export function WifiSetupPanel() {
             <div className="rounded-md border border-[#34343c] bg-[#1b1b22] px-3 py-2">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-[#a9a9b3]">Login WiFi hari ini</p>
               <p className="font-mono text-2xl font-bold tabular-nums text-white">{usage.todayLogins}</p>
+              <p className="text-xs text-[#c4c4cc]">
+                Member {usage.todayMembers ?? usage.todayLogins} · Tamu (masuk cepat) {usage.todayGuests ?? 0}
+              </p>
             </div>
             {!usage.configured ? (
               <p className="rounded-md border border-[#f5a742]/45 bg-[#f5a742]/10 px-3 py-2 text-xs leading-5 text-[#ffd79a]">
@@ -109,7 +118,45 @@ export function WifiSetupPanel() {
                 <code>.env.production</code> server, lalu deploy ulang.
               </p>
             ) : null}
+            {usage.routerSync ? (
+              <div
+                className={`rounded-md border px-3 py-2 text-xs leading-5 ${
+                  usage.routerSync.syncedToday
+                    ? "border-[#22c55e]/45 bg-[#22c55e]/10 text-[#bbf7d0]"
+                    : usage.routerSync.late
+                      ? "border-[#f5a742]/45 bg-[#f5a742]/10 text-[#ffd79a]"
+                      : "border-[#34343c] bg-[#1b1b22] text-[#c4c4cc]"
+                }`}
+                data-testid="wifi-router-sync"
+              >
+                <p className="font-bold">
+                  {usage.routerSync.syncedToday ? "Router sudah mengambil password hari ini" : "Router belum mengambil password hari ini"}
+                </p>
+                <p>
+                  Terakhir diambil:{" "}
+                  {usage.routerSync.lastSync
+                    ? new Date(usage.routerSync.lastSync).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" })
+                    : "belum pernah"}
+                  {usage.routerSync.late && !usage.routerSync.syncedToday ? " — cek koneksi router / langkah 2." : ""}
+                </p>
+              </div>
+            ) : null}
+            {usage.joinQr ? (
+              <div className="flex items-center gap-3 rounded-md border border-[#34343c] bg-[#1b1b22] p-2">
+                <WifiJoinQr payload={usage.joinQr} ssid={usage.ssid} size={112} />
+                <div className="min-w-0 space-y-1 text-xs text-[#c4c4cc]">
+                  <p className="font-bold text-white">QR sambung WiFi · {usage.ssid}</p>
+                  <p>Scan → otomatis tersambung, lalu login Garage terbuka. QR tetap, password harian diganti router.</p>
+                  <a className="inline-flex min-h-9 items-center gap-1 rounded-md border border-[#34343c] px-2 font-semibold text-white hover:border-white" href="/order/qr-print">
+                    <Printer className="size-3.5" aria-hidden /> Cetak di halaman QR Meja
+                  </a>
+                </div>
+              </div>
+            ) : null}
             <p className="text-xs text-[#a9a9b3]">Aktifkan & atur durasi di Pengaturan → WiFi Member.</p>
+            <p className="text-xs leading-5 text-[#a9a9b3]">
+              Keamanan: WiFi tamu wajib dipisah (SSID/VLAN sendiri) dari jaringan kasir, POS, dan printer.
+            </p>
             <div className="max-h-56 overflow-y-auto rounded-md border border-[#34343c]">
               {usage.recent.length === 0 ? (
                 <p className="px-3 py-3 text-sm text-[#a9a9b3]">Belum ada pemakaian.</p>
@@ -117,7 +164,12 @@ export function WifiSetupPanel() {
                 <ul className="divide-y divide-[#2a2a32] text-sm">
                   {usage.recent.map((row) => (
                     <li key={row.id} className="flex items-center justify-between gap-2 px-3 py-2">
-                      <span className="min-w-0 truncate text-white">{row.name ?? "Member"}</span>
+                      <span className="min-w-0 truncate text-white">
+                        {row.name ?? (row.kind === "guest" ? "Tamu" : "Member")}
+                        <span className="ml-1.5 text-xs text-[#a9a9b3]">
+                          {row.kind === "guest" ? `Tamu${row.phone ? ` · ${row.phone}` : ""}` : "Member"}
+                        </span>
+                      </span>
                       <span className="shrink-0 font-mono text-xs text-[#a9a9b3]">
                         {new Date(row.createdAt).toLocaleString("id-ID", {
                           day: "numeric",

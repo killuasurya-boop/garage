@@ -1,5 +1,5 @@
 import { ok } from "@/lib/api-response";
-import { getWifiSettings } from "@/lib/wifi-hotspot";
+import { getWifiSettings, wifiJoinQrPayload } from "@/lib/wifi-hotspot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,5 +11,8 @@ export async function GET() {
     enabled: settings.enabled && settings.configured,
     ssid: settings.ssid,
     sessionHours: settings.sessionHours,
+    guestEnabled: settings.guestEnabled,
+    guestSessionHours: settings.guestSessionHours,
+    joinQr: wifiJoinQrPayload(settings.ssid),
   });
 }

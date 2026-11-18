@@ -80,6 +80,8 @@ const patchSchema = z.object({
   wifiSsid: z.string().trim().max(32).optional(),
   wifiSessionHours: z.number().int().min(1).max(24).optional(),
   wifiMaxDevices: z.number().int().min(1).max(500).optional(),
+  wifiGuestEnabled: z.boolean().optional(),
+  wifiGuestSessionHours: z.number().int().min(1).max(24).optional(),
   wifiHotspotHost: z.string().trim().max(80).regex(/^[a-z0-9.-]*$/i, "Nama host hanya huruf, angka, titik, minus.").optional(),
   unpaidOrderAutoRejectMinutes: z.number().int().min(0).max(240).optional(),
   pointsPerThousand: z.number().min(0).max(10).optional(),

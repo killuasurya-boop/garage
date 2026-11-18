@@ -114,6 +114,9 @@ export type AppSettings = {
   wifiSsid: string;
   wifiSessionHours: number;
   wifiMaxDevices: number;
+  /** Masuk cepat tamu (nama + WA, tanpa daftar member). */
+  wifiGuestEnabled: boolean;
+  wifiGuestSessionHours: number;
   wifiHotspotHost: string;
   // Order take away/delivery belum dibayar lewat batas ini otomatis ditolak (menit, 0 = mati).
   unpaidOrderAutoRejectMinutes: number;
@@ -302,6 +305,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   wifiSsid: "GARAGE Free WiFi",
   wifiSessionHours: 3,
   wifiMaxDevices: 200,
+  wifiGuestEnabled: true,
+  wifiGuestSessionHours: 1,
   wifiHotspotHost: "",
   unpaidOrderAutoRejectMinutes: 30,
   // 0,5 poin per Rp1.000 menu → Silver ±5% (1 poin = Rp100).

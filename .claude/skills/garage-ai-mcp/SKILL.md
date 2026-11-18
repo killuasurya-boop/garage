@@ -26,8 +26,9 @@ description: Aturan WAJIB MCP ChatGPT, Owner AI Connect/Command Center, tool reg
   `GARAGE_MCP_PHOTO_HOSTS`), no IPs, redirects re-checked per hop, 8 MB stream cap, 15 s; content must decode as JPG/PNG/WebP and is
   re-encoded to WebP (EXIF stripped); staged in a NON-public temp dir bound to the Owner (30 min, max 10). `pasang_foto` (R2, preview +
   confirmation on stable `fotoId`) forwards the staged file as multipart (`callApiAsOwner` `form`) to an EXISTING upload route from a
-  fixed list (`photoRoute`: produk_menu — by `nama` via `resolveMenuProductId`, active non-partner only, exact name wins, ambiguous =
-  `PRODUK_AMBIGU` —, produk_mitra, bahan_gudang, hero_website, suasana_website slot 1–4). Never add free paths or
+  fixed list (`photoRoute`: produk_menu / produk_mitra — by `nama` via `resolveProductForPhoto` (Owner 18 Nov 2026: Garage AND
+  partner products, not archived; a partner product found via produk_menu is routed to `/api/partners/products/<linkId>/image`;
+  exact name wins, ambiguous = `PRODUK_AMBIGU`) —, bahan_gudang, hero_website, suasana_website slot 1–4). Never add free paths or
   money evidence (receipts, transfer proofs, documents) to that list. Signed `download_url`s never reach audit (`toolArgsPreview`
   redacts to host), `mcp_operations` or error text.
 - Owner AI Connect (blueprint GOS-AI-MCP V3 Phase 1, `docs/owner-ai/`, migration 0175): `/control/ai-connect` + navbar chip

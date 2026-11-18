@@ -26,6 +26,7 @@ const SRC = "https://files.oaiusercontent.com/file-abc?sig=RAHASIA";
 
 type Seen = { url: string; method: string; isForm: boolean; fields: Record<string, string>; imageType: string | null; imageBytes: number; scope: string | null };
 let seen: Seen[] = [];
+const PARTNER_LINK = "7d1f4c2a-9b3e-4f6a-8c1d-2e5b7a9c0f11";
 let png: Buffer;
 
 function as(userId: string, role: Role, agentKey: unknown = null): GarageSession {
@@ -110,8 +111,11 @@ beforeAll(async () => {
       { ...base, id: "foto-ks", name: "Kopi Susu Aren", category: "Coffee" },
       { ...base, id: "foto-old", name: "Kopi Tubruk Lama", category: "Coffee", status: "archived" },
       { ...base, id: "foto-mitra", name: "Es Krim Pokat", productType: "partner" },
+      { ...base, id: "foto-mitra-ok", name: "Dimsum Ayam Mitra", productType: "partner", status: "inactive" },
     ])
     .onConflictDoNothing();
+  const [partner] = await d.insert(t.schema.partners).values({ outletId, code: "FTO", name: "Mitra Foto" } as any).returning();
+  await d.insert(t.schema.partnerProductLinks).values({ id: PARTNER_LINK, partnerId: partner.id, menuItemId: "foto-mitra-ok", code: "FTO-1" } as any);
 }, 90_000);
 
 afterEach(async () => {
@@ -274,5 +278,22 @@ describe("pasang_foto produk menu berdasarkan nama", () => {
     await expect(call(owner(), "pasang_foto", { fotoId, tujuan: "produk_menu", nama: "Es Krim", alasan: "foto" })).rejects.toMatchObject({ code: "PRODUK_TIDAK_DITEMUKAN" });
     await expect(call(owner(), "pasang_foto", { fotoId, tujuan: "produk_menu", nama: "%", alasan: "foto" })).rejects.toMatchObject({ code: expect.stringMatching(/PRODUK_|VALIDATION/) });
     expect(seen.filter((s) => s.method === "POST")).toHaveLength(0);
+  });
+
+  it("produk mitra cukup nama: produk_menu otomatis ke endpoint foto mitra (link id), produk_mitra juga menerima nama", async () => {
+    stubFetch();
+    const fotoId = await stage();
+    const args = { fotoId, tujuan: "produk_menu", nama: "dimsum ayam", alasan: "foto produk mitra" };
+    const preview = await call(owner(), "pasang_foto", args);
+    expect(preview.ringkasan.produk).toBe(`Dimsum Ayam Mitra (id ${PARTNER_LINK})`);
+    expect(preview.ringkasan.aksi).toContain(`/api/partners/products/${PARTNER_LINK}/image`);
+    const done = await call(owner(), "pasang_foto", { ...args, konfirmasi: preview.konfirmasi });
+    expect(done.hasil.terpasang).toBe("Foto produk mitra: Dimsum Ayam Mitra");
+    expect(seen.find((s) => s.method === "POST")?.url).toBe(`/api/partners/products/${PARTNER_LINK}/image`);
+
+    const fotoId2 = await stage();
+    const viaMitra = await call(owner(), "pasang_foto", { fotoId: fotoId2, tujuan: "produk_mitra", nama: "Dimsum Ayam Mitra", alasan: "foto" });
+    expect(viaMitra.ringkasan.produk).toBe(`Dimsum Ayam Mitra (id ${PARTNER_LINK})`);
+    await expect(call(owner(), "pasang_foto", { fotoId: fotoId2, tujuan: "produk_mitra", nama: "Nasi Goreng", alasan: "foto" })).rejects.toMatchObject({ code: "PRODUK_TIDAK_DITEMUKAN" });
   });
 });

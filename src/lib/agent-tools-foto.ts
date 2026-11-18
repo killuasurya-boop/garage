@@ -77,41 +77,64 @@ const pasangInput = z.object({
   fotoId: z.string().regex(/^[a-f0-9]{32}$/, "fotoId berasal dari siapkan_foto."),
   tujuan: z.enum(PHOTO_TARGETS),
   id: z.string().trim().max(80).optional(),
-  /** produk_menu: cukup nama produk (mis. "Nasi Goreng"); dicari di menu aktif. */
+  /** produk_menu / produk_mitra: cukup nama produk (mis. "Nasi Goreng", "Es Krim Pokat Au"); Garage & mitra dicari. */
   nama: z.string().trim().min(2).max(120).optional(),
   slot: z.number().int().min(1).max(4).optional(),
   alasan: z.string().trim().min(3, "Tulis alasan singkat.").max(300),
 });
 
 /**
- * produk_menu dengan `nama`: cari produk menu AKTIF milik Garage (bukan produk mitra). Nama persis (tanpa beda
- * huruf besar/kecil) menang; selain itu harus tepat satu yang mengandung kata itu, kalau tidak Owner diminta memilih.
+ * Cari produk dari `nama` (Owner 18 Nov 2026: cukup sebut nama, produk Garage maupun mitra).
+ * Produk menu yang tidak diarsip; produk mitra memakai id link-nya (termasuk yang menunggu persetujuan).
+ * `hanya`: "mitra" = produk mitra saja, "garage" = produk Garage saja, kosong = keduanya.
+ * Nama persis (tanpa beda huruf besar/kecil) menang; selain itu harus tepat satu yang mengandung kata itu.
  */
-export async function resolveMenuProductId(nama: string) {
+export async function resolveProductForPhoto(nama: string, hanya?: "mitra" | "garage") {
   const { and, eq, ilike, ne } = await import("drizzle-orm");
   const { getDb } = await import("@/db");
-  const { menuItems } = await import("@/db/schema");
+  const { menuItems, partnerProductLinks } = await import("@/db/schema");
   const pattern = `%${nama.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
-  const rows = await getDb()
-    .select({ id: menuItems.id, name: menuItems.name })
+  const filters = [ne(menuItems.status, "archived"), ilike(menuItems.name, pattern)];
+  if (hanya === "mitra") filters.push(eq(menuItems.productType, "partner"));
+  if (hanya === "garage") filters.push(ne(menuItems.productType, "partner"));
+  const found = await getDb()
+    .select({ menuId: menuItems.id, name: menuItems.name, productType: menuItems.productType, linkId: partnerProductLinks.id })
     .from(menuItems)
-    .where(and(eq(menuItems.status, "active"), ne(menuItems.productType, "partner"), ilike(menuItems.name, pattern)))
+    .leftJoin(partnerProductLinks, eq(partnerProductLinks.menuItemId, menuItems.id))
+    .where(and(...filters))
     .limit(20);
+  // Produk mitra tanpa link (data rusak) tidak bisa diberi foto lewat endpoint mitra: lewati.
+  const rows = found
+    .filter((row) => row.productType !== "partner" || row.linkId)
+    .map((row) => (row.productType === "partner" ? { tujuan: "produk_mitra" as const, id: row.linkId!, name: row.name } : { tujuan: "produk_menu" as const, id: row.menuId, name: row.name }));
   const exact = rows.filter((row) => row.name.trim().toLowerCase() === nama.trim().toLowerCase());
   const pick = exact.length === 1 ? exact : rows.length === 1 ? rows : [];
   if (pick.length === 1) return pick[0];
+  const jenis = hanya === "mitra" ? "produk mitra" : hanya === "garage" ? "produk menu Garage" : "produk (Garage atau mitra)";
   if (!rows.length) {
-    throw new AgentToolError("PRODUK_TIDAK_DITEMUKAN", `Tidak ada produk menu aktif bernama "${nama}". Cek ejaan atau sebut nama lain.`, 404);
+    throw new AgentToolError("PRODUK_TIDAK_DITEMUKAN", `Tidak ada ${jenis} bernama "${nama}". Cek ejaan atau sebut nama lain.`, 404);
   }
-  const pilihan = rows.slice(0, 8).map((row) => `${row.name} (id ${row.id})`).join("; ");
-  throw new AgentToolError("PRODUK_AMBIGU", `Ada ${rows.length} produk yang cocok dengan "${nama}": ${pilihan}. Tanyakan Owner produk yang mana, lalu kirim \`id\`-nya.`, 409);
+  const pilihan = rows.slice(0, 8).map((row) => `${row.name}${row.tujuan === "produk_mitra" ? " [mitra]" : ""} (id ${row.id})`).join("; ");
+  throw new AgentToolError("PRODUK_AMBIGU", `Ada ${rows.length} produk yang cocok dengan "${nama}": ${pilihan}. Tanyakan Owner produk yang mana, lalu kirim nama lengkapnya.`, 409);
 }
 
-/** produk_menu: `nama` → `id` (bila id belum diisi). Tujuan lain tidak berubah. */
-async function withResolvedId(args: Record<string, unknown>) {
-  if (args.tujuan !== "produk_menu" || args.id || typeof args.nama !== "string") return { id: args.id as string | undefined, nama: null };
-  const found = await resolveMenuProductId(args.nama);
-  return { id: found.id, nama: found.name };
+/** Dipertahankan untuk pemanggil lama: produk menu Garage saja. */
+export async function resolveMenuProductId(nama: string) {
+  const found = await resolveProductForPhoto(nama, "garage");
+  return { id: found.id, name: found.name };
+}
+
+/**
+ * produk_menu / produk_mitra dengan `nama` → tujuan + id yang benar. `produk_menu` mencari produk Garage DAN mitra
+ * (Owner cukup bilang "foto produk X"); bila ternyata produk mitra, foto dikirim ke endpoint mitra.
+ */
+async function withResolvedId(args: Record<string, unknown>): Promise<{ tujuan: PhotoTarget; id: string | undefined; nama: string | null }> {
+  const tujuan = args.tujuan as PhotoTarget;
+  if ((tujuan !== "produk_menu" && tujuan !== "produk_mitra") || args.id || typeof args.nama !== "string") {
+    return { tujuan, id: args.id as string | undefined, nama: null };
+  }
+  const found = await resolveProductForPhoto(args.nama, tujuan === "produk_mitra" ? "mitra" : undefined);
+  return { tujuan: found.tujuan, id: found.id, nama: found.name };
 }
 
 /** Nama & foto sekarang dari respons GET (bentuk `{data:{...}}` atau langsung) — hanya untuk preview. */
@@ -157,7 +180,7 @@ export const fotoTools: AgentTool[] = [
     name: "pasang_foto",
     title: "Pasang foto ke Garage OS",
     description:
-      "Langkah 2 unggah foto: pasang foto dari siapkan_foto ke tujuan tetap — `produk_menu` (isi `nama` produk, mis. \"Nasi Goreng\", atau `id`), `produk_mitra` (id link produk mitra), `bahan_gudang` (id produk gudang), `hero_website`, atau `suasana_website` (slot 1–4, foto suasana outlet di homepage). Mengganti foto yang ada. Selalu preview + konfirmasi Owner. Bukti uang (struk, bukti transfer, dokumen) tidak lewat sini. Menghapus foto suasana: ubah_data_garage DELETE /api/site/landing-hero?slot=suasana_N.",
+      "Langkah 2 unggah foto: pasang foto dari siapkan_foto ke tujuan tetap — `produk_menu` (isi `nama` produk, mis. \"Nasi Goreng\" — produk Garage MAUPUN produk mitra; produk mitra otomatis ke foto mitra), `produk_mitra` (isi `nama` produk mitra atau id link), `bahan_gudang` (id produk gudang), `hero_website`, atau `suasana_website` (slot 1–4, foto suasana outlet di homepage). Mengganti foto yang ada. Selalu preview + konfirmasi Owner. Bukti uang (struk, bukti transfer, dokumen) tidak lewat sini. Menghapus foto suasana: ubah_data_garage DELETE /api/site/landing-hero?slot=suasana_N.",
     write: true,
     domain: "sistem",
     risk: "R2",
@@ -167,7 +190,7 @@ export const fotoTools: AgentTool[] = [
     async preview(session, args) {
       assertOwnerViaChat(session);
       const resolved = await withResolvedId(args);
-      const route = photoRoute(args.tujuan as PhotoTarget, resolved.id, args.slot as number | undefined);
+      const route = photoRoute(resolved.tujuan, resolved.id, args.slot as number | undefined);
       const { loadStagedPhoto } = await import("@/lib/mcp-photo-staging");
       const staged = await loadStagedPhoto(String(args.fotoId), session.user.id);
       const base: Record<string, unknown> = {
@@ -198,7 +221,7 @@ export const fotoTools: AgentTool[] = [
         throw new AgentToolError("CONFIRMATION_REQUIRED", "pasang_foto hanya berjalan lewat konfirmasi Owner.", 403);
       }
       const resolved = await withResolvedId(args);
-      const route = photoRoute(args.tujuan as PhotoTarget, resolved.id, args.slot as number | undefined);
+      const route = photoRoute(resolved.tujuan, resolved.id, args.slot as number | undefined);
       const { discardStagedPhoto, loadStagedPhoto } = await import("@/lib/mcp-photo-staging");
       const staged = await loadStagedPhoto(String(args.fotoId), session.user.id);
       if (!staged) {

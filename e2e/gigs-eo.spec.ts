@@ -58,3 +58,43 @@ test("GIGS EO: lineup master → keuangan event → hari-H (check-in, panggung, 
   await page.emulateMedia({ media: "screen" });
   check();
 });
+
+// Meja pintu (Owner 18 Nov 2026): Kasir hanya tab Check-in — cari tamu undangan (nama), masuk, tanpa tombol Batalkan/panggung.
+test("Hari-H meja pintu: Kasir cari tamu & check-in, tanpa panggung/batal", async ({ browser }) => {
+  test.setTimeout(600_000);
+  const tag = Math.random().toString(36).slice(2, 7).toUpperCase();
+  const ownerCtx = await browser.newContext();
+  const ownerPage = await ownerCtx.newPage();
+  await login(ownerPage, "owner@garage.id");
+  const finance = (await (await ownerPage.request.get("/api/event-finance")).json()).data;
+  const eventId: string = finance.event.id;
+  const guestRes = await ownerPage.request.post(`/api/events/${eventId}/guests`, { data: { fullName: `Tamu Pintu ${tag}`, phone: "081277766655", maxPax: 2 } });
+  expect(guestRes.ok(), await guestRes.text()).toBeTruthy();
+  const invRes = await ownerPage.request.post(`/api/events/${eventId}/invitations`, { data: { guestIds: null } });
+  expect(invRes.ok(), await invRes.text()).toBeTruthy();
+  await ownerCtx.close();
+
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await ctx.newPage();
+  const check = failOnPageErrors(page);
+  await login(page, "kasir@garage.id");
+  // Shell POS kasir masih bernavigasi setelah login → tunggu tenang, lalu buka (ulang sekali bila terputus).
+  await page.waitForLoadState("networkidle").catch(() => undefined);
+  await page.goto(`/event-day?event=${eventId}`).catch(() => page.goto(`/event-day?event=${eventId}`));
+  await expect(page.getByRole("heading", { name: "Hari-H Event" })).toBeVisible({ timeout: 90_000 });
+  await expect(page.getByRole("tab", { name: "Panggung" })).toHaveCount(0);
+  await page.getByLabel("Cari tamu undangan").fill(`Pintu ${tag}`);
+  await page.getByRole("button", { name: "Cari" }).click();
+  const results = page.getByTestId("checkin-search-results");
+  await expect(results.getByText(`Tamu Pintu ${tag}`)).toBeVisible();
+  await expect(results).not.toContainText("081277766655");
+  // Ketuk dua kali cepat (sinyal lambat) → tetap satu check-in.
+  await results.getByRole("button", { name: /Masuk 1 org/ }).dblclick();
+  await expect(page.getByText(`Tamu Pintu ${tag} masuk.`)).toBeVisible();
+  await expect(results.getByText(/Sudah masuk 1\/2 org/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Batalkan" })).toHaveCount(0);
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  expect(overflow).toBeLessThanOrEqual(1);
+  check();
+  await ctx.close();
+});

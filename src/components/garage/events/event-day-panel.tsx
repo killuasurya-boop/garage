@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { AlertTriangle, ArrowLeft, Ban, Camera, CheckCircle2, ClipboardList, Mic2, Play, RefreshCw, RotateCcw, ShieldCheck, Square, UserPlus, Users } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Ban, Camera, CheckCircle2, ClipboardList, Mic2, Play, RefreshCw, RotateCcw, Search, ShieldCheck, Square, UserPlus, Users } from "lucide-react";
 
 import { EventControlNav } from "@/components/ceo/ui/EventControlNav";
 import { garageApi, GarageApiError } from "@/lib/api-client";
 import { useCodeScanner } from "@/lib/use-code-scanner";
 
 // Hari-H event (GIGS EO Fase 3, Owner 17 Nov 2026): layar HP panitia (Owner/Manajer).
+// Kasir/Waiter (meja pintu, Owner 18 Nov 2026): hanya tab Check-in + cari tamu; tanpa panggung/tugas/batal.
 // Check-in pintu (scan QR undangan / walk-in), panggung (sedang tampil, berikutnya, telat), status tugas panitia.
 
 type DayView = {
@@ -23,7 +24,7 @@ type DayView = {
     rsvpAttendingInvitations: number;
     recent: Array<{ id: string; guestName: string; pax: number; kind: string; status: string; voidReason: string | null; at: string }>;
   };
-  stage?: {
+  stage?: null | {
     delayMinutes: number;
     offDay: boolean;
     done: number;
@@ -78,7 +79,7 @@ export function EventDayPanel({ initialEventId = null }: { initialEventId?: stri
       const data = await garageApi.get<DayView>(`/api/event-day${id ? `?eventId=${id}` : ""}`, { cache: "no-store" });
       setView(data);
       setEventId(data.event?.id ?? null);
-      if (data.event) {
+      if (data.event && (data.role === "Owner" || data.role === "Manajer")) {
         const board = await garageApi.get<{ tasks: Task[] }>(`/api/event-lineup?eventId=${encodeURIComponent(data.event.id)}`, { cache: "no-store" }).catch(() => null);
         setTasks(board?.tasks ?? []);
         const checklist = await garageApi.get<{ items: OpsItem[]; done: number; total: number }>(`/api/event-day/ops?eventId=${data.event.id}`, { cache: "no-store" }).catch(() => null);
@@ -121,6 +122,7 @@ export function EventDayPanel({ initialEventId = null }: { initialEventId?: stri
   };
 
   const c = view?.checkin;
+  const crew = view?.role === "Owner" || view?.role === "Manajer";
   const full = c && c.capacity !== null && c.totalActive >= c.capacity;
 
   return (
@@ -165,9 +167,9 @@ export function EventDayPanel({ initialEventId = null }: { initialEventId?: stri
         </p>
       ) : null}
 
-      {view?.event && c && view.stage ? (
+      {view?.event && c ? (
         <>
-          <div className="grid grid-cols-3 gap-2">
+          <div className={`grid gap-2 ${view.stage ? "grid-cols-3" : "grid-cols-2"}`}>
             <Card>
               <p className="text-xs uppercase text-zinc-400">Sudah masuk</p>
               <p className={`text-2xl font-black tabular-nums ${full ? "text-[#ff8a8a]" : ""}`}>
@@ -179,14 +181,17 @@ export function EventDayPanel({ initialEventId = null }: { initialEventId?: stri
               <p className="text-xs uppercase text-zinc-400">RSVP hadir</p>
               <p className="text-2xl font-black tabular-nums">{c.rsvpAttendingPax}</p>
             </Card>
-            <Card>
-              <p className="text-xs uppercase text-zinc-400">Panggung</p>
-              <p className="text-2xl font-black tabular-nums">
-                {view.stage.done}/{view.stage.total}
-              </p>
-            </Card>
+            {view.stage ? (
+              <Card>
+                <p className="text-xs uppercase text-zinc-400">Panggung</p>
+                <p className="text-2xl font-black tabular-nums">
+                  {view.stage.done}/{view.stage.total}
+                </p>
+              </Card>
+            ) : null}
           </div>
 
+          {crew ? (
           <div role="tablist" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {(
               [
@@ -208,10 +213,11 @@ export function EventDayPanel({ initialEventId = null }: { initialEventId?: stri
               </button>
             ))}
           </div>
+          ) : null}
 
-          {tab === "checkin" ? <CheckinTab view={view} onAct={act} /> : null}
-          {tab === "panggung" ? <StageTab view={view} onAct={act} /> : null}
-          {tab === "tugas" ? (
+          {tab === "checkin" || !crew ? <CheckinTab view={view} onAct={act} canVoid={crew} /> : null}
+          {crew && tab === "panggung" && view.stage ? <StageTab view={view} onAct={act} /> : null}
+          {crew && tab === "tugas" ? (
             <Card className="space-y-2">
               {!tasks.length ? <p className="text-sm text-zinc-400">Belum ada tugas panitia untuk event ini.</p> : null}
               <ul className="divide-y divide-white/10">
@@ -237,7 +243,7 @@ export function EventDayPanel({ initialEventId = null }: { initialEventId?: stri
               </ul>
             </Card>
           ) : null}
-          {tab === "kesiapan" ? (
+          {crew && tab === "kesiapan" ? (
             <Card className="space-y-2">
               <p className="text-sm text-zinc-300">
                 Checklist operasional & keselamatan · {ops?.done ?? 0}/{ops?.total ?? 0} selesai
@@ -280,7 +286,9 @@ export function EventDayPanel({ initialEventId = null }: { initialEventId?: stri
   );
 }
 
-function CheckinTab({ view, onAct }: { view: DayView; onAct: (action: () => Promise<unknown>, okText?: string) => Promise<boolean> }) {
+type GuestHit = { invitationId: string; name: string; maxPax: number; checkedInPax: number; checkedInAt: string | null };
+
+function CheckinTab({ view, onAct, canVoid }: { view: DayView; onAct: (action: () => Promise<unknown>, okText?: string) => Promise<boolean>; canVoid: boolean }) {
   const eventId = view.event!.id;
   const c = view.checkin!;
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -290,6 +298,24 @@ function CheckinTab({ view, onAct }: { view: DayView; onAct: (action: () => Prom
   const [walkName, setWalkName] = useState("");
   const [walkPax, setWalkPax] = useState(1);
   const busy = useRef(false);
+  // Cari tamu (nama / HP) — untuk tamu yang lupa / tidak bisa membuka QR undangannya.
+  const [query, setQuery] = useState("");
+  const [hits, setHits] = useState<GuestHit[] | null>(null);
+  const [searching, setSearching] = useState(false);
+  // Satu klik = satu check-in: tombol terkunci sampai simpan + muat ulang hasil selesai (Kasir tidak bisa membatalkan).
+  const [entering, setEntering] = useState<string | null>(null);
+  const enteringRef = useRef(false);
+  const search = async (q: string) => {
+    if (q.trim().length < 2) return;
+    setSearching(true);
+    try {
+      setHits(await garageApi.get<GuestHit[]>(`/api/event-day/checkins/search?eventId=${eventId}&q=${encodeURIComponent(q.trim())}`, { cache: "no-store" }));
+    } catch {
+      setHits([]);
+    } finally {
+      setSearching(false);
+    }
+  };
 
   const submitCode = useCallback(
     async (value: string) => {
@@ -353,6 +379,65 @@ function CheckinTab({ view, onAct }: { view: DayView; onAct: (action: () => Prom
       </Card>
 
       <Card className="space-y-3">
+        <h2 className="font-bold">Cari tamu undangan</h2>
+        <form
+          className="flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void search(query);
+          }}
+        >
+          <input className={inputClass} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Nama atau nomor HP tamu" aria-label="Cari tamu undangan" />
+          <button type="submit" className={ghostBtn} disabled={query.trim().length < 2 || searching}>
+            <Search size={16} /> Cari
+          </button>
+        </form>
+        {hits && !hits.length ? <p className="text-sm text-zinc-400">Tidak ada tamu undangan yang cocok.</p> : null}
+        {hits?.length ? (
+          <ul className="divide-y divide-white/10" data-testid="checkin-search-results">
+            {hits.map((h) => {
+              const left = Math.max(h.maxPax - h.checkedInPax, 0);
+              return (
+                <li key={h.invitationId} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                  <div className="min-w-0">
+                    <p className="break-words font-semibold">{h.name}</p>
+                    <p className={`text-xs ${h.checkedInPax ? "text-amber-200" : "text-zinc-400"}`}>
+                      {h.checkedInPax ? `Sudah masuk ${h.checkedInPax}/${h.maxPax} org${h.checkedInAt ? ` · ${clock(h.checkedInAt)}` : ""}` : `Undangan ${h.maxPax} orang`}
+                    </p>
+                  </div>
+                  {left > 0 ? (
+                    <button
+                      type="button"
+                      className={primaryBtn}
+                      disabled={entering !== null}
+                      aria-busy={entering === h.invitationId}
+                      onClick={async () => {
+                        if (enteringRef.current) return;
+                        enteringRef.current = true;
+                        setEntering(h.invitationId);
+                        try {
+                          const ok = await onAct(() => garageApi.post("/api/event-day/checkins", { eventId, invitationId: h.invitationId, pax: Math.min(pax, left) }), `${h.name} masuk.`);
+                          if (ok) await search(query);
+                        } finally {
+                          enteringRef.current = false;
+                          setEntering(null);
+                        }
+                      }}
+                    >
+                      {entering === h.invitationId ? "Menyimpan…" : `Masuk ${Math.min(pax, left)} org`}
+                    </button>
+                  ) : (
+                    <span className="text-xs font-semibold uppercase text-zinc-400">Sudah lengkap</span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        ) : null}
+        <p className="text-xs text-zinc-400">Jumlah orang mengikuti isian &quot;Orang&quot; di atas. Nomor HP tamu tidak ditampilkan.</p>
+      </Card>
+
+      <Card className="space-y-3">
         <h2 className="font-bold">Walk-in (tanpa undangan)</h2>
         <form
           className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_6rem_auto]"
@@ -391,7 +476,7 @@ function CheckinTab({ view, onAct }: { view: DayView; onAct: (action: () => Prom
                   {r.status === "batal" ? ` · dibatalkan: ${r.voidReason}` : ""}
                 </p>
               </div>
-              {r.status === "aktif" ? (
+              {r.status === "aktif" && canVoid ? (
                 <button
                   type="button"
                   className={smallBtn}

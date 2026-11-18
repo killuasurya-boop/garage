@@ -186,6 +186,7 @@ export const API_ROUTE_CATALOG: ApiRouteEntry[] = [
   {"path":"/api/event-day/agenda","methods":["POST"],"note":""},
   {"path":"/api/event-day/checkins/{id}/void","methods":["POST"],"note":""},
   {"path":"/api/event-day/checkins","methods":["POST"],"note":""},
+  {"path":"/api/event-day/checkins/search","methods":["GET"],"note":""},
   {"path":"/api/event-day/ops/{id}","methods":["PATCH"],"note":""},
   {"path":"/api/event-day/ops","methods":["GET","POST"],"note":""},
   {"path":"/api/event-day","methods":["GET"],"note":""},

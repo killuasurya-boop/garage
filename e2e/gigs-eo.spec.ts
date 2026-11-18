@@ -88,7 +88,8 @@ test("Hari-H meja pintu: Kasir cari tamu & check-in, tanpa panggung/batal", asyn
   const results = page.getByTestId("checkin-search-results");
   await expect(results.getByText(`Tamu Pintu ${tag}`)).toBeVisible();
   await expect(results).not.toContainText("081277766655");
-  await results.getByRole("button", { name: /Masuk 1 org/ }).click();
+  // Ketuk dua kali cepat (sinyal lambat) → tetap satu check-in.
+  await results.getByRole("button", { name: /Masuk 1 org/ }).dblclick();
   await expect(page.getByText(`Tamu Pintu ${tag} masuk.`)).toBeVisible();
   await expect(results.getByText(/Sudah masuk 1\/2 org/)).toBeVisible();
   await expect(page.getByRole("button", { name: "Batalkan" })).toHaveCount(0);

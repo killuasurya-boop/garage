@@ -302,6 +302,9 @@ function CheckinTab({ view, onAct, canVoid }: { view: DayView; onAct: (action: (
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<GuestHit[] | null>(null);
   const [searching, setSearching] = useState(false);
+  // Satu klik = satu check-in: tombol terkunci sampai simpan + muat ulang hasil selesai (Kasir tidak bisa membatalkan).
+  const [entering, setEntering] = useState<string | null>(null);
+  const enteringRef = useRef(false);
   const search = async (q: string) => {
     if (q.trim().length < 2) return;
     setSearching(true);
@@ -406,12 +409,22 @@ function CheckinTab({ view, onAct, canVoid }: { view: DayView; onAct: (action: (
                     <button
                       type="button"
                       className={primaryBtn}
+                      disabled={entering !== null}
+                      aria-busy={entering === h.invitationId}
                       onClick={async () => {
-                        const ok = await onAct(() => garageApi.post("/api/event-day/checkins", { eventId, invitationId: h.invitationId, pax: Math.min(pax, left) }), `${h.name} masuk.`);
-                        if (ok) await search(query);
+                        if (enteringRef.current) return;
+                        enteringRef.current = true;
+                        setEntering(h.invitationId);
+                        try {
+                          const ok = await onAct(() => garageApi.post("/api/event-day/checkins", { eventId, invitationId: h.invitationId, pax: Math.min(pax, left) }), `${h.name} masuk.`);
+                          if (ok) await search(query);
+                        } finally {
+                          enteringRef.current = false;
+                          setEntering(null);
+                        }
                       }}
                     >
-                      Masuk {Math.min(pax, left)} org
+                      {entering === h.invitationId ? "Menyimpan…" : `Masuk ${Math.min(pax, left)} org`}
                     </button>
                   ) : (
                     <span className="text-xs font-semibold uppercase text-zinc-400">Sudah lengkap</span>

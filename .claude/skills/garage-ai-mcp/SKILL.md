@@ -60,3 +60,11 @@ description: Aturan WAJIB MCP ChatGPT, Owner AI Connect/Command Center, tool reg
   `garage_analisis_masalah` (R0, Owner). Cases `ai_problem_cases` + append-only `ai_problem_case_events` (`ai-problem-cases.ts`):
   analysis → decision (STALE) → link the Owner's own executed `mcp_operations` → verification (`compareOutcome`). UI
   `/control/aya-solver`; Living Intelligence `/control/intelligence` (16 registry domains, real signals, no signal = unverified).
+- "Cukup nama" (Owner 18 Nov 2026, no migration; detail `docs/AGENT-API.md` §6): `agent-tools-produk-cepat.ts` (`buat_produk`,
+  `ubah_harga_produk`), `agent-tools-mitra.ts` (daftar/produk/pesanan/usulan R0; tambah/setujui/ubah harga/putuskan usulan/status
+  R2 — settlement & payout NEVER via chat), `agent-tools-event-lineup.ts` (`papan_event` R0; simpan talent/panitia/tugas R1 matched
+  by name; `tempel_daftar_event` + `simpan_sponsor` R2, sponsor = agreement only, no ledger), `agent-tools-briefing.ts`
+  (`briefing_pagi` R0 = existing read tools via `runAgentTool`, each section isolated). Tools resolve names server-side
+  (exact wins, ambiguous = `*_AMBIGU` with choices), always call the SAME services as the screens (no new write path), partner
+  data always from the session outlet. `toolFailure` forwards service business rejections (`domainRejection`: Error with
+  `code` /^[A-Z][A-Z0-9_]+$/ + status 4xx + no SQL-looking text); everything else stays `EXECUTION_FAILED` + ref.

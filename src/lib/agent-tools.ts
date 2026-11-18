@@ -13,7 +13,11 @@ import { ownerAiTools } from "@/lib/agent-tools-owner-ai";
 import { kasTools } from "@/lib/agent-tools-kas";
 import { posStaffTools } from "@/lib/agent-tools-pos-staf";
 import { ubahDataTools } from "@/lib/agent-tools-ubah-data";
+import { briefingTools } from "@/lib/agent-tools-briefing";
+import { eventLineupTools } from "@/lib/agent-tools-event-lineup";
 import { fotoTools } from "@/lib/agent-tools-foto";
+import { mitraTools } from "@/lib/agent-tools-mitra";
+import { produkCepatTools } from "@/lib/agent-tools-produk-cepat";
 import { productTools } from "@/lib/agent-tools-produk";
 import { warehouseTools } from "@/lib/agent-tools-gudang";
 import { memberTableEventTools } from "@/lib/agent-tools-member-meja-event";
@@ -355,6 +359,11 @@ const tools: AgentTool[] = [
   // Tulis universal (Owner via ChatGPT, selalu lewat konfirmasi).
   ...ubahDataTools,
   ...fotoTools,
+  // Owner 18 Nov 2026: produk/mitra/event cukup dengan NAMA + briefing pagi.
+  ...produkCepatTools,
+  ...mitraTools,
+  ...eventLineupTools,
+  ...briefingTools,
   {
     name: "garage_api",
     title: "Baca endpoint Garage OS",

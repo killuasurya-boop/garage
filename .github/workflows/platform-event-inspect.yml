@@ -1,0 +1,48 @@
+name: Platform GIGS - cek ejaan SURAU (baca saja)
+
+# SEKALI PAKAI (Owner 19 Nov 2026): hanya MEMBACA /root/garage-event di VPS untuk mencari
+# ejaan "SURAU". Tidak mengubah file, tidak restart container. File .env tidak pernah dibaca/dicetak.
+on:
+  push:
+    branches: [claude/happy-galileo-lrwdk5]
+    paths: [.github/workflows/platform-event-inspect.yml]
+
+permissions:
+  contents: read
+
+env:
+  VPS_HOST: 201.18.211.55
+  VPS_USER: root
+  VPS_HOST_KEY: "201.18.211.55 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOO6lqbnNI86okZIyf1XgoF5Rr+D8JWg4RkMurApKZwj"
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    steps:
+      - name: Siapkan SSH
+        run: |
+          install -m 700 -d ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          echo "$VPS_HOST_KEY" > ~/.ssh/known_hosts
+
+      - name: Baca platform (tanpa mengubah apa pun)
+        run: |
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes $VPS_USER@$VPS_HOST '
+            D=/root/garage-event
+            echo "== Struktur folder"; find $D -maxdepth 2 -not -path "*/node_modules*" -not -path "*/.git/*" -not -name ".env*" | sort | head -80
+            echo "== Container"; docker ps --format "{{.Names}}  {{.Image}}  {{.Status}}" | grep -i event || true
+            echo "== Mount container"; docker inspect garage-event-platform --format "{{range .Mounts}}{{.Source}} -> {{.Destination}}{{println}}{{end}}" 2>/dev/null || true
+            echo "== Kemunculan SURAU di host (file teks, bukan .env/node_modules)"
+            grep -rnIi --exclude=".env*" --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=backups surau $D 2>/dev/null | cut -c1-220 | head -60
+            echo "== Nama file yang mengandung surau"
+            find $D -iname "*surau*" -not -path "*/node_modules/*" 2>/dev/null | head -20
+            echo "== Kemunculan SURAU di dalam container (bila ada)"; docker exec garage-event-platform sh -c "pwd; ls" 2>/dev/null || true
+            docker exec garage-event-platform sh -c "grep -rnIi --exclude=.env* --exclude-dir=node_modules surau /app /data /srv /usr/src/app /home 2>/dev/null | cut -c1-220 | head -40" 2>/dev/null || true
+          '
+
+      - name: Hapus kunci
+        if: always()
+        run: rm -f ~/.ssh/deploy_key

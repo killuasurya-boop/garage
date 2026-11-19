@@ -221,6 +221,8 @@ export async function updateCandidate(id: string, input: CandidateUpdateInput) {
     .limit(1);
   if (!before) return null;
 
+  if (input.status !== undefined && input.status !== before.status) patch.statusChangedAt = new Date();
+
   const [row] = await db
     .update(candidates)
     .set(patch)
@@ -371,18 +373,21 @@ export async function checkDuplicateCandidate(whatsapp: string, email: string, p
   // Nomor dibandingkan setelah dinormalisasi (0812… = +62812… = 62812…), email tanpa beda huruf besar/kecil.
   const phone = normalizeApplicantPhone(whatsapp);
   const mail = email.trim().toLowerCase();
-  const rows = await db
-    .select({ id: candidates.id, status: candidates.status, createdAt: candidates.createdAt, whatsapp: candidates.whatsapp, email: candidates.email })
+  // Identitas dicocokkan di database (sebelum LIMIT), jadi lamaran lama tetap terdeteksi walau pelamar posisi itu ratusan.
+  const digits = sql`regexp_replace(coalesce(${candidates.whatsapp}, ''), '[^0-9]', '', 'g')`;
+  const normalizedPhone = sql`(case when ${digits} like '0%' then '62' || substr(${digits}, 2) when ${digits} like '8%' then '62' || ${digits} else ${digits} end)`;
+  const [existing] = await db
+    .select({ id: candidates.id, status: candidates.status, createdAt: candidates.createdAt })
     .from(candidates)
     .where(
       and(
         sql`lower(${candidates.appliedPosition}) = ${position.trim().toLowerCase()}`,
         sql`${candidates.createdAt} >= ${thirtyDaysAgo.toISOString()}`,
+        or(sql`lower(${candidates.email}) = ${mail}`, phone ? sql`${normalizedPhone} = ${phone}` : sql`false`),
       ),
     )
     .orderBy(desc(candidates.createdAt))
-    .limit(500);
-  const existing = rows.find((row) => (phone && normalizeApplicantPhone(row.whatsapp) === phone) || (row.email ?? "").toLowerCase() === mail);
-  return existing ? { id: existing.id, status: existing.status, createdAt: existing.createdAt } : null;
+    .limit(1);
+  return existing ?? null;
 }
 

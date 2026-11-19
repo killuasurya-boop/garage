@@ -3807,6 +3807,9 @@ export const candidates = pgTable(
     // Diterima → dijadikan karyawan (Payroll V2 / absen): kode karyawan & waktu.
     hiredAt: timestamp("hired_at", { withTimezone: true }),
     hiredEmployeeCode: text("hired_employee_code"),
+    // Waktu status terakhir berubah (Owner 19 Nov 2026): dasar masa simpan berkas pelamar ditolak/talent pool,
+    // supaya catatan/skor yang diubah belakangan tidak memperpanjang masa simpan.
+    statusChangedAt: timestamp("status_changed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

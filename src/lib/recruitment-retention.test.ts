@@ -20,6 +20,11 @@ describe("aturan simpan berkas pelamar (Owner 19 Nov 2026)", () => {
     }
   });
 
+  it("ubah catatan/skor setelah ditolak tidak memperpanjang masa simpan (dihitung dari keputusan)", () => {
+    const c = { status: "Ditolak", hiredAt: null, statusChangedAt: base, updatedAt: at(179) };
+    expect(candidateFilesExpired(c, at(180))).toBe(true);
+  });
+
   it("Baru / Diproses / Interview tanpa kabar → 90 hari dianggap selesai + 180 hari", () => {
     for (const status of ["Baru", "Diproses", "Interview"]) {
       const c = { status, hiredAt: null, updatedAt: base };

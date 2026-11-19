@@ -3,7 +3,7 @@
 | Data | Disimpan |
 |---|---|
 | Pelamar diterima / sudah jadi karyawan | Berkas (KTP, CV, foto, sertifikat) disimpan selama bekerja |
-| Ditolak / Talent Pool | Berkas dihapus otomatis 6 bulan (180 hari) setelah keputusan terakhir |
+| Ditolak / Talent Pool | Berkas dihapus otomatis 6 bulan (180 hari) setelah keputusan (`status_changed_at`, migrasi 0205); ubah catatan/skor tidak memperpanjang |
 | Baru / Diproses / Interview tanpa kabar | Dianggap selesai setelah 90 hari, lalu ikut aturan 6 bulan |
 | Unggahan yang tidak jadi dipakai melamar | Dihapus setelah 24 jam |
 

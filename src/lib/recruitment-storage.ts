@@ -98,6 +98,7 @@ export async function sweepRecruitmentFiles(now = new Date()) {
       status: candidates.status,
       hiredAt: candidates.hiredAt,
       updatedAt: candidates.updatedAt,
+      statusChangedAt: candidates.statusChangedAt,
       cvUrl: candidates.cvUrl,
       photoUrl: candidates.photoUrl,
       ktpUrl: candidates.ktpUrl,

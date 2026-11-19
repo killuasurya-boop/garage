@@ -138,6 +138,22 @@ describe("Sapuan berkas pelamar", () => {
   });
 });
 
+describe("Waktu keputusan", () => {
+  it("status berubah → status_changed_at diisi; ubah catatan saja tidak menggesernya", async () => {
+    const { eq } = await import("drizzle-orm");
+    const { updateCandidate } = await import("@/lib/garage-recruitment-service");
+    const [c] = await t.getDb().insert(t.schema.candidates).values({ fullName: "Waktu", whatsapp: "081200000099", email: "w@x.id", domicile: "TT", appliedPosition: "Kasir" } as any).returning();
+    await updateCandidate(c.id, { status: "Ditolak" } as any);
+    const [a] = await t.getDb().select().from(t.schema.candidates).where(eq(t.schema.candidates.id, c.id));
+    expect(a.statusChangedAt).toBeTruthy();
+    await new Promise((r) => setTimeout(r, 5));
+    await updateCandidate(c.id, { notes: "catatan admin" } as any);
+    const [b] = await t.getDb().select().from(t.schema.candidates).where(eq(t.schema.candidates.id, c.id));
+    expect(b.statusChangedAt?.getTime()).toBe(a.statusChangedAt?.getTime());
+    expect(b.updatedAt.getTime()).toBeGreaterThan(a.updatedAt.getTime());
+  });
+});
+
 describe("Berkas pelamar", () => {
   it("membuka KTP tercatat di Audit; berkas lain tidak", async () => {
     const ktp = "ktp-1763500000009-ccccccc1.jpg";

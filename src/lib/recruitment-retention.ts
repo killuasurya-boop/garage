@@ -1,7 +1,7 @@
 // Aturan simpan data pelamar (Owner 19 Nov 2026) — murni, tanpa DB/IO.
 //
 // - Diterima / sudah jadi karyawan → berkas disimpan (pindah ke data karyawan).
-// - Ditolak / Talent Pool → berkas (KTP, CV, foto, sertifikat, portfolio) dihapus 6 bulan setelah keputusan terakhir.
+// - Ditolak / Talent Pool → berkas (KTP, CV, foto, sertifikat, portfolio) dihapus 6 bulan setelah keputusan (status_changed_at).
 // - Baru / Diproses / Interview tanpa kabar 90 hari → dianggap selesai, lalu ikut aturan 6 bulan.
 // Nama, posisi & status tetap disimpan sebagai riwayat.
 // - Berkas unggahan yang 24 jam tidak tertaut ke lamaran mana pun = sampah → dihapus.
@@ -18,13 +18,15 @@ const DAY = 86_400_000;
 const CLOSED = new Set(["Ditolak", "Talent Pool"]);
 const OPEN = new Set(["Baru", "Diproses", "Interview"]);
 
-export type RetentionCandidate = { status: string; hiredAt: Date | null; updatedAt: Date };
+export type RetentionCandidate = { status: string; hiredAt: Date | null; updatedAt: Date; statusChangedAt?: Date | null };
 
 /** Kapan berkas pelamar boleh dihapus (null = disimpan). */
 export function candidateFilesExpireAt(c: RetentionCandidate): Date | null {
   if (c.hiredAt || c.status === "Diterima") return null;
   const last = c.updatedAt.getTime();
-  if (CLOSED.has(c.status)) return new Date(last + RECRUITMENT_FILE_RETENTION_DAYS * DAY);
+  // Ditolak/Talent Pool dihitung dari waktu KEPUTUSAN (status berubah), bukan simpan catatan/skor terakhir.
+  const decided = (c.statusChangedAt ?? c.updatedAt).getTime();
+  if (CLOSED.has(c.status)) return new Date(decided + RECRUITMENT_FILE_RETENTION_DAYS * DAY);
   if (OPEN.has(c.status)) return new Date(last + (RECRUITMENT_STALE_DAYS + RECRUITMENT_FILE_RETENTION_DAYS) * DAY);
   return null; // status tak dikenal → jangan hapus apa pun
 }

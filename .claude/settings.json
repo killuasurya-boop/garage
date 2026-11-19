@@ -25,5 +25,36 @@
     "vercel@anthropic-plugin-directory": false,
     "verisk-underwriting-intelligence@anthropic-plugin-directory": false,
     "postiz@knowledge-work-plugins": false
+  },
+  "permissions": {
+    "allow": [
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git fetch *)",
+      "Bash(git merge *)",
+      "Bash(git checkout *)",
+      "Bash(git push origin claude/*)",
+      "Bash(git push -u origin claude/*)",
+      "Bash(npm run lint*)",
+      "Bash(npm run build*)",
+      "Bash(npm run db:generate*)",
+      "Bash(npx vitest *)",
+      "Bash(npx tsc *)",
+      "Bash(npx eslint *)",
+      "Bash(npx tsx scripts/*)",
+      "Bash(npx playwright test *)",
+      "Bash(node scripts/ui-check.mjs *)"
+    ],
+    "deny": [
+      "Bash(git push origin main*)",
+      "Bash(git push * main)",
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(bash scripts/deploy*)",
+      "Bash(scripts/deploy*)"
+    ]
   }
 }

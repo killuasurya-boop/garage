@@ -114,5 +114,7 @@ description: Aturan WAJIB modul Lineup & Panitia Event (band/stand-up, rundown, 
   (`gigs-lineup.ts`) dipakai `parsePlatformLineup`/`getGigsPromo` (beranda, ticker live) dan impor. Item yang dikoreksi membawa
   `platformName` (ejaan asli platform); impor mencocokkan nama resmi DAN ejaan asli, `platform_name` menyimpan ejaan asli → tidak
   dobel. Halaman `/event/*` = container lain (`garage-event-platform`, Caddyfile), kodenya TIDAK di repo ini → ejaan di sana
-  diperbaiki lewat admin/repo platform. Tambah koreksi nama baru di `OFFICIAL_LINEUP_NAMES` (kunci huruf kecil).
+  diperbaiki lewat admin/repo platform. (19 Nov 2026: kartu & events.json platform sudah SURAI — diganti
+  langsung di VPS `/root/garage-event` + kedua container `garage-event-*-1`, cadangan `/root/garage-event-backups/surau-20261119-145427/`;
+  workflow sekali pakai sudah dihapus.) Tambah koreksi nama baru di `OFFICIAL_LINEUP_NAMES` (kunci huruf kecil).
 

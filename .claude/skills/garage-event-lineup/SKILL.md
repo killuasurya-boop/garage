@@ -151,3 +151,11 @@ description: Aturan WAJIB modul Lineup & Panitia Event (band/stand-up, rundown, 
   meneruskan `/event/<slug>/api/public/config` (config platform apa adanya, `finance` diganti `toPlatformFinance`) dan
   `/event/<slug>/api/sponsor/summary` (`toPlatformSummary`; nonaktif → data platform). Riwayat perubahan (`api/public/changes`)
   tetap dari platform.
+- Peserta, kesiapan, laporan akhir halaman event dari Garage (Owner 19 Nov 2026, `event-public-extras.ts` + `-rules.ts`): Caddy
+  `@gigsLineup` juga meneruskan `/event/<slug>/api/public/(participants|readiness|closeout)`.
+  participants = sponsor Garage tampil website (non-batal; kategori dari pendaftaran tertaut; tanpa uang + ada barang = `nonkas`)
+  + kreator dari Pendaftar `disetujui`, digabung data platform lama (`mergeParticipants`, lineupKey tanpa dobel). readiness =
+  `buildReadiness` dari checklist Hari-H (belum dibuka = item bawaan belum selesai), transparansi AKTIF, penampil konfirmasi, panitia
+  aktif, kewajiban sponsor; data tidak ada = `available:false` (bukan 0 palsu); keputusan GO/NO GO tetap dari platform. closeout =
+  `data.closeout` di `event_public_finance` (Owner "Terbitkan laporan akhir" di Transparansi; `publishedAt` diisi server sekali)
+  + penonton dari check-in aktif + jam tampil nyata + sponsor publik + kewajiban sponsor; belum terbit → platform.

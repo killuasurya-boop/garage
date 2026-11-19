@@ -93,6 +93,10 @@ export async function savePublicFinance(eventId: string, raw: unknown, garage: G
   }
   const enabled = body.enabled === true;
   const db = getDb();
+  // Laporan akhir: waktu terbit diisi server saat pertama diterbitkan; ditarik → kosong.
+  const previousCloseout = await db.select({ data: eventPublicFinance.data }).from(eventPublicFinance).where(eq(eventPublicFinance.eventId, eventId)).limit(1);
+  const prevPublishedAt = publicFinanceSchema.safeParse(previousCloseout[0]?.data).data?.closeout.publishedAt ?? null;
+  parsed.data.closeout.publishedAt = parsed.data.closeout.published ? (prevPublishedAt ?? new Date().toISOString()) : null;
   const [event] = await db.select({ id: events.id, title: events.title }).from(events).where(eq(events.id, eventId)).limit(1);
   if (!event) throw new PublicFinanceError("EVENT_NOT_FOUND", "Event tidak ditemukan.", 404);
   const [before] = await db.select().from(eventPublicFinance).where(eq(eventPublicFinance.eventId, eventId)).limit(1);

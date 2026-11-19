@@ -401,6 +401,14 @@ test("Pendaftaran & transparansi lewat Garage OS (satu pintu, Owner 18 Nov 2026)
     expect(config).toMatchObject({ open: true, finance: { target: 5_000_000, budgetLines: [{ code: "01", name: "Sound", budget: 2_000_000 }] } });
     const summary = await (await page.request.get(`/api/public/gigs/${slug}/sponsor-summary`)).json();
     expect(summary).toMatchObject({ verified_amount: 750_000, income_history: [{ sponsor: "Kopi Sponsor", amount: 750_000 }] });
+
+    // Peserta (kreator disetujui), kesiapan (data Garage) & laporan akhir (belum terbit → null) untuk halaman event.
+    const participants = await (await page.request.get(`/api/public/gigs/${slug}/participants`)).json();
+    expect(participants.creators.map((c: { name: string }) => c.name)).toContain(band);
+    const readiness = await (await page.request.get(`/api/public/gigs/${slug}/readiness`)).json();
+    expect(readiness).toMatchObject({ gates: [{ gate: "A" }, { gate: "B", done: 3, total: 3 }, { gate: "C" }] });
+    expect(typeof readiness.total).toBe("number");
+    expect(await (await page.request.get(`/api/public/gigs/${slug}/closeout`)).json()).toEqual({ closeout: null });
     await noHorizontalOverflow(page);
     check();
   } finally {

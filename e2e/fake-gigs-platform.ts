@@ -23,6 +23,12 @@ export function startFakeGigsPlatform(initial: FakeGigsEvent) {
         .end(JSON.stringify({ open: true, locked: false, sponsorMin: 300000, finance: { target: 0, budgetLines: current.budget ?? [], notes: [] } }));
       return;
     }
+    if (req.method === "GET" && /^\/event\/[^/]+\/api\/public\/(participants|readiness|closeout)$/.test(req.url ?? "") && req.url?.startsWith(`/event/${current.slug}/`)) {
+      const kind = req.url.split("/").pop();
+      const body = kind === "participants" ? { sponsors: [], creators: [] } : kind === "closeout" ? { closeout: null } : { total: 0, components: [], gates: [], decision: null };
+      res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(body));
+      return;
+    }
     if (req.method === "GET" && req.url === `/event/${current.slug}/api/sponsor/summary`) {
       res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ verified_amount: 0, verified_expense: 0, balance: 0, transaction_count: 0, income_history: [], expense_history: [], budget_status: [] }));
       return;

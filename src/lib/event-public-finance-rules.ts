@@ -54,6 +54,18 @@ export const publicFinanceSchema = z
       .default([]),
     committedCount: z.number().int().min(0).max(1000).default(0),
     committedAmount: rupiah("Komitmen sponsor").default(0),
+    // Laporan akhir acara (Owner 19 Nov 2026): tampil di Transparansi halaman event setelah diterbitkan.
+    closeout: z
+      .object({
+        published: z.boolean().default(false),
+        publishedAt: z.string().datetime().nullable().default(null),
+        evaluation: z.string().trim().max(1000).default(""),
+        recommendations: z.string().trim().max(1000).default(""),
+        surplusDecision: z.string().trim().max(500).default(""),
+        incidentsTotal: z.number().int().min(0).max(1000).default(0),
+        incidentsResolved: z.number().int().min(0).max(1000).default(0),
+      })
+      .default({ published: false, publishedAt: null, evaluation: "", recommendations: "", surplusDecision: "", incidentsTotal: 0, incidentsResolved: 0 }),
   })
   .superRefine((value, ctx) => {
     const codes = new Set<string>();
@@ -67,7 +79,8 @@ export const publicFinanceSchema = z
   });
 export type PublicFinance = z.infer<typeof publicFinanceSchema>;
 
-export const EMPTY_PUBLIC_FINANCE: PublicFinance = { target: 0, notes: [], budgetLines: [], incomes: [], expenses: [], committedCount: 0, committedAmount: 0 };
+export const EMPTY_CLOSEOUT: PublicFinance["closeout"] = { published: false, publishedAt: null, evaluation: "", recommendations: "", surplusDecision: "", incidentsTotal: 0, incidentsResolved: 0 };
+export const EMPTY_PUBLIC_FINANCE: PublicFinance = { target: 0, notes: [], budgetLines: [], incomes: [], expenses: [], committedCount: 0, committedAmount: 0, closeout: EMPTY_CLOSEOUT };
 
 const sum = (values: number[]) => values.reduce((total, n) => total + n, 0);
 /** Tanggal saja → "YYYY-MM-DD 05:00:00" (UTC = 12.00 WIB), format waktu yang dibaca halaman event. */
@@ -172,5 +185,6 @@ export function prefillFromPlatform(config: unknown, summary: unknown): PublicFi
     expenses,
     committedCount: num(s.committed_count),
     committedAmount: num(s.committed_amount),
+    closeout: EMPTY_CLOSEOUT,
   };
 }

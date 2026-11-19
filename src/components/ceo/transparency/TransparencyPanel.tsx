@@ -6,7 +6,7 @@ import { Download, ExternalLink, Plus, RefreshCw, Save, Trash2 } from "lucide-re
 import { PageHeader } from "@/components/ceo/layout/PageHeader";
 import { EventControlNav, StepHint } from "@/components/ceo/ui/EventControlNav";
 import { garageApi, GarageApiError } from "@/lib/api-client";
-import { EMPTY_PUBLIC_FINANCE, PAY_KINDS, PUBLIC_STAGE_LABEL, PUBLIC_STAGES, publicFinanceTotals, type PublicFinance } from "@/lib/event-public-finance-rules";
+import { EMPTY_CLOSEOUT, EMPTY_PUBLIC_FINANCE, PAY_KINDS, PUBLIC_STAGE_LABEL, PUBLIC_STAGES, publicFinanceTotals, type PublicFinance } from "@/lib/event-public-finance-rules";
 
 // Transparansi dana publik (Owner 18 Nov 2026: "bisa diubah bebas"). Angka di layar ini tampil di menu Transparansi
 // halaman event GIGS bila diaktifkan. BUKAN buku kas: uang sungguhan tetap dicatat di Sponsor & Keuangan Event.
@@ -99,6 +99,8 @@ export function TransparencyPanel({ initialEventId }: { initialEventId: string |
     set({ budgetLines: data.budgetLines.map((l, i) => (i === index ? { ...l, ...patch } : l)) });
   const setIncome = (index: number, patch: Partial<PublicFinance["incomes"][number]>) => set({ incomes: data.incomes.map((l, i) => (i === index ? { ...l, ...patch } : l)) });
   const setExpense = (index: number, patch: Partial<PublicFinance["expenses"][number]>) => set({ expenses: data.expenses.map((l, i) => (i === index ? { ...l, ...patch } : l)) });
+  const closeout = data.closeout ?? EMPTY_CLOSEOUT;
+  const setCloseout = (patch: Partial<PublicFinance["closeout"]>) => setData((d) => ({ ...d, closeout: { ...(d.closeout ?? EMPTY_CLOSEOUT), ...patch } }));
 
   // Hanya setelah data event termuat (kalau tidak, muatan awal yang datang belakangan menimpa isian).
   const ready = Boolean(view?.event && view.event.id === eventId);
@@ -351,6 +353,45 @@ export function TransparencyPanel({ initialEventId }: { initialEventId: string |
                 </li>
               ))}
             </ul>
+          </section>
+
+          <section className={`${cardClass} space-y-3`} aria-labelledby="tr-closeout">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 id="tr-closeout" className="text-sm font-black uppercase tracking-wide text-zinc-100">
+                Laporan akhir acara
+              </h2>
+              <span className={`text-xs font-semibold ${closeout.published ? "text-[#a8f0c4]" : "text-zinc-400"}`}>
+                {closeout.published && closeout.publishedAt
+                  ? `Terbit ${new Date(closeout.publishedAt).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta", dateStyle: "medium" })}`
+                  : "Belum diterbitkan"}
+              </span>
+            </div>
+            <p className="text-sm text-zinc-300">
+              Isi setelah acara. Dana masuk/keluar diambil dari angka di atas, jumlah penonton dari check-in pintu, jadwal tampil dari tombol Mulai/Selesai Hari-H.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Evaluasi (apa yang berjalan baik & kurang)">
+                <textarea className={`${inputClass} h-24 py-2`} value={closeout.evaluation} maxLength={1000} onChange={(e) => setCloseout({ evaluation: e.target.value })} />
+              </Field>
+              <Field label="Rekomendasi untuk event berikutnya">
+                <textarea className={`${inputClass} h-24 py-2`} value={closeout.recommendations} maxLength={1000} onChange={(e) => setCloseout({ recommendations: e.target.value })} />
+              </Field>
+              <Field label="Keputusan sisa dana">
+                <input className={inputClass} value={closeout.surplusDecision} maxLength={500} onChange={(e) => setCloseout({ surplusDecision: e.target.value })} />
+              </Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Jumlah insiden">
+                  <input className={`${inputClass} text-right tabular-nums`} inputMode="numeric" value={closeout.incidentsTotal || ""} placeholder="0" onChange={(e) => setCloseout({ incidentsTotal: Math.min(1000, digits(e.target.value)) })} />
+                </Field>
+                <Field label="Sudah ditangani">
+                  <input className={`${inputClass} text-right tabular-nums`} inputMode="numeric" value={closeout.incidentsResolved || ""} placeholder="0" onChange={(e) => setCloseout({ incidentsResolved: Math.min(1000, digits(e.target.value)) })} />
+                </Field>
+              </div>
+            </div>
+            <label className="flex items-center gap-2 text-sm font-semibold text-zinc-100">
+              <input type="checkbox" className="size-5" checked={closeout.published} onChange={(e) => setCloseout({ published: e.target.checked })} />
+              Terbitkan laporan akhir di halaman event (setelah Simpan)
+            </label>
           </section>
 
           <section className={`${cardClass} space-y-2`} aria-labelledby="tr-notes">

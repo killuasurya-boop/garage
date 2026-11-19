@@ -137,3 +137,27 @@ describe("Transparansi dana publik (Owner 18 Nov 2026)", () => {
     }
   });
 });
+
+describe("Halaman event dari Garage: peserta, kesiapan, laporan akhir (Owner 19 Nov 2026)", () => {
+  it("peserta = sponsor tampil website + kreator disetujui; kesiapan dari data nyata; laporan hanya setelah terbit", async () => {
+    const extras = await import("@/lib/event-public-extras");
+    const [eventRow] = (await t.getDb().select().from(t.schema.events)).filter((e: any) => e.id === event.id);
+    const p = await extras.garageParticipants(event.id);
+    expect(p.creators.map((c: any) => c.name)).toEqual(["Band Daftar Baru"]);
+    expect(p.creators[0]).toMatchObject({ category: "band", instagram: "banddaftar", portfolio: "https://www.instagram.com/banddaftar/" });
+    expect(p.sponsors).toEqual([expect.objectContaining({ name: "Kopi Sponsor", category: "kuliner", support: "kas" })]);
+    expect(JSON.stringify(p)).not.toContain("081200001111");
+
+    const r = await extras.garageReadiness(eventRow);
+    expect(r.components.find((c: any) => c.key === "dana")).toMatchObject({ available: true, percent: 15 });
+    expect(r.gates[0].total).toBeGreaterThan(0);
+
+    expect(await extras.garageCloseout(eventRow)).toBeNull();
+    const pf = await import("@/lib/event-public-finance");
+    const view = await pf.getPublicFinance(event.id, owner());
+    await pf.savePublicFinance(event.id, { enabled: true, data: { ...view.data, closeout: { ...view.data.closeout, published: true, evaluation: "Lancar", incidentsTotal: 1, incidentsResolved: 1 } } }, owner());
+    const closeout = await extras.garageCloseout(eventRow);
+    expect(closeout).toMatchObject({ event: { name: event.title }, finance: { income: 750_000, target: 5_000_000 }, evaluation: "Lancar", incidents: { total: 1, resolved: 1 } });
+    expect(closeout!.publishedAt).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
+  });
+});

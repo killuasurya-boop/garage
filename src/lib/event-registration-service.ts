@@ -165,7 +165,7 @@ export async function lookupRegistration(event: MasterRef, id: string, code: str
   return row ? entryOf(row) : null;
 }
 
-/** Ubah isian: kembali "diajukan" (ditinjau ulang). Data penampil/sponsor yang sudah tayang tidak berubah sampai disetujui lagi. */
+/** Ubah isian: kembali "diajukan" (ditinjau ulang). Data penampil/sponsor/panitia tertaut tidak berubah sampai disetujui lagi; saat disetujui, isian baru ikut diterapkan. */
 export async function updateRegistration(event: MasterRef, id: string, code: string, raw: unknown) {
   const row = await loadForCode(event, id, code);
   if (!row) return null;
@@ -241,12 +241,35 @@ const localPhone = (wa: string) => (wa.startsWith("62") ? `0${wa.slice(2)}` : wa
 async function linkOnApprove(row: Row, event: { id: string; title: string }, garage: GarageSession) {
   const db = getDb();
   if (row.type === "creator") {
-    if (row.linkedPerformerId) return { linkedPerformerId: row.linkedPerformerId };
     const lineup = await import("@/lib/event-lineup-service");
+    if (row.linkedPerformerId) {
+      // Isian direvisi pendaftar lalu disetujui lagi → data pendaftar ikut diperbarui; jam tampil, urutan, status & catatan Owner tetap.
+      await lineup.updatePerformer(
+        row.linkedPerformerId,
+        {
+          name: row.name.slice(0, 80),
+          instagram: row.instagram ? `@${row.instagram}` : null,
+          contactName: row.pic.slice(0, 80),
+          contactPhone: localPhone(row.whatsapp),
+          memberCount: row.members ? Math.min(50, row.members) : null,
+          techRider: row.tech,
+        },
+        garage,
+      );
+      if (row.logoUrl) await lineup.setPerformerLogo(row.linkedPerformerId, row.logoUrl, garage);
+      return { linkedPerformerId: row.linkedPerformerId };
+    }
     // Nama yang sama di lineup event (mis. hasil impor) → tautkan, jangan dobel.
-    const existing = (await db.select({ id: eventPerformers.id, name: eventPerformers.name }).from(eventPerformers).where(eq(eventPerformers.eventId, event.id))).find(
-      (p) => lineupKey(p.name) === lineupKey(row.name),
-    );
+    const existing = (
+      await db
+        .select({ id: eventPerformers.id, name: eventPerformers.name, status: eventPerformers.status, showOnWebsite: eventPerformers.showOnWebsite })
+        .from(eventPerformers)
+        .where(eq(eventPerformers.eventId, event.id))
+    ).find((p) => lineupKey(p.name) === lineupKey(row.name));
+    // Calon / belum tampil website → disetujui berarti konfirmasi & tampil (penampil batal tidak dihidupkan otomatis).
+    if (existing && existing.status !== "batal" && (existing.status !== "konfirmasi" || !existing.showOnWebsite)) {
+      await lineup.updatePerformer(existing.id, { status: "konfirmasi", showOnWebsite: true }, garage);
+    }
     const performer =
       existing ??
       (await lineup.createPerformer(
@@ -269,8 +292,26 @@ async function linkOnApprove(row: Row, event: { id: string; title: string }, gar
     return { linkedPerformerId: performer.id };
   }
   if (row.type === "sponsor") {
-    if (row.linkedSponsorId) return { linkedSponsorId: row.linkedSponsorId };
     const sponsors = await import("@/lib/event-sponsor-service");
+    if (row.linkedSponsorId) {
+      const [linked] = await db.select({ status: eventSponsors.status }).from(eventSponsors).where(eq(eventSponsors.id, row.linkedSponsorId)).limit(1);
+      if (linked && linked.status !== "batal") {
+        // Revisi disetujui → nama, kontak, IG, nilai kesepakatan & logo ikut; paket, cicilan, tampil website & catatan tetap.
+        await sponsors.updateSponsor(
+          row.linkedSponsorId,
+          {
+            name: row.name,
+            contactName: row.pic.slice(0, 80),
+            contactPhone: localPhone(row.whatsapp),
+            instagram: row.instagram ? `@${row.instagram}` : null,
+            agreedAmount: row.amount ?? 0,
+          },
+          garage,
+        );
+        if (row.logoUrl) await sponsors.setSponsorLogo(row.linkedSponsorId, row.logoUrl, garage);
+      }
+      return { linkedSponsorId: row.linkedSponsorId };
+    }
     const created = await sponsors.createSponsor(
       {
         eventId: event.id,
@@ -288,8 +329,12 @@ async function linkOnApprove(row: Row, event: { id: string; title: string }, gar
     if (row.logoUrl) await sponsors.setSponsorLogo(created.id, row.logoUrl, garage);
     return { linkedSponsorId: created.id };
   }
-  if (row.linkedCrewId) return { linkedCrewId: row.linkedCrewId };
   const lineup = await import("@/lib/event-lineup-service");
+  if (row.linkedCrewId) {
+    // Revisi disetujui → nama & nomor ikut; jabatan, akun, status & tugas tetap keputusan Owner.
+    await lineup.updateCrew(row.linkedCrewId, { name: row.name.slice(0, 80), phone: localPhone(row.whatsapp) }, garage);
+    return { linkedCrewId: row.linkedCrewId };
+  }
   const crew = await lineup.createCrew(
     {
       eventId: event.id,
@@ -316,7 +361,16 @@ export async function decideRegistration(id: string, raw: unknown, garage: Garag
   if (!row?.eventId) throw new RegistrationError("NOT_FOUND", "Pendaftar tidak ditemukan.", 404);
   const [event] = await db.select({ id: events.id, title: events.title }).from(events).where(eq(events.id, row.eventId)).limit(1);
   if (!event) throw new RegistrationError("NOT_FOUND", "Event pendaftar tidak ditemukan.", 404);
+  // Klaim baris dulu (optimistic lock pada updated_at): dua Owner yang menyetujui bersamaan tidak membuat penampil/sponsor/panitia dobel.
+  const [claimed] = await db
+    .update(eventRegistrations)
+    .set({ updatedAt: new Date() })
+    .where(and(eq(eventRegistrations.id, id), sql`date_trunc('milliseconds', ${eventRegistrations.updatedAt}) = ${row.updatedAt.toISOString()}::timestamptz`))
+    .returning({ id: eventRegistrations.id });
+  if (!claimed) throw new RegistrationError("CONFLICT", "Pendaftar ini baru saja diubah atau sedang diproses. Muat ulang lalu coba lagi.", 409);
   const links = decision === "approve" ? await linkOnApprove(row, event, garage) : {};
+  // Tautan disimpan segera setelah dibuat, supaya percobaan ulang setelah gagal di tengah tidak membuat dobel.
+  if (Object.keys(links).length) await db.update(eventRegistrations).set(links).where(eq(eventRegistrations.id, id));
   const status = decision === "approve" ? "disetujui" : decision === "revise" ? "revisi" : "ditolak";
   const now = new Date();
   const [updated] = await db

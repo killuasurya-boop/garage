@@ -162,3 +162,60 @@ describe("Halaman event dari Garage: peserta, kesiapan, laporan akhir (Owner 19 
     expect(closeout!.publishedAt).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
   });
 });
+
+describe("Temuan review #250: revisi setelah disetujui, calon yang sudah ada, persetujuan bersamaan", () => {
+  let ev = { id: "", title: "GIGS REVISI" };
+  beforeAll(async () => {
+    const [row] = await t
+      .getDb()
+      .insert(t.schema.events)
+      .values({ slug: "gigs-revisi", title: ev.title, outletId, startsAt: new Date("2026-12-30T12:00:00Z"), endsAt: new Date("2026-12-30T18:00:00Z"), venueName: "Garage Coffee", address: "Jl. Contoh No. 1", mapsUrl: "https://maps.app.goo.gl/x", contactWhatsapp: "6281200000000", status: "published" } as any)
+      .returning();
+    ev = { id: row.id, title: row.title };
+  });
+  const performersOf = async () => (await t.getDb().select().from(t.schema.eventPerformers)).filter((p: any) => p.eventId === ev.id);
+
+  it("revisi kreator/sponsor/kru yang disetujui lagi → data tertaut ikut diperbarui, field operasional tetap", async () => {
+    const reg = await svc.registerPublic(ev, { ...creator, name: "Band Revisi" });
+    await svc.decideRegistration(reg.id, { decision: "approve" }, owner());
+    const [p0] = await performersOf();
+    await t.getDb().update(t.schema.eventPerformers).set({ setStart: "21:00", notes: "Catatan Owner" } as any);
+    await svc.updateRegistration(ev, reg.id, reg.code, { ...creator, name: "Band Revisi", whatsapp: "081299998888", instagram: "@bandrevisibaru", members: 5 });
+    await svc.decideRegistration(reg.id, { decision: "approve" }, owner());
+    const performers = await performersOf();
+    expect(performers).toHaveLength(1);
+    expect(performers[0]).toMatchObject({ id: p0.id, contactPhone: "081299998888", instagram: "bandrevisibaru", memberCount: 5, setStart: "21:00", notes: "Catatan Owner", status: "konfirmasi" });
+
+    const sp = await svc.registerPublic(ev, { type: "sponsor", name: "Sponsor Revisi", pic: "Sari", whatsapp: "081200001111", instagram: "", description: "", consent: true, category: "kuliner", address: "Jl. A", amount: 300000 });
+    await svc.decideRegistration(sp.id, { decision: "approve" }, owner());
+    await svc.updateRegistration(ev, sp.id, sp.code, { type: "sponsor", name: "Sponsor Revisi", pic: "Sari", whatsapp: "081200001111", instagram: "", description: "", consent: true, category: "kuliner", address: "Jl. A", amount: 750000 });
+    await svc.decideRegistration(sp.id, { decision: "approve" }, owner());
+    const sponsors = (await t.getDb().select().from(t.schema.eventSponsors)).filter((s: any) => s.eventId === ev.id);
+    expect(sponsors).toEqual([expect.objectContaining({ name: "Sponsor Revisi", agreedAmount: 750000 })]);
+
+    const kru = { type: "crew", name: "Budi Kru", pic: "Budi", whatsapp: "081200003333", instagram: "", description: "", consent: true, role: "Keamanan", attendance: "hari-h-penuh", diet: "" };
+    const cr = await svc.registerPublic(ev, kru);
+    await svc.decideRegistration(cr.id, { decision: "approve" }, owner());
+    await svc.updateRegistration(ev, cr.id, cr.code, { ...kru, whatsapp: "081200004444" });
+    await svc.decideRegistration(cr.id, { decision: "approve" }, owner());
+    const crew = (await t.getDb().select().from(t.schema.eventCrew)).filter((c: any) => c.eventId === ev.id);
+    expect(crew).toEqual([expect.objectContaining({ name: "Budi Kru", phone: "081200004444", role: "keamanan" })]);
+  });
+
+  it("nama cocok dengan penampil calon yang belum tampil → disetujui = konfirmasi & tampil website", async () => {
+    await t.getDb().insert(t.schema.eventPerformers).values({ eventId: ev.id, eventName: ev.title, name: "Calon Manual", kind: "band", status: "calon", showOnWebsite: false } as any);
+    const reg = await svc.registerPublic(ev, { ...creator, name: "calon manual" });
+    await svc.decideRegistration(reg.id, { decision: "approve" }, owner());
+    const matched = (await performersOf()).filter((p: any) => p.name === "Calon Manual");
+    expect(matched).toEqual([expect.objectContaining({ status: "konfirmasi", showOnWebsite: true })]);
+    expect(await svc.lookupRegistration(ev, reg.id, reg.code)).toMatchObject({ status: "disetujui", published: true });
+  });
+
+  it("dua persetujuan bersamaan → satu sponsor saja, yang lain diminta muat ulang", async () => {
+    const sp = await svc.registerPublic(ev, { type: "sponsor", name: "Sponsor Kembar", pic: "Tia", whatsapp: "081200005555", instagram: "", description: "", consent: true, category: "kuliner", address: "Jl. B", amount: 100000 });
+    const results = await Promise.allSettled([svc.decideRegistration(sp.id, { decision: "approve" }, owner()), svc.decideRegistration(sp.id, { decision: "approve" }, owner())]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(results.find((r) => r.status === "rejected")).toMatchObject({ reason: expect.objectContaining({ code: "CONFLICT" }) });
+    expect((await t.getDb().select().from(t.schema.eventSponsors)).filter((s: any) => s.name === "Sponsor Kembar")).toHaveLength(1);
+  });
+});

@@ -894,7 +894,9 @@ export function RecruitmentPage({ positions }: { positions: RecruitmentPosition[
                                   className="mt-1 size-4"
                                 />
                                 <span className="text-sm leading-6 text-[#d4d4d8]">
-                                  Saya menyetujui bahwa data saya digunakan oleh Garage untuk proses recruitment.
+                                  Saya menyetujui data saya dipakai Garage hanya untuk proses recruitment. Bila tidak diterima,
+                                  berkas (CV, foto, KTP, sertifikat) dihapus paling lambat 6 bulan setelah keputusan. CV bisa
+                                  dibaca otomatis dengan bantuan AI (Google Gemini) untuk mengisi form.
                                 </span>
                               </label>
                             </div>

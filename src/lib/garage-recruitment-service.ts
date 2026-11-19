@@ -2,6 +2,7 @@ import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 
 import { ensureDatabaseReady } from "@/db";
 import { candidates } from "@/db/schema";
+import { normalizeApplicantPhone } from "@/lib/garage-recruitment-data";
 import { getSender, resolveProvider } from "@/lib/messaging/senders";
 
 // Re-export konstanta client-safe agar import lama tetap jalan.
@@ -367,22 +368,21 @@ export async function checkDuplicateCandidate(whatsapp: string, email: string, p
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-  const [existing] = await db
-    .select({ id: candidates.id, status: candidates.status, createdAt: candidates.createdAt })
+  // Nomor dibandingkan setelah dinormalisasi (0812… = +62812… = 62812…), email tanpa beda huruf besar/kecil.
+  const phone = normalizeApplicantPhone(whatsapp);
+  const mail = email.trim().toLowerCase();
+  const rows = await db
+    .select({ id: candidates.id, status: candidates.status, createdAt: candidates.createdAt, whatsapp: candidates.whatsapp, email: candidates.email })
     .from(candidates)
     .where(
       and(
-        or(
-          eq(candidates.whatsapp, whatsapp),
-          eq(candidates.email, email),
-        ),
-        eq(candidates.appliedPosition, position),
+        sql`lower(${candidates.appliedPosition}) = ${position.trim().toLowerCase()}`,
         sql`${candidates.createdAt} >= ${thirtyDaysAgo.toISOString()}`,
       ),
     )
     .orderBy(desc(candidates.createdAt))
-    .limit(1);
-
-  return existing ?? null;
+    .limit(500);
+  const existing = rows.find((row) => (phone && normalizeApplicantPhone(row.whatsapp) === phone) || (row.email ?? "").toLowerCase() === mail);
+  return existing ? { id: existing.id, status: existing.status, createdAt: existing.createdAt } : null;
 }
 

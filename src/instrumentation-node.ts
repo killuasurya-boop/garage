@@ -93,6 +93,20 @@ function startUnpaidOrderSweeper() {
         const codes = await expireEndedVouchers();
         if (codes.length) console.log(`[vouchers] ${codes.length} voucher kedaluwarsa: ${codes.slice(0, 10).join(", ")}`);
       }
+      // Sekali sehari 03:41 WIB: berkas pelamar — sampah unggahan > 24 jam + masa simpan habis (Owner 19 Nov 2026).
+      {
+        const wibNow = new Date(Date.now() + 7 * 3_600_000);
+        if (wibNow.getUTCHours() === 3 && wibNow.getUTCMinutes() === 41) {
+          try {
+            const { runMonitoredJob } = await import("@/lib/background-job-runner");
+            const { sweepRecruitmentFiles } = await import("@/lib/recruitment-storage");
+            const r = await runMonitoredJob("recruitment_files", () => sweepRecruitmentFiles());
+            if (r && (r.expiredCandidates || r.removedOrphans)) console.log(`[recruitment] berkas dihapus: ${r.expiredCandidates} pelamar habis masa simpan, ${r.removedOrphans} unggahan tak terpakai.`);
+          } catch (error) {
+            console.warn("[recruitment] sapuan berkas gagal:", error instanceof Error ? error.message : error);
+          }
+        }
+      }
       // Sekali sehari 03:17 WIB: poin member tidak aktif hangus (Pengaturan → Loyalty).
       const wib = new Date(Date.now() + 7 * 3_600_000);
       if (wib.getUTCHours() === 3 && wib.getUTCMinutes() === 17) {

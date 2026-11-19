@@ -4,6 +4,12 @@ import { randomUUID } from "node:crypto";
 
 import { fail, ok } from "@/lib/api-response";
 import { rateLimit } from "@/lib/rate-limit";
+import {
+  alertRecruitmentStorageFull,
+  noteRecruitmentUpload,
+  recruitmentStorageDir,
+  recruitmentStorageHasRoom,
+} from "@/lib/recruitment-storage";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -63,19 +69,6 @@ const uploadRules: Record<UploadKind, { label: string; maxBytes: number; accepte
   },
 };
 
-function projectRoot() {
-  const cwd = process.cwd();
-  if (
-    path.basename(cwd).toLowerCase() === "standalone" &&
-    path.basename(path.dirname(cwd)).toLowerCase() === ".next"
-  ) {
-    return path.resolve(cwd, "..", "..");
-  }
-  return process.env.GARAGE_PROJECT_ROOT
-    ? path.resolve(process.env.GARAGE_PROJECT_ROOT)
-    : cwd;
-}
-
 // Upload dokumen kandidat (CV / foto / portfolio). Publik tapi rate-limited.
 function startsWith(buffer: Buffer, bytes: number[], offset = 0) {
   return bytes.every((byte, index) => buffer[offset + index] === byte);
@@ -104,6 +97,9 @@ function contentMatchesExtension(buffer: Buffer, ext: string) {
 export async function POST(request: Request) {
   const limited = rateLimit(request, "recruitment-upload", { limit: 12, windowMs: 60_000 });
   if (limited) return limited;
+  // Satu pelamar butuh ±5 berkas; 30/jam per IP cukup untuk beberapa kali coba ulang, menahan unggahan iseng.
+  const hourly = rateLimit(request, "recruitment-upload-hour", { limit: 30, windowMs: 3_600_000 });
+  if (hourly) return hourly;
 
   let formData: FormData;
   try {
@@ -136,11 +132,18 @@ export async function POST(request: Request) {
     return fail(400, "FILE_CONTENT_MISMATCH", `Isi file tidak sesuai format. ${rule.hint}`);
   }
 
-  const dir = path.join(projectRoot(), "storage", "recruitment");
+  // Batas total berkas pelamar: disk penuh tidak boleh ikut mengganggu POS & kasir.
+  if (!(await recruitmentStorageHasRoom(buffer.length))) {
+    void alertRecruitmentStorageFull();
+    return fail(507, "RECRUITMENT_STORAGE_FULL", "Unggahan berkas sedang ditutup sementara. Coba lagi nanti atau hubungi admin GARAGE.");
+  }
+
+  const dir = recruitmentStorageDir();
   await mkdir(dir, { recursive: true });
   const fileName = `${kind}-${Date.now()}-${randomUUID().slice(0, 8)}${ext}`;
   try {
     await writeFile(path.join(dir, fileName), buffer);
+    noteRecruitmentUpload(buffer.length);
   } catch (error) {
     console.error("Failed to save recruitment upload", error);
     return fail(500, "FILE_SAVE_FAILED", "Gagal menyimpan file. Coba lagi.");

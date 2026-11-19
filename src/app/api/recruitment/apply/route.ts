@@ -119,10 +119,10 @@ export async function POST(request: Request) {
 
     // Posisi harus salah satu lowongan yang sedang dibuka.
     const openPositions = await listOpenPositions();
-    if (
-      openPositions.length &&
-      !openPositions.some((position) => position.title.toLowerCase() === data.appliedPosition.toLowerCase())
-    ) {
+    if (!openPositions.length) {
+      return fail(400, "RECRUITMENT_CLOSED", "Saat ini belum ada lowongan yang dibuka. Pantau info lowongan GARAGE berikutnya.");
+    }
+    if (!openPositions.some((position) => position.title.toLowerCase() === data.appliedPosition.toLowerCase())) {
       return fail(400, "RECRUITMENT_POSITION_CLOSED", "Posisi ini sedang tidak dibuka. Pilih posisi lain.");
     }
 
@@ -133,10 +133,12 @@ export async function POST(request: Request) {
       data.appliedPosition,
     );
     if (duplicate) {
+      // Pesan netral: tanpa tanggal/status, supaya form ini tidak bisa dipakai mengintip lamaran orang lain
+      // (status hanya lewat Cek Status dengan WA + email).
       return fail(
         409,
         "DUPLICATE_APPLICATION",
-        `Kamu sudah pernah melamar posisi ${data.appliedPosition} pada ${new Date(duplicate.createdAt).toLocaleDateString("id-ID")}. Status lamaran kamu saat ini: "${duplicate.status}". Gunakan fitur Cek Status Lamaran untuk melihat progres.`,
+        `Lamaran untuk posisi ${data.appliedPosition} dengan nomor WhatsApp atau email ini sudah kami terima. Cek progresnya lewat menu Cek Status Lamaran (nomor WhatsApp + email).`,
       );
     }
 

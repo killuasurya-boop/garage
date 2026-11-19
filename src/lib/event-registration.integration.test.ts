@@ -155,6 +155,7 @@ describe("Halaman event dari Garage: peserta, kesiapan, laporan akhir (Owner 19 
     expect(await extras.garageCloseout(eventRow)).toBeNull();
     const pf = await import("@/lib/event-public-finance");
     const view = await pf.getPublicFinance(event.id, owner());
+    if (!view.data) throw new Error("data transparansi harus ada untuk event ini");
     await pf.savePublicFinance(event.id, { enabled: true, data: { ...view.data, closeout: { ...view.data.closeout, published: true, evaluation: "Lancar", incidentsTotal: 1, incidentsResolved: 1 } } }, owner());
     const closeout = await extras.garageCloseout(eventRow);
     expect(closeout).toMatchObject({ event: { name: event.title }, finance: { income: 750_000, target: 5_000_000 }, evaluation: "Lancar", incidents: { total: 1, resolved: 1 } });

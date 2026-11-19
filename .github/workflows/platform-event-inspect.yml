@@ -83,30 +83,45 @@ jobs:
             printf '%s: ' "$f"; grep -c -a -e 'SURAU' -e 'Surau' "$f" || true
           done
 
+          echo "== Container stack garage-event + mount + isi"
+          CS=$(docker ps --format '{{.Names}}' | grep '^garage-event-' || true)
+          for c in $CS; do
+            echo "-- $c"; docker inspect "$c" --format '{{range .Mounts}}{{.Type}} {{.Source}} -> {{.Destination}}{{println}}{{end}}'
+            docker inspect "$c" --format 'workdir={{.Config.WorkingDir}} compose={{index .Config.Labels "com.docker.compose.project.working_dir"}}'
+            docker exec -u 0 "$c" sh -c 'grep -rn -e SURAU -e Surau . 2>/dev/null | grep -v -e "^./node_modules" -e "^./_bak" -e "\.bak" -e "Binary" | cut -c1-200 | head -20'
+          done
+
           [ "$MODE" = "apply" ] || { echo "== Mode inspect: tidak ada yang diubah."; exit 0; }
 
-          FILES=$(grep -rlI "${EXC[@]}" -e 'SURAU' -e 'Surau' "${ROOTS[@]}" 2>/dev/null || true)
-          if [ -z "$FILES" ]; then echo "!! Tidak ada file teks berisi SURAU di host. Tidak ada yang diubah."; exit 3; fi
-          B=/root/garage-event-backups; mkdir -p "$B"
-          TS=$(date +%Y%m%d-%H%M%S)
-          echo "$FILES" | tar -czf "$B/surau-$TS.tgz" -T - && echo "== Cadangan: $B/surau-$TS.tgz"
-          echo "$FILES" | while read -r f; do sed -i 's/SURAU/SURAI/g; s/Surau/Surai/g' "$f" && echo "diubah: $f"; done
-          echo "== Sisa SURAU setelah ganti (harus kosong)"
-          grep -rnI "${EXC[@]}" -e 'SURAU' -e 'Surau' "${ROOTS[@]}" 2>/dev/null | head || true
-
-          echo "== Jalankan ulang stack platform"
-          cd "$D"
-          if ls docker-compose.y*ml compose.y*ml >/dev/null 2>&1; then
-            docker compose up -d --build 2>&1 | tail -20
-          else
-            docker restart "$C"
+          B=/root/garage-event-backups/surau-$(date +%Y%m%d-%H%M%S); mkdir -p "$B"
+          # 1) Sumber di host (supaya build berikutnya ikut SURAI). Cadangan & folder _bak tidak disentuh.
+          FILES=$(grep -rlI "${EXC[@]}" --exclude='*.bak*' --exclude-dir='_bak*' -e 'SURAU' -e 'Surau' "$D" 2>/dev/null || true)
+          if [ -n "$FILES" ]; then
+            echo "$FILES" | tar -czf "$B/host.tgz" -T - && echo "== Cadangan host: $B/host.tgz"
+            echo "$FILES" | while read -r f; do sed -i 's/SURAU/SURAI/g; s/Surau/Surai/g' "$f" && echo "host diubah: $f"; done
           fi
+          # 2) Salinan di dalam container (yang sedang tayang). Tanpa rebuild: data pendaftaran tetap.
+          for c in $CS; do
+            CF=$(docker exec -u 0 "$c" sh -c 'grep -rl -e SURAU -e Surau . 2>/dev/null | grep -v -e "^./node_modules" -e "^./_bak" -e "\.bak" -e "\.png$" -e "\.jpg$" -e "\.webp$"' || true)
+            [ -z "$CF" ] && { echo "-- $c: tidak ada SURAU"; continue; }
+            for f in $CF; do
+              docker cp "$c:$(docker inspect "$c" --format '{{.Config.WorkingDir}}')/${f#./}" "$B/$c-$(echo "$f" | tr '/' '_')" 2>/dev/null || true
+              docker exec -u 0 "$c" sed -i 's/SURAU/SURAI/g; s/Surau/Surai/g' "$f" && echo "$c diubah: $f"
+            done
+            docker restart "$c" >/dev/null && echo "-- $c dijalankan ulang"
+          done
+          echo "== Cadangan: $B"; ls -la "$B"
+          echo "== Sisa SURAU (harus kosong)"
+          grep -rnI "${EXC[@]}" --exclude='*.bak*' --exclude-dir='_bak*' -e 'SURAU' -e 'Surau' "$D" 2>/dev/null | head || true
+          for c in $CS; do docker exec -u 0 "$c" sh -c 'grep -rn -e SURAU -e Surau . 2>/dev/null | grep -v -e "^./node_modules" -e "^./_bak" -e "\.bak" -e "Binary" | head'; done
           for i in $(seq 1 30); do
             curl -s -o /dev/null -w '%{http_code}' https://garagecoffee.id/event/api/events 2>/dev/null | grep -q 200 && { echo "== /event/api/events sehat (200)"; break; }
             sleep 5
           done
-          echo "== Lineup dari API setelah ganti"
+          echo "== Nama di API setelah ganti"
           curl -s https://garagecoffee.id/event/api/events | grep -o '"name":"[^"]*"' | head -20
+          echo "== app.js tayang"
+          curl -s https://garagecoffee.id/event/gigs-akhir-tahun-2026/app.js | grep -o "name: 'SURA.'" | sort | uniq -c
           SCRIPT
           ssh -i ~/.ssh/deploy_key -o BatchMode=yes $VPS_USER@$VPS_HOST "bash -s -- $MODE" < script.sh
 

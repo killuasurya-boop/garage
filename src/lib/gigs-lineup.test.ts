@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { groupLineup, instagramUrl, lineupSummary, mergeLineup, officialLineupName, parseInstagramHandle, parseLineupKind, type LineupItem } from "@/lib/gigs-lineup";
+import { groupLineup, instagramUrl, lineupSummary, mergeLineup, officialLineupName, parseInstagramHandle, parseLineupKind, enrichSlotsForEventPage, garageLineupAsEventSlots, lineupKey, type LineupItem } from "@/lib/gigs-lineup";
 
 const item = (name: string, kind: LineupItem["kind"] = null): LineupItem => ({ name, logo: null, kind });
 
@@ -84,5 +84,48 @@ describe("officialLineupName (Owner: SURAU → SURAI)", () => {
     const platform: LineupItem[] = [{ name: officialLineupName("SURAU"), platformName: "SURAU", logo: "/event/uploads/surau.png", kind: "band" }];
     expect(mergeLineup(platform, [{ name: "SURAI", kind: "band" }])[0]).toMatchObject({ name: "SURAI", logo: "/event/uploads/surau.png" });
   });
+  it("baris Garage OS yang masih tersimpan 'SURAU' (impor lama) tampil SURAI di beranda, logo platform tetap ikut", () => {
+    const platform: LineupItem[] = [{ name: officialLineupName("SURAU"), platformName: "SURAU", logo: "/event/uploads/surau.png", kind: "band" }];
+    const out = mergeLineup(platform, [{ name: "LOST SIDE", kind: "band" }, { name: "SURAU", kind: "band" }]);
+    expect(out.map((item) => item.name)).toEqual(["LOST SIDE", "SURAI"]);
+    expect(out[1].logo).toBe("/event/uploads/surau.png");
+  });
 });
 
+
+describe("enrichSlotsForEventPage (halaman event platform, Owner 18 Nov 2026)", () => {
+  it("slot penampil kosong → penampil = nama resmi slot, logo dilengkapi; sesi non-penampil apa adanya", () => {
+    const logos = new Map([[lineupKey("LOST SIDE"), "/event/x/lost-side.jpg"], [lineupKey("SURAI"), "/garage-uploads/event-lineup/surai.webp"]]);
+    const out = enrichSlotsForEventPage(
+      [
+        { id: "1", name: "SURAI HC", category: "band", startTime: "20:00", durationMin: 30, performer: "", logo: "" },
+        { id: "2", name: "LOSTSIDE", category: "band", startTime: "", durationMin: 30, performer: "", logo: "" },
+        { id: "3", name: "Slot Komika", category: "komika", startTime: "", durationMin: 20, performer: "Standup Tebing", logo: "/event/x/su.png" },
+        { id: "4", name: "Sesi sponsor 1", category: "sponsor", startTime: "", durationMin: 5, performer: "", logo: "" },
+        null,
+      ],
+      logos,
+    );
+    expect(out).toEqual([
+      { id: "1", name: "Official Lineup", category: "band", startTime: "20:00", durationMin: 30, performer: "SURAI", logo: "/garage-uploads/event-lineup/surai.webp" },
+      { id: "2", name: "Official Lineup", category: "band", startTime: "", durationMin: 30, performer: "LOST SIDE", logo: "/event/x/lost-side.jpg" },
+      { id: "3", name: "Official Lineup", category: "komika", startTime: "", durationMin: 20, performer: "Standup Tebing", logo: "/event/x/su.png" },
+      { id: "4", name: "Sesi sponsor 1", category: "sponsor", startTime: "", durationMin: 5, performer: "", logo: "" },
+    ]);
+    expect(enrichSlotsForEventPage("bukan array", logos)).toEqual([]);
+  });
+  it("SATU pintu: lineup Garage OS → slot halaman event (tagline, jam rundown, logo Garage lalu platform)", () => {
+    const logos = new Map([[lineupKey("LOST SIDE"), "/event/x/lost-side.jpg"]]);
+    const out = garageLineupAsEventSlots(
+      [
+        { name: "LOST SIDE", kind: "band", time: "20.00–20.30", logo: null, tagline: "Heavy / Metallic Roster" },
+        { name: "SURAU", kind: "band", time: null, logo: "/garage-uploads/event-lineup/surai.webp", tagline: null },
+      ],
+      logos,
+    );
+    expect(out).toEqual([
+      { id: "garage-1", name: "Heavy / Metallic Roster", category: "band", startTime: "20.00–20.30", durationMin: 0, performer: "LOST SIDE", logo: "/event/x/lost-side.jpg" },
+      { id: "garage-2", name: "Official Lineup", category: "band", startTime: "", durationMin: 0, performer: "SURAI", logo: "/garage-uploads/event-lineup/surai.webp" },
+    ]);
+  });
+});

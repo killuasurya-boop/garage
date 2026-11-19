@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowRight, CalendarDays, AtSign, Clock3, MapPin, Mic2, Music2, Share2, ShieldCheck, Store, Users } from "lucide-react";
+import { ArrowRight, AtSign, CalendarDays, Clock3, LogIn, MapPin, Mic2, Music2, Share2, ShieldCheck, Store, Users } from "lucide-react";
 
 import { groupLineup, instagramUrl, LINEUP_KIND_LABEL, lineupSummary } from "@/lib/gigs-lineup";
 import type { GigsPromo } from "@/lib/gigs-promo";
@@ -119,6 +119,11 @@ export function GigsSpotlight({ promo }: { promo: GigsPromo }) {
                   <span>Ajak teman via WhatsApp</span>
                 </a>
               ) : null}
+              {/* Panitia event (akun peran Panitia) → login Garage OS → Ruang Panitia (Owner 18 Nov 2026). */}
+              <a className="btn" href="/login?next=/panitia">
+                <LogIn aria-hidden size={16} />
+                <span>Login Panitia</span>
+              </a>
             </div>
           </div>
 

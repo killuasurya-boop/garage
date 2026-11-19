@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 
 /** Meja pintu: cari tamu undangan dari nama / nomor HP (`?eventId=&q=`). Nomor HP tidak dikirim balik. Staf mana pun. */
 export async function GET(request: Request) {
-  const session = await requireGarageSession(["Owner", "Manajer", "Kasir", "Waiter"]);
+  const session = await requireGarageSession(["Owner", "Manajer", "Kasir", "Waiter", "Panitia"]);
   if (session.response) return session.response;
   const params = new URL(request.url).searchParams;
   const eventId = params.get("eventId") ?? "";

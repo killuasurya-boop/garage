@@ -139,7 +139,14 @@ test("Beranda HP: kartu lineup & sponsor tidak terpotong / tidak bergeser @mobil
   await login(page, "owner@garage.id");
   const event = await masterEvent(page);
   const longName = `Band Nama Panjang Sekali ${tag}`;
-  const platform = startFakeGigsPlatform({ slug: `gigs-hp-${tag.toLowerCase()}`, name: event.title, lineup: [{ name: longName, type: "band" }] });
+  // SATU pintu (Owner 18 Nov 2026): lineup Garage OS dipakai beranda DAN halaman event; slot dashboard platform tidak.
+  const slotName = `Slot Baru ${tag}`;
+  const platform = startFakeGigsPlatform({
+    slug: `gigs-hp-${tag.toLowerCase()}`,
+    name: event.title,
+    lineup: [{ name: longName, type: "band" }],
+    slots: [{ name: slotName, category: "band", startTime: "20:00", durationMin: 30 }],
+  });
   await platform.listen();
   try {
     const imported = await page.request.post("/api/event-lineup/import-platform", { data: { eventId: event.id } });
@@ -153,6 +160,23 @@ test("Beranda HP: kartu lineup & sponsor tidak terpotong / tidak bergeser @mobil
     const gigs = page.getByTestId("home-gigs-spotlight");
     await expect(gigs).toBeVisible({ timeout: 90_000 });
     await expect(gigs.getByText(longName)).toBeVisible();
+    await expect(gigs).not.toContainText(slotName);
+
+    // Halaman event platform (Caddy → Garage OS): isi lineup = lineup Garage OS yang sama dengan beranda.
+    const eventLineup = await page.request.get(`/api/public/gigs/gigs-hp-${tag.toLowerCase()}/lineup`);
+    expect(eventLineup.ok(), await eventLineup.text()).toBeTruthy();
+    const { slots } = (await eventLineup.json()) as { slots: Array<{ performer: string }> };
+    expect(slots.map((slot) => slot.performer)).toContain(longName);
+    expect(slots.map((slot) => slot.performer)).not.toContain(slotName);
+
+    // app.js halaman event lewat Garage OS: kartu lineup baru langsung dimunculkan + SURAU → SURAI.
+    const appJs = await page.request.get(`/api/public/gigs/gigs-hp-${tag.toLowerCase()}/app-js`);
+    expect(appJs.ok(), await appJs.text()).toBeTruthy();
+    expect(appJs.headers()["content-type"]).toContain("javascript");
+    const js = await appJs.text();
+    expect(js).toContain("setupRevealObserver();");
+    expect(js).toContain("name: 'SURAI'");
+    expect(js).not.toContain("SURAU");
     await expect(page.getByTestId("home-gigs-partners").getByText(`Sponsor Dengan Nama Sangat Panjang ${tag}`)).toBeVisible();
     await noHorizontalOverflow(page);
     check();
@@ -329,4 +353,65 @@ test("Peran Panitia: akun hanya bisa membuka Ruang Panitia (kasir, menu, data ka
   pcheck();
   await ctx.close();
   check();
+});
+
+test("Pendaftaran & transparansi lewat Garage OS (satu pintu, Owner 18 Nov 2026)", async ({ page }) => {
+  test.setTimeout(300_000);
+  const check = failOnPageErrors(page);
+  const tag = Math.random().toString(36).slice(2, 6).toUpperCase();
+  await login(page, "owner@garage.id");
+  const event = await masterEvent(page);
+  const slug = `gigs-satu-${tag.toLowerCase()}`;
+  const platform = startFakeGigsPlatform({ slug, name: event.title, lineup: [], budget: [{ code: "01", name: "Sound", budget: 2_000_000 }] });
+  await platform.listen();
+  try {
+    // Form halaman event (daftar.js) → /event/<slug>/api/public/register → Caddy → Garage.
+    const band = `Band Website ${tag}`;
+    const reg = await page.request.post(`/api/public/gigs/${slug}/register`, {
+      data: { type: "creator", name: band, pic: "Rudi", whatsapp: "081234567890", instagram: "@bandweb", description: "", consent: true, category: "band", members: 4, portfolio: "", tech: "", diet: "" },
+    });
+    expect(reg.ok(), await reg.text()).toBeTruthy();
+    const { id, code } = (await reg.json()) as { id: string; code: string };
+    const look = await page.request.post(`/api/public/gigs/${slug}/registration/lookup`, { data: { id, code } });
+    expect((await look.json()) as { status: string }).toMatchObject({ status: "diajukan", published: false });
+    const wrong = await page.request.post(`/api/public/gigs/${slug}/registration/lookup`, { data: { id, code: "000000000000" } });
+    expect(wrong.status()).toBe(403);
+
+    // Owner menyetujui di layar Pendaftar → langsung jadi penampil & tampil di website.
+    await page.goto(`/control/registrations?eventId=${event.id}`);
+    const card = page.getByRole("listitem", { name: band });
+    await expect(card).toBeVisible({ timeout: 60_000 });
+    await card.getByRole("button", { name: /Setujui/ }).click();
+    await expect(card).toBeHidden({ timeout: 30_000 });
+    const after = await page.request.post(`/api/public/gigs/${slug}/registration/lookup`, { data: { id, code } });
+    expect(await after.json()).toMatchObject({ status: "disetujui", published: true });
+
+    // Transparansi: isi dari platform, tambah dana masuk, tampilkan, simpan → config & ringkasan halaman event berubah.
+    await page.goto(`/control/event-transparency?eventId=${event.id}`);
+    await page.getByRole("button", { name: /Isi dari angka platform/ }).click();
+    await expect(page.getByRole("status")).toContainText("Angka platform dimuat");
+    await page.getByLabel("Target dana").fill("5.000.000");
+    await page.getByRole("button", { name: /Tambah dana masuk/ }).click();
+    await page.getByLabel("Dari (nama sponsor/donatur, boleh kosong)").fill("Kopi Sponsor");
+    await page.getByRole("region", { name: /Dana masuk/ }).getByLabel("Jumlah").fill("750000");
+    await page.getByRole("checkbox", { name: /Tampilkan angka ini/ }).check();
+    await page.getByRole("button", { name: /^Simpan$/ }).first().click();
+    await expect(page.getByRole("status")).toContainText("sekarang tampil");
+    const config = await (await page.request.get(`/api/public/gigs/${slug}/config`)).json();
+    expect(config).toMatchObject({ open: true, finance: { target: 5_000_000, budgetLines: [{ code: "01", name: "Sound", budget: 2_000_000 }] } });
+    const summary = await (await page.request.get(`/api/public/gigs/${slug}/sponsor-summary`)).json();
+    expect(summary).toMatchObject({ verified_amount: 750_000, income_history: [{ sponsor: "Kopi Sponsor", amount: 750_000 }] });
+
+    // Peserta (kreator disetujui), kesiapan (data Garage) & laporan akhir (belum terbit → null) untuk halaman event.
+    const participants = await (await page.request.get(`/api/public/gigs/${slug}/participants`)).json();
+    expect(participants.creators.map((c: { name: string }) => c.name)).toContain(band);
+    const readiness = await (await page.request.get(`/api/public/gigs/${slug}/readiness`)).json();
+    expect(readiness).toMatchObject({ gates: [{ gate: "A" }, { gate: "B", done: 3, total: 3 }, { gate: "C" }] });
+    expect(typeof readiness.total).toBe("number");
+    expect(await (await page.request.get(`/api/public/gigs/${slug}/closeout`)).json()).toEqual({ closeout: null });
+    await noHorizontalOverflow(page);
+    check();
+  } finally {
+    await platform.close();
+  }
 });

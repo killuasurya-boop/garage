@@ -90,6 +90,16 @@ function parsePlatformLineup(lineup: unknown): LineupItem[] {
     .slice(0, 16);
 }
 
+/** Slot panggung mentah satu event dari platform (jaringan internal). Slug/alamat tidak valid atau gagal → Error. */
+export async function fetchRawPlatformSlots(slug: string, timeoutMs = 1500): Promise<unknown[]> {
+  const api = process.env.GARAGE_EVENT_API || DEFAULT_API;
+  if (!/^[a-z0-9][a-z0-9-]{0,80}$/.test(slug) || !/\/api\/events\/?$/.test(api)) throw new Error("Slug atau alamat platform tidak valid.");
+  const res = await fetch(api.replace(/\/api\/events\/?$/, `/${slug}/api/public/lineup`), { cache: "no-store", signal: AbortSignal.timeout(timeoutMs) });
+  if (!res.ok) throw new Error(`Platform GIGS membalas ${res.status}.`);
+  const json = (await res.json()) as { slots?: unknown };
+  return Array.isArray(json?.slots) ? json.slots : [];
+}
+
 /**
  * Lineup platform GIGS untuk SATU event (cocok slug dulu, lalu nama tanpa peduli huruf), apa pun status/tanggalnya.
  * Dipakai tombol "Impor dari platform" di modul Lineup. Platform tidak terjangkau → Error (pemanggil memberi pesan).

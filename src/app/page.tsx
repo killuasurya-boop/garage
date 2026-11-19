@@ -52,7 +52,8 @@ export default async function Home() {
     getAtmosphereAssets().catch(() => []),
   ]);
 
-  // Lineup GIGS: penampil terkonfirmasi dari modul Lineup & Panitia (Garage OS) menggantikan daftar platform event.
+  // Lineup GIGS = SATU pintu: penampil terkonfirmasi di modul Lineup & Panitia (Garage OS) menggantikan daftar platform
+  // event (Owner 18 Nov 2026). Halaman /event/<slug> memakai data yang sama lewat /api/public/gigs/[slug]/lineup.
   // Sponsor yang dicentang "tampil di website" di modul Sponsor (nama/logo/tautan saja, tanpa nilai uang).
   const gigsRef = gigsPromo ? { slug: gigsPromo.slug, name: gigsPromo.name } : null;
   const [garageLineup, partners] = gigsRef

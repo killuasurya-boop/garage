@@ -8,6 +8,8 @@ export type FakeGigsEvent = {
   slug: string;
   name: string;
   lineup: Array<{ name: string; type: string; logo?: string }>;
+  /** Slot panggung dashboard panitia (`/event/<slug>/api/public/lineup`). */
+  slots?: Array<{ name: string; category: string; startTime?: string; durationMin?: number; performer?: string; logo?: string }>;
   /** RAB untuk /event/<slug>/api/public/config (opsional). */
   budget?: Array<{ code: string; name: string; budget: number; purpose?: string; pic?: string }>;
 };
@@ -16,7 +18,29 @@ export function startFakeGigsPlatform(initial: FakeGigsEvent) {
   let current = initial;
   const server: Server = createServer((req, res) => {
     if (req.method === "GET" && req.url === `/event/${current.slug}/api/public/config`) {
-      res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ finance: { target: 0, budgetLines: current.budget ?? [] } }));
+      res
+        .writeHead(200, { "content-type": "application/json" })
+        .end(JSON.stringify({ open: true, locked: false, sponsorMin: 300000, finance: { target: 0, budgetLines: current.budget ?? [], notes: [] } }));
+      return;
+    }
+    if (req.method === "GET" && /^\/event\/[^/]+\/api\/public\/(participants|readiness|closeout)$/.test(req.url ?? "") && req.url?.startsWith(`/event/${current.slug}/`)) {
+      const kind = req.url.split("/").pop();
+      const body = kind === "participants" ? { sponsors: [], creators: [] } : kind === "closeout" ? { closeout: null } : { total: 0, components: [], gates: [], decision: null };
+      res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(body));
+      return;
+    }
+    if (req.method === "GET" && req.url === `/event/${current.slug}/api/sponsor/summary`) {
+      res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ verified_amount: 0, verified_expense: 0, balance: 0, transaction_count: 0, income_history: [], expense_history: [], budget_status: [] }));
+      return;
+    }
+    if (req.method === "GET" && req.url === `/event/${current.slug}/public/app.js`) {
+      // Potongan app.js platform asli (jangkar tambalan Garage OS).
+      const js = "const LINEUPS = [{ name: 'SURAU', role: 'X' }];\nasync function loadPublicLineup() {\n  try {\n      LINEUPS.splice(0, 1, { name: 'NEXT', isCta: true });\n      renderLineups();\n    } catch {}\n}\n";
+      res.writeHead(200, { "content-type": "application/javascript" }).end(js);
+      return;
+    }
+    if (req.method === "GET" && req.url === `/event/${current.slug}/api/public/lineup`) {
+      res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ slots: current.slots ?? [] }));
       return;
     }
     if (req.method !== "GET" || !req.url?.startsWith("/event/api/events")) {

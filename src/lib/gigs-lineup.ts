@@ -10,11 +10,17 @@ export type LineupKind = "band" | "standup" | "akustik" | "dj" | "kreator";
  * Nama resmi talent menurut Owner bila platform GIGS masih menulis ejaan lain (Owner 17–18 Nov 2026: "SURAU" → "SURAI").
  * Dipakai untuk SEMUA data lineup dari platform (beranda, ticker, impor). Kunci = nama platform huruf kecil.
  */
-export const OFFICIAL_LINEUP_NAMES: Readonly<Record<string, string>> = { surau: "SURAI" };
+// "SURAI HC" / "LOSTSIDE" = nama slot di dashboard panitia platform untuk talent yang sama (Owner 18 Nov 2026).
+export const OFFICIAL_LINEUP_NAMES: Readonly<Record<string, string>> = { surau: "SURAI", "surai hc": "SURAI", lostside: "LOST SIDE" };
 
 /** Nama platform → nama resmi Garage (selain yang terdaftar: apa adanya). */
 export function officialLineupName(name: string): string {
   return OFFICIAL_LINEUP_NAMES[name.trim().toLowerCase()] ?? name;
+}
+
+/** Kunci pencocokan talent: nama resmi, huruf kecil, tanpa spasi/tanda baca ("LOST SIDE" = "Lost-Side"). */
+export function lineupKey(name: string): string {
+  return officialLineupName(name).toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
 export type LineupItem = {
@@ -133,13 +139,60 @@ export function mergeLineup(
 ): LineupItem[] {
   if (!garage.length) return platform;
   const logoByName = new Map(platform.map((item) => [item.name.trim().toLowerCase(), item.logo]));
-  return garage.map((item) => ({
-    name: item.name,
-    kind: item.kind,
-    logo: item.logo || logoByName.get(item.name.trim().toLowerCase()) || null,
-    time: item.time ?? null,
-    live: item.live ?? false,
-    tagline: item.tagline ?? null,
-    instagram: item.instagram ?? null,
-  }));
+  return garage.map((item) => {
+    // Baris lama di Garage OS bisa masih bernama ejaan platform (mis. "SURAU" diimpor sebelum koreksi) → tampil nama resmi.
+    const name = officialLineupName(item.name);
+    return {
+      name,
+      kind: item.kind,
+      logo: item.logo || logoByName.get(name.trim().toLowerCase()) || null,
+      time: item.time ?? null,
+      live: item.live ?? false,
+      tagline: item.tagline ?? null,
+      instagram: item.instagram ?? null,
+    };
+  });
+}
+
+/**
+ * Data slot untuk HALAMAN EVENT platform (`/event/<slug>`), dilewatkan Caddy → Garage OS (Owner 18 Nov 2026).
+ * Kode halaman platform hanya menampilkan slot yang punya `performer`; panitia sering hanya mengisi nama slot. Di sini:
+ * slot penampil (jenis dikenal) tanpa penampil → penampil = nama resmi slot; ejaan dikoreksi; logo kosong dilengkapi
+ * dari Garage OS / promo platform (kunci `lineupKey`); baris kecil di kartu = "Official Lineup". Slot lain (mis. sesi
+ * sponsor) dikirim apa adanya. Bentuk respons tetap milik platform (`{ slots: [...] }`).
+ */
+export function enrichSlotsForEventPage(slots: unknown, logoByKey: ReadonlyMap<string, string>): Array<Record<string, unknown>> {
+  return (Array.isArray(slots) ? slots : [])
+    .filter((slot): slot is Record<string, unknown> => Boolean(slot) && typeof slot === "object")
+    .map((slot) => {
+      if (!parseLineupKind(slot.category)) return slot;
+      const raw = (typeof slot.performer === "string" && slot.performer.trim()) || (typeof slot.name === "string" && slot.name.trim()) || "";
+      if (!raw) return slot;
+      const performer = officialLineupName(raw);
+      const logo = (typeof slot.logo === "string" && slot.logo) || logoByKey.get(lineupKey(performer)) || "";
+      return { ...slot, name: "Official Lineup", performer, logo };
+    });
+}
+
+/**
+ * SATU pintu (Owner 18 Nov 2026): lineup terkonfirmasi di Garage OS (Kontrol → Lineup) → bentuk slot platform untuk
+ * halaman `/event/<slug>`. `performer` = nama, baris kecil = tagline (atau "Official Lineup"), jam = rentang rundown,
+ * logo = Garage OS lalu logo platform bernama sama. Durasi 0 → kartu tidak menulis "n menit".
+ */
+export function garageLineupAsEventSlots(
+  items: ReadonlyArray<{ name: string; kind: LineupKind | null; time?: string | null; logo?: string | null; tagline?: string | null }>,
+  logoByKey: ReadonlyMap<string, string>,
+): Array<Record<string, unknown>> {
+  return items.map((item, index) => {
+    const performer = officialLineupName(item.name);
+    return {
+      id: `garage-${index + 1}`,
+      name: item.tagline?.trim() || "Official Lineup",
+      category: item.kind ?? "band",
+      startTime: item.time ?? "",
+      durationMin: 0,
+      performer,
+      logo: item.logo || logoByKey.get(lineupKey(performer)) || "",
+    };
+  });
 }

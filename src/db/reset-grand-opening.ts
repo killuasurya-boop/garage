@@ -90,6 +90,8 @@ export const KEEP_TABLES = [
   "event_performers", "event_crew", "event_crew_tasks",
   // GIGS EO: anggaran event = rencana (bukan uang), tidak dihapus
   "event_budget_lines",
+  // GIGS satu pintu: pendaftar kreator/sponsor/kru & transparansi publik = data persiapan acara, tidak dihapus
+  "event_registrations", "event_public_finance",
   // GIGS EO Fase 4: checklist operasional & evaluasi event = data persiapan/catatan (bukan transaksi)
   "event_ops_checks", "event_reviews",
   // Smart Partner Hub — master mitra resmi, akun, rekening, produk & histori harga

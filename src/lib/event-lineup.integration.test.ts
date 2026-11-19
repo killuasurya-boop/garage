@@ -254,4 +254,27 @@ describe("nama resmi talent (Owner 18 Nov 2026: platform menulis SURAU, resmi SU
       vi.unstubAllGlobals();
     }
   });
+
+  it("baris lama bernama 'SURAU' (dibuat sebelum koreksi) diganti SURAI saat impor ulang; nama lain tidak disentuh", async () => {
+    const OTHER = "GIGS NAMA LAMA";
+    await svc.createPerformer({ eventName: OTHER, name: "SURAU", kind: "band", status: "konfirmasi" } as any, owner());
+    await svc.createPerformer({ eventName: OTHER, name: "Lost Side Band", kind: "band", status: "konfirmasi" } as any, owner());
+    const platform = {
+      events: [{ slug: "gigs-nama-lama", name: OTHER, promo: { lineup: [{ name: "SURAU", type: "band" }, { name: "LOST SIDE", type: "band" }] } }],
+    };
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(platform), { status: 200 })));
+    try {
+      const res = await svc.importPlatformLineup({ eventName: OTHER }, owner());
+      expect(res.renamed).toEqual(["SURAU → SURAI"]);
+      const rows = (await t.getDb().select().from(t.schema.eventPerformers)).filter((r: any) => r.eventName === OTHER) as any[];
+      const names = rows.map((r) => r.name).sort();
+      expect(names).toEqual(["LOST SIDE", "Lost Side Band", "SURAI"].sort());
+      expect(rows.find((r) => r.name === "SURAI")?.platformName).toBe("SURAU");
+      const again = await svc.importPlatformLineup({ eventName: OTHER }, owner());
+      expect(again.renamed).toEqual([]);
+      expect(again.created).toEqual([]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });

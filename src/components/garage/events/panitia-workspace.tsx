@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, ArrowLeft, CalendarDays, CheckCircle2, ClipboardList, Clock3, ListOrdered, Plus, RefreshCw, Users, Wallet } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CalendarDays, CheckCircle2, ClipboardList, Clock3, Inbox, ListOrdered, Mic2, Plus, RefreshCw, Users, Wallet } from "lucide-react";
 
 import { garageApi, GarageApiError } from "@/lib/api-client";
 import { TASK_STATUS_LABEL, type TaskStatus } from "@/lib/event-lineup-rules";
@@ -131,7 +131,18 @@ function EventSection({ ev, onChanged }: { ev: EventView; onChanged: () => Promi
           ))}
         </ul>
         <p className="text-sm text-zinc-300">{openMine ? `${openMine} tugas Anda belum selesai.` : "Tidak ada tugas Anda yang terbuka."}</p>
+        {ev.eventId ? (
+          // Hari-H (Owner 18 Nov 2026): panitia aktif boleh check-in tamu & Mulai/Selesai penampil.
+          <a
+            href={`/event-day?event=${ev.eventId}`}
+            className="inline-flex min-h-11 items-center gap-2 rounded-md border border-[color-mix(in_srgb,var(--garage-red)_70%,transparent)] bg-[color-mix(in_srgb,var(--garage-red)_18%,transparent)] px-3 text-sm font-bold text-zinc-50 hover:bg-[color-mix(in_srgb,var(--garage-red)_28%,transparent)]"
+          >
+            <Mic2 size={16} aria-hidden /> Hari-H: check-in tamu & panggung
+          </a>
+        ) : null}
       </div>
+
+      {ev.eventId && ev.roles.some((r) => r.role === "ketua" || r.role === "sekretaris") ? <RegistrantsCard eventId={ev.eventId} /> : null}
 
       <div className={`${card} space-y-2`}>
         <h3 className="flex items-center gap-2 font-bold">
@@ -342,5 +353,56 @@ function NewTaskForm({ ev, onSaved }: { ev: EventView; onSaved: () => Promise<vo
         </button>
       </div>
     </form>
+  );
+}
+
+// Pendaftar dari tombol "Daftar" halaman event (Owner 18 Nov 2026): ketua/sekretaris melihat saja — tanpa kontak & nominal.
+// Setuju/tolak tetap Owner di Garage OS.
+type Registrant = { id: string; type: "creator" | "sponsor" | "crew"; status: string; name: string; category: string | null; role: string | null; instagram: string | null; members: number | null };
+const REG_TYPE = { creator: "Kreator", sponsor: "Sponsor", crew: "Kru" } as const;
+const REG_STATUS: Record<string, string> = { diajukan: "Menunggu Owner", revisi: "Perlu revisi", disetujui: "Disetujui", ditolak: "Ditolak" };
+
+function RegistrantsCard({ eventId }: { eventId: string }) {
+  const [rows, setRows] = useState<Registrant[] | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    garageApi
+      .get<{ registrations: Registrant[] }>(`/api/panitia/registrations?eventId=${eventId}`, { cache: "no-store" })
+      .then((data) => alive && setRows(data.registrations))
+      .catch((e) => alive && setFailed(e instanceof GarageApiError ? e.message : "Daftar pendaftar gagal dimuat."));
+    return () => {
+      alive = false;
+    };
+  }, [eventId]);
+  return (
+    <div className={`${card} space-y-2`}>
+      <h3 className="flex items-center gap-2 font-bold">
+        <Inbox size={16} className="text-[#ff6b75]" aria-hidden /> Pendaftar dari website
+      </h3>
+      <p className="text-sm text-zinc-300">Dilihat saja. Owner yang menyetujui atau menolak.</p>
+      {failed ? <p className="text-sm text-[#ffb1b1]">{failed}</p> : null}
+      {rows && !rows.length ? <p className="text-sm text-zinc-400">Belum ada pendaftar.</p> : null}
+      {rows?.length ? (
+        <ul className="divide-y divide-white/10">
+          {rows.map((r) => (
+            <li key={r.id} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 py-2">
+              <span className="min-w-0 break-words font-semibold text-zinc-50">
+                {r.name}
+                <span className="ml-2 text-xs font-normal text-zinc-400">
+                  {REG_TYPE[r.type]}
+                  {r.category ? ` · ${r.category}` : ""}
+                  {r.role ? ` · ${r.role}` : ""}
+                  {r.members ? ` · ${r.members} orang` : ""}
+                </span>
+              </span>
+              <span className={`text-xs font-semibold ${r.status === "disetujui" ? "text-[#a8f0c4]" : r.status === "ditolak" ? "text-zinc-400" : "text-amber-200"}`}>
+                {REG_STATUS[r.status] ?? r.status}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
   );
 }

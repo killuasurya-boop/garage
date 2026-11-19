@@ -2,11 +2,12 @@ import { and, asc, desc, eq, isNotNull, isNull, ne, or, sql } from "drizzle-orm"
 import { z } from "zod";
 
 import { getDb } from "@/db";
-import { eventCheckins, eventGuests, eventInvitations, eventOpsChecks, eventPerformers, eventRsvps, events } from "@/db/schema";
+import { eventCheckins, eventCrew, eventGuests, eventInvitations, eventOpsChecks, eventPerformers, eventRsvps, events } from "@/db/schema";
 import { checkinDecision, clockDot, extractInvitationToken, OPS_CHECK_TEMPLATE, stageState } from "@/lib/event-day-rules";
 import { findInvitationByToken } from "@/lib/event-invitations";
 import { buildRundown, type LineupKind, type PerformerStatus } from "@/lib/event-lineup-rules";
-import { listMasterEvents } from "@/lib/event-master";
+import { officialLineupName } from "@/lib/gigs-lineup";
+import { findEventForPlatform, listMasterEvents } from "@/lib/event-master";
 import { wibDate } from "@/lib/event-sponsor-rules";
 import { createAuditLog } from "@/lib/garage-service";
 import type { GarageSession } from "@/lib/server-auth";
@@ -37,7 +38,9 @@ export function assertEventCrew(garage: GarageSession) {
   if (garage.profile.agentKey) throw new EventDayError("HUMAN_SESSION_REQUIRED", "Hari-H event hanya untuk staf yang login langsung.", 403);
 }
 
-const DESK_ROLES = new Set(["Owner", "Manajer", "Kasir", "Waiter"]);
+// Panitia (Owner 18 Nov 2026): akun peran Panitia boleh check-in & Mulai/Selesai penampil, HANYA untuk event tempat ia
+// panitia aktif (`event_crew.user_id`, dicek di loadEvent / setSlotState). Batal check-in, agenda, checklist tetap Owner/Manajer.
+const DESK_ROLES = new Set(["Owner", "Manajer", "Kasir", "Waiter", "Panitia"]);
 
 /** Meja pintu: staf mana pun yang login langsung boleh check-in & mencari tamu. */
 export function assertCheckinDesk(garage: GarageSession) {
@@ -46,6 +49,26 @@ export function assertCheckinDesk(garage: GarageSession) {
 }
 
 const isEventCrew = (garage: GarageSession) => garage.profile.role === "Owner" || garage.profile.role === "Manajer";
+const isPanitia = (garage: GarageSession) => garage.profile.role === "Panitia";
+
+/** Event (master) tempat akun Panitia ini panitia aktif. Data lama tanpa master dicocokkan judul. */
+async function panitiaEvents(garage: GarageSession): Promise<{ ids: Set<string>; names: Set<string> }> {
+  const rows = await getDb()
+    .select({ eventId: eventCrew.eventId, eventName: eventCrew.eventName })
+    .from(eventCrew)
+    .where(and(eq(eventCrew.userId, garage.user.id), eq(eventCrew.status, "aktif")));
+  return {
+    ids: new Set(rows.flatMap((r) => (r.eventId ? [r.eventId] : []))),
+    names: new Set(rows.filter((r) => !r.eventId).map((r) => r.eventName.trim().toLowerCase())),
+  };
+}
+
+async function assertPanitiaOf(garage: GarageSession, event: { id: string; title: string }) {
+  const mine = await panitiaEvents(garage);
+  if (!mine.ids.has(event.id) && !mine.names.has(event.title.trim().toLowerCase())) {
+    throw new EventDayError("EVENT_NOT_FOUND", "Anda bukan panitia event ini.", 404);
+  }
+}
 
 async function audit(garage: GarageSession, action: string, object: string, metadata: Record<string, unknown>) {
   await createAuditLog({
@@ -60,6 +83,11 @@ async function audit(garage: GarageSession, action: string, object: string, meta
 async function loadEvent(eventId: string, garage: GarageSession) {
   const [row] = await getDb().select().from(events).where(eq(events.id, eventId)).limit(1);
   if (!row) throw new EventDayError("EVENT_NOT_FOUND", "Event tidak ditemukan.", 404);
+  // Panitia: hanya event tempat ia panitia aktif (outlet tidak relevan).
+  if (isPanitia(garage)) {
+    await assertPanitiaOf(garage, row);
+    return row;
+  }
   // Selain Owner: hanya event outletnya (event tanpa outlet = semua).
   if (garage.profile.role !== "Owner" && row.outletId && row.outletId !== garage.profile.outlet.id) {
     throw new EventDayError("EVENT_NOT_FOUND", "Event tidak ditemukan.", 404);
@@ -75,8 +103,13 @@ const performerOfEvent = (event: { id: string; title: string }) =>
 export async function getEventDay(garage: GarageSession, eventId: string | null, now = new Date()) {
   assertCheckinDesk(garage);
   const crew = isEventCrew(garage);
+  const panitia = isPanitia(garage);
   // Selain Owner: daftar & default hanya event outletnya (event outlet lain tidak bisa dibuka → jangan jadi default).
-  const masterEvents = await listMasterEvents({ outletId: garage.profile.role === "Owner" ? null : garage.profile.outlet.id });
+  // Panitia: hanya event tempat ia panitia aktif.
+  const mine = panitia ? await panitiaEvents(garage) : null;
+  const masterEvents = (await listMasterEvents({ outletId: garage.profile.role === "Owner" || panitia ? null : garage.profile.outlet.id })).filter(
+    (ev) => !mine || mine.ids.has(ev.id) || mine.names.has(ev.title.trim().toLowerCase()),
+  );
   const id = eventId ?? masterEvents[0]?.id ?? null;
   if (!id) return { masterEvents, event: null };
   const event = await loadEvent(id, garage);
@@ -115,8 +148,8 @@ export async function getEventDay(garage: GarageSession, eventId: string | null,
       rsvpAttendingInvitations: Number(rsvpRows[0]?.n ?? 0),
       recent: checkins.slice(0, 40).map((c) => ({ id: c.id, guestName: c.guestName, pax: c.pax, kind: c.kind, status: c.status, voidReason: c.voidReason, at: c.createdAt.toISOString() })),
     },
-    // Kasir/Waiter (meja pintu): tanpa panggung.
-    stage: !crew
+    // Kasir/Waiter (meja pintu): tanpa panggung. Panitia: panggung boleh (Mulai/Selesai).
+    stage: !crew && !panitia
       ? null
       : {
       ...stage,
@@ -137,6 +170,47 @@ export async function getEventDay(garage: GarageSession, eventId: string | null,
         };
       }),
         },
+  };
+}
+
+// ─── Publik: "Sedang tampil" halaman event platform (Owner 18 Nov 2026) ─────
+
+type PublicStageSlot = { name: string; category: string; startTime: string; performer: string };
+
+/** "HH.MM" WIB dari waktu nyata. */
+const wibClock = (at: Date) => clockDot(Math.floor((at.getTime() + 7 * 3_600_000) / 60_000) % 1440);
+
+/**
+ * Banner "Sedang tampil / Berikutnya" halaman event platform GIGS dari mode panggung Garage OS (`/event-day`), lewat
+ * Caddy. Bentuk = milik platform `{ current, since, next }`. Hanya penampil terkonfirmasi yang tampil di website
+ * (nama + jenis + jam). Tanpa master event / tanpa penampil → null (route memakai data platform).
+ */
+export async function publicStageForPlatform(ref: { slug: string; name: string }) {
+  const master = await findEventForPlatform(ref);
+  if (!master) return null;
+  const db = getDb();
+  const [event] = await db.select().from(events).where(eq(events.id, master.id)).limit(1);
+  if (!event) return null;
+  const performers = (await db.select().from(eventPerformers).where(performerOfEvent(event))).filter((p) => p.showOnWebsite);
+  const rundown = buildRundown(
+    performers.map((p) => ({ id: p.id, name: p.name, kind: p.kind as LineupKind, status: p.status as PerformerStatus, slotOrder: p.slotOrder, setStart: p.setStart, setMinutes: p.setMinutes })),
+  ).filter((r) => r.status === "konfirmasi");
+  if (!rundown.length) return null;
+  const byId = new Map(performers.map((p) => [p.id, p]));
+  const stage = stageState(
+    rundown.map((r) => ({ id: r.id, name: r.name, slot: r.slot, startAbs: r.startAbs, endAbs: r.endAbs, actualStart: byId.get(r.id)!.actualStart, actualEnd: byId.get(r.id)!.actualEnd })),
+    wibDate(event.startsAt),
+  );
+  const projected = new Map(stage.projected.map((p) => [p.id, p.projectedStartAbs]));
+  const view = (id: string | null, start: number | null): PublicStageSlot | null => {
+    const r = id ? rundown.find((x) => x.id === id) : undefined;
+    return r ? { name: officialLineupName(r.name), category: r.kind, startTime: clockDot(start) ?? "", performer: "" } : null;
+  };
+  const live = stage.liveId ? byId.get(stage.liveId) : undefined;
+  return {
+    current: view(stage.liveId, rundown.find((r) => r.id === stage.liveId)?.startAbs ?? null),
+    since: live?.actualStart ? wibClock(live.actualStart) : null,
+    next: view(stage.nextId, stage.nextId ? (projected.get(stage.nextId) ?? null) : null),
   };
 }
 
@@ -276,12 +350,15 @@ export const slotActionSchema = z.object({ action: z.enum(["start", "end", "undo
  * Undo: hapus jam nyata penampil ini (salah tekan). Jadwal rencana tidak diubah.
  */
 export async function setSlotState(performerId: string, action: "start" | "end" | "undo", garage: GarageSession, now = new Date()) {
-  assertEventCrew(garage);
+  if (!isPanitia(garage)) assertEventCrew(garage);
+  else if (garage.profile.agentKey) throw new EventDayError("HUMAN_SESSION_REQUIRED", "Hari-H event hanya untuk staf yang login langsung.", 403);
   const db = getDb();
   const [performer] = await db.select().from(eventPerformers).where(eq(eventPerformers.id, performerId)).limit(1);
   if (!performer) throw new EventDayError("NOT_FOUND", "Penampil tidak ditemukan.", 404);
   if (performer.status !== "konfirmasi") throw new EventDayError("NOT_CONFIRMED", "Hanya penampil terkonfirmasi yang bisa tampil.", 409);
   if (performer.eventId) await loadEvent(performer.eventId, garage);
+  // Panitia: penampil tanpa master event tidak bisa dipastikan eventnya → tolak.
+  else if (isPanitia(garage)) throw new EventDayError("EVENT_NOT_FOUND", "Anda bukan panitia event ini.", 404);
   // Satu event = satu panggung: transisi diserialkan per event agar dua HP panitia tidak membuat dua penampil "live".
   await db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`event_stage:${performer.eventId ?? performer.eventName.toLowerCase()}`}))`);

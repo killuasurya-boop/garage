@@ -326,13 +326,14 @@ export function LineupPanel({ initialEvent = null, initialEventId = null, initia
                 setImporting(true);
                 setNotice(null);
                 void run(async () => {
-                  const res = await garageApi.post<{ platformName: string; created: string[]; logoFilled: string[]; skipped: string[] }>(
+                  const res = await garageApi.post<{ platformName: string; created: string[]; logoFilled: string[]; skipped: string[]; renamed?: string[] }>(
                     "/api/event-lineup/import-platform",
                     { eventId: board?.eventId ?? null, eventName: event },
                   );
                   const parts = [
                     res.created.length ? `${res.created.length} penampil baru (${res.created.join(", ")})` : null,
                     res.logoFilled.length ? `logo diisi untuk ${res.logoFilled.join(", ")}` : null,
+                    res.renamed?.length ? `nama resmi dipakai: ${res.renamed.join(", ")}` : null,
                     res.skipped.length ? `${res.skipped.length} sudah ada, tidak diubah` : null,
                   ].filter(Boolean);
                   setNotice(parts.length ? `Impor dari “${res.platformName}”: ${parts.join(" · ")}. Semua tetap bisa diubah lewat tombol Ubah.` : `Platform “${res.platformName}” belum punya lineup.`);

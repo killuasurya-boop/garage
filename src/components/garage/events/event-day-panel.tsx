@@ -123,13 +123,15 @@ export function EventDayPanel({ initialEventId = null }: { initialEventId?: stri
 
   const c = view?.checkin;
   const crew = view?.role === "Owner" || view?.role === "Manajer";
+  // Panitia (Owner 18 Nov 2026): Check-in + Panggung (Mulai/Selesai); tanpa batal check-in, tugas, kesiapan.
+  const panitia = view?.role === "Panitia";
   const full = c && c.capacity !== null && c.totalActive >= c.capacity;
 
   return (
     <main className="mx-auto w-full max-w-3xl space-y-4 px-4 py-4 text-zinc-100">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <Link href="/os" className="inline-flex items-center gap-1 text-sm text-zinc-300 hover:text-white">
-          <ArrowLeft size={16} /> Garage OS
+        <Link href={panitia ? "/panitia" : "/os"} className="inline-flex items-center gap-1 text-sm text-zinc-300 hover:text-white">
+          <ArrowLeft size={16} /> {panitia ? "Ruang Panitia" : "Garage OS"}
         </Link>
         <button type="button" className={smallBtn} onClick={() => void load(eventId)}>
           <RefreshCw size={14} /> Segarkan
@@ -191,8 +193,8 @@ export function EventDayPanel({ initialEventId = null }: { initialEventId?: stri
             ) : null}
           </div>
 
-          {crew ? (
-          <div role="tablist" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {crew || panitia ? (
+          <div role="tablist" className={`grid grid-cols-2 gap-2 ${crew ? "sm:grid-cols-4" : ""}`}>
             {(
               [
                 ["checkin", "Check-in", Users],
@@ -200,7 +202,7 @@ export function EventDayPanel({ initialEventId = null }: { initialEventId?: stri
                 ["tugas", "Tugas", ClipboardList],
                 ["kesiapan", "Kesiapan", ShieldCheck],
               ] as const
-            ).map(([key, label, Icon]) => (
+            ).filter(([key]) => crew || key === "checkin" || key === "panggung").map(([key, label, Icon]) => (
               <button
                 key={key}
                 type="button"
@@ -215,8 +217,8 @@ export function EventDayPanel({ initialEventId = null }: { initialEventId?: stri
           </div>
           ) : null}
 
-          {tab === "checkin" || !crew ? <CheckinTab view={view} onAct={act} canVoid={crew} /> : null}
-          {crew && tab === "panggung" && view.stage ? <StageTab view={view} onAct={act} /> : null}
+          {tab === "checkin" || (!crew && !panitia) ? <CheckinTab view={view} onAct={act} canVoid={crew} /> : null}
+          {(crew || panitia) && tab === "panggung" && view.stage ? <StageTab view={view} onAct={act} /> : null}
           {crew && tab === "tugas" ? (
             <Card className="space-y-2">
               {!tasks.length ? <p className="text-sm text-zinc-400">Belum ada tugas panitia untuk event ini.</p> : null}

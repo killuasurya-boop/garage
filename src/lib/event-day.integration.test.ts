@@ -77,7 +77,8 @@ describe("Hari-H: akses", () => {
     const desk = await day.getEventDay(session("Kasir" as Role), eventId);
     expect(desk).toMatchObject({ event: { id: eventId }, role: "Kasir", stage: null });
     await expect(day.setSlotState(standup, "start", session("Waiter" as Role))).rejects.toMatchObject({ code: "FORBIDDEN" });
-    await expect(day.getEventDay(session("Panitia" as Role), eventId)).rejects.toMatchObject({ code: "FORBIDDEN" });
+    // Panitia yang bukan panitia event ini → tidak terlihat.
+    await expect(day.getEventDay(session("Panitia" as Role), eventId)).rejects.toMatchObject({ code: "EVENT_NOT_FOUND" });
     await expect(day.getEventDay(session("Owner" as Role, { agentKey: { id: "k" } }), eventId)).rejects.toMatchObject({ code: "HUMAN_SESSION_REQUIRED" });
     await expect(day.syncAgendaFromRundown(eventId, manajer())).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
@@ -189,5 +190,43 @@ describe("Hari-H: panggung", () => {
     expect(asManajer.masterEvents.map((e: any) => e.title)).not.toContain("Event Outlet Lain");
     expect(asManajer.event).toBeTruthy();
     expect(asManajer.event.title).not.toBe("Event Outlet Lain");
+  });
+});
+
+describe("Banner 'Sedang tampil' halaman event platform (satu pintu, Owner 18 Nov 2026)", () => {
+  it("mengikuti tombol Mulai/Selesai di Garage; event platform dicocokkan nama/slug master", async () => {
+    await day.setSlotState(standup, "undo", owner()).catch(() => undefined);
+    await day.setSlotState(surai, "undo", owner()).catch(() => undefined);
+    const before = await day.publicStageForPlatform({ slug: "slug-platform-tidak-ada", name: "gigs hari h" });
+    expect(before).toEqual({ current: null, since: null, next: { name: "Standup Indo", category: "standup", startTime: "19.00", performer: "" } });
+
+    await day.setSlotState(standup, "start", manajer(), new Date("2026-12-20T12:05:00Z"));
+    const live = await day.publicStageForPlatform({ slug: "", name: "GIGS HARI H" });
+    expect(live).toMatchObject({ current: { name: "Standup Indo" }, since: "19.05", next: { name: "Surai", performer: "" } });
+
+    await day.setSlotState(standup, "undo", owner());
+    expect(await day.publicStageForPlatform({ slug: "", name: "EVENT TANPA MASTER" })).toBeNull();
+  });
+});
+
+describe("Akun Panitia di Hari-H (Owner 18 Nov 2026)", () => {
+  it("panitia aktif event: check-in + Mulai/Selesai; event lain tidak; batal check-in tetap Owner/Manajer", async () => {
+    const panitia = () => session("Panitia" as Role);
+    await t.getDb().insert(t.schema.eventCrew).values({ eventId, eventName: "GIGS HARI H", name: "Ketua Panitia", role: "ketua", userId: OWNER, status: "aktif" } as any);
+    const view = await day.getEventDay(panitia(), null);
+    expect(view.event.id).toBe(eventId);
+    expect(view.masterEvents.map((e: { id: string }) => e.id)).toEqual([eventId]);
+    expect(view.stage).not.toBeNull();
+    await expect(day.getEventDay(panitia(), otherEventId)).rejects.toMatchObject({ code: "EVENT_NOT_FOUND" });
+
+    const walkin = await day.checkIn({ eventId, walkInName: "Tamu Panitia", pax: 1 }, panitia());
+    expect(walkin).toBeTruthy();
+    await day.setSlotState(standup, "start", panitia(), new Date("2026-12-20T12:01:00Z"));
+    expect((await day.publicStageForPlatform({ slug: "", name: "GIGS HARI H" })).current).toMatchObject({ name: "Standup Indo" });
+    await day.setSlotState(standup, "undo", panitia());
+
+    const recent = (await day.getEventDay(owner(), eventId)).checkin.recent.find((r: { guestName: string }) => r.guestName === "Tamu Panitia");
+    await expect(day.voidCheckin(recent.id, "salah input", panitia())).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(day.setSlotState(standup, "start", session("Panitia" as Role, { agentKey: { id: "k" } }))).rejects.toMatchObject({ code: "HUMAN_SESSION_REQUIRED" });
   });
 });

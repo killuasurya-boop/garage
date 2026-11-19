@@ -118,3 +118,46 @@ description: Aturan WAJIB modul Lineup & Panitia Event (band/stand-up, rundown, 
   langsung di VPS `/root/garage-event` + kedua container `garage-event-*-1`, cadangan `/root/garage-event-backups/surau-20261119-145427/`;
   workflow sekali pakai sudah dihapus.) Tambah koreksi nama baru di `OFFICIAL_LINEUP_NAMES` (kunci huruf kecil).
 
+- SATU pintu lineup GIGS (Owner 18 Nov 2026): **Kontrol → Lineup (Garage OS) = sumber tunggal** untuk beranda DAN halaman
+  event platform `/event/<slug>`. Slot dashboard panitia platform TIDAK dipakai tampilan publik (hanya cadangan bila Lineup
+  Garage kosong). Caddy meneruskan HANYA dua GET ke Garage OS (blok sebelum `/event`):
+  - `/event/<slug>/api/public/lineup` → `/api/public/gigs/[slug]/lineup`: `garageLineupAsEventSlots(publicLineupFor)` (performer =
+    nama resmi, baris kecil = tagline/"Official Lineup", jam rundown, logo Garage lalu promo platform); Lineup kosong →
+    `enrichSlotsForEventPage(fetchRawPlatformSlots)`. Bentuk respons = milik platform `{ slots }` (dibaca app.js platform).
+  - `/event/<slug>/public/app.js` → `/api/public/gigs/[slug]/app-js`: file asli platform + `patchGigsAppJs`
+    (`gigs-event-page-patch.ts`): (1) bug platform — lineup dirender ulang setelah pengamat animasi dipasang, kartu baru
+    transparan → panggil `setupRevealObserver(); revealActiveScreenImmediate();` setelah `renderLineups()`; (2) `name: 'SURAU'` →
+    `'SURAI'` (semua). Jangkar tidak cocok → koreksi dilewati (log warn), file asli tetap jalan. Cache memori 60 detik.
+  Kedua route publik (rateLimit, `public-routes.ts`). Perbaikan sebenarnya tetap di repo platform `garage-event` bila tersedia.
+- Banner "Sedang tampil" halaman event = mode panggung Garage (Owner 18 Nov 2026): Caddy `@gigsLineup` juga meneruskan
+  `/event/<slug>/api/public/live` → `/api/public/gigs/[slug]/live` (`publicStageForPlatform` di `event-day-service.ts`: master
+  via slug/nama, penampil konfirmasi + tampil website, `stageState`; bentuk platform `{ current, since, next }`; tanpa data
+  Garage → data platform apa adanya).
+- Akun **Panitia** di Hari-H (Owner 18 Nov 2026): `/event-day` + `GET /api/event-day`, check-in, cari tamu, `POST slots/[id]`
+  mengizinkan "Panitia"; `loadEvent`/`setSlotState` mewajibkan panitia AKTIF event itu (`event_crew.user_id`, data lama via
+  judul); Panitia melihat tab Check-in + Panggung saja (tanpa batal check-in, tugas, kesiapan, agenda). Ruang Panitia punya
+  tombol "Hari-H". Tombol "Login Panitia" (`/login?next=/panitia`) di beranda GIGS dan menu halaman event (tambalan app.js
+  `PANITIA_LOGIN_SNIPPET`, sekali).
+- Pendaftaran GIGS di Garage (Owner 18 Nov 2026, migrasi 0204, `event_registrations`): form platform (`daftar.js`) POST
+  `/event/<slug>/api/public/register|registration/(lookup|update|setlist)` → Caddy `@gigsRegister` → `/api/public/gigs/[slug]/register`
+  & `/registration/[action]` (rateLimit). Bentuk respons = milik platform: `{ id, code, entry }` / `entry` / `{ setlist }`, error
+  `{ error: "pesan" }`. Kode edit 12 hex, disimpan HMAC (`registrationCodeHash`, BETTER_AUTH_SECRET). Event belum tertaut master
+  ATAU ID tidak dikenal Garage (pendaftaran lama) → diteruskan ke platform (`forwardToPlatform`). Ubah isian → status kembali
+  "diajukan". Owner `/control/registrations` (`decideRegistration`): setujui = penampil konfirmasi+tampil website (nama sama di
+  lineup → ditautkan, tidak dobel) / sponsor tampil website (nilai = kesepakatan, TANPA uang masuk) / panitia (peran dari bidang,
+  `crewRoleFor`); revisi/tolak wajib catatan. Ketua/sekretaris panitia: `/api/panitia/registrations` lihat saja (tanpa WA/alamat/
+  nominal). Pendaftar baru → `notifyStaff` Owner (`gigs_registration`). Logo → `storeMenuImageBuffer` (event-lineup/event-sponsor).
+- Transparansi dana publik (Owner 18 Nov 2026: "bisa diubah bebas", migrasi 0204, `event_public_finance` 1 baris/event, data
+  JSON divalidasi `publicFinanceSchema`): Owner `/control/event-transparency` (isi dari angka platform, target, pos RAB + tahap,
+  dana masuk/keluar, komitmen, catatan; aktif/nonaktif). BUKAN buku kas — tidak ada baris `cash_ledger_entries`. Bila aktif, Caddy
+  meneruskan `/event/<slug>/api/public/config` (config platform apa adanya, `finance` diganti `toPlatformFinance`) dan
+  `/event/<slug>/api/sponsor/summary` (`toPlatformSummary`; nonaktif → data platform). Riwayat perubahan (`api/public/changes`)
+  tetap dari platform.
+- Peserta, kesiapan, laporan akhir halaman event dari Garage (Owner 19 Nov 2026, `event-public-extras.ts` + `-rules.ts`): Caddy
+  `@gigsLineup` juga meneruskan `/event/<slug>/api/public/(participants|readiness|closeout)`.
+  participants = sponsor Garage tampil website (non-batal; kategori dari pendaftaran tertaut; tanpa uang + ada barang = `nonkas`)
+  + kreator dari Pendaftar `disetujui`, digabung data platform lama (`mergeParticipants`, lineupKey tanpa dobel). readiness =
+  `buildReadiness` dari checklist Hari-H (belum dibuka = item bawaan belum selesai), transparansi AKTIF, penampil konfirmasi, panitia
+  aktif, kewajiban sponsor; data tidak ada = `available:false` (bukan 0 palsu); keputusan GO/NO GO tetap dari platform. closeout =
+  `data.closeout` di `event_public_finance` (Owner "Terbitkan laporan akhir" di Transparansi; `publishedAt` diisi server sekali)
+  + penonton dari check-in aktif + jam tampil nyata + sponsor publik + kewajiban sponsor; belum terbit → platform.

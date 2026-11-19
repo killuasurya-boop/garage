@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 
 /** Mode stage manager: mulai / selesai / batalkan jam tampil nyata penampil. Owner/Manajer. */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await requireGarageSession(["Owner", "Manajer"]);
+  const session = await requireGarageSession(["Owner", "Manajer", "Panitia"]);
   if (session.response) return session.response;
   const body = await readJson(request, slotActionSchema);
   if (body.error) return body.error;

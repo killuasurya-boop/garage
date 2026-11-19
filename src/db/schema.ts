@@ -6154,3 +6154,63 @@ export const eventReviews = pgTable(
     ratingCheck: check("event_reviews_rating_check", sql`${table.rating} is null or (${table.rating} between 1 and 5)`),
   }),
 );
+
+// ─── GIGS satu pintu, Owner 18 Nov 2026: pendaftaran kreator/sponsor/kru di Garage OS ───
+// Form halaman event platform (/event/<slug>/daftar) mengirim ke Garage lewat Caddy. Kode edit hanya disimpan sebagai
+// HMAC (`code_hash`). Disetujui Owner → baris penampil/sponsor/panitia dibuat & ditautkan (linked_*). Tidak pernah dihapus.
+export const eventRegistrations = pgTable(
+  "event_registrations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventId: uuid("event_id").references(() => events.id, { onDelete: "set null" }),
+    eventName: text("event_name").notNull(),
+    // creator | sponsor | crew
+    type: text("type").notNull(),
+    // diajukan | revisi | disetujui | ditolak
+    status: text("status").notNull().default("diajukan"),
+    codeHash: text("code_hash").notNull(),
+    name: text("name").notNull(),
+    pic: text("pic").notNull(),
+    whatsapp: text("whatsapp").notNull(),
+    instagram: text("instagram"),
+    description: text("description"),
+    category: text("category"),
+    address: text("address"),
+    amount: bigint("amount", { mode: "number" }),
+    members: integer("members"),
+    role: text("role"),
+    attendance: text("attendance"),
+    portfolio: text("portfolio"),
+    tech: text("tech"),
+    diet: text("diet"),
+    consent: boolean("consent").notNull().default(false),
+    logoUrl: text("logo_url"),
+    setlist: jsonb("setlist").$type<Array<{ title: string; writer: string; kind: "original" | "cover" }>>().notNull().default([]),
+    reviewNote: text("review_note"),
+    reviewedBy: text("reviewed_by").references(() => user.id, { onDelete: "set null" }),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    linkedPerformerId: uuid("linked_performer_id").references(() => eventPerformers.id, { onDelete: "set null" }),
+    linkedSponsorId: uuid("linked_sponsor_id").references(() => eventSponsors.id, { onDelete: "set null" }),
+    linkedCrewId: uuid("linked_crew_id").references(() => eventCrew.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    eventIdx: index("event_registrations_event_idx").on(table.eventId, table.type, table.status),
+    typeCheck: check("event_registrations_type_check", sql`${table.type} in ('creator','sponsor','crew')`),
+    statusCheck: check("event_registrations_status_check", sql`${table.status} in ('diajukan','revisi','disetujui','ditolak')`),
+  }),
+);
+
+// ─── GIGS satu pintu, Owner 18 Nov 2026: transparansi dana publik diisi bebas oleh Owner ───
+// Satu baris per event. `data` = target, pos RAB, dana masuk/keluar, catatan (divalidasi Zod di service). Halaman event
+// platform membacanya lewat Caddy (config.finance + sponsor/summary) bila `enabled`. BUKAN buku kas (tidak ada uang bergerak).
+export const eventPublicFinance = pgTable("event_public_finance", {
+  eventId: uuid("event_id")
+    .primaryKey()
+    .references(() => events.id, { onDelete: "cascade" }),
+  enabled: boolean("enabled").notNull().default(false),
+  data: jsonb("data").$type<Record<string, unknown>>().notNull().default({}),
+  updatedBy: text("updated_by").references(() => user.id, { onDelete: "set null" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});

@@ -1,0 +1,1850 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <script>window.GIGS_BASE="/event/gigs-akhir-tahun-2026";</script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GIGS AKHIR TAHUN 2026 — Bangkit Bersama UMKM Lokal & Pemuda Kreatif</title>
+  <meta name="description" content="GIGS AKHIR TAHUN 2026 di Garage Coffee, Tebing Tinggi — Kamis, 31 Desember 2026 pukul 19.00 WIB. Festival musik, komedi, UMKM lokal & pemuda kreatif. Daftar jadi sponsor/UMKM atau kreator, dana transparan." />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Garage Coffee · GARAGE EVENT" />
+  <meta property="og:title" content="GIGS AKHIR TAHUN 2026 · 31 Desember · Garage Coffee Tebing Tinggi" />
+  <meta property="og:description" content="Festival musik, komedi, UMKM lokal & pemuda kreatif. Malam pergantian tahun di Garage Coffee — daftar sponsor, UMKM, dan kreator sekarang." />
+  <meta property="og:image" content="https://garagecoffee.id/event/gigs-akhir-tahun-2026/official-assets/gigs-2026-transparent.png" />
+  <meta property="og:url" content="https://garagecoffee.id/event/gigs-akhir-tahun-2026" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="theme-color" content="#E10613" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="icon" type="image/svg+xml" href="/event/gigs-akhir-tahun-2026/gigs-svg/effects/slash-triple.svg" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow+Condensed:ital,wght@0,600;0,700;0,800;1,700;1,800;1,900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
+  <link rel="stylesheet" href="/event/gigs-akhir-tahun-2026/design-tokens.css" />
+  <link rel="stylesheet" href="/event/gigs-akhir-tahun-2026/public/app.css?v=20261116b" />
+  <link rel="stylesheet" href="/event/gigs-akhir-tahun-2026/public/creative-movement.css" />
+  <link rel="stylesheet" href="/event/gigs-akhir-tahun-2026/public/venue-section.css" />
+</head>
+<body class="gigs-body">
+  <!-- GLOBAL SVG OVERLAY TEXTURE LAYER (NO LARGE BLUR) -->
+  <div class="gigs-global-grain" aria-hidden="true"></div>
+
+  <!-- MAIN STICKY NAVBAR — PAKET SULTAN -->
+  <header class="gigs-navbar" id="mainNavbar" role="banner">
+    <div class="gigs-nav-bg" aria-hidden="true">
+      <img src="/event/gigs-akhir-tahun-2026/gigs-svg/backgrounds/bg-header-ribbon.svg" alt="" class="gigs-nav-ribbon-svg" />
+    </div>
+    <div class="gigs-container gigs-nav-inner">
+      <a href="#home" class="gigs-brand" data-screen-link="home" aria-label="GIGS Akhir Tahun 2026, Garage Coffee Tebing Tinggi, Beranda">
+        <img src="/event/gigs-akhir-tahun-2026/official-assets/gigs-2026-transparent.png" alt="Logo GIGS Akhir Tahun 2026" class="gigs-brand-logo" />
+        <span class="gigs-brand-divider" aria-hidden="true"></span>
+        <span class="gigs-brand-venue">
+          GARAGE COFFEE<br />
+          <small><span class="gigs-nav-live-dot" aria-hidden="true"></span>TEBING TINGGI</small>
+        </span>
+      </a>
+
+      <nav class="gigs-nav-links" id="mainNavLinks" aria-label="Navigasi Utama">
+        <span class="gigs-nav-indicator" id="navActiveIndicator" aria-hidden="true"></span>
+        <button type="button" class="gigs-nav-item is-active" data-screen="home">BERANDA</button>
+        <button type="button" class="gigs-nav-item" data-screen="home" data-scroll="#tentang">TENTANG</button>
+        <button type="button" class="gigs-nav-item" data-screen="home" data-scroll="#program">PROGRAM</button>
+        <button type="button" class="gigs-nav-item" data-screen="home" data-scroll="#lineup">LINEUP</button>
+        <button type="button" class="gigs-nav-item" data-screen="home" data-scroll="#venue">VENUE</button>
+        <button type="button" class="gigs-nav-item" data-screen="sponsor">SPONSOR</button>
+        <button type="button" class="gigs-nav-item" data-screen="creator">KREATIF</button>
+        <button type="button" class="gigs-nav-item" data-screen="transparansi">TRANSPARANSI</button>
+        <button type="button" class="gigs-nav-item" data-screen="organizer" hidden>ORGANIZER</button>
+      </nav>
+
+      <div class="gigs-nav-actions">
+        <div class="gigs-audio-cluster" id="audioHudCluster">
+          <button type="button" id="btnAudioToggle" class="gigs-audio-toggle gigs-spring-btn is-playing" aria-pressed="true" aria-label="Nyalakan atau Matikan Underground Stage Sound &amp; UI Audio" title="Toggle Underground Stage Band &amp; Audio">
+            <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons-extra/icon-speaker.svg" alt="" class="gigs-audio-ico" aria-hidden="true" />
+            <span class="gigs-audio-eq" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+            <span class="gigs-audio-label" id="audioToggleLabel">SOUND ON</span>
+          </button>
+          <button type="button" id="btnAudioMixerToggle" class="gigs-audio-mixer-btn gigs-spring-btn" aria-expanded="false" aria-controls="audioMixerPopover" aria-label="Buka Pengaturan Stage Audio &amp; Beat">
+            <span class="gigs-audio-chevron" aria-hidden="true">&#9662;</span>
+          </button>
+
+          <div id="audioMixerPopover" class="gigs-audio-popover" role="region" aria-label="Stage Audio Mini Mixer" hidden>
+            <div class="gigs-audio-pop-head">
+              <span class="gigs-audio-pop-title">STAGE AUDIO // DROP-D</span>
+              <span class="gigs-audio-pop-status is-live" id="audioPopoverStatus">LIVE</span>
+            </div>
+
+            <div class="gigs-audio-pop-section">
+              <span class="gigs-audio-pop-label">UNDERGROUND VIBE</span>
+              <div class="gigs-audio-preset-grid" role="group" aria-label="Pilihan Beat Background">
+                <button type="button" class="gigs-audio-preset-btn is-active" data-audio-preset="industrial" aria-pressed="true">RIFF 117</button>
+                <button type="button" class="gigs-audio-preset-btn" data-audio-preset="drone" aria-pressed="false">PUNK 142</button>
+                <button type="button" class="gigs-audio-preset-btn" data-audio-preset="swell" aria-pressed="false">INTRO 92</button>
+              </div>
+            </div>
+
+            <div class="gigs-audio-pop-section">
+              <div class="gigs-audio-vol-row">
+                <label for="audioVolumeRange" class="gigs-audio-pop-label">STAGE LEVEL</label>
+                <strong class="gigs-audio-vol-val" id="audioVolumeValue">85%</strong>
+              </div>
+              <input type="range" id="audioVolumeRange" class="gigs-audio-range" min="0" max="100" step="1" value="85" />
+            </div>
+
+            <div class="gigs-audio-pop-foot">
+              <button type="button" id="btnAudioSfxToggle" class="gigs-audio-sub-btn" aria-pressed="false">
+                <span>UI SFX: OFF</span>
+              </button>
+              <button type="button" id="btnAudioTestChord" class="gigs-audio-test-btn gigs-spring-btn">
+                <span>CEK SOUND &#9889;</span>
+              </button>
+            </div>
+          </div>
+        </div>
+        <button type="button" id="btnOpenAuthModal" class="gigs-btn-primary gigs-spring-btn gigs-nav-portal-btn" aria-label="Info Portal">
+          <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/user.svg" alt="" class="gigs-ico" aria-hidden="true" />
+          <span>INFO PORTAL</span>
+        </button>
+        <button type="button" id="btnMobileMenu" class="gigs-mobile-toggle gigs-spring-btn" aria-label="Buka Menu" aria-expanded="false" aria-controls="mobileDrawer">
+          <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/menu.svg" alt="" class="gigs-ico" aria-hidden="true" />
+          <span class="gigs-mobile-toggle-label">MENU</span>
+        </button>
+      </div>
+    </div>
+    <div class="gigs-nav-laser-rail" aria-hidden="true">
+      <span class="gigs-nav-scroll-progress"></span>
+      <span class="gigs-nav-laser-beam"></span>
+    </div>
+  </header>
+
+  <!-- MOBILE DRAWER OVERLAY -->
+  <div id="mobileDrawer" class="gigs-drawer" hidden>
+    <div class="gigs-drawer-backdrop" data-close-drawer></div>
+    <aside class="gigs-drawer-panel" role="dialog" aria-modal="true" aria-label="Menu Navigasi Mobile">
+      <img src="/event/gigs-akhir-tahun-2026/gigs-svg/ui-shells/ui-mobile-drawer.svg" alt="" class="gigs-drawer-bg" aria-hidden="true" />
+      <div class="gigs-drawer-content">
+        <div class="gigs-drawer-head-block">
+          <div class="gigs-drawer-head">
+            <img src="/event/gigs-akhir-tahun-2026/official-assets/gigs-2026-transparent.png" alt="GIGS 2026" class="gigs-drawer-logo" />
+            <span class="gigs-drawer-pass-badge">
+              <span class="gigs-nav-live-dot" aria-hidden="true"></span>
+              BACKSTAGE NAV
+            </span>
+            <button type="button" class="gigs-icon-btn" data-close-drawer aria-label="Tutup Menu">
+              <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/close.svg" alt="" class="gigs-ico" />
+            </button>
+          </div>
+          <div class="gigs-drawer-telemetry">
+            <img src="/event/gigs-akhir-tahun-2026/gigs-svg/effects/slash-triple.svg" alt="" class="gigs-drawer-slash" aria-hidden="true" />
+            <span>KAMIS, 31 DES 2026 &bull; 19.00 WIB &bull; GARAGE COFFEE</span>
+          </div>
+        </div>
+
+        <nav class="gigs-drawer-nav" aria-label="Navigasi Mobile">
+          <button type="button" class="gigs-drawer-link is-featured is-active" data-screen="home" data-close-drawer>
+            <span class="gigs-drawer-idx">01</span>
+            <span class="gigs-drawer-copy"><strong>Home Landing</strong><small>Main Stage &amp; Countdown WIB</small></span>
+            <span class="gigs-drawer-live-tag">MAIN STAGE</span>
+            <span class="gigs-drawer-arrow" aria-hidden="true">&rarr;</span>
+          </button>
+
+          <div class="gigs-drawer-stage-grid">
+            <button type="button" class="gigs-drawer-link is-compact" data-screen="home" data-scroll="#program" data-close-drawer>
+              <span class="gigs-drawer-idx">02</span>
+              <span class="gigs-drawer-copy"><strong>Program &amp; Lineup</strong><small>4 Pilar &amp; 7 Performers</small></span>
+            </button>
+            <button type="button" class="gigs-drawer-link is-compact" data-screen="home" data-scroll="#venue" data-close-drawer>
+              <span class="gigs-drawer-idx">03</span>
+              <span class="gigs-drawer-copy"><strong>The Venue</strong><small>Garage Coffee &bull; Tebing Tinggi</small></span>
+            </button>
+          </div>
+
+          <div class="gigs-drawer-group-label">
+            <span class="gigs-drawer-group-slash" aria-hidden="true">///</span>
+            <span>PORTAL EKOSISTEM &amp; KOLABORASI</span>
+          </div>
+
+          <div class="gigs-drawer-portal-grid">
+            <button type="button" class="gigs-drawer-link is-portal is-portal-bento" data-screen="sponsor" data-close-drawer>
+              <span class="gigs-drawer-bento-top">
+                <span class="gigs-drawer-idx">04</span>
+                <span class="gigs-drawer-arrow" aria-hidden="true">&#8599;</span>
+              </span>
+              <span class="gigs-drawer-copy"><strong>Sponsor Portal</strong><small>Kemitraan &amp; Dampak Brand</small></span>
+            </button>
+            <button type="button" class="gigs-drawer-link is-portal is-portal-bento" data-screen="creator" data-close-drawer>
+              <span class="gigs-drawer-bento-top">
+                <span class="gigs-drawer-idx">05</span>
+                <span class="gigs-drawer-arrow" aria-hidden="true">&#8599;</span>
+              </span>
+              <span class="gigs-drawer-copy"><strong>Creative &amp; Talent</strong><small>Band, Stand Up &amp; UMKM</small></span>
+            </button>
+            <button type="button" class="gigs-drawer-link is-portal is-portal-bento" data-screen="transparansi" data-close-drawer>
+              <span class="gigs-drawer-bento-top">
+                <span class="gigs-drawer-idx">06</span>
+                <span class="gigs-drawer-arrow" aria-hidden="true">&#8599;</span>
+              </span>
+              <span class="gigs-drawer-copy"><strong>Transparansi &amp; RAB</strong><small>Target Rp17 Juta &bull; Audit</small></span>
+            </button>
+            <button type="button" class="gigs-drawer-link is-portal is-portal-bento" data-screen="organizer" hidden data-close-drawer>
+              <span class="gigs-drawer-bento-top">
+                <span class="gigs-drawer-idx">--</span>
+                <span class="gigs-drawer-arrow" aria-hidden="true">&#8599;</span>
+              </span>
+              <span class="gigs-drawer-copy"><strong>Organizer</strong><small>Dashboard Panitia</small></span>
+            </button>
+            <button type="button" class="gigs-drawer-link is-portal is-portal-bento" data-screen="system" data-close-drawer>
+              <span class="gigs-drawer-bento-top">
+                <span class="gigs-drawer-idx">07</span>
+                <span class="gigs-drawer-arrow" aria-hidden="true">&#8599;</span>
+              </span>
+              <span class="gigs-drawer-copy"><strong>Modals &amp; 168 SVG</strong><small>Koleksi UI &amp; Aset SVG Asli</small></span>
+            </button>
+          </div>
+        </nav>
+
+        <div class="gigs-drawer-foot">
+          <div class="gigs-drawer-audio-card">
+            <button type="button" id="btnMobileAudioToggle" class="gigs-audio-toggle is-drawer-toggle gigs-spring-btn is-playing" aria-pressed="true">
+              <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons-extra/icon-speaker.svg" alt="" class="gigs-audio-ico" aria-hidden="true" />
+              <span class="gigs-audio-eq" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+              <span class="gigs-audio-label" id="mobileAudioToggleLabel">STAGE SOUND: ON</span>
+            </button>
+            <div class="gigs-drawer-preset-row" role="group" aria-label="Pilihan Beat Stage Audio">
+              <button type="button" class="gigs-audio-preset-btn is-active" data-audio-preset="industrial" aria-pressed="true">RIFF 117</button>
+              <button type="button" class="gigs-audio-preset-btn" data-audio-preset="drone" aria-pressed="false">PUNK 142</button>
+              <button type="button" class="gigs-audio-preset-btn" data-audio-preset="swell" aria-pressed="false">INTRO 92</button>
+            </div>
+          </div>
+
+          <div class="gigs-drawer-mode-card">
+            <span class="gigs-drawer-sect-label">MODE DATA TRANSPARANSI</span>
+            <div class="gigs-drawer-mode-grid" role="group" aria-label="Mode Data Transparansi">
+              <button type="button" class="gigs-mode-btn is-active" data-mode="verified">Terverifikasi (Rp0)</button>
+              <button type="button" class="gigs-mode-btn" data-mode="sim56">Simulasi (32.9%)</button>
+              <button type="button" class="gigs-mode-btn" data-mode="sim50">50%</button>
+              <button type="button" class="gigs-mode-btn" data-mode="sim57">57.6%</button>
+            </div>
+          </div>
+
+          <button type="button" class="gigs-btn-primary gigs-spring-btn gigs-nav-portal-btn gigs-drawer-portal-cta" id="btnMobileAuth" data-close-drawer>
+            <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/user.svg" alt="" class="gigs-ico" aria-hidden="true" />
+            <span>INFO PORTAL // AKSES PANITIA</span>
+          </button>
+
+          <div class="gigs-drawer-stamp">GIGS AKHIR TAHUN 2026 &bull; LOCAL CREATIVE MOVEMENT</div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- VIEWPORT WRAPPER (SUPPORTS DESKTOP FULL OR 390PX MOBILE PREVIEW) -->
+  <div id="viewportShell" class="gigs-viewport-shell">
+    <main id="appRoot" class="gigs-main">
+      <!-- Hari H: muncul otomatis saat panitia menekan "Mulai" pada sebuah slot -->
+      <a id="liveBanner" class="gigs-live-banner" href="/event/gigs-akhir-tahun-2026/#lineup" data-screen="home" data-scroll="#lineup" hidden aria-live="polite">
+        <span class="gigs-live-dot" aria-hidden="true"></span>
+        <strong>SEDANG TAMPIL</strong>
+        <span id="liveBannerNow"></span>
+        <small id="liveBannerNext"></small>
+      </a>
+      <!-- ========================================================= -->
+      <!-- SCREEN 01: HOME LANDING (MATCHES 01_Home_Desktop & 04_Landing_Mobile) -->
+      <!-- ========================================================= -->
+      <section id="screen-home" class="gigs-screen is-active" aria-label="Halaman Utama GIGS 2026">
+        <!-- HERO SECTION (UNIFIED FULL-BLEED STAGE MATCHING 01_Home_Desktop.png) -->
+        <div id="home" class="gigs-hero gigs-hero-redesign">
+          <div class="gigs-hero-layers" aria-hidden="true">
+            <img src="/event/gigs-akhir-tahun-2026/gigs-svg/backgrounds/bg-hero-cinematic.svg" alt="" class="gigs-layer-cover" fetchpriority="high" />
+            <img src="/event/gigs-akhir-tahun-2026/gigs-svg/effects/fx-stage-backlight.svg" alt="" class="gigs-layer-backlight" data-oil-backlight />
+          </div>
+
+          <div class="gigs-hero-fx-front" aria-hidden="true">
+            <img src="/event/gigs-akhir-tahun-2026/gigs-svg/effects/stage-beams.svg" alt="" class="gigs-front-stage-beams" data-oil-front-beams />
+            <img src="/event/gigs-akhir-tahun-2026/gigs-svg/effects/fx-spotlight-beam-left.svg" alt="" class="gigs-layer-beam gigs-beam-left" data-oil-beam="left" />
+            <img src="/event/gigs-akhir-tahun-2026/gigs-svg/effects/fx-spotlight-beam-right.svg" alt="" class="gigs-layer-beam gigs-beam-right" data-oil-beam="right" />
+            <img src="/event/gigs-akhir-tahun-2026/gigs-svg/effects/fx-red-radial-orb.svg" alt="" class="gigs-layer-orb" data-oil-orb />
+            <img src="/event/gigs-akhir-tahun-2026/gigs-svg/effects/fx-light-leak-top.svg" alt="" class="gigs-layer-lightleak" />
+            <img src="/event/gigs-akhir-tahun-2026/gigs-svg/effects/fx-ember-dots.svg" alt="" class="gigs-layer-cover gigs-ember gigs-ember-primary" data-oil-ember />
+            <img src="/event/gigs-akhir-tahun-2026/gigs-svg/effects/fx-ember-dots.svg" alt="" class="gigs-layer-cover gigs-ember gigs-ember-secondary" />
+          </div>
+
+          <div class="gigs-container gigs-hero-stage">
+            <div class="gigs-hero-left gigs-reveal">
+              <div class="gigs-hero-pill">
+                <img src="/event/gigs-akhir-tahun-2026/gigs-svg/effects/slash-triple.svg" alt="" class="gigs-slash-ico" aria-hidden="true" />
+                <span>FESTIVAL &bull; MUSIK &bull; KOMEDI &bull; KOMUNITAS</span>
+              </div>
+              <div class="gigs-emblem-frame">
+                <img src="/event/gigs-akhir-tahun-2026/official-assets/gigs-2026-transparent.png" alt="GIGS AKHIR TAHUN 2026 — Bangkit Bersama UMKM Lokal dan Pemuda Kreatif" class="gigs-hero-emblem-img" />
+                <span class="gigs-emblem-sheen" aria-hidden="true"></span>
+              </div>
+              <h1 class="gigs-hero-headline">BANGKIT BERSAMA.<span>UMKM LOKAL &amp; PEMUDA KREATIF.</span></h1>
+              <p class="gigs-hero-intro">Panggung kolaborasi musik, kreativitas, dan komunitas untuk menggerakkan ekonomi lokal, memperkuat UMKM, dan menyalakan potensi pemuda kreatif di Tebing Tinggi.</p>
+            </div>
+
+            <div class="gigs-hero-center gigs-reveal" data-delay="1">
+              <img src="/event/gigs-akhir-tahun-2026/gigs-svg/effects/fx-flash-burst.svg" alt="" class="gigs-stage-halo-burst" data-oil-halo-burst aria-hidden="true" />
+              <img src="/event/gigs-akhir-tahun-2026/gigs-svg/effects/red-glow.svg" alt="" class="gigs-stage-halo-core" data-oil-halo-core aria-hidden="true" />
+              <img src="/event/gigs-akhir-tahun-2026/photos/hero-stage-right.jpg" alt="Penampilan Musik Live GIGS Tebing Tinggi" class="gigs-hero-stage-photo" data-oil-stage />
+            </div>
+
+            <div class="gigs-hero-right-copy gigs-reveal" data-delay="2">
+              <img src="/event/gigs-akhir-tahun-2026/gigs-svg/effects/slash-triple.svg" alt="" class="gigs-slash-wide" aria-hidden="true" />
+              <div class="gigs-hero-city">TEBING<br />TINGGI</div>
+              <span class="gigs-hero-rule" aria-hidden="true"></span>
+              <p class="gigs-hero-subcity">LOCAL<br />CREATIVE<br />MOVEMENT</p>
+            </div>
+          </div>
+
+          <!-- UNIFIED BOTTOM ACTION BAR (EVENT INFO STRIP + COUNTDOWN + DUAL CTA) -->
+          <div class="gigs-container gigs-hero-bottom-bar gigs-reveal" data-delay="2">
+            <img src="/event/gigs-akhir-tahun-2026/gigs-svg/effects/fx-laser-horizontal.svg" alt="" class="gigs-hero-laser-line" aria-hidden="true" />
+            <div id="heroSultanSpectrum" class="gigs-sultan-spectrum" aria-hidden="true"></div>
+            <div class="gigs-hero-countdown-stack">
+              <div class="gigs-hero-event-strip">
+                <div class="gigs-event-item">
+                  <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/calendar.svg" alt="" class="gigs-ico-red" aria-hidden="true" />
+                  <div class="gigs-event-copy">
+                    <small>Kamis,</small>
+                    <strong data-hero-decode="31 Desember 2026">31 Desember 2026</strong>
+                  </div>
+                </div>
+                <span class="gigs-event-sep" aria-hidden="true"></span>
+                <div class="gigs-event-item">
+                  <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/clock.svg" alt="" class="gigs-ico-red" aria-hidden="true" />
+                  <div class="gigs-event-copy">
+                    <strong class="gigs-event-time-strong">19.00 WIB</strong>
+                  </div>
+                </div>
+                <span class="gigs-event-sep" aria-hidden="true"></span>
+                <div class="gigs-event-item">
+                  <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/pin.svg" alt="" class="gigs-ico-red" aria-hidden="true" />
+                  <div class="gigs-event-copy">
+                    <small>Garage Coffee,</small>
+                    <strong>Tebing Tinggi</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div class="gigs-hero-countdown-dock">
+                <div class="gigs-countdown-tab">
+                  <img src="/event/gigs-akhir-tahun-2026/gigs-svg/effects/slash-triple.svg" alt="" class="gigs-cd-tab-slash" aria-hidden="true" />
+                  <span class="gigs-cd-tab-title">COUNTDOWN MENUJU ACARA</span>
+                  <span class="gigs-cd-tab-star" aria-hidden="true">✦</span>
+                </div>
+
+                <div class="gigs-countdown-frame">
+                  <div class="gigs-countdown-grid" id="heroCountdownGrid" role="timer" aria-label="Countdown menuju GIGS Akhir Tahun 2026 dalam zona waktu WIB">
+                    <div class="gigs-cd-card" data-cd-unit="days">
+                      <span class="gigs-cd-streak-top" aria-hidden="true"></span>
+                      <span class="gigs-cd-streak-bottom" aria-hidden="true"></span>
+                      <div class="gigs-cd-value" data-cd-value="days">
+                        <span class="gigs-cd-digit-slot" aria-hidden="true"><span class="gigs-cd-digit">0</span></span>
+                        <span class="gigs-cd-digit-slot" aria-hidden="true"><span class="gigs-cd-digit">0</span></span>
+                      </div>
+                      <span class="gigs-cd-label">HARI</span>
+                    </div>
+                    <div class="gigs-cd-card" data-cd-unit="hours">
+                      <span class="gigs-cd-streak-top" aria-hidden="true"></span>
+                      <span class="gigs-cd-streak-bottom" aria-hidden="true"></span>
+                      <div class="gigs-cd-value" data-cd-value="hours">
+                        <span class="gigs-cd-digit-slot" aria-hidden="true"><span class="gigs-cd-digit">0</span></span>
+                        <span class="gigs-cd-digit-slot" aria-hidden="true"><span class="gigs-cd-digit">0</span></span>
+                      </div>
+                      <span class="gigs-cd-label">JAM</span>
+                    </div>
+                    <div class="gigs-cd-card" data-cd-unit="minutes">
+                      <span class="gigs-cd-streak-top" aria-hidden="true"></span>
+                      <span class="gigs-cd-streak-bottom" aria-hidden="true"></span>
+                      <div class="gigs-cd-value" data-cd-value="minutes">
+                        <span class="gigs-cd-digit-slot" aria-hidden="true"><span class="gigs-cd-digit">0</span></span>
+                        <span class="gigs-cd-digit-slot" aria-hidden="true"><span class="gigs-cd-digit">0</span></span>
+                      </div>
+                      <span class="gigs-cd-label">MENIT</span>
+                    </div>
+                    <div class="gigs-cd-card gigs-cd-card-seconds" data-cd-unit="seconds">
+                      <span class="gigs-cd-streak-top" aria-hidden="true"></span>
+                      <span class="gigs-cd-streak-bottom" aria-hidden="true"></span>
+                      <div class="gigs-cd-value" data-cd-value="seconds">
+                        <span class="gigs-cd-digit-slot" aria-hidden="true"><span class="gigs-cd-digit">0</span></span>
+                        <span class="gigs-cd-digit-slot" aria-hidden="true"><span class="gigs-cd-digit">0</span></span>
+                      </div>
+                      <span class="gigs-cd-label">DETIK</span>
+                    </div>
+                  </div>
+
+                  <div class="gigs-countdown-started" id="heroCountdownStarted" role="status" aria-live="polite" hidden>
+                    <span class="gigs-cd-started-dot" aria-hidden="true"></span>
+                    <div class="gigs-cd-started-copy">
+                      <strong class="gigs-cd-started-title">ACARA DIMULAI</strong>
+                      <span class="gigs-cd-started-sub">GARAGE COFFEE &bull; TEBING TINGGI &bull; WIB</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="gigs-hero-cta-row">
+              <a class="gigs-btn-cream gigs-spring-btn" href="#program">
+                <span>JELAJAHI ACARA</span>
+                <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/arrow-up-right.svg" alt="" class="gigs-ico" aria-hidden="true" />
+              </a>
+              <button type="button" class="gigs-btn-primary gigs-spring-btn" data-screen="sponsor">
+                <span>GABUNG GERAKAN</span>
+                <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/arrow-right.svg" alt="" class="gigs-ico" aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+
+          <!-- DIAGONAL RED TICKER RIBBON -->
+          <div class="gigs-ticker-wrap" aria-label="Ticker Acara">
+            <div class="gigs-ticker-track">
+              <span>// FESTIVAL // MUSIK // KOMEDI // KOMUNITAS // GARAGE COFFEE TEBING TINGGI // GIGS AKHIR TAHUN 2026 // UMKM LOKAL // PEMUDA KREATIF // MUSIK // KOMEDI // KOMUNITAS // GARAGE COFFEE TEBING TINGGI</span>
+              <span aria-hidden="true">// FESTIVAL // MUSIK // KOMEDI // KOMUNITAS // GARAGE COFFEE TEBING TINGGI // GIGS AKHIR TAHUN 2026 // UMKM LOKAL // PEMUDA KREATIF // MUSIK // KOMEDI // KOMUNITAS // GARAGE COFFEE TEBING TINGGI</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- SECTION 2: MOVEMENT -->
+        <section id="tentang" class="gigs-section gigs-movement-section">
+          <img src="/event/gigs-akhir-tahun-2026/gigs-svg/backgrounds/bg-dark-grit.svg" alt="" class="gigs-layer-cover gigs-opacity-70" aria-hidden="true" />
+          <div class="gigs-container gigs-movement-grid">
+            <div class="gigs-movement-title gigs-reveal">
+              <div class="gigs-movement-kicker">
+                <img src="/event/gigs-akhir-tahun-2026/gigs-svg/effects/slash-triple.svg" alt="" class="gigs-slash-ico" aria-hidden="true" />
+                <span>LOCAL CREATIVE MANIFESTO</span>
+              </div>
+              <h2 class="gigs-display-xl gigs-movement-heading">SATU KOTA.<br />BANYAK KARYA.<br /><span class="text-red">SATU GERAKAN.</span></h2>
+            </div>
+            <div class="gigs-movement-copy gigs-reveal" data-delay="1">
+              <p><strong>GIGS Akhir Tahun 2026</strong> adalah ruang kolaborasi untuk UMKM lokal, musisi, komika, komunitas, dan seluruh pemuda kreatif Tebing Tinggi.</p>
+              <p>Bukan sekadar hiburan, tapi gerakan bersama untuk menguatkan karya, memperluas dampak, dan menghidupkan ekosistem kreatif di kota kita.</p>
+              <button type="button" class="gigs-btn-outline gigs-spring-btn" data-screen="transparansi">
+                <span>LIHAT BLUEPRINT &amp; TRANSPARANSI</span>
+                <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/arrow-right.svg" alt="" class="gigs-ico" aria-hidden="true" />
+              </button>
+            </div>
+            <div class="gigs-movement-visual gigs-reveal" data-delay="2">
+              <!-- B9: WebP 165 KB (PNG asli 1,1 MB tetap sebagai cadangan browser lama). -->
+              <picture>
+                <source type="image/webp" srcset="/event/gigs-akhir-tahun-2026/photos/gigs-tebing-tinggi.webp" />
+                <img loading="lazy" src="/event/gigs-akhir-tahun-2026/photos/gigs-tebing-tinggi.png" width="918" height="1024" alt="GIGS Tebing Tinggi — Gerakan Kreatif Pemuda Lokal" class="gigs-movement-photo" />
+              </picture>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 3: PROGRAM ACARA (WHAT'S ON STAGE?) -->
+        <section id="digital-creative-movement" class="gigsCreative" aria-label="Digital Creative Movement"><div class="gcm-grid"></div><img class="gcm-dots" src="/event/gigs-akhir-tahun-2026/gigs/svg/decor/corner-halftone.svg" alt=""><div class="gcm-wrap"><div class="gcm-main"><div class="gcm-copy"><span class="gcm-eyebrow">Digital Creative Movement</span><img class="gcm-eyebrowSlash" src="/event/gigs-akhir-tahun-2026/gigs/svg/decor/triple-slash-mini.svg" alt=""><h2 class="gcm-title"><span>IDE LOKAL.</span><span>DAMPAK DIGITAL.</span></h2><p class="gcm-description">Memadukan teknologi, kreativitas, dan kolaborasi untuk mendorong UMKM lokal dan pemuda kreatif agar naik kelas, tumbuh bersama, dan memberi dampak positif yang lebih luas bagi masyarakat.</p><div class="gcm-features"><div class="gcm-feature"><img class="gcm-featureIcon" src="/event/gigs-akhir-tahun-2026/gigs/svg/icons/megaphone.svg" alt=""><span class="gcm-featureSep"></span><span class="gcm-featureText">DIGITAL<br>BRANDING</span></div><div class="gcm-feature"><img class="gcm-featureIcon" src="/event/gigs-akhir-tahun-2026/gigs/svg/icons/clapperboard.svg" alt=""><span class="gcm-featureSep"></span><span class="gcm-featureText">KONTEN<br>KREATIF</span></div><div class="gcm-feature"><img class="gcm-featureIcon" src="/event/gigs-akhir-tahun-2026/gigs/svg/icons/code.svg" alt=""><span class="gcm-featureSep"></span><span class="gcm-featureText">WEBSITE &<br>SISTEM</span></div><div class="gcm-feature"><img class="gcm-featureIcon" src="/event/gigs-akhir-tahun-2026/gigs/svg/icons/handshake.svg" alt=""><span class="gcm-featureSep"></span><span class="gcm-featureText">KOLABORASI<br>UMKM</span></div><div class="gcm-feature"><img class="gcm-featureIcon" src="/event/gigs-akhir-tahun-2026/gigs/svg/icons/chart-up.svg" alt=""><span class="gcm-featureSep"></span><span class="gcm-featureText">PEMASARAN<br>DIGITAL</span></div><div class="gcm-feature"><img class="gcm-featureIcon" src="/event/gigs-akhir-tahun-2026/gigs/svg/icons/lightning.svg" alt=""><span class="gcm-featureSep"></span><span class="gcm-featureText">PERTUMBUHAN<br>KREATIF</span></div></div><div class="gcm-actions"><a class="gcm-cta gcm-ctaPrimary" href="#creator" data-screen="creator"><span>Daftar Talenta</span><img src="/event/gigs-akhir-tahun-2026/gigs/svg/icons/arrow-right.svg" alt=""></a><a class="gcm-cta gcm-ctaOutline" href="#sponsor" data-screen="sponsor"><span>Jadi Sponsor</span><img src="/event/gigs-akhir-tahun-2026/gigs/svg/icons/arrow-right.svg" alt=""></a></div></div><div class="gcm-hero"><img class="gcm-heroGlow" src="/event/gigs-akhir-tahun-2026/gigs/svg/decor/hero-light-glow.svg" alt=""><img class="gcm-cornerDots" src="/event/gigs-akhir-tahun-2026/gigs/svg/decor/halftone-red-fade.svg" alt=""><div class="gcm-redWedge"></div><div class="gcm-photoClip" id="suryaPhotoClip"><img class="gcm-photo gcm-photoBase" src="/event/gigs-akhir-tahun-2026/gigs/photos/creative-workspace-clean.webp?v=4" alt="Foto kreator menggunakan laptop"><div class="gcm-suryaStage" id="suryaStage" aria-hidden="true"><div class="gcm-suryaParallax"><img class="gcm-suryaImg gcm-suryaMain" src="/event/gigs-akhir-tahun-2026/gigs/photos/surya-signature-layer.webp?v=4" alt=""><img class="gcm-suryaImg gcm-suryaFx" src="/event/gigs-akhir-tahun-2026/gigs/photos/surya-signature-fx.webp?v=4" alt=""><svg class="gcm-suryaLaserSvg" viewBox="300 310 660 320" preserveAspectRatio="none" aria-hidden="true"><path class="gcm-laserTrack" pathLength="1000" d="M812.5,345.3 L817.5,345.8 L821.3,347.3 L823.8,349.8 L825.0,353.3 L825.0,357.8 L815.0,379.8 L795.0,419.3 L772.8,472.8 L748.3,540.3 L733.3,578.0 L727.8,586.0 L722.0,590.0 L716.0,590.0 L711.3,588.3 L707.8,584.8 L706.8,575.0 L708.3,559.0 L705.3,550.5 L697.8,549.5 L677.5,538.5 L644.5,517.5 L627.0,507.8 L625.0,509.3 L622.0,523.3 L618.0,549.8 L612.3,564.5 L604.8,567.5 L598.5,567.3 L593.5,563.8 L591.8,552.3 L593.3,532.8 L598.8,502.0 L608.3,460.0 L609.8,437.8 L603.3,435.3 L597.5,444.3 L592.5,464.8 L588.5,492.5 L585.5,527.5 L580.5,545.0 L573.5,545.0 L568.3,541.8 L564.8,535.3 L557.0,539.8 L545.0,555.3 L536.3,564.3 L530.8,566.8 L524.3,568.0 L516.8,568.0 L508.8,565.0 L500.3,559.0 L493.8,551.0 L489.3,541.0 L480.0,542.0 L466.0,554.0 L439.5,570.0 L400.5,590.0 L371.8,602.8 L353.3,608.3 L339.5,609.5 L330.5,606.5 L325.3,602.0 L323.8,596.0 L324.0,590.3 L326.0,584.8 L334.3,575.0 L348.8,561.0 L360.0,551.8 L368.0,547.3 L374.5,545.3 L379.5,545.8 L377.5,552.0 L368.5,564.0 L365.3,570.8 L367.8,572.3 L385.5,564.8 L418.5,548.3 L442.8,534.3 L458.3,522.8 L459.8,516.5 L447.3,515.5 L418.5,517.5 L373.5,522.5 L346.5,522.5 L337.5,517.5 L332.8,511.5 L332.3,504.5 L334.8,497.0 L340.3,489.0 L355.0,475.5 L379.0,456.5 L403.8,440.3 L429.3,426.8 L449.8,417.3 L465.3,411.8 L476.3,409.0 L482.8,409.0 L489.0,411.5 L495.0,416.5 L498.3,422.8 L498.8,430.3 L497.5,438.8 L494.5,448.3 L490.3,457.0 L484.8,465.0 L479.5,469.5 L474.5,470.5 L470.3,470.0 L466.8,468.0 L464.5,463.8 L463.5,457.3 L464.3,451.3 L466.8,445.8 L467.3,442.5 L465.8,441.5 L452.5,447.0 L427.5,459.0 L404.3,472.8 L382.8,488.3 L395.3,494.3 L441.8,490.8 L470.5,491.0 L481.5,495.0 L492.3,481.5 L502.8,450.5 L511.8,434.0 L519.3,432.0 L524.8,432.5 L528.3,435.5 L530.3,439.5 L530.8,444.5 L526.5,463.0 L517.5,495.0 L513.3,517.3 L513.8,529.8 L515.8,537.5 L519.3,540.5 L524.5,539.3 L531.5,533.8 L538.0,525.8 L544.0,515.3 L554.8,483.3 L570.3,429.8 L579.3,401.5 L581.8,398.5 L586.3,397.0 L592.8,397.0 L598.5,400.0 L603.5,406.0 L617.5,403.8 L640.5,393.3 L661.5,387.3 L680.5,385.8 L692.0,386.0 L696.0,388.0 L700.0,385.5 L704.0,378.5 L708.5,374.8 L713.5,374.3 L719.8,377.0 L727.3,383.0 L738.3,397.8 L752.8,421.3 L765.8,422.3 L777.3,400.8 L781.8,388.3 L779.3,384.8 L781.0,381.5 L787.0,378.5 L795.0,369.0 L805.0,353.0 Z"/><path class="gcm-laserTrack gcm-laserTrackA" pathLength="1000" d="M856.0,347.5 L860.0,348.5 L863.8,351.5 L867.3,356.5 L872.5,380.5 L879.5,423.5 L884.0,445.8 L886.0,447.3 L892.3,446.5 L902.8,443.5 L910.3,444.3 L914.8,448.8 L916.8,453.3 L916.3,457.8 L910.3,463.3 L898.8,469.8 L892.5,474.3 L891.5,476.8 L894.8,488.0 L902.3,508.0 L908.5,520.3 L913.5,524.8 L919.5,533.5 L926.5,546.5 L930.0,555.3 L930.0,559.8 L928.0,564.5 L924.0,569.5 L918.5,572.3 L911.5,572.8 L904.8,570.0 L898.3,564.0 L888.5,545.5 L875.5,514.5 L868.0,495.8 L866.0,489.3 L863.8,485.8 L861.3,485.3 L847.3,489.5 L821.8,498.5 L803.3,516.3 L791.8,542.8 L784.0,557.5 L780.0,560.5 L774.5,560.8 L767.5,558.3 L763.8,553.0 L763.3,545.0 L766.5,532.5 L773.5,515.5 L775.8,503.3 L773.3,495.8 L776.0,489.0 L784.0,483.0 L801.8,448.8 L829.3,386.3 L845.8,353.0 L851.3,349.0 Z"/><path class="gcm-laserBeamGlow" pathLength="1000" d="M812.5,345.3 L817.5,345.8 L821.3,347.3 L823.8,349.8 L825.0,353.3 L825.0,357.8 L815.0,379.8 L795.0,419.3 L772.8,472.8 L748.3,540.3 L733.3,578.0 L727.8,586.0 L722.0,590.0 L716.0,590.0 L711.3,588.3 L707.8,584.8 L706.8,575.0 L708.3,559.0 L705.3,550.5 L697.8,549.5 L677.5,538.5 L644.5,517.5 L627.0,507.8 L625.0,509.3 L622.0,523.3 L618.0,549.8 L612.3,564.5 L604.8,567.5 L598.5,567.3 L593.5,563.8 L591.8,552.3 L593.3,532.8 L598.8,502.0 L608.3,460.0 L609.8,437.8 L603.3,435.3 L597.5,444.3 L592.5,464.8 L588.5,492.5 L585.5,527.5 L580.5,545.0 L573.5,545.0 L568.3,541.8 L564.8,535.3 L557.0,539.8 L545.0,555.3 L536.3,564.3 L530.8,566.8 L524.3,568.0 L516.8,568.0 L508.8,565.0 L500.3,559.0 L493.8,551.0 L489.3,541.0 L480.0,542.0 L466.0,554.0 L439.5,570.0 L400.5,590.0 L371.8,602.8 L353.3,608.3 L339.5,609.5 L330.5,606.5 L325.3,602.0 L323.8,596.0 L324.0,590.3 L326.0,584.8 L334.3,575.0 L348.8,561.0 L360.0,551.8 L368.0,547.3 L374.5,545.3 L379.5,545.8 L377.5,552.0 L368.5,564.0 L365.3,570.8 L367.8,572.3 L385.5,564.8 L418.5,548.3 L442.8,534.3 L458.3,522.8 L459.8,516.5 L447.3,515.5 L418.5,517.5 L373.5,522.5 L346.5,522.5 L337.5,517.5 L332.8,511.5 L332.3,504.5 L334.8,497.0 L340.3,489.0 L355.0,475.5 L379.0,456.5 L403.8,440.3 L429.3,426.8 L449.8,417.3 L465.3,411.8 L476.3,409.0 L482.8,409.0 L489.0,411.5 L495.0,416.5 L498.3,422.8 L498.8,430.3 L497.5,438.8 L494.5,448.3 L490.3,457.0 L484.8,465.0 L479.5,469.5 L474.5,470.5 L470.3,470.0 L466.8,468.0 L464.5,463.8 L463.5,457.3 L464.3,451.3 L466.8,445.8 L467.3,442.5 L465.8,441.5 L452.5,447.0 L427.5,459.0 L404.3,472.8 L382.8,488.3 L395.3,494.3 L441.8,490.8 L470.5,491.0 L481.5,495.0 L492.3,481.5 L502.8,450.5 L511.8,434.0 L519.3,432.0 L524.8,432.5 L528.3,435.5 L530.3,439.5 L530.8,444.5 L526.5,463.0 L517.5,495.0 L513.3,517.3 L513.8,529.8 L515.8,537.5 L519.3,540.5 L524.5,539.3 L531.5,533.8 L538.0,525.8 L544.0,515.3 L554.8,483.3 L570.3,429.8 L579.3,401.5 L581.8,398.5 L586.3,397.0 L592.8,397.0 L598.5,400.0 L603.5,406.0 L617.5,403.8 L640.5,393.3 L661.5,387.3 L680.5,385.8 L692.0,386.0 L696.0,388.0 L700.0,385.5 L704.0,378.5 L708.5,374.8 L713.5,374.3 L719.8,377.0 L727.3,383.0 L738.3,397.8 L752.8,421.3 L765.8,422.3 L777.3,400.8 L781.8,388.3 L779.3,384.8 L781.0,381.5 L787.0,378.5 L795.0,369.0 L805.0,353.0 Z"/><path class="gcm-laserBeamCore" pathLength="1000" d="M812.5,345.3 L817.5,345.8 L821.3,347.3 L823.8,349.8 L825.0,353.3 L825.0,357.8 L815.0,379.8 L795.0,419.3 L772.8,472.8 L748.3,540.3 L733.3,578.0 L727.8,586.0 L722.0,590.0 L716.0,590.0 L711.3,588.3 L707.8,584.8 L706.8,575.0 L708.3,559.0 L705.3,550.5 L697.8,549.5 L677.5,538.5 L644.5,517.5 L627.0,507.8 L625.0,509.3 L622.0,523.3 L618.0,549.8 L612.3,564.5 L604.8,567.5 L598.5,567.3 L593.5,563.8 L591.8,552.3 L593.3,532.8 L598.8,502.0 L608.3,460.0 L609.8,437.8 L603.3,435.3 L597.5,444.3 L592.5,464.8 L588.5,492.5 L585.5,527.5 L580.5,545.0 L573.5,545.0 L568.3,541.8 L564.8,535.3 L557.0,539.8 L545.0,555.3 L536.3,564.3 L530.8,566.8 L524.3,568.0 L516.8,568.0 L508.8,565.0 L500.3,559.0 L493.8,551.0 L489.3,541.0 L480.0,542.0 L466.0,554.0 L439.5,570.0 L400.5,590.0 L371.8,602.8 L353.3,608.3 L339.5,609.5 L330.5,606.5 L325.3,602.0 L323.8,596.0 L324.0,590.3 L326.0,584.8 L334.3,575.0 L348.8,561.0 L360.0,551.8 L368.0,547.3 L374.5,545.3 L379.5,545.8 L377.5,552.0 L368.5,564.0 L365.3,570.8 L367.8,572.3 L385.5,564.8 L418.5,548.3 L442.8,534.3 L458.3,522.8 L459.8,516.5 L447.3,515.5 L418.5,517.5 L373.5,522.5 L346.5,522.5 L337.5,517.5 L332.8,511.5 L332.3,504.5 L334.8,497.0 L340.3,489.0 L355.0,475.5 L379.0,456.5 L403.8,440.3 L429.3,426.8 L449.8,417.3 L465.3,411.8 L476.3,409.0 L482.8,409.0 L489.0,411.5 L495.0,416.5 L498.3,422.8 L498.8,430.3 L497.5,438.8 L494.5,448.3 L490.3,457.0 L484.8,465.0 L479.5,469.5 L474.5,470.5 L470.3,470.0 L466.8,468.0 L464.5,463.8 L463.5,457.3 L464.3,451.3 L466.8,445.8 L467.3,442.5 L465.8,441.5 L452.5,447.0 L427.5,459.0 L404.3,472.8 L382.8,488.3 L395.3,494.3 L441.8,490.8 L470.5,491.0 L481.5,495.0 L492.3,481.5 L502.8,450.5 L511.8,434.0 L519.3,432.0 L524.8,432.5 L528.3,435.5 L530.3,439.5 L530.8,444.5 L526.5,463.0 L517.5,495.0 L513.3,517.3 L513.8,529.8 L515.8,537.5 L519.3,540.5 L524.5,539.3 L531.5,533.8 L538.0,525.8 L544.0,515.3 L554.8,483.3 L570.3,429.8 L579.3,401.5 L581.8,398.5 L586.3,397.0 L592.8,397.0 L598.5,400.0 L603.5,406.0 L617.5,403.8 L640.5,393.3 L661.5,387.3 L680.5,385.8 L692.0,386.0 L696.0,388.0 L700.0,385.5 L704.0,378.5 L708.5,374.8 L713.5,374.3 L719.8,377.0 L727.3,383.0 L738.3,397.8 L752.8,421.3 L765.8,422.3 L777.3,400.8 L781.8,388.3 L779.3,384.8 L781.0,381.5 L787.0,378.5 L795.0,369.0 L805.0,353.0 Z"/><path class="gcm-laserBeamGlow gcm-laserBeamGlowAlt" pathLength="1000" d="M812.5,345.3 L817.5,345.8 L821.3,347.3 L823.8,349.8 L825.0,353.3 L825.0,357.8 L815.0,379.8 L795.0,419.3 L772.8,472.8 L748.3,540.3 L733.3,578.0 L727.8,586.0 L722.0,590.0 L716.0,590.0 L711.3,588.3 L707.8,584.8 L706.8,575.0 L708.3,559.0 L705.3,550.5 L697.8,549.5 L677.5,538.5 L644.5,517.5 L627.0,507.8 L625.0,509.3 L622.0,523.3 L618.0,549.8 L612.3,564.5 L604.8,567.5 L598.5,567.3 L593.5,563.8 L591.8,552.3 L593.3,532.8 L598.8,502.0 L608.3,460.0 L609.8,437.8 L603.3,435.3 L597.5,444.3 L592.5,464.8 L588.5,492.5 L585.5,527.5 L580.5,545.0 L573.5,545.0 L568.3,541.8 L564.8,535.3 L557.0,539.8 L545.0,555.3 L536.3,564.3 L530.8,566.8 L524.3,568.0 L516.8,568.0 L508.8,565.0 L500.3,559.0 L493.8,551.0 L489.3,541.0 L480.0,542.0 L466.0,554.0 L439.5,570.0 L400.5,590.0 L371.8,602.8 L353.3,608.3 L339.5,609.5 L330.5,606.5 L325.3,602.0 L323.8,596.0 L324.0,590.3 L326.0,584.8 L334.3,575.0 L348.8,561.0 L360.0,551.8 L368.0,547.3 L374.5,545.3 L379.5,545.8 L377.5,552.0 L368.5,564.0 L365.3,570.8 L367.8,572.3 L385.5,564.8 L418.5,548.3 L442.8,534.3 L458.3,522.8 L459.8,516.5 L447.3,515.5 L418.5,517.5 L373.5,522.5 L346.5,522.5 L337.5,517.5 L332.8,511.5 L332.3,504.5 L334.8,497.0 L340.3,489.0 L355.0,475.5 L379.0,456.5 L403.8,440.3 L429.3,426.8 L449.8,417.3 L465.3,411.8 L476.3,409.0 L482.8,409.0 L489.0,411.5 L495.0,416.5 L498.3,422.8 L498.8,430.3 L497.5,438.8 L494.5,448.3 L490.3,457.0 L484.8,465.0 L479.5,469.5 L474.5,470.5 L470.3,470.0 L466.8,468.0 L464.5,463.8 L463.5,457.3 L464.3,451.3 L466.8,445.8 L467.3,442.5 L465.8,441.5 L452.5,447.0 L427.5,459.0 L404.3,472.8 L382.8,488.3 L395.3,494.3 L441.8,490.8 L470.5,491.0 L481.5,495.0 L492.3,481.5 L502.8,450.5 L511.8,434.0 L519.3,432.0 L524.8,432.5 L528.3,435.5 L530.3,439.5 L530.8,444.5 L526.5,463.0 L517.5,495.0 L513.3,517.3 L513.8,529.8 L515.8,537.5 L519.3,540.5 L524.5,539.3 L531.5,533.8 L538.0,525.8 L544.0,515.3 L554.8,483.3 L570.3,429.8 L579.3,401.5 L581.8,398.5 L586.3,397.0 L592.8,397.0 L598.5,400.0 L603.5,406.0 L617.5,403.8 L640.5,393.3 L661.5,387.3 L680.5,385.8 L692.0,386.0 L696.0,388.0 L700.0,385.5 L704.0,378.5 L708.5,374.8 L713.5,374.3 L719.8,377.0 L727.3,383.0 L738.3,397.8 L752.8,421.3 L765.8,422.3 L777.3,400.8 L781.8,388.3 L779.3,384.8 L781.0,381.5 L787.0,378.5 L795.0,369.0 L805.0,353.0 Z"/><path class="gcm-laserBeamCore gcm-laserBeamCoreAlt" pathLength="1000" d="M812.5,345.3 L817.5,345.8 L821.3,347.3 L823.8,349.8 L825.0,353.3 L825.0,357.8 L815.0,379.8 L795.0,419.3 L772.8,472.8 L748.3,540.3 L733.3,578.0 L727.8,586.0 L722.0,590.0 L716.0,590.0 L711.3,588.3 L707.8,584.8 L706.8,575.0 L708.3,559.0 L705.3,550.5 L697.8,549.5 L677.5,538.5 L644.5,517.5 L627.0,507.8 L625.0,509.3 L622.0,523.3 L618.0,549.8 L612.3,564.5 L604.8,567.5 L598.5,567.3 L593.5,563.8 L591.8,552.3 L593.3,532.8 L598.8,502.0 L608.3,460.0 L609.8,437.8 L603.3,435.3 L597.5,444.3 L592.5,464.8 L588.5,492.5 L585.5,527.5 L580.5,545.0 L573.5,545.0 L568.3,541.8 L564.8,535.3 L557.0,539.8 L545.0,555.3 L536.3,564.3 L530.8,566.8 L524.3,568.0 L516.8,568.0 L508.8,565.0 L500.3,559.0 L493.8,551.0 L489.3,541.0 L480.0,542.0 L466.0,554.0 L439.5,570.0 L400.5,590.0 L371.8,602.8 L353.3,608.3 L339.5,609.5 L330.5,606.5 L325.3,602.0 L323.8,596.0 L324.0,590.3 L326.0,584.8 L334.3,575.0 L348.8,561.0 L360.0,551.8 L368.0,547.3 L374.5,545.3 L379.5,545.8 L377.5,552.0 L368.5,564.0 L365.3,570.8 L367.8,572.3 L385.5,564.8 L418.5,548.3 L442.8,534.3 L458.3,522.8 L459.8,516.5 L447.3,515.5 L418.5,517.5 L373.5,522.5 L346.5,522.5 L337.5,517.5 L332.8,511.5 L332.3,504.5 L334.8,497.0 L340.3,489.0 L355.0,475.5 L379.0,456.5 L403.8,440.3 L429.3,426.8 L449.8,417.3 L465.3,411.8 L476.3,409.0 L482.8,409.0 L489.0,411.5 L495.0,416.5 L498.3,422.8 L498.8,430.3 L497.5,438.8 L494.5,448.3 L490.3,457.0 L484.8,465.0 L479.5,469.5 L474.5,470.5 L470.3,470.0 L466.8,468.0 L464.5,463.8 L463.5,457.3 L464.3,451.3 L466.8,445.8 L467.3,442.5 L465.8,441.5 L452.5,447.0 L427.5,459.0 L404.3,472.8 L382.8,488.3 L395.3,494.3 L441.8,490.8 L470.5,491.0 L481.5,495.0 L492.3,481.5 L502.8,450.5 L511.8,434.0 L519.3,432.0 L524.8,432.5 L528.3,435.5 L530.3,439.5 L530.8,444.5 L526.5,463.0 L517.5,495.0 L513.3,517.3 L513.8,529.8 L515.8,537.5 L519.3,540.5 L524.5,539.3 L531.5,533.8 L538.0,525.8 L544.0,515.3 L554.8,483.3 L570.3,429.8 L579.3,401.5 L581.8,398.5 L586.3,397.0 L592.8,397.0 L598.5,400.0 L603.5,406.0 L617.5,403.8 L640.5,393.3 L661.5,387.3 L680.5,385.8 L692.0,386.0 L696.0,388.0 L700.0,385.5 L704.0,378.5 L708.5,374.8 L713.5,374.3 L719.8,377.0 L727.3,383.0 L738.3,397.8 L752.8,421.3 L765.8,422.3 L777.3,400.8 L781.8,388.3 L779.3,384.8 L781.0,381.5 L787.0,378.5 L795.0,369.0 L805.0,353.0 Z"/><path class="gcm-laserBeamGlow gcm-laserBeamGlowA" pathLength="1000" d="M856.0,347.5 L860.0,348.5 L863.8,351.5 L867.3,356.5 L872.5,380.5 L879.5,423.5 L884.0,445.8 L886.0,447.3 L892.3,446.5 L902.8,443.5 L910.3,444.3 L914.8,448.8 L916.8,453.3 L916.3,457.8 L910.3,463.3 L898.8,469.8 L892.5,474.3 L891.5,476.8 L894.8,488.0 L902.3,508.0 L908.5,520.3 L913.5,524.8 L919.5,533.5 L926.5,546.5 L930.0,555.3 L930.0,559.8 L928.0,564.5 L924.0,569.5 L918.5,572.3 L911.5,572.8 L904.8,570.0 L898.3,564.0 L888.5,545.5 L875.5,514.5 L868.0,495.8 L866.0,489.3 L863.8,485.8 L861.3,485.3 L847.3,489.5 L821.8,498.5 L803.3,516.3 L791.8,542.8 L784.0,557.5 L780.0,560.5 L774.5,560.8 L767.5,558.3 L763.8,553.0 L763.3,545.0 L766.5,532.5 L773.5,515.5 L775.8,503.3 L773.3,495.8 L776.0,489.0 L784.0,483.0 L801.8,448.8 L829.3,386.3 L845.8,353.0 L851.3,349.0 Z"/><path class="gcm-laserBeamCore gcm-laserBeamCoreA" pathLength="1000" d="M856.0,347.5 L860.0,348.5 L863.8,351.5 L867.3,356.5 L872.5,380.5 L879.5,423.5 L884.0,445.8 L886.0,447.3 L892.3,446.5 L902.8,443.5 L910.3,444.3 L914.8,448.8 L916.8,453.3 L916.3,457.8 L910.3,463.3 L898.8,469.8 L892.5,474.3 L891.5,476.8 L894.8,488.0 L902.3,508.0 L908.5,520.3 L913.5,524.8 L919.5,533.5 L926.5,546.5 L930.0,555.3 L930.0,559.8 L928.0,564.5 L924.0,569.5 L918.5,572.3 L911.5,572.8 L904.8,570.0 L898.3,564.0 L888.5,545.5 L875.5,514.5 L868.0,495.8 L866.0,489.3 L863.8,485.8 L861.3,485.3 L847.3,489.5 L821.8,498.5 L803.3,516.3 L791.8,542.8 L784.0,557.5 L780.0,560.5 L774.5,560.8 L767.5,558.3 L763.8,553.0 L763.3,545.0 L766.5,532.5 L773.5,515.5 L775.8,503.3 L773.3,495.8 L776.0,489.0 L784.0,483.0 L801.8,448.8 L829.3,386.3 L845.8,353.0 L851.3,349.0 Z"/><path class="gcm-laserBeamGlow gcm-laserBeamGlowA2" pathLength="1000" d="M856.0,347.5 L860.0,348.5 L863.8,351.5 L867.3,356.5 L872.5,380.5 L879.5,423.5 L884.0,445.8 L886.0,447.3 L892.3,446.5 L902.8,443.5 L910.3,444.3 L914.8,448.8 L916.8,453.3 L916.3,457.8 L910.3,463.3 L898.8,469.8 L892.5,474.3 L891.5,476.8 L894.8,488.0 L902.3,508.0 L908.5,520.3 L913.5,524.8 L919.5,533.5 L926.5,546.5 L930.0,555.3 L930.0,559.8 L928.0,564.5 L924.0,569.5 L918.5,572.3 L911.5,572.8 L904.8,570.0 L898.3,564.0 L888.5,545.5 L875.5,514.5 L868.0,495.8 L866.0,489.3 L863.8,485.8 L861.3,485.3 L847.3,489.5 L821.8,498.5 L803.3,516.3 L791.8,542.8 L784.0,557.5 L780.0,560.5 L774.5,560.8 L767.5,558.3 L763.8,553.0 L763.3,545.0 L766.5,532.5 L773.5,515.5 L775.8,503.3 L773.3,495.8 L776.0,489.0 L784.0,483.0 L801.8,448.8 L829.3,386.3 L845.8,353.0 L851.3,349.0 Z"/><path class="gcm-laserBeamCore gcm-laserBeamCoreA2" pathLength="1000" d="M856.0,347.5 L860.0,348.5 L863.8,351.5 L867.3,356.5 L872.5,380.5 L879.5,423.5 L884.0,445.8 L886.0,447.3 L892.3,446.5 L902.8,443.5 L910.3,444.3 L914.8,448.8 L916.8,453.3 L916.3,457.8 L910.3,463.3 L898.8,469.8 L892.5,474.3 L891.5,476.8 L894.8,488.0 L902.3,508.0 L908.5,520.3 L913.5,524.8 L919.5,533.5 L926.5,546.5 L930.0,555.3 L930.0,559.8 L928.0,564.5 L924.0,569.5 L918.5,572.3 L911.5,572.8 L904.8,570.0 L898.3,564.0 L888.5,545.5 L875.5,514.5 L868.0,495.8 L866.0,489.3 L863.8,485.8 L861.3,485.3 L847.3,489.5 L821.8,498.5 L803.3,516.3 L791.8,542.8 L784.0,557.5 L780.0,560.5 L774.5,560.8 L767.5,558.3 L763.8,553.0 L763.3,545.0 L766.5,532.5 L773.5,515.5 L775.8,503.3 L773.3,495.8 L776.0,489.0 L784.0,483.0 L801.8,448.8 L829.3,386.3 L845.8,353.0 L851.3,349.0 Z"/></svg></div></div><img class="gcm-suryaImg gcm-laptopFg" src="/event/gigs-akhir-tahun-2026/gigs/photos/surya-laptop-foreground.webp?v=4" alt="" aria-hidden="true"><div class="gcm-photoTint"></div></div><img class="gcm-swoosh" src="/event/gigs-akhir-tahun-2026/gigs/svg/decor/hero-red-swoosh.svg" alt=""></div></div><div class="gcm-rail"><span>CREATE</span><i></i><span>COLLABORATE</span><i></i><span>INNOVATE</span><i></i><span>GROW</span></div></div><div class="gcm-grain"></div></section>
+<section id="program" tabindex="-1" aria-labelledby="program-title" class="gigs-section gigs-program-section">
+          <div class="gigs-container gigs-split-row">
+            <div class="gigs-section-head gigs-reveal">
+              <span class="gigs-eyebrow">PROGRAM ACARA</span>
+              <h2 id="program-title" class="gigs-display-lg">WHAT'S<br />ON STAGE?</h2>
+              <img src="/event/gigs-akhir-tahun-2026/gigs-svg/effects/angled-underline.svg" alt="" class="gigs-underline-svg" aria-hidden="true" />
+            </div>
+            <div class="gigs-program-grid" id="programGrid"></div>
+          </div>
+        </section>
+
+        <!-- SECTION 4: LINEUP (LOCAL TALENT SHOWCASE) -->
+        <section id="lineup" class="gigs-section gigs-lineup-section">
+          <img src="/event/gigs-akhir-tahun-2026/gigs-svg/backgrounds/bg-stage-black-red.svg" alt="" class="gigs-layer-cover gigs-opacity-75" aria-hidden="true" />
+          <div class="gigs-container gigs-lineup-layout">
+            <div class="gigs-section-head gigs-reveal">
+              <span class="gigs-eyebrow">LINEUP</span>
+              <h2 class="gigs-display-lg">LOCAL<br />TALENT<br />SHOWCASE</h2>
+              <img src="/event/gigs-akhir-tahun-2026/gigs-svg/effects/slash-triple.svg" alt="" class="gigs-slash-wide" aria-hidden="true" />
+            </div>
+            <div class="gigs-lineup-strip" id="lineupStrip"></div>
+            <div class="gigs-lineup-aside gigs-reveal" data-delay="2">
+              <p>SIAPKAN DIRIMU UNTUK PENAMPILAN KREATOR LOKAL TERBAIK!</p>
+              <button type="button" class="gigs-btn-outline gigs-spring-btn" data-screen="creator">
+                <span>LIHAT LINEUP</span>
+                <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/arrow-right.svg" alt="" class="gigs-ico" aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 5: TRANSPARANSI DANA (EVERY RUPIAH MATTERS) -->
+        <section id="transparansi-preview" class="gigs-section gigs-finance-section">
+          <img src="/event/gigs-akhir-tahun-2026/gigs-svg/backgrounds/bg-transparency-finance.svg" alt="" class="gigs-layer-cover gigs-opacity-65" aria-hidden="true" />
+          <div class="gigs-container gigs-finance-layout">
+            <div class="gigs-section-head gigs-reveal">
+              <span class="gigs-eyebrow">TRANSPARANSI DANA</span>
+              <h2 class="gigs-display-lg">EVERY<br />RUPIAH<br />MATTERS.</h2>
+              <span class="gigs-sop-pill" id="homeDataBadge">PRATINJAU RAB SOP V1.3</span>
+              <p class="gigs-finance-side-copy">Seluruh penerimaan sponsor dan pengeluaran tercatat terbuka dengan verifikasi berlapis.</p>
+              <a class="gigs-home-ready" id="homeReady" href="/event/gigs-akhir-tahun-2026/transparansi" data-screen="transparansi" hidden>
+                <span class="gigs-ready-ring" style="--p:0"><strong data-ready-total>0%</strong><small>SIAP</small></span>
+                <span><strong>Kesiapan event</strong><small data-ready-note>Dihitung dari dana, vendor, checklist keselamatan &amp; lineup</small></span>
+              </a>
+              <div class="gigs-finance-quick-modes" role="group" aria-label="Simulasi Progres Dana">
+                <span class="gigs-finance-mode-label">UJI TAMPILAN DATA:</span>
+                <div class="gigs-finance-mode-pills">
+                  <button type="button" class="gigs-mode-btn is-active" data-mode="verified">Real (Rp0)</button>
+                  <button type="button" class="gigs-mode-btn" data-mode="sim56">Simulasi 32,9%</button>
+                  <button type="button" class="gigs-mode-btn" data-mode="sim57">Simulasi 57,6%</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="gigs-finance-progress-card gigs-card-hover gigs-reveal" data-delay="1">
+              <img src="/event/gigs-akhir-tahun-2026/gigs-svg/ui-shells/ui-card-charcoal.svg" alt="" class="gigs-card-skin" aria-hidden="true" />
+              <div class="gigs-card-body">
+                <div class="gigs-card-top">
+                  <span class="gigs-card-kicker">PROGRES PENDANAAN EVENT</span>
+                  <button type="button" class="gigs-link-btn gigs-link-pill" data-screen="transparansi">Buka Detail RAB &rarr;</button>
+                </div>
+                <div class="gigs-big-rupiah-row">
+                  <div class="gigs-big-rupiah">
+                    <span id="homeCollectedValue" data-count-money="0">Rp0</span>
+                    <small>dari target pendanaan <strong data-cfg="target">Rp17.000.000</strong></small>
+                  </div>
+                  <span class="gigs-finance-live-tag" id="homeFinanceStatusNote">Menunggu transaksi terverifikasi</span>
+                </div>
+                <div class="gigs-progress-box">
+                  <div class="gigs-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100">
+                    <div class="gigs-progress-fill" id="homeProgressBar" style="--progress: 0"></div>
+                  </div>
+                  <strong class="gigs-progress-pct" id="homeProgressPct" data-count-pct="0">0%</strong>
+                </div>
+                <div class="gigs-mini-kpi-grid">
+                  <div class="gigs-mini-kpi is-kpi-target">
+                    <small class="gigs-mini-kpi-tag">TARGET EVENT</small>
+                    <strong data-cfg="target">Rp17.000.000</strong>
+                    <span>Target Pendanaan</span>
+                  </div>
+                  <div class="gigs-mini-kpi is-kpi-rab">
+                    <small class="gigs-mini-kpi-tag">KEBUTUHAN</small>
+                    <strong data-cfg="rabTotal">Rp16.600.000</strong>
+                    <span>Total RAB (9 Pos)</span>
+                  </div>
+                  <div class="gigs-mini-kpi is-kpi-reserve">
+                    <small class="gigs-mini-kpi-tag">BUFFER DANA</small>
+                    <strong data-cfg="rabGap">Rp400.000</strong>
+                    <span>Cadangan Belum Alokasi</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="gigs-rab-mini-card gigs-card-hover gigs-reveal" data-delay="2">
+              <div class="gigs-card-top">
+                <span class="gigs-card-kicker">RINCIAN RAB EVENT (<span data-cfg="rabCount">9</span> POS)</span>
+                <button type="button" class="gigs-link-btn gigs-link-pill" data-screen="transparansi">Lihat Tabel &rarr;</button>
+              </div>
+              <div class="gigs-rab-mini-grid" id="homeRabGrid"></div>
+              <div class="gigs-rab-total-strip">
+                <div>
+                  <span>TOTAL ANGGARAN RAB</span>
+                  <small>9 Pos Pengeluaran Utama</small>
+                </div>
+                <strong data-cfg="rabTotal">Rp16.600.000</strong>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 6: OFFICIAL SPONSOR (THE BRANDS BEHIND) -->
+        <section id="sponsor-preview" class="gigs-section gigs-sponsor-strip-section" aria-labelledby="sponsor-preview-title">
+          <div class="gigs-sponsor-ambient" aria-hidden="true"></div>
+          <div class="gigs-container gigs-sponsor-shell">
+            <div class="gigs-sponsor-layout">
+              <div class="gigs-section-head gigs-sponsor-head gigs-reveal">
+                <div class="gigs-sponsor-eyebrow-row">
+                  <span class="gigs-sponsor-live-dot" aria-hidden="true"></span>
+                  <span class="gigs-eyebrow">OFFICIAL SPONSOR</span>
+                </div>
+                <h2 id="sponsor-preview-title" class="gigs-display-lg">THE BRANDS<br />BEHIND</h2>
+                <img src="/event/gigs-akhir-tahun-2026/gigs-svg/effects/slash-triple.svg" alt="" class="gigs-slash-wide" aria-hidden="true" />
+                <p class="gigs-sponsor-lead">Kolaborasi setara untuk UMKM &amp; brand lokal Tebing Tinggi. Setiap kontribusi mendapat eksposur penuh.</p>
+                <span class="gigs-sponsor-sop-tag">SOP V1.3 // MANFAAT SETARA</span>
+              </div>
+
+              <div class="gigs-sponsor-cards-grid" id="homeSponsorGrid" role="list" aria-label="Slot Sponsor &amp; Mitra Resmi"></div>
+
+              <button type="button" class="gigs-sponsor-cta-card gigs-spring-btn gigs-card-hover gigs-reveal" id="sponsorHeroCta" data-screen="sponsor">
+                <span class="gigs-sp-cta-kicker">
+                  <span class="gigs-sp-cta-dot" aria-hidden="true"></span>
+                  <span>PORTAL SPONSOR</span>
+                </span>
+                <strong class="gigs-sp-cta-title">LIHAT SEMUA<br />SPONSOR</strong>
+                <small class="gigs-sp-cta-sub">Daftar mandiri &amp; cek rincian manfaat setara</small>
+                <span class="gigs-sp-cta-action">
+                  <span>BUKA PORTAL</span>
+                  <span class="gigs-sp-cta-arrow" aria-hidden="true">
+                    <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/arrow-right.svg" alt="" class="gigs-ico" />
+                  </span>
+                </span>
+              </button>
+            </div>
+
+            <div class="gigs-sponsor-bottom-deck gigs-reveal" data-delay="1">
+              <div class="gigs-sponsor-benefits-bar">
+                <div class="gigs-sp-benefit-head">
+                  <span class="gigs-sp-benefit-badge">MANFAAT SETARA</span>
+                  <small>Semua nominal kontribusi mendapat hak promosi penuh:</small>
+                </div>
+                <div class="gigs-sp-benefit-pills" role="list">
+                  <button type="button" role="listitem" class="gigs-sp-benefit-pill" data-screen="sponsor">
+                    <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/check.svg" alt="" aria-hidden="true" />
+                    <span>Logo di Materi &amp; Stage</span>
+                  </button>
+                  <button type="button" role="listitem" class="gigs-sp-benefit-pill" data-screen="sponsor">
+                    <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/microphone.svg" alt="" aria-hidden="true" />
+                    <span>Adlibs &amp; Mention MC</span>
+                  </button>
+                  <button type="button" role="listitem" class="gigs-sp-benefit-pill" data-screen="sponsor">
+                    <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/video.svg" alt="" aria-hidden="true" />
+                    <span>Interview &amp; Reels Kreator</span>
+                  </button>
+                  <button type="button" role="listitem" class="gigs-sp-benefit-pill" data-screen="sponsor">
+                    <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/handshake.svg" alt="" aria-hidden="true" />
+                    <span>Distribusi Silang Brand</span>
+                  </button>
+                  <button type="button" role="listitem" class="gigs-sp-benefit-pill" data-screen="sponsor">
+                    <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/shield.svg" alt="" aria-hidden="true" />
+                    <span>Laporan Maks. 14 Hari</span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="gigs-sponsor-marquee" aria-hidden="true">
+                <div class="gigs-sponsor-marquee-track">
+                  <span>// OFFICIAL VENUE HOST: GARAGE COFFEE TEBING TINGGI <em>///</em> OPEN SLOT SPONSOR UMKM LOKAL <em>///</em> SEMUA KONTRIBUSI MENDAPAT MANFAAT SETARA <em>///</em> VERIFIKASI DANA 2 LAPIS SOP V1.3 <em>///</em> MULAI RP300.000 — NOMINAL FLEKSIBEL <em>///</em></span>
+                  <span>// OFFICIAL VENUE HOST: GARAGE COFFEE TEBING TINGGI <em>///</em> OPEN SLOT SPONSOR UMKM LOKAL <em>///</em> SEMUA KONTRIBUSI MENDAPAT MANFAAT SETARA <em>///</em> VERIFIKASI DANA 2 LAPIS SOP V1.3 <em>///</em> MULAI RP300.000 — NOMINAL FLEKSIBEL <em>///</em></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 7: CREATIVE ALLIANCE -->
+        <section id="creative-alliance" class="gigs-section gigs-alliance-section">
+          <div class="gigs-container">
+            <div class="gigs-alliance-banner gigs-reveal" id="allianceBanner">
+              <img src="/event/gigs-akhir-tahun-2026/gigs-svg/gradients/grad-red-ember.svg" alt="" class="gigs-layer-cover gigs-opacity-85" aria-hidden="true" />
+              <div class="gigs-alliance-ambient" aria-hidden="true"></div>
+              <div class="gigs-alliance-inner">
+                <div class="gigs-alliance-head">
+                  <span class="gigs-eyebrow-dark">CREATIVE ALLIANCE</span>
+                  <h2 class="gigs-display-lg">GABUNG<br />SEBAGAI<br />KREATOR!</h2>
+                  <img src="/event/gigs-akhir-tahun-2026/gigs-svg/effects/slash-triple.svg" alt="" class="gigs-alliance-slash" aria-hidden="true" />
+                  <span class="gigs-alliance-subtag">OPEN COLLABORATION // TEBING TINGGI</span>
+                </div>
+                <div class="gigs-alliance-stage">
+                  <div class="gigs-alliance-rim-glow" aria-hidden="true"></div>
+                  <div class="gigs-alliance-photo-wrap">
+                    <img loading="lazy" src="/event/gigs-akhir-tahun-2026/photos/creative-alliance-aress.webp?v=2" alt="Aress — Documentation &amp; Creative Lead GIGS 2026" class="gigs-alliance-photo" />
+                    <div class="gigs-alliance-photo-vignette" aria-hidden="true"></div>
+                    <div class="gigs-alliance-caption">
+                      <span class="gigs-alliance-rec-dot" aria-hidden="true"></span>
+                      <span>ARESS // CREATIVE &amp; DOCS</span>
+                    </div>
+                  </div>
+                  <svg class="gigs-alliance-laser-svg" viewBox="0 0 240 282" preserveAspectRatio="none" aria-hidden="true">
+                    <rect class="gigs-alliance-laser-track" x="2" y="2" width="236" height="278" rx="12" ry="12" pathLength="1000" />
+                    <rect class="gigs-alliance-laser-glow" x="2" y="2" width="236" height="278" rx="12" ry="12" pathLength="1000" />
+                    <rect class="gigs-alliance-laser-core" x="2" y="2" width="236" height="278" rx="12" ry="12" pathLength="1000" />
+                    <rect class="gigs-alliance-laser-glow is-alt" x="2" y="2" width="236" height="278" rx="12" ry="12" pathLength="1000" />
+                    <rect class="gigs-alliance-laser-core is-alt" x="2" y="2" width="236" height="278" rx="12" ry="12" pathLength="1000" />
+                  </svg>
+                  <span class="gigs-alliance-corner is-tl" aria-hidden="true"></span>
+                  <span class="gigs-alliance-corner is-tr" aria-hidden="true"></span>
+                  <span class="gigs-alliance-corner is-bl" aria-hidden="true"></span>
+                  <span class="gigs-alliance-corner is-br" aria-hidden="true"></span>
+                </div>
+                <div class="gigs-alliance-body">
+                  <p>Buka peluang untuk band, musisi, komika, konten kreator, dan komunitas kreatif lokal untuk tampil, berkolaborasi, dan menjadi bagian dari GIGS Akhir Tahun 2026.</p>
+                  <div class="gigs-alliance-pills">
+                    <span><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/guitar.svg" alt="" class="gigs-ico-sm" aria-hidden="true" /> Band / Musisi</span>
+                    <span><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/microphone.svg" alt="" class="gigs-ico-sm" aria-hidden="true" /> Komika</span>
+                    <span><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/camera.svg" alt="" class="gigs-ico-sm" aria-hidden="true" /> Konten Kreator</span>
+                    <span><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/users.svg" alt="" class="gigs-ico-sm" aria-hidden="true" /> Komunitas Kreatif</span>
+                  </div>
+                  <div class="gigs-alliance-actions">
+                    <button type="button" class="gigs-btn-cream gigs-spring-btn gigs-alliance-cta" data-screen="creator">
+                      <span>LIHAT PORTAL KREATOR</span>
+                      <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/arrow-right.svg" alt="" class="gigs-ico" aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 8: THE ORGANIZER & TENTANG ACARA (CINEMATIC DOUBLE-DECK SHOWCASE) -->
+        <section id="organizers" class="gigs-section gigs-organizers-showcase" aria-labelledby="organizers-title">
+          <!-- TOP STAGE SUB-NAVIGATION -->
+          <div class="gigs-container gigs-org-stage-nav-wrap">
+            <nav class="gigs-org-stage-nav" aria-label="Navigasi Tahap Acara">
+              <span class="gigs-org-nav-line" aria-hidden="true"></span>
+              <button type="button" class="gigs-org-stage-tab" data-org-tab="event" aria-pressed="false">
+                <span>01</span> EVENT
+              </button>
+              <button type="button" class="gigs-org-stage-tab is-active" data-org-tab="organizer" aria-pressed="true">
+                <span>02</span> ORGANIZER
+              </button>
+              <button type="button" class="gigs-org-stage-tab" data-org-tab="rundown" aria-pressed="false">
+                <span>03</span> RUNDOWN
+              </button>
+              <span class="gigs-org-nav-line" aria-hidden="true"></span>
+            </nav>
+          </div>
+
+          <!-- DECK 1: THE ORGANIZER DIAGONAL ROSTER -->
+          <div id="organizers-roster-deck" class="gigs-org-roster-deck">
+            <img src="/event/gigs-akhir-tahun-2026/gigs-svg/geometry/shape-red-corner-left.svg" alt="" class="gigs-org-corner-shard" aria-hidden="true" />
+            <img src="/event/gigs-akhir-tahun-2026/gigs-svg/effects/fx-ember-dots.svg" alt="" class="gigs-org-ember-layer" aria-hidden="true" />
+            <div class="gigs-container gigs-org-roster-grid">
+              <div class="gigs-org-copy-col gigs-reveal">
+                <div class="gigs-org-kicker">
+                  <span class="gigs-org-red-tag">PIHAK PENYELENGGARA</span>
+                  <img src="/event/gigs-akhir-tahun-2026/gigs-svg/effects/slash-triple.svg" alt="" class="gigs-org-kicker-slashes" aria-hidden="true" />
+                </div>
+                <h2 id="organizers-title" class="gigs-org-giant-title">
+                  <span>THE</span>
+                  <span>ORGANIZER</span>
+                </h2>
+                <p class="gigs-org-desc">Tim di balik GIGS AKHIR TAHUN 2026. Bergerak bersama untuk menghadirkan acara kolaboratif bagi UMKM lokal dan pemuda kreatif Tebing Tinggi.</p>
+              </div>
+              <div class="gigs-org-roster-strip" id="organizersRosterStrip" role="list" aria-label="Daftar Tim Penyelenggara GIGS 2026"></div>
+            </div>
+          </div>
+
+          <!-- HORIZONTAL STAGE DIVIDER -->
+          <div class="gigs-org-deck-divider" aria-hidden="true">
+            <span class="gigs-org-deck-laser"></span>
+          </div>
+
+          <!-- DECK 2: TENTANG ACARA & RANGKAIAN ACARA -->
+          <div id="organizers-event-deck" class="gigs-org-event-deck">
+            <img src="/event/gigs-akhir-tahun-2026/gigs-svg/geometry/shape-red-corner-left.svg" alt="" class="gigs-org-corner-shard is-bottom-deck" aria-hidden="true" />
+            <div class="gigs-container">
+              <div class="gigs-org-event-grid">
+                <div class="gigs-org-event-left gigs-reveal">
+                  <div class="gigs-org-crowd-wrap" aria-hidden="true">
+                    <img src="/event/gigs-akhir-tahun-2026/photos/tentang-crowd-stage.jpg" alt="" class="gigs-org-crowd-img" loading="lazy" />
+                    <div class="gigs-org-crowd-scrim"></div>
+                  </div>
+                  <div class="gigs-org-event-poster-type">
+                    <div class="gigs-org-event-kicker">
+                      <span class="gigs-org-red-tag">TENTANG ACARA</span>
+                      <img src="/event/gigs-akhir-tahun-2026/gigs-svg/effects/slash-triple.svg" alt="" class="gigs-org-kicker-slashes" aria-hidden="true" />
+                    </div>
+                    <h3 class="gigs-org-event-headline">
+                      <span class="is-line-gigs">GIGS</span>
+                      <span class="is-line-akhir">AKHIR TAHUN</span>
+                      <span class="is-line-year"><em>2026</em></span>
+                    </h3>
+                    <div class="gigs-org-cream-banner">
+                      <span>BANGKIT BERSAMA UMKM LOKAL</span>
+                      <span>DAN PEMUDA KREATIF</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="gigs-org-event-right gigs-reveal" data-delay="1">
+                  <div class="gigs-org-event-top-row">
+                    <p class="gigs-org-event-summary">GIGS AKHIR TAHUN 2026 adalah event kolaboratif yang menghadirkan musik, hiburan, kreativitas, dan ruang promosi bagi UMKM lokal, dengan semangat memperkuat ekosistem kreatif di Tebing Tinggi.</p>
+                    <button type="button" class="gigs-org-video-btn gigs-spring-btn" data-open-concept-video>
+                      <span class="gigs-org-play-tri" aria-hidden="true">&#9654;</span>
+                      <span>LIHAT VIDEO KONSEP</span>
+                    </button>
+                  </div>
+
+                  <div class="gigs-org-rangkaian-block">
+                    <div class="gigs-org-rangkaian-head">
+                      <img src="/event/gigs-akhir-tahun-2026/gigs-svg/effects/slash-triple.svg" alt="" class="gigs-org-kicker-slashes" aria-hidden="true" />
+                      <span class="gigs-org-red-tag">RANGKAIAN ACARA</span>
+                      <span class="gigs-org-head-rule" aria-hidden="true"></span>
+                    </div>
+                    <div class="gigs-rangkaian-grid" id="organizersRangkaianGrid"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="gigs-org-bottom-bar gigs-reveal" data-delay="2">
+                <div class="gigs-org-meta-capsule">
+                  <div class="gigs-org-meta-cell">
+                    <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/calendar.svg" alt="" class="gigs-org-meta-ico" aria-hidden="true" />
+                    <div>
+                      <small>TANGGAL</small>
+                      <strong>31 Desember 2026</strong>
+                    </div>
+                  </div>
+                  <span class="gigs-org-meta-divider" aria-hidden="true"></span>
+                  <div class="gigs-org-meta-cell">
+                    <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/pin.svg" alt="" class="gigs-org-meta-ico" aria-hidden="true" />
+                    <div>
+                      <small>LOKASI</small>
+                      <strong>Garage Coffee, Tebing Tinggi</strong>
+                    </div>
+                  </div>
+                  <span class="gigs-org-meta-divider" aria-hidden="true"></span>
+                  <div class="gigs-org-meta-cell">
+                    <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/users.svg" alt="" class="gigs-org-meta-ico" aria-hidden="true" />
+                    <div>
+                      <small>TARGET</small>
+                      <strong>UMKM, Komunitas &amp; Pemuda Kreatif</strong>
+                    </div>
+                  </div>
+                </div>
+
+                <a href="#lineup" class="gigs-org-schedule-cta gigs-spring-btn" data-scroll="#lineup">
+                  <span>JADWAL &amp; DETAIL ACARA</span>
+                  <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/arrow-right.svg" alt="" class="gigs-ico" aria-hidden="true" />
+                </a>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 9: MEDIA & DOKUMENTASI -->
+        <section id="media" class="gigs-section gigs-media-section">
+          <div class="gigs-container gigs-media-layout">
+            <div class="gigs-section-head gigs-reveal">
+              <span class="gigs-eyebrow">MEDIA &amp; DOKUMENTASI</span>
+              <h2 class="gigs-display-lg">HIGHLIGHT<br />&amp; STORIES</h2>
+            </div>
+            <div class="gigs-media-grid" id="mediaGrid"></div>
+            <a
+              href="https://www.instagram.com/garagecoffee/"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="gigs-ig-card gigs-card-hover gigs-reveal"
+              aria-label="Ikuti Kami di Instagram @garagecoffee"
+            >
+              <div class="gigs-ig-top">
+                <span class="gigs-ig-ico-wrap">
+                  <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons-extra/icon-instagram.svg" alt="" class="gigs-ig-ico" aria-hidden="true" />
+                </span>
+                <span class="gigs-ig-slashes" aria-hidden="true">///</span>
+              </div>
+              <strong class="gigs-ig-title">IKUTI KAMI DI<br />INSTAGRAM</strong>
+              <span class="gigs-ig-handle">
+                <span>@garagecoffee</span>
+                <i class="gigs-ig-arrow" aria-hidden="true">&rarr;</i>
+              </span>
+            </a>
+          </div>
+        </section>
+
+        <!-- SECTION 9.5: THE VENUE — GARAGE COFFEE -->
+        <section id="venue" class="gigs-venue-section" aria-labelledby="venue-title">
+          <div class="gigs-venue-wedge" aria-hidden="true"></div>
+          <div class="gigs-venue-watermark" aria-hidden="true">GIGS</div>
+
+          <div class="gigs-venue-building-wrap" aria-hidden="true">
+            <img
+              id="venueBuildingImg"
+              loading="lazy"
+              src="/event/gigs-akhir-tahun-2026/gigs/photos/venue-garage-building.webp"
+              alt=""
+              class="gigs-venue-building-img"
+            />
+            <div class="gigs-venue-building-scrim"></div>
+            <div class="gigs-venue-warm-lights">
+              <span class="gigs-venue-bulb is-upper"></span>
+              <span class="gigs-venue-bulb is-string"></span>
+              <span class="gigs-venue-bulb is-patio"></span>
+            </div>
+          </div>
+
+          <div class="gigs-venue-grain" aria-hidden="true"></div>
+
+          <div class="gigs-container gigs-venue-container">
+            <div class="gigs-venue-header">
+              <img
+                src="/event/gigs-akhir-tahun-2026/official-assets/gigs-2026-transparent.png"
+                alt="GIGS Akhir Tahun 2026"
+                class="gigs-venue-emblem"
+              />
+              <h2 id="venue-title" class="gigs-venue-title" aria-label="The Venue — Garage Coffee">
+                <span class="gigs-venue-word-mask"><span class="gigs-venue-word is-the">THE</span></span>
+                <span class="gigs-venue-word-mask"><span class="gigs-venue-word is-venue">VENUE</span></span>
+              </h2>
+              <div class="gigs-venue-subbanner">
+                <span class="gigs-venue-slashes" aria-hidden="true"><i></i><i></i><i></i></span>
+                <span class="gigs-venue-coffee-name">GARAGE COFFEE</span>
+              </div>
+              <div
+                id="venueTelemetryStrip"
+                class="gigs-venue-telemetry"
+                data-scramble="EVENT VENUE // OPEN LOCATION // TEBING TINGGI"
+              >
+                <span>EVENT VENUE</span>
+                <span class="gigs-venue-tel-sep" aria-hidden="true">//</span>
+                <span>OPEN LOCATION</span>
+                <span class="gigs-venue-tel-sep" aria-hidden="true">//</span>
+                <span>TEBING TINGGI</span>
+              </div>
+            </div>
+          </div>
+
+          <div id="venueDiagonalRibbon" class="gigs-venue-ribbon" aria-hidden="true">
+            <div class="gigs-venue-ribbon-track">
+              <span>GIGS AKHIR TAHUN 2026 <em>///</em> GIGS AKHIR TAHUN 2026 <em>///</em> GARAGE COFFEE TEBING TINGGI <em>///</em></span>
+              <span>GIGS AKHIR TAHUN 2026 <em>///</em> GIGS AKHIR TAHUN 2026 <em>///</em> GARAGE COFFEE TEBING TINGGI <em>///</em></span>
+            </div>
+          </div>
+
+          <div class="gigs-container gigs-venue-container">
+            <div class="gigs-venue-bottom-grid">
+              <div class="gigs-venue-info-card">
+                <div class="gigs-venue-addr-col" aria-label="Alamat venue: Jl. Mayjen Sutoyo, Rambung, Tebing Tinggi, Sumatera Utara">
+                  <div class="gigs-venue-col-head">
+                    <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/pin.svg" alt="" class="gigs-ico-red" aria-hidden="true" />
+                    <span>LOKASI</span>
+                    <span class="gigs-venue-head-sep" aria-hidden="true">/</span>
+                    <span>ALAMAT</span>
+                  </div>
+                  <address class="gigs-venue-address-block" style="font-style: normal;">
+                    <span class="gigs-venue-addr-line">Jl. Mayjen Sutoyo, Rambung,</span>
+                    <span class="gigs-venue-addr-line">Kec. Tebing Tinggi Kota,</span>
+                    <span class="gigs-venue-addr-line">Kota Tebing Tinggi,</span>
+                    <span class="gigs-venue-addr-line is-zip">Sumatera Utara 20631</span>
+                    <span class="sr-only">Jl. Mayjen Sutoyo, Rambung, Tebing Tinggi, Sumatera Utara</span>
+                  </address>
+                </div>
+
+                <div class="gigs-venue-actions-col">
+                  <div class="gigs-venue-col-head">
+                    <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/external.svg" alt="" class="gigs-ico-red" aria-hidden="true" />
+                    <span>SHARELOK</span>
+                    <span class="gigs-venue-head-slashes" aria-hidden="true">///</span>
+                  </div>
+                  <div class="gigs-venue-btn-stack">
+                    <a
+                      href="https://www.google.com/maps/search/?api=1&amp;query=Garage+Coffee+Jl.+Mayjen+Sutoyo+Rambung+Tebing+Tinggi+Sumatera+Utara"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="gigs-venue-btn gigs-venue-btn-maps gigs-spring-btn"
+                    >
+                      <span class="gigs-venue-btn-left">
+                        <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/pin.svg" alt="" aria-hidden="true" />
+                        <span>BUKA GOOGLE MAPS</span>
+                      </span>
+                      <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/arrow-right.svg" alt="" class="gigs-venue-btn-arrow" aria-hidden="true" />
+                    </a>
+                    <a
+                      href="https://garagecoffee.id"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="gigs-venue-btn gigs-venue-btn-web gigs-spring-btn"
+                    >
+                      <span class="gigs-venue-btn-left">
+                        <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/external.svg" alt="" aria-hidden="true" />
+                        <span>KUNJUNGI WEBSITE <small style="opacity:0.75;font-size:0.78em;letter-spacing:0.03em;margin-left:4px;">GARAGECOFFEE.ID</small></span>
+                      </span>
+                      <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/arrow-right.svg" alt="" class="gigs-venue-btn-arrow" aria-hidden="true" />
+                    </a>
+                  </div>
+                </div>
+              </div>
+
+              <a
+                href="https://www.google.com/maps/search/?api=1&amp;query=Garage+Coffee+Jl.+Mayjen+Sutoyo+Rambung+Tebing+Tinggi+Sumatera+Utara"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="gigs-venue-map-card"
+                aria-label="Peta Lokasi Garage Coffee Tebing Tinggi — Buka Google Maps"
+              >
+                <span class="gigs-venue-map-tab">// TEBING TINGGI</span>
+                <img
+                  loading="lazy"
+                  src="/event/gigs-akhir-tahun-2026/gigs/photos/venue-map-tebing-tinggi.webp"
+                  alt="Peta Lokasi Garage Coffee Jl. Mayjen Sutoyo Tebing Tinggi"
+                  class="gigs-venue-map-img"
+                />
+                <svg class="gigs-venue-map-svg" viewBox="0 0 346 218" preserveAspectRatio="xMidYMid slice" fill="none" aria-hidden="true">
+                  <path
+                    id="venueRoutePath"
+                    class="gigs-venue-route-path"
+                    d="M 0 198 Q 92 174 142 176 T 272 104 L 346 130"
+                    stroke="#ff2636"
+                    stroke-width="4"
+                    stroke-linecap="round"
+                  />
+                  <circle class="gigs-venue-sonar-ring" cx="145" cy="126" r="14" stroke="#ff212f" stroke-width="2" />
+                  <circle class="gigs-venue-sonar-ring is-ring-2" cx="145" cy="126" r="14" stroke="#f5eddc" stroke-width="1.4" />
+                  <path
+                    d="M145 96c-8.28 0-15 6.72-15 15 0 11.25 15 24 15 24s15-12.75 15-24c0-8.28-6.72-15-15-15zm0 20.5a5.5 5.5 0 1 1 0-11 5.5 5.5 0 0 1 0 11z"
+                    fill="#e10613"
+                    stroke="#ffffff"
+                    stroke-width="1.4"
+                  />
+                </svg>
+                <div class="gigs-venue-map-callout">GARAGE COFFEE</div>
+                <span class="gigs-venue-map-hint">Klik peta untuk navigasi &rarr;</span>
+              </a>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 10: JOIN THE MOVEMENT FOOTER CTA -->
+        <section class="gigs-footer-cta">
+          <img src="/event/gigs-akhir-tahun-2026/gigs-svg/backgrounds/bg-footer-crowd.svg" alt="" class="gigs-layer-cover" aria-hidden="true" />
+          <div class="gigs-container gigs-footer-cta-inner gigs-reveal">
+            <h2 class="gigs-display-hero">JOIN THE MOVEMENT</h2>
+            <div class="gigs-footer-cta-right">
+              <p>DUKUNG UMKM LOKAL. ANGKAT KARYA PEMUDA. HIDUPKAN EKOSISTEM KREATIF TEBING TINGGI.</p>
+              <button type="button" class="gigs-btn-cream gigs-spring-btn" data-screen="sponsor">
+                <span>GABUNG SEKARANG</span>
+                <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/arrow-right.svg" alt="" class="gigs-ico" aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- SCREEN 02: SPONSOR PORTAL (MATCHES 03_Portal_Sponsor.png) -->
+      <!-- ========================================================= -->
+      <section id="screen-sponsor" class="gigs-screen" aria-label="Sponsor Portal" hidden>
+        <div class="gigs-portal-shell">
+          <aside class="gigs-sidebar">
+            <img src="/event/gigs-akhir-tahun-2026/gigs-svg/backgrounds/bg-sidebar-grit.svg" alt="" class="gigs-layer-cover" aria-hidden="true" />
+            <div class="gigs-sidebar-inner">
+              <div class="gigs-sidebar-head">
+                <img src="/event/gigs-akhir-tahun-2026/official-assets/gigs-2026-transparent.png" alt="GIGS 2026" class="gigs-sidebar-logo" />
+                <div class="gigs-side-caption">SPONSOR PORTAL</div>
+              </div>
+              <nav class="gigs-side-nav" id="spSideNav" aria-label="Menu Sponsor Portal">
+                <button type="button" class="is-active" data-sp-target="spTop" aria-current="true"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/layers.svg" alt="" /><span>SPONSOR PORTAL</span></button>
+                <button type="button" data-sp-target="sponsorForm"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/edit.svg" alt="" /><span>REGISTRASI</span></button>
+                <button type="button" data-sp-target="spFieldName"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/home.svg" alt="" /><span>PROFIL USAHA</span></button>
+                <button type="button" data-sp-target="spFieldAmount"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/handshake.svg" alt="" /><span>KONTRIBUSI</span><span class="gigs-side-badge">SETARA</span></button>
+                <button type="button" data-sp-target="spPaymentCard"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons-extra/icon-credit-card.svg" alt="" /><span>PEMBAYARAN</span><span class="gigs-side-badge">SOP V1.3</span></button>
+                <button type="button" data-sp-target="spPubCard"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/chart.svg" alt="" /><span>PROGRES PROMOSI</span><span class="gigs-side-badge">PRATINJAU</span></button>
+                <button type="button" data-sp-target="spPreviewCard"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/user.svg" alt="" /><span>PROFIL PUBLIK</span></button>
+              </nav>
+              <div class="gigs-sidebar-foot">
+                <div class="gigs-side-user">
+                  <span class="gigs-side-user-avatar" aria-hidden="true">S</span>
+                  <div class="gigs-side-user-meta">
+                    <strong>Mitra Sponsor</strong>
+                    <span>Akses Portal Aktif</span>
+                  </div>
+                </div>
+                <button type="button" class="gigs-side-exit gigs-spring-btn" data-screen="home">
+                  <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/logout.svg" alt="" /><span>KELUAR</span>
+                </button>
+              </div>
+            </div>
+          </aside>
+
+          <div class="gigs-portal-main">
+            <div class="gigs-portal-banner" id="spTop">
+              <img src="/event/gigs-akhir-tahun-2026/gigs-svg/backgrounds/bg-sponsor-portal.svg" alt="" class="gigs-layer-cover" aria-hidden="true" />
+              <span class="gigs-sp-banner-strip" aria-hidden="true">GIGS 2026 /// GIGS 2026 /// GIGS 2026</span>
+              <div class="gigs-portal-banner-inner">
+                <div class="gigs-sp-banner-copy">
+                  <h1 class="gigs-display-xl">SPONSOR PORTAL</h1>
+                  <p>Daftarkan usaha Anda, pilih kontribusi, dan pantau proses verifikasi dalam satu halaman. Semua kontribusi mendapat manfaat yang setara.</p>
+                </div>
+                <span class="gigs-ribbon-tag">PRATINJAU SPONSOR</span>
+              </div>
+            </div>
+
+            <!-- HOW TO JOIN: transparent 6-step sponsor flow (SOP V1.3) -->
+            <section class="gigs-sp-howto" id="spHowTo" aria-labelledby="spHowToTitle">
+              <div class="gigs-sp-howto-head">
+                <h2 id="spHowToTitle"><span class="gigs-sp-howto-slash" aria-hidden="true"></span>CARA BERGABUNG SEBAGAI SPONSOR</h2>
+                <p>Alur resmi dan transparan. Tidak perlu akun. <strong>Jangan transfer sebelum panitia mengonfirmasi rekening resmi.</strong></p>
+              </div>
+              <ol class="gigs-sp-howto-steps">
+                <li><span>01</span><strong>Pelajari</strong><small>Baca manfaat (setara untuk semua kontribusi) dan RAB di halaman <a href="/event/gigs-akhir-tahun-2026/transparansi" data-screen="transparansi">Transparansi</a>.</small></li>
+                <li><span>02</span><strong>Daftar mandiri</strong><small>Isi <a href="/event/gigs-akhir-tahun-2026/daftar">Daftar Mandiri</a> (profil, logo, nominal). Anda menerima ID &amp; kode edit untuk cek status. Belum perlu transfer.</small></li>
+                <li><span>03</span><strong>Konfirmasi resmi</strong><small>Panitia meninjau pendaftaran, lalu menghubungi Anda via WhatsApp dengan rekening penampung resmi <strong>Bank Jago</strong>.</small></li>
+                <li><span>04</span><strong>Transfer &amp; unggah bukti</strong><small>Transfer hanya ke rekening yang dikonfirmasi panitia, lalu kirim bukti ke panitia. Panitia mencatat &amp; dua orang berbeda mengesahkannya.</small></li>
+                <li><span>05</span><strong>Verifikasi 2 orang</strong><small>Satu panitia mencatat dari mutasi resmi Bank Jago (bukan hanya screenshot), panitia lain mengesahkan.</small></li>
+                <li><span>06</span><strong>Tampil publik</strong><small>Dana masuk "Dana Terverifikasi", profil tayang sesuai izin Anda, hak promosi dijalankan, laporan sponsor maks. 14 hari setelah acara.</small></li>
+              </ol>
+            </section>
+
+            <div class="gigs-sponsor-portal-grid">
+              <!-- LEFT CREAM FORM -->
+              <form id="sponsorForm" class="gigs-paper-panel gigs-reveal">
+                <h2 class="gigs-paper-title">PENDAFTARAN SPONSOR UMKM</h2>
+                <p class="gigs-paper-sub">Daftarkan usaha Anda dan bergabung bersama gerakan UMKM lokal &amp; pemuda kreatif di GIGS AKHIR TAHUN 2026.</p>
+                <p id="sponsorAccessLink" class="gigs-ops-inline-link"><a href="/event/gigs-akhir-tahun-2026/daftar">Sudah pernah daftar? Cek status dengan ID &amp; kode edit &rarr;</a></p>
+
+                <label class="gigs-field" id="spFieldName">
+                  <span>Nama Usaha / Brand <b class="gigs-req" aria-hidden="true">*</b></span>
+                  <input type="text" id="spName" placeholder="Contoh: Kedai Kopi Nusantara" required />
+                </label>
+
+                <label class="gigs-field">
+                  <span>Kategori Usaha <b class="gigs-req" aria-hidden="true">*</b></span>
+                  <select id="spCategory">
+                    <option value="Kuliner & Kopi">Kuliner &amp; Kopi</option>
+                    <option value="Fashion & Merch">Fashion &amp; Merch</option>
+                    <option value="Jasa Kreatif & Desain">Jasa Kreatif &amp; Desain</option>
+                    <option value="Gaming & Teknologi">Gaming &amp; Teknologi</option>
+                    <option value="Komunitas Lokal">Komunitas Lokal</option>
+                  </select>
+                </label>
+
+                <div class="gigs-field-row">
+                  <label class="gigs-field">
+                    <span>Nama Penanggung Jawab <b class="gigs-req" aria-hidden="true">*</b></span>
+                    <input type="text" id="spPic" placeholder="Nama lengkap PIC" autocomplete="name" required />
+                  </label>
+                  <label class="gigs-field">
+                    <span>WhatsApp <b class="gigs-req" aria-hidden="true">*</b></span>
+                    <input type="tel" id="spWa" placeholder="08xxxxxxxxxx" inputmode="tel" autocomplete="tel" required />
+                  </label>
+                </div>
+
+                <label class="gigs-field">
+                  <span>Instagram <em>(Opsional)</em></span>
+                  <span class="gigs-input-prefix">
+                    <i aria-hidden="true">@</i>
+                    <input type="text" id="spIg" placeholder="username_usaha" autocapitalize="off" spellcheck="false" />
+                  </span>
+                </label>
+
+                <label class="gigs-field">
+                  <span>Deskripsi Usaha <b class="gigs-req" aria-hidden="true">*</b></span>
+                  <textarea id="spDesc" rows="3" placeholder="Ceritakan singkat usaha atau produk/jasa Anda..."></textarea>
+                </label>
+
+                <div class="gigs-field-row">
+                  <div class="gigs-field">
+                    <span>Logo Usaha <em>(Opsional)</em></span>
+                    <label class="gigs-upload-box" for="spLogoInput">
+                      <input type="file" id="spLogoInput" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden />
+                      <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/upload.svg" alt="" class="gigs-sp-upload-ico" />
+                      <strong>Unggah Logo</strong>
+                      <small id="spLogoFilename">PNG / JPG / WebP (maks. 5MB)</small>
+                    </label>
+                  </div>
+                  <div class="gigs-field">
+                    <span>Foto Usaha <em>(Opsional)</em></span>
+                    <label class="gigs-upload-box" for="spPhotoInput">
+                      <input type="file" id="spPhotoInput" accept="image/png,image/jpeg,image/webp" hidden />
+                      <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/camera.svg" alt="" class="gigs-sp-upload-ico" />
+                      <strong>Unggah Foto</strong>
+                      <small id="spPhotoFilename">Tampil di kartu pratinjau</small>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="gigs-field" id="spFieldAmount" role="group" aria-labelledby="spAmountLabel">
+                  <span id="spAmountLabel">Pilih Kontribusi <b class="gigs-req" aria-hidden="true">*</b> <em>(semua manfaat setara)</em></span>
+                  <div class="gigs-amount-pills" id="spAmountPills">
+                    <button type="button" data-amount="300000" aria-pressed="false">Rp300.000</button>
+                    <button type="button" data-amount="500000" aria-pressed="false">Rp500.000</button>
+                    <button type="button" data-amount="700000" aria-pressed="false">Rp700.000</button>
+                    <button type="button" class="is-active" data-amount="1000000" aria-pressed="true">Rp1.000.000</button>
+                    <button type="button" data-amount="flexible" aria-pressed="false">Nominal Fleksibel</button>
+                  </div>
+                </div>
+
+                <div class="gigs-bank-note">
+                  <strong>Prinsip Amanah SOP V1.3:</strong> Dana sponsor hanya dihitung masuk ke progres publik setelah dicatat dari mutasi bank oleh satu panitia dan disahkan panitia lain.
+                </div>
+
+                <button type="submit" class="gigs-btn-primary gigs-btn-full gigs-spring-btn">
+                  <span>LANJUT KE DAFTAR MANDIRI</span>
+                  <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/arrow-right.svg" alt="" class="gigs-ico" />
+                </button>
+                <p class="gigs-sp-submit-note">Data Anda dibawa ke formulir resmi. Lengkapi alamat &amp; logo, lalu kirim. Belum perlu transfer.</p>
+                <div id="sponsorFormNotice" role="status" class="gigs-form-notice" hidden></div>
+              </form>
+
+              <!-- CENTER MOVEMENT + EQUAL BENEFITS -->
+              <div class="gigs-sponsor-center gigs-reveal" data-delay="1">
+                <div class="gigs-poster-card">
+                  <img loading="lazy" src="/event/gigs-akhir-tahun-2026/photos/sponsor-center-poster.jpg" alt="Join The Movement — Kolaborasi UMKM Lokal" class="gigs-poster-img" />
+                </div>
+                <div class="gigs-benefits-card">
+                  <h3>MANFAAT SPONSOR</h3>
+                  <p class="text-red">(SETARA UNTUK SEMUA KONTRIBUSI)</p>
+                  <ul class="gigs-benefit-list">
+                    <li><span class="gigs-sp-check" aria-hidden="true"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/check.svg" alt="" /></span> Logo tampil pada materi/event</li>
+                    <li><span class="gigs-sp-check" aria-hidden="true"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/check.svg" alt="" /></span> MC menyebut brand, alamat &amp; produk/jasa</li>
+                    <li><span class="gigs-sp-check" aria-hidden="true"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/check.svg" alt="" /></span> Interview oleh konten kreator event</li>
+                    <li><span class="gigs-sp-check" aria-hidden="true"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/check.svg" alt="" /></span> Story &amp; Reels kolaborasi</li>
+                    <li><span class="gigs-sp-check" aria-hidden="true"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/check.svg" alt="" /></span> Animasi logo dalam konten event</li>
+                    <li><span class="gigs-sp-check" aria-hidden="true"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/check.svg" alt="" /></span> Copywriting / video campaign bersama</li>
+                    <li><span class="gigs-sp-check" aria-hidden="true"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/check.svg" alt="" /></span> Distribusi silang konten (seluruh brand peserta)</li>
+                    <li><span class="gigs-sp-check" aria-hidden="true"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/check.svg" alt="" /></span> Laporan pelaksanaan maks. 14 hari setelah acara</li>
+                  </ul>
+                </div>
+              </div>
+
+              <!-- RIGHT VERIFICATION & LIVE PREVIEW -->
+              <div class="gigs-sponsor-right gigs-reveal" data-delay="2">
+                <div class="gigs-status-card" id="spPaymentCard">
+                  <div class="gigs-status-head">
+                    <span class="gigs-status-title"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons-extra/icon-receipt.svg" alt="" /> PAYMENT VERIFICATION</span>
+                    <span class="gigs-badge gigs-badge-draft" id="spPaymentBadge">MENUNGGU</span>
+                  </div>
+                  <div class="gigs-stepper" id="spPaymentStepper">
+                    <div class="is-current"><span></span><small>UPLOAD</small></div>
+                    <div><span></span><small>REVIEW</small></div>
+                    <div><span></span><small>VERIFIKASI</small></div>
+                    <div><span></span><small>SELESAI</small></div>
+                  </div>
+                </div>
+
+                <div class="gigs-status-card" id="spPubCard">
+                  <div class="gigs-status-head">
+                    <span class="gigs-status-title"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons-extra/icon-speaker.svg" alt="" /> PUBLICATION APPROVAL</span>
+                    <span class="gigs-badge gigs-badge-draft" id="spPubBadge">BELUM DIAJUKAN</span>
+                  </div>
+                  <div class="gigs-stepper" id="spPubStepper">
+                    <div class="is-current"><span></span><small>PENGAJUAN</small></div>
+                    <div><span></span><small>REVIEW</small></div>
+                    <div><span></span><small>PERSETUJUAN</small></div>
+                    <div><span></span><small>PUBLIKASI</small></div>
+                  </div>
+                </div>
+
+                <div class="gigs-preview-card" id="spPreviewCard">
+                  <div class="gigs-preview-header">PRATINJAU PROFIL SPONSOR <small>Diperbarui otomatis saat Anda mengisi form</small></div>
+                  <img loading="lazy" id="previewSpImg" src="/event/gigs-akhir-tahun-2026/photos/sponsor-preview-cafe.jpg" alt="Pratinjau Usaha Sponsor" class="gigs-preview-img" />
+                  <div class="gigs-preview-body">
+                    <h4 id="previewSpName">GARAGE COFFEE</h4>
+                    <span id="previewSpCat" class="gigs-preview-cat">Kuliner &amp; Kopi</span>
+                    <p id="previewSpDesc">Ruang kolaborasi kopi &amp; kreatif di jantung Kota Tebing Tinggi.</p>
+                    <div class="gigs-preview-footer">
+                      <span class="gigs-badge gigs-badge-draft" id="previewSpAmount">Rp1.000.000 &bull; SETARA</span>
+                      <div class="gigs-preview-socials">
+                        <span><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons-extra/icon-instagram.svg" alt="Instagram" /></span>
+                        <span><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons-extra/icon-whatsapp.svg" alt="WhatsApp" /></span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- SCREEN 03: CREATIVE PORTAL (MATCHES 02_Portal_Kreator.png) -->
+      <!-- ========================================================= -->
+      <section id="screen-creator" class="gigs-screen" aria-label="Creative & Talent Portal" hidden>
+        <div class="gigs-container gigs-creator-wrap">
+          <div class="gigs-creator-top-grid">
+            <!-- LEFT HERO PANGGUNG KREATIF -->
+            <div class="gigs-creator-hero gigs-reveal">
+              <img src="/event/gigs-akhir-tahun-2026/gigs-svg/backgrounds/bg-creator-portal.svg" alt="" class="gigs-layer-cover" aria-hidden="true" />
+              <div class="gigs-creator-hero-inner">
+                <div class="gigs-creator-hero-copy">
+                  <span class="gigs-eyebrow-light">CREATIVE PORTAL</span>
+                  <h1 class="gigs-display-xl">PANGGUNG<br />KREATIF<br />LOKAL</h1>
+                  <img src="/event/gigs-akhir-tahun-2026/gigs-svg/geometry/shape-brush-underline.svg" alt="" class="gigs-brush-line" aria-hidden="true" />
+                  <p>Untuk band, komika, akustik, komunitas, dan para kreator lokal Tebing Tinggi.</p>
+                </div>
+                <div class="gigs-creator-hero-media">
+                  <img loading="lazy" src="/event/gigs-akhir-tahun-2026/photos/creator-hero-stage.jpg" alt="Vokalis di Panggung Kreatif GIGS" class="gigs-creator-photo" />
+                  <img src="/event/gigs-akhir-tahun-2026/official-assets/gigs-2026-transparent.png" alt="GIGS 2026" class="gigs-creator-emblem" />
+                </div>
+              </div>
+              <div class="gigs-creator-ticker" aria-hidden="true">LOCAL TALENT /// CREATIVE COMMUNITY /// OPEN REGISTRATION /// LOCAL TALENT ///</div>
+              <div class="gigs-creator-cats-row">
+                <h2 class="gigs-creator-cats-title">KATEGORI <br />PARTISIPASI</h2>
+                <div class="gigs-creator-cats-strip" id="creatorStripCards"></div>
+              </div>
+            </div>
+
+            <!-- RIGHT OPEN REGISTRATION CREAM FORM -->
+            <form id="creatorQuickForm" class="gigs-paper-panel gigs-creator-reg-box gigs-reveal" data-delay="1">
+              <span class="gigs-badge-red-pill">OPEN REGISTRATION</span>
+              <h2 class="gigs-paper-title">DAFTAR SEKARANG <span>JADI BAGIAN DARI GIGS 2026</span></h2>
+              <p class="gigs-paper-sub">Pendaftaran gratis untuk band, komika, akustik, komunitas, dan kreator lokal Tebing Tinggi. <a href="/event/gigs-akhir-tahun-2026/daftar">Daftar Mandiri + unggah logo &rarr;</a></p>
+
+              <div class="gigs-reg-two-col">
+                <ol class="gigs-reg-steps" id="creatorRegSteps" aria-label="Tahapan pendaftaran">
+                  <li class="is-active"><span>01</span> Pilih Kategori</li>
+                  <li><span>02</span> Isi Data &amp; Profil</li>
+                  <li><span>03</span> Tautan Portofolio</li>
+                  <li><span>04</span> Kebutuhan Teknis</li>
+                  <li><span>05</span> Kirim &amp; Tunggu Review</li>
+                </ol>
+                <div class="gigs-reg-cat-wrap">
+                  <span class="gigs-reg-cat-title" id="creatorPickTitle">Pilih Kategori Kreator</span>
+                  <div class="gigs-reg-cat-grid" id="creatorPickGrid" role="group" aria-labelledby="creatorPickTitle"></div>
+                </div>
+              </div>
+
+              <div class="gigs-field-row">
+                <label class="gigs-field">
+                  <span>Nama Band / Talent / Komunitas <b class="gigs-req" aria-hidden="true">*</b></span>
+                  <input type="text" id="crName" placeholder="Contoh: The Soreland" required />
+                </label>
+                <label class="gigs-field">
+                  <span>WhatsApp Penanggung Jawab <b class="gigs-req" aria-hidden="true">*</b></span>
+                  <input type="tel" id="crWa" placeholder="08xxxxxxxxxx" inputmode="tel" autocomplete="tel" required />
+                </label>
+              </div>
+
+              <div class="gigs-field-row">
+                <label class="gigs-field">
+                  <span>Instagram / Link Portofolio <em>(Opsional)</em></span>
+                  <input type="text" id="crPortfolio" placeholder="@username atau https://..." />
+                </label>
+                <label class="gigs-field">
+                  <span>Kebutuhan Teknis Singkat <em>(Opsional)</em></span>
+                  <input type="text" id="crTech" placeholder="Mis. Full band 5 personel / 2 mic" />
+                </label>
+              </div>
+
+              <button type="submit" id="btnCreatorQuickApply" class="gigs-btn-primary gigs-btn-full gigs-spring-btn">
+                <span>LANJUT KE DAFTAR MANDIRI</span>
+                <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/arrow-right.svg" alt="" class="gigs-ico" />
+              </button>
+              <div id="creatorApplyNotice" class="gigs-form-notice" hidden></div>
+            </form>
+          </div>
+
+          <!-- BOTTOM SPLIT: DASHBOARD KREATOR + CREATIVE COMMUNITY -->
+          <div class="gigs-creator-bottom-grid">
+            <div class="gigs-creator-dash-card gigs-reveal">
+              <div class="gigs-creator-dash-side">
+                <div class="gigs-sidebar-head">
+                  <img src="/event/gigs-akhir-tahun-2026/official-assets/gigs-2026-transparent.png" alt="GIGS 2026" class="gigs-mini-logo" />
+                  <span class="gigs-side-caption">CREATIVE PORTAL</span>
+                </div>
+                <nav class="gigs-creator-dash-nav" id="crDashNav" aria-label="Menu Dashboard Kreator">
+                  <button type="button" class="is-active" aria-current="true" data-cr-target="crDashTop"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/layers.svg" alt="" /><span>Dashboard</span></button>
+                  <button type="button" data-cr-target="crName"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/user.svg" alt="" /><span>Profil Kreator</span></button>
+                  <button type="button" data-cr-target="creatorStatusItem"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/file.svg" alt="" /><span>Pendaftaran Saya</span><span class="gigs-side-badge">PRATINJAU</span></button>
+                  <button type="button" data-cr-target="crPortfolio"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/camera.svg" alt="" /><span>Portofolio</span></button>
+                  <button type="button" data-cr-target="crInfoAlert"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/calendar.svg" alt="" /><span>Jadwal &amp; Info</span></button>
+                  <button type="button" data-cr-target="creatorStatusItem"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/bell.svg" alt="" /><span>Pesan &amp; Notifikasi</span></button>
+                  <button type="button" data-cr-target="crInfoAlert"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/question.svg" alt="" /><span>Bantuan (FAQ)</span></button>
+                </nav>
+                <div class="gigs-sidebar-foot">
+                  <button type="button" class="gigs-creator-dash-exit gigs-spring-btn" data-screen="home">
+                    <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/logout.svg" alt="" /><span>Keluar</span>
+                  </button>
+                </div>
+              </div>
+              <div class="gigs-creator-dash-main" id="crDashTop">
+                <h3>Dashboard Kreator</h3>
+                <p>Kelola profil, pantau status pendaftaran, dan update karya kamu.</p>
+                <div class="gigs-creator-kpis">
+                  <div class="gigs-c-kpi"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/file.svg" alt="" /><span>Pendaftaran Saya</span><strong id="creatorKpiMyCount">0</strong></div>
+                  <div class="gigs-c-kpi"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/clock.svg" alt="" /><span>Dalam Review</span><strong id="creatorKpiReviewCount">0</strong></div>
+                  <div class="gigs-c-kpi"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/check.svg" alt="" /><span>Disetujui</span><strong id="creatorKpiApprovedCount">0</strong></div>
+                  <div class="gigs-c-kpi"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/calendar.svg" alt="" /><span>Jadwal Tampil</span><strong>—</strong></div>
+                </div>
+                <div class="gigs-creator-status-item" id="creatorStatusItem">
+                  <div>
+                    <strong id="creatorStatusTitle">Belum ada pendaftaran</strong>
+                    <small id="creatorStatusMeta">Isi formulir pendaftaran di atas untuk mulai.</small>
+                    <small id="creatorStatusSub">Status pendaftaran dari perangkat ini akan muncul di sini.</small>
+                  </div>
+                  <span class="gigs-badge gigs-badge-draft" id="creatorStatusBadge">BELUM DAFTAR</span>
+                </div>
+                <div class="gigs-info-alert" id="crInfoAlert">
+                  <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/info.svg" alt="" />
+                  <p><strong>Info Penting:</strong> Pendaftaran gratis dan tidak menjamin slot tampil. Tim GIGS akan menghubungi kamu jika dinyatakan lolos sebagai performer resmi.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="gigs-community-card gigs-reveal" data-delay="1">
+              <div class="gigs-community-head">
+                <div>
+                  <h2 class="gigs-display-lg">CREATIVE<br />COMMUNITY</h2>
+                  <p>Deret kreator dan komunitas lokal yang sudah bergabung di GIGS Akhir Tahun 2026.</p>
+                </div>
+                <img src="/event/gigs-akhir-tahun-2026/gigs-svg/effects/crown-scribble.svg" alt="" class="gigs-crown-svg" aria-hidden="true" />
+              </div>
+              <div class="gigs-filter-pills" id="communityFilters" role="group" aria-label="Filter kategori komunitas">
+                <button type="button" class="is-active" data-filter="all" aria-pressed="true">Semua</button>
+                <button type="button" data-filter="band" aria-pressed="false">Band</button>
+                <button type="button" data-filter="komika" aria-pressed="false">Komika</button>
+                <button type="button" data-filter="akustik" aria-pressed="false">Akustik</button>
+                <button type="button" data-filter="kreator" aria-pressed="false">Kreator</button>
+                <button type="button" data-filter="komunitas" aria-pressed="false">Komunitas</button>
+              </div>
+              <div class="gigs-community-grid" id="communityGrid"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- SCREEN 04: TRANSPARANSI DANA & RAB (MATCHES 06_Transparansi_Dana.png) -->
+      <!-- ========================================================= -->
+      <section id="screen-transparansi" class="gigs-screen" aria-label="Transparansi Dana dan RAB" hidden>
+        <div class="gigs-portal-shell">
+          <aside class="gigs-sidebar">
+            <img src="/event/gigs-akhir-tahun-2026/gigs-svg/backgrounds/bg-sidebar-grit.svg" alt="" class="gigs-layer-cover" aria-hidden="true" />
+            <div class="gigs-sidebar-inner">
+              <div class="gigs-sidebar-head">
+                <img src="/event/gigs-akhir-tahun-2026/official-assets/gigs-2026-transparent.png" alt="GIGS 2026" class="gigs-sidebar-logo" />
+                <div class="gigs-side-caption">PUSAT INFORMASI EVENT</div>
+              </div>
+              <nav class="gigs-side-nav" aria-label="Navigasi Transparansi">
+                <button type="button" data-screen="home"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/info.svg" alt="" /><span>Tentang GIGS</span></button>
+                <button type="button" data-screen="home" data-scroll="#program"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/calendar.svg" alt="" /><span>Program Acara</span></button>
+                <button type="button" data-screen="home" data-scroll="#lineup"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/users.svg" alt="" /><span>Lineup &amp; Talent</span></button>
+                <button type="button" data-screen="sponsor"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons-extra/icon-badge.svg" alt="" /><span>Sponsor Resmi</span></button>
+                <button type="button" class="is-active" aria-current="page"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/finance.svg" alt="" /><span>Transparansi Dana</span><span class="gigs-side-badge">RP0</span></button>
+                <button type="button" data-screen="organizer" hidden><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/shield.svg" alt="" /><span>Penyelenggara</span></button>
+                <button type="button" data-screen="home" data-scroll="#media"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/video.svg" alt="" /><span>Media &amp; Dokumentasi</span></button>
+                <button type="button" data-scroll="#transNotesRow"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/question.svg" alt="" /><span>FAQ &amp; Catatan RAB</span></button>
+                <button type="button" data-scroll="#mainFooter"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons-extra/icon-whatsapp.svg" alt="" /><span>Kontak</span></button>
+              </nav>
+              <div class="gigs-sidebar-foot">
+                <button type="button" class="gigs-side-exit gigs-spring-btn" data-screen="home">
+                  <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/logout.svg" alt="" /><span>Keluar</span>
+                </button>
+              </div>
+            </div>
+          </aside>
+
+          <div class="gigs-trans-main">
+            <div class="gigs-trans-header gigs-reveal">
+              <div>
+                <h1 class="gigs-display-xl"><span class="text-red">/</span> TRANSPARANSI<br />DANA <span class="text-red">&amp;</span> RAB</h1>
+                <p>Informasi pendanaan, anggaran, dan realisasi kegiatan GIGS Akhir Tahun 2026 secara terbuka, terverifikasi, dan dapat dipertanggungjawabkan oleh Pihak Penyelenggara.</p>
+              </div>
+              <div class="gigs-stamp-box">
+                <span>OPEN FINANCIAL<br />TRANSPARENCY</span>
+              </div>
+            </div>
+
+            <!-- 4 KPI TOP CARDS -->
+            <div class="gigs-trans-kpis gigs-reveal" data-delay="1">
+              <div class="gigs-kpi-cream gigs-card-hover">
+                <span class="gigs-kpi-label"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/target.svg" alt="" /> TARGET PENDANAAN</span>
+                <strong data-cfg="target">Rp17.000.000</strong>
+                <small>Plafon penggalangan resmi</small>
+              </div>
+              <div class="gigs-kpi-red gigs-card-hover">
+                <span class="gigs-kpi-label"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/handshake.svg" alt="" /> DANA TERVERIFIKASI</span>
+                <strong id="trVerifiedValue" data-count-money="0">—</strong>
+                <div class="gigs-mini-bar">
+                  <span id="trVerifiedPct">—</span>
+                  <div class="gigs-progress-track-sm"><div class="gigs-progress-fill" id="trProgressBar" style="--progress:0"></div></div>
+                </div>
+              </div>
+              <div class="gigs-kpi-cream gigs-card-hover">
+                <span class="gigs-kpi-label"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/wallet.svg" alt="" /> PENGELUARAN TERVERIFIKASI</span>
+                <strong id="trExpenseValue" data-count-money="0">—</strong>
+                <small>Hanya pengeluaran aktual berbukti</small>
+              </div>
+              <div class="gigs-kpi-dark gigs-card-hover">
+                <span class="gigs-kpi-label"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons-extra/icon-coin-stack.svg" alt="" /> SALDO EVENT (TERVERIFIKASI)</span>
+                <strong id="trBalanceValue" data-count-money="0">—</strong>
+                <span class="gigs-badge gigs-badge-verified" id="trUpdateBadge">Ledger belum terhubung</span>
+              </div>
+            </div>
+
+            <!-- LAPORAN AKHIR (Blueprint bab 30) — tampil setelah dipublikasikan panitia -->
+            <section class="gigs-pub-closeout" id="pubCloseout" aria-labelledby="pubCloseoutTitle" hidden>
+              <h2 id="pubCloseoutTitle"><span class="gigs-tr-slash" aria-hidden="true"></span>LAPORAN AKHIR</h2>
+              <p class="gigs-pub-closeout-meta" id="pubCloseoutMeta"></p>
+              <div class="gigs-fund-flow-side" id="pubCloseoutTiles"></div>
+              <div class="gigs-pub-closeout-grid">
+                <div><h3>Program terlaksana</h3><ul id="pubCloseoutProgram"></ul></div>
+                <div><h3>Sponsor</h3><p id="pubCloseoutSponsors"></p><h3>Pemenuhan hak sponsor</h3><p id="pubCloseoutBenefits"></p></div>
+              </div>
+              <h3>Evaluasi</h3><p id="pubCloseoutEval" class="gigs-pub-closeout-text"></p>
+              <h3>Rekomendasi</h3><p id="pubCloseoutRec" class="gigs-pub-closeout-text"></p>
+              <h3>Keputusan sisa dana</h3><p id="pubCloseoutSurplus" class="gigs-pub-closeout-text"></p>
+            </section>
+
+            <!-- KESIAPAN EVENT (Blueprint bab 27 & 35) -->
+            <section class="gigs-pub-ready gigs-reveal" id="pubReady" aria-labelledby="pubReadyTitle" hidden>
+              <h2 id="pubReadyTitle"><span class="gigs-tr-slash" aria-hidden="true"></span>KESIAPAN EVENT</h2>
+              <div class="gigs-ready-ring" style="--p:0" role="img" aria-label="Kesiapan 0%"><strong data-ready-total>0%</strong><small>KESIAPAN</small></div>
+              <div class="gigs-ready-comps" id="pubReadyComps"></div>
+              <div class="gigs-pub-ready-meta" id="pubReadyMeta"></div>
+            </section>
+
+            <!-- ALUR DANA: dari mana → ke mana (Blueprint V1.3) -->
+            <section class="gigs-fund-flow gigs-reveal" data-delay="1" aria-labelledby="fundFlowTitle">
+              <h2 id="fundFlowTitle"><span class="gigs-tr-slash" aria-hidden="true"></span>ALUR DANA</h2>
+              <ol class="gigs-fund-flow-steps">
+                <li><small>Target</small><strong id="flowTarget">Rp17.000.000</strong><span>Plafon resmi penyelenggara</span></li>
+                <li class="is-in"><small>Dana masuk (sah)</small><strong id="flowIn">Rp0</strong><span>Sponsor yang dananya dicek 2 orang</span></li>
+                <li class="is-out"><small>Dipakai (sah)</small><strong id="flowOut">Rp0</strong><span>Pembayaran aktual ke pos RAB</span></li>
+                <li class="is-balance"><small>Saldo</small><strong id="flowBalance">Rp0</strong><span>Dana masuk &minus; dipakai</span></li>
+              </ol>
+              <div class="gigs-fund-flow-side">
+                <div><small>Komitmen sponsor belum cair</small><strong id="flowCommitted">Rp0</strong><span id="flowCommittedNote">Belum dihitung sebagai dana masuk</span></div>
+                <div><small>Kebutuhan dana tersisa</small><strong id="flowNeed">Rp17.000.000</strong><span>Target &minus; dana masuk sah</span></div>
+                <div><small>Belum dialokasikan</small><strong data-cfg="rabGap">Rp400.000</strong><span>Selisih target vs total RAB, perlu keputusan resmi</span></div>
+              </div>
+              <p id="flowOver" class="gigs-fund-flow-over" hidden></p>
+              <p class="gigs-fund-flow-note">Angka hanya bertambah setelah dicatat dari mutasi bank oleh satu penyelenggara <strong>dan</strong> disahkan penyelenggara lain. Bukti asli dan rekening tidak ditampilkan.</p>
+            </section>
+
+            <!-- MAIN TABLE + RIGHT HISTORY -->
+            <div class="gigs-trans-body-grid">
+              <div class="gigs-trans-left gigs-reveal" data-delay="2">
+                <div class="gigs-rab-table-card">
+                  <div class="gigs-rab-table-head">
+                    <h2><span class="gigs-tr-slash" aria-hidden="true"></span>RAB EVENT (<span data-cfg="rabCount">9</span> POS)</h2>
+                    <div class="gigs-rab-pills">
+                      <div class="gigs-tr-stat"><small>Total RAB (sementara)</small><span class="gigs-pill-red" data-cfg="rabTotal">Rp16.600.000</span></div>
+                      <div class="gigs-tr-stat"><small>Selisih dari target</small><span class="gigs-pill-cream" data-cfg="rabGap">Rp400.000</span></div>
+                    </div>
+                  </div>
+                  <div class="gigs-table-scroll" role="region" aria-label="Tabel RAB, dapat digulir horizontal" tabindex="0">
+                    <table class="gigs-rab-table">
+                      <thead>
+                        <tr>
+                          <th scope="col">No.</th>
+                          <th>Pos Anggaran</th>
+                          <th>Anggaran (Rp)</th>
+                          <th>Realisasi (Rp)</th>
+                          <th>Sisa (Rp)</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody id="transRabBody"></tbody>
+                      <tfoot>
+                        <tr>
+                          <td colspan="2">TOTAL</td>
+                          <td data-label="Anggaran" data-cfg="rabTotal">Rp16.600.000</td>
+                          <td id="transTotalRealisasi" data-label="Realisasi">—</td>
+                          <td id="transTotalSisa" data-label="Sisa">—</td>
+                          <td class="gigs-tr-empty">—</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+
+                <div id="transNotesRow" class="gigs-trans-notes-row">
+                  <div class="gigs-note-card">
+                    <h3><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/file.svg" alt="" /> Catatan RAB (Blueprint V1.3)</h3>
+                    <ul id="rabNotesList">
+                      <li>RAB terdiri dari 9 pos tetap sesuai keputusan penyelenggara.</li>
+                      <li>RAB sementara Rp16.600.000 mencakup 9 pos. Selisih Rp400.000 terhadap target Rp17.000.000 belum tercantum sebagai pos RAB.</li>
+                      <li>Selisih Rp400.000 belum dialokasikan dan memerlukan keputusan resmi.</li>
+                      <li>Save Money: diasumsikan Rp1.000.000 (menunggu konfirmasi penulisan).</li>
+                      <li>Kembang Api: pelaksanaan memerlukan verifikasi keamanan dan perizinan.</li>
+                    </ul>
+                  </div>
+                  <div class="gigs-download-card">
+                    <h3>Unduh Dokumen</h3>
+                    <button type="button" class="gigs-btn-outline gigs-spring-btn" id="btnExportCsv">
+                      <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/download.svg" alt="" class="gigs-ico" />
+                      <span>Ekspor Ledger RAB (CSV)</span>
+                    </button>
+                    <button type="button" class="gigs-btn-outline gigs-spring-btn" id="btnPrintRab">
+                      <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/receipt.svg" alt="" class="gigs-ico" />
+                      <span>Cetak Laporan RAB</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="gigs-trans-right gigs-reveal" data-delay="3">
+                <div class="gigs-history-card">
+                  <div class="gigs-history-head">
+                    <h3><span class="gigs-tr-slash" aria-hidden="true"></span>RIWAYAT DANA</h3>
+                    <span class="gigs-pill-outline">Masuk &amp; keluar</span>
+                  </div>
+                  <div id="transTimelineBox" class="gigs-timeline-box">
+                    <p class="gigs-empty-title">Data transaksi belum tersedia</p>
+                    <p class="gigs-empty-sub">Laporan transaksi belum terhubung. Transaksi akan dipublikasikan setelah pencocokan mutasi dan persetujuan dua pemeriksa.</p>
+                    <ol class="gigs-flow-list">
+                      <li><span>1</span> Penyelenggara mencatat dari mutasi Bank Jago + bukti</li>
+                      <li><span>2</span> Penyelenggara lain mengecek bukti</li>
+                      <li><span>3</span> Disahkan &amp; tampil di halaman ini</li>
+                    </ol>
+                  </div>
+                </div>
+
+                <div class="gigs-audit-card">
+                  <div class="gigs-history-head">
+                    <h3><span class="gigs-tr-slash" aria-hidden="true"></span>RIWAYAT PERUBAHAN &amp; AUDIT LOG</h3>
+                  </div>
+                  <div class="gigs-table-scroll" role="region" aria-label="Audit log, dapat digulir horizontal" tabindex="0">
+                  <table class="gigs-audit-table">
+                    <thead>
+                      <tr><th scope="col">Versi</th><th scope="col">Perubahan</th><th scope="col">Oleh</th><th scope="col">Tanggal</th></tr>
+                    </thead>
+                    <tbody id="auditRows">
+                      <tr><td>v1.0</td><td>RAB awal (9 pos), total Rp16.600.000</td><td>Penyelenggara</td><td>12 Nov 2026</td></tr>
+                      <tr><td>v1.1</td><td>Penambahan catatan Save Money (perlu konfirmasi)</td><td>Admin</td><td>12 Nov 2026</td></tr>
+                      <tr><td>v1.2</td><td>Penyesuaian status Kembang Api (perlu verifikasi keamanan)</td><td>Admin</td><td>12 Nov 2026</td></tr>
+                    </tbody>
+                  </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- SCREEN 05: ORGANIZER DASHBOARD (MATCHES 05_Layout_Collage & 07 #05) -->
+      <!-- ========================================================= -->
+      <section id="screen-organizer" class="gigs-screen" aria-label="Dashboard Penyelenggara" hidden>
+        <div class="gigs-portal-shell">
+          <aside class="gigs-sidebar">
+            <img src="/event/gigs-akhir-tahun-2026/gigs-svg/backgrounds/bg-sidebar-grit.svg" alt="" class="gigs-layer-cover" aria-hidden="true" />
+            <div class="gigs-sidebar-inner">
+              <div class="gigs-sidebar-head">
+                <img src="/event/gigs-akhir-tahun-2026/official-assets/gigs-2026-transparent.png" alt="GIGS 2026" class="gigs-sidebar-logo" />
+                <div class="gigs-side-caption">ORGANIZER COMMAND</div>
+              </div>
+              <nav class="gigs-side-nav" id="orgSideNav" aria-label="Menu Penyelenggara">
+                <button type="button" class="is-active" aria-current="true" data-org-side-target="orgOverviewSection"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/home.svg" alt="" /><span>Dashboard</span></button>
+                <button type="button" data-org-side-target="orgApprovalSection"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/check.svg" alt="" /><span>Approval Center</span><span class="gigs-side-badge">PRATINJAU</span></button>
+                <button type="button" data-org-side-target="orgApprovalSection"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/handshake.svg" alt="" /><span>Sponsor Manager</span></button>
+                <button type="button" data-org-side-target="orgApprovalSection"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/microphone.svg" alt="" /><span>Talent Manager</span></button>
+                <button type="button" data-org-side-target="orgRunsheetSection"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/clock.svg" alt="" /><span>Rundown &amp; Stage</span></button>
+                <button type="button" data-org-side-target="orgFinanceSection"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/finance.svg" alt="" /><span>Keuangan &amp; RAB</span></button>
+                <button type="button" data-org-side-target="orgRunsheetSection"><img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/shield.svg" alt="" /><span>Safety &amp; Readiness</span></button>
+              </nav>
+              <div class="gigs-sidebar-foot">
+                <div class="gigs-side-user">
+                  <span class="gigs-side-user-avatar" aria-hidden="true">G</span>
+                  <div class="gigs-side-user-meta">
+                    <strong>Penyelenggara</strong>
+                    <span>Event Admin</span>
+                  </div>
+                </div>
+                <button type="button" class="gigs-side-exit gigs-spring-btn" data-screen="home">
+                  <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/logout.svg" alt="" /><span>Keluar</span>
+                </button>
+              </div>
+            </div>
+          </aside>
+
+          <div class="gigs-org-main">
+            <div id="orgOverviewSection" class="gigs-org-header gigs-reveal">
+              <div>
+                <h1 class="gigs-display-lg">PRATINJAU DASHBOARD PENYELENGGARA</h1>
+                <p>Data contoh untuk menguji tampilan ringkasan sponsor, kesiapan acara, dan rundown.</p>
+              </div>
+              <div class="gigs-h-countdown">
+                <strong>31 DES</strong>
+                <span>Tanggal usulan</span>
+              </div>
+            </div>
+
+            <div id="orgApprovalSection" class="gigs-org-kpis gigs-reveal" data-delay="1">
+              <div class="gigs-org-kpi">
+                <span>Sponsor Terverifikasi</span>
+                <strong id="orgSponsorCount" data-count-int="0">0</strong>
+                <small id="orgSponsorSub">0 menunggu verifikasi</small>
+              </div>
+              <div class="gigs-org-kpi">
+                <span>Talent Terdaftar</span>
+                <strong id="orgTalentCount" data-count-int="1">1</strong>
+                <small>Menunggu kurasi Ace</small>
+              </div>
+              <div class="gigs-org-kpi">
+                <span>Kesiapan Tim &amp; Gate</span>
+                <strong data-count-pct="70">70%</strong>
+                <small>Gate A, B, C Blueprint V1.3</small>
+              </div>
+              <div class="gigs-org-kpi is-red">
+                <span>Dana Terverifikasi</span>
+                <strong id="orgDanaValue" data-count-money="0">Rp0</strong>
+                <small>Pratinjau data keuangan</small>
+              </div>
+            </div>
+
+            <div class="gigs-org-panels">
+              <div id="orgFinanceSection" class="gigs-org-panel gigs-reveal" data-delay="2">
+                <h3>Distribusi RAB (9 Pos = Rp16.600.000)</h3>
+                <div class="gigs-donut-wrap">
+                  <svg viewBox="0 0 180 180" class="gigs-donut-svg" aria-label="Distribusi RAB 9 Pos">
+                    <circle cx="90" cy="90" r="64" fill="none" stroke="#262222" stroke-width="24" />
+                    <circle cx="90" cy="90" r="64" fill="none" stroke="#E10613" stroke-width="24" stroke-dasharray="109 293" stroke-dashoffset="0" />
+                    <circle cx="90" cy="90" r="64" fill="none" stroke="#F4E9D9" stroke-width="24" stroke-dasharray="78 324" stroke-dashoffset="-111" />
+                    <circle cx="90" cy="90" r="64" fill="none" stroke="#FFD06A" stroke-width="24" stroke-dasharray="72 330" stroke-dashoffset="-191" />
+                    <circle cx="90" cy="90" r="64" fill="none" stroke="#47D889" stroke-width="24" stroke-dasharray="58 344" stroke-dashoffset="-265" />
+                    <circle cx="90" cy="90" r="64" fill="none" stroke="#8C0010" stroke-width="24" stroke-dasharray="76 326" stroke-dashoffset="-326" />
+                    <text x="90" y="86" text-anchor="middle" fill="#F4E9D9" font-family="Anton, sans-serif" font-size="22">9 POS</text>
+                    <text x="90" y="106" text-anchor="middle" fill="#BFB5AC" font-family="Inter, sans-serif" font-size="11">Rp16,6 Jt</text>
+                  </svg>
+                  <ul class="gigs-donut-legend">
+                    <li><i style="background:#E10613"></i> Sound (27.1%) &mdash; Rp4.500.000</li>
+                    <li><i style="background:#F4E9D9"></i> Band (19.3%) &mdash; Rp3.200.000</li>
+                    <li><i style="background:#FFD06A"></i> Crew 7 Orang (18.1%) &mdash; Rp3.000.000</li>
+                    <li><i style="background:#47D889"></i> Stand-up &amp; MC (14.5%) &mdash; Rp2.400.000</li>
+                    <li><i style="background:#8C0010"></i> Lighting, Kembang Api, Docs, Save (21.1%)</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div id="orgRunsheetSection" class="gigs-org-panel gigs-reveal" data-delay="3">
+                <h3>Rundown Operasional (Draft Usulan 31 Des)</h3>
+                <ul class="gigs-rundown-list">
+                  <li><span>12.00</span><strong>Vendor load-in &amp; safety check rel</strong><small>Operations + Rafly</small></li>
+                  <li><span>15.00</span><strong>Area UMKM &amp; registrasi dibuka</strong><small>Operations + Ojak</small></li>
+                  <li><span>16.00</span><strong>Opening &amp; Live Acoustic</strong><small>Robby + Batik</small></li>
+                  <li><span>17.00</span><strong>Local Band Set 1 + Sponsor Mention</strong><small>Rafly + MC</small></li>
+                  <li><span>19.00</span><strong>Stand-up Komika Lokal</strong><small>Ace + MC</small></li>
+                  <li><span>20.00</span><strong>Local Band Set 2 &amp; Penampilan Utama</strong><small>Ace + Rafly</small></li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- SCREEN 06/07: DESIGN SYSTEM, MODALS & 168 NATIVE SVG EXPLORER -->
+      <!-- ========================================================= -->
+      <section id="screen-system" class="gigs-screen" aria-label="Design System dan 168 Native SVG" hidden>
+        <div class="gigs-container gigs-system-wrap">
+          <div class="gigs-system-head gigs-reveal">
+            <div>
+              <span class="gigs-eyebrow">07 DESIGN SYSTEM &amp; 168 NATIVE SVG</span>
+              <h1 class="gigs-display-xl">SATU KOMPONEN = SATU SVG ASLI</h1>
+              <p>Seluruh token warna, status verifikasi semantis, modal alur pengguna, dan 168 aset vektor native terintegrasi tanpa raster embed.</p>
+            </div>
+            <button type="button" class="gigs-btn-primary gigs-spring-btn" id="btnTriggerModalFromSys">
+              <span>Buka Interactive Auth &amp; Step Modal</span>
+            </button>
+          </div>
+
+          <!-- DESIGN SYSTEM BOARD (MATCHES 07_Design_Components.png #07) -->
+          <div class="gigs-ds-board gigs-reveal" data-delay="1">
+            <div class="gigs-ds-col">
+              <h3>Palet Warna Terkunci</h3>
+              <div class="gigs-swatches">
+                <div><span style="background:#E10613"></span><strong>#E10613</strong><small>Primary Red</small></div>
+                <div><span style="background:#090909"></span><strong>#090909</strong><small>Ink Black</small></div>
+                <div><span style="background:#161616"></span><strong>#161616</strong><small>Charcoal</small></div>
+                <div><span style="background:#F4E9D9"></span><strong>#F4E9D9</strong><small>Cream Paper</small></div>
+                <div><span style="background:#8C0010"></span><strong>#8C0010</strong><small>Deep Red</small></div>
+                <div><span style="background:#BFB5AC"></span><strong>#BFB5AC</strong><small>Muted Gray</small></div>
+              </div>
+            </div>
+            <div class="gigs-ds-col">
+              <h3>Button Skins &amp; Status Semantis</h3>
+              <div class="gigs-ds-btns">
+                <button type="button" class="gigs-btn-primary gigs-spring-btn">Primary CTA</button>
+                <button type="button" class="gigs-btn-cream gigs-spring-btn">Cream CTA</button>
+                <button type="button" class="gigs-btn-outline gigs-spring-btn">Outline</button>
+              </div>
+              <div class="gigs-ds-badges">
+                <span class="gigs-badge gigs-badge-verified">Terverifikasi</span>
+                <span class="gigs-badge gigs-badge-warning">Dalam Review</span>
+                <span class="gigs-badge gigs-badge-draft">Draft</span>
+                <span class="gigs-badge gigs-badge-rejected">Ditolak</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 168 SVG EXPLORER -->
+          <div class="gigs-svg-explorer gigs-reveal" data-delay="2">
+            <div class="gigs-svg-toolbar">
+              <div class="gigs-filter-pills" id="svgCategoryFilters">
+                <button type="button" class="is-active" data-cat="all">Semua (168)</button>
+                <button type="button" data-cat="backgrounds">backgrounds (12)</button>
+                <button type="button" data-cat="gradients">gradients (8)</button>
+                <button type="button" data-cat="textures">textures (8)</button>
+                <button type="button" data-cat="effects">effects (29)</button>
+                <button type="button" data-cat="geometry">geometry (12)</button>
+                <button type="button" data-cat="ui-shells">ui-shells (27)</button>
+                <button type="button" data-cat="icons-extra">icons-extra (22)</button>
+                <button type="button" data-cat="icons">icons (46)</button>
+                <button type="button" data-cat="frames">frames (3)</button>
+                <button type="button" data-cat="decor">decor (1)</button>
+              </div>
+              <input type="search" id="svgSearchInput" class="gigs-svg-search" placeholder="Cari nama SVG (mis. spotlight, ribbon, button)..." />
+            </div>
+            <div class="gigs-svg-grid" id="svgGalleryGrid"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- MAIN GLOBAL FOOTER -->
+    <footer id="mainFooter" class="gigs-footer" role="contentinfo">
+      <div class="gigs-container gigs-footer-grid">
+        <div class="gigs-footer-brand">
+          <img src="/event/gigs-akhir-tahun-2026/official-assets/gigs-2026-transparent.png" alt="GIGS Akhir Tahun 2026" class="gigs-footer-logo" />
+          <p>BANGKIT BERSAMA UMKM LOKAL DAN PEMUDA KREATIF. Dikelola dengan prinsip amanah &amp; transparansi terbuka.</p>
+        </div>
+        <div class="gigs-footer-col">
+          <h2>EVENT</h2>
+          <button type="button" data-screen="home" data-scroll="#tentang">Tentang Event</button>
+          <button type="button" data-screen="home" data-scroll="#program">Program Acara</button>
+          <button type="button" data-screen="home" data-scroll="#lineup">Lineup</button>
+          <button type="button" data-screen="home" data-scroll="#media">Media &amp; Dokumentasi</button>
+        </div>
+        <div class="gigs-footer-col">
+          <h2>KOLABORASI</h2>
+          <button type="button" data-screen="sponsor">Sponsor Portal</button>
+          <button type="button" data-screen="creator">Portal Kreator</button>
+          <button type="button" data-screen="organizer" hidden>Dashboard Penyelenggara</button>
+          <button type="button" data-screen="system">Design System &amp; 168 SVG</button>
+        </div>
+        <div class="gigs-footer-col">
+          <h2>TRANSPARANSI</h2>
+          <button type="button" data-screen="transparansi">RAB Event (9 Pos)</button>
+          <button type="button" id="btnToggleAuditDock">Mode Audit &amp; Simulasi</button>
+          <span class="gigs-footer-addr">Garage Coffee, Tebing Tinggi</span>
+        </div>
+      </div>
+      <div class="gigs-container gigs-footer-bottom">
+        <span>&copy; 2026 GIGS Akhir Tahun. Garage Coffee &mdash; Tebing Tinggi. Blueprint SOP V1.3.</span>
+        <span>Kebijakan Privasi &bull; Syarat &amp; Ketentuan &bull; Audit Terbuka</span>
+      </div>
+    </footer>
+  </div>
+
+  <!-- AUTH & STEP MODAL (MATCHES 07_Design_Components.png #06) -->
+  <div id="authModal" class="gigs-modal" hidden role="dialog" aria-modal="true" aria-labelledby="authModalTitle">
+    <div class="gigs-modal-backdrop" data-close-modal></div>
+    <div class="gigs-modal-dialog">
+      <img src="/event/gigs-akhir-tahun-2026/gigs-svg/ui-shells/ui-modal-dark.svg" alt="" class="gigs-modal-skin" aria-hidden="true" />
+      <div class="gigs-modal-content">
+        <div class="gigs-modal-head">
+          <h2 id="authModalTitle">Info Portal GIGS 2026</h2>
+          <button type="button" class="gigs-icon-btn" data-close-modal aria-label="Tutup Modal">
+            <img src="/event/gigs-akhir-tahun-2026/gigs-svg/icons/close.svg" alt="" class="gigs-ico" />
+          </button>
+        </div>
+        <div id="modalTabBody" class="gigs-modal-body"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FLOATING AUDIT & SCREEN SWITCHER DOCK (SOP V1.3 vs REFERENCE) -->
+  <aside hidden class="gigs-command-bar" aria-label="Switcher Halaman dan Audit Data">
+    <div class="gigs-command-inner">
+      <div class="gigs-cmd-group" role="tablist" aria-label="Pilih Halaman">
+        <button type="button" class="gigs-cmd-pill is-active" data-screen="home">01 Home</button>
+        <button type="button" class="gigs-cmd-pill" data-screen="sponsor">02 Sponsor</button>
+        <button type="button" class="gigs-cmd-pill" data-screen="creator">03 Kreatif</button>
+        <button type="button" class="gigs-cmd-pill" data-screen="transparansi">04 RAB</button>
+        <button type="button" class="gigs-cmd-pill" data-screen="organizer" hidden>05 Organizer</button>
+        <button type="button" class="gigs-cmd-pill" data-screen="system">06/07 SVG</button>
+      </div>
+      <div class="gigs-cmd-controls">
+        <div class="gigs-toggle-wrap" title="Switch antara Data Terverifikasi (SOP V1.3) dan Simulasi Visual Referensi">
+          <span class="gigs-cmd-label">DATA:</span>
+          <button type="button" id="btnModeVerified" class="gigs-mode-btn is-active" data-mode="verified">Rp0 SOP</button>
+          <button type="button" id="btnModeSim" class="gigs-mode-btn" data-mode="sim56">32.9%</button>
+          <button type="button" id="btnModeSim50" class="gigs-mode-btn" data-mode="sim50">50%</button>
+          <button type="button" id="btnModeSim57" class="gigs-mode-btn" data-mode="sim57">57.6%</button>
+        </div>
+        <div class="gigs-toggle-wrap">
+          <button type="button" id="btnViewDesktop" class="gigs-mode-btn is-active">Desktop</button>
+          <button type="button" id="btnViewMobile" class="gigs-mode-btn">390px</button>
+        </div>
+        <button type="button" id="btnToggleMotion" class="gigs-mode-btn" aria-pressed="false">Motion: ON</button>
+      </div>
+    </div>
+  </aside>
+
+  <script src="/event/gigs-akhir-tahun-2026/public/app.js?v=20261116b" defer></script>
+</body>
+</html>

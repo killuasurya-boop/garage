@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="780" height="900" viewBox="0 0 780 900" fill="none" role="img" aria-label="Sapuan bentuk organik merah untuk bagian bawah foto">
+<defs><linearGradient id="swoosh-grad" x1="0" y1="300" x2="780" y2="850" gradientUnits="userSpaceOnUse"><stop stop-color="#FF102F"/><stop offset=".75" stop-color="#E30022"/><stop offset="1" stop-color="#9C0018"/></linearGradient><pattern id="swoosh-dots" patternUnits="userSpaceOnUse" width="9" height="9"><circle cx="2" cy="2" r="1.25" fill="#0C0C0D" opacity=".4"/></pattern></defs>
+<path d="M10 830C132 747 153 693 165 591C179 482 228 404 292 391C342 382 368 426 348 474C310 566 298 619 332 641C367 665 430 614 515 478C567 397 621 356 664 370C702 384 715 438 688 481C625 584 620 623 655 644C691 664 730 635 776 583L780 900H6Z" fill="url(#swoosh-grad)"/>
+<path d="M10 830C132 747 153 693 165 591C179 482 228 404 292 391C342 382 368 426 348 474C310 566 298 619 332 641C367 665 430 614 515 478C567 397 621 356 664 370C702 384 715 438 688 481C625 584 620 623 655 644C691 664 730 635 776 583L780 900H6Z" fill="url(#swoosh-dots)" opacity=".85"/>
+</svg>

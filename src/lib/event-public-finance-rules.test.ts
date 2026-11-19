@@ -63,3 +63,17 @@ describe("bentuk halaman event", () => {
     expect(publicFinanceSchema.safeParse(pre).success).toBe(true);
   });
 });
+
+describe("financeChangeSummary (riwayat perubahan halaman event)", () => {
+  it("format sama dengan platform; tanpa perubahan target/RAB → kosong", async () => {
+    const { financeChangeSummary, EMPTY_PUBLIC_FINANCE } = await import("@/lib/event-public-finance-rules");
+    const line = (code: string, name: string, budget: number) => ({ code, name, budget, purpose: "", pic: "", needsVendor: true, contracted: 0, stage: "belum-dipesan" as const });
+    const before = { ...EMPTY_PUBLIC_FINANCE, target: 17_000_000, budgetLines: [line("02", "Sound", 4_500_000), line("06", "Kembang Api", 1_000_000)] };
+    const after = { ...before, target: 21_300_000, budgetLines: [line("02", "Sound (LIGHTING)", 10_000_000), line("09", "MC", 1_200_000)] };
+    expect(financeChangeSummary(before, after)).toBe(
+      'Target 17.000.000 → 21.300.000; Pos 02 Sound (LIGHTING): Rp4.500.000 → Rp10.000.000; Pos 02 berganti nama "Sound" → "Sound (LIGHTING)"; Pos 09 MC ditambah: Rp1.200.000; Pos 06 Kembang Api dihapus',
+    );
+    expect(financeChangeSummary(before, { ...before, notes: ["x"] })).toBe("");
+    expect(financeChangeSummary(null, after)).toBe("");
+  });
+});

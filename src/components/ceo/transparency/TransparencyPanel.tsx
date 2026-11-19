@@ -6,7 +6,7 @@ import { Download, ExternalLink, Plus, RefreshCw, Save, Trash2 } from "lucide-re
 import { PageHeader } from "@/components/ceo/layout/PageHeader";
 import { EventControlNav, StepHint } from "@/components/ceo/ui/EventControlNav";
 import { garageApi, GarageApiError } from "@/lib/api-client";
-import { EMPTY_CLOSEOUT, EMPTY_PUBLIC_FINANCE, PAY_KINDS, PUBLIC_STAGE_LABEL, PUBLIC_STAGES, publicFinanceTotals, type PublicFinance } from "@/lib/event-public-finance-rules";
+import { DECISION_LABEL, DECISIONS, EMPTY_CLOSEOUT, EMPTY_DECISION, EMPTY_PUBLIC_FINANCE, PAY_KINDS, PUBLIC_STAGE_LABEL, PUBLIC_STAGES, publicFinanceTotals, type PublicFinance } from "@/lib/event-public-finance-rules";
 
 // Transparansi dana publik (Owner 18 Nov 2026: "bisa diubah bebas"). Angka di layar ini tampil di menu Transparansi
 // halaman event GIGS bila diaktifkan. BUKAN buku kas: uang sungguhan tetap dicatat di Sponsor & Keuangan Event.
@@ -63,6 +63,7 @@ export function TransparencyPanel({ initialEventId }: { initialEventId: string |
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [changeReason, setChangeReason] = useState("");
 
   const apply = (next: View) => {
     setView(next);
@@ -100,6 +101,8 @@ export function TransparencyPanel({ initialEventId }: { initialEventId: string |
   const setIncome = (index: number, patch: Partial<PublicFinance["incomes"][number]>) => set({ incomes: data.incomes.map((l, i) => (i === index ? { ...l, ...patch } : l)) });
   const setExpense = (index: number, patch: Partial<PublicFinance["expenses"][number]>) => set({ expenses: data.expenses.map((l, i) => (i === index ? { ...l, ...patch } : l)) });
   const closeout = data.closeout ?? EMPTY_CLOSEOUT;
+  const decision = data.decision ?? EMPTY_DECISION;
+  const setDecision = (patch: Partial<PublicFinance["decision"]>) => setData((d) => ({ ...d, decision: { ...(d.decision ?? EMPTY_DECISION), ...patch } }));
   const setCloseout = (patch: Partial<PublicFinance["closeout"]>) => setData((d) => ({ ...d, closeout: { ...(d.closeout ?? EMPTY_CLOSEOUT), ...patch } }));
 
   // Hanya setelah data event termuat (kalau tidak, muatan awal yang datang belakangan menimpa isian).
@@ -126,8 +129,9 @@ export function TransparencyPanel({ initialEventId }: { initialEventId: string |
     setError(null);
     setNotice(null);
     try {
-      const body = { enabled, data: { ...data, notes: notesText.split("\n").map((n) => n.trim()).filter(Boolean).slice(0, 10) } };
+      const body = { enabled, changeReason, data: { ...data, notes: notesText.split("\n").map((n) => n.trim()).filter(Boolean).slice(0, 10) } };
       apply(await garageApi.put<View>(`/api/event-transparency?eventId=${eventId}`, body));
+      setChangeReason("");
       setNotice(enabled ? "Tersimpan. Angka ini sekarang tampil di halaman event." : "Tersimpan, tetapi belum ditampilkan (centang “Tampilkan” untuk menayangkan).");
     } catch (e) {
       setError(errText(e));
@@ -355,6 +359,38 @@ export function TransparencyPanel({ initialEventId }: { initialEventId: string |
             </ul>
           </section>
 
+          <section className={`${cardClass} space-y-3`} aria-labelledby="tr-decision">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 id="tr-decision" className="text-sm font-black uppercase tracking-wide text-zinc-100">
+                Keputusan acara (GO / NO GO)
+              </h2>
+              <span className="text-xs font-semibold text-zinc-400">
+                {decision.value && decision.decidedAt
+                  ? `Diputuskan ${new Date(decision.decidedAt).toLocaleString("id-ID", { timeZone: "Asia/Jakarta", dateStyle: "medium", timeStyle: "short" })} WIB`
+                  : "Tampil di bagian Kesiapan halaman event"}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Keputusan acara">
+              {DECISIONS.map((value) => (
+                <button
+                  key={value || "none"}
+                  type="button"
+                  role="radio"
+                  aria-checked={decision.value === value}
+                  onClick={() => setDecision({ value })}
+                  className={`min-h-11 rounded-lg border px-4 text-sm font-bold transition-colors ${
+                    decision.value === value ? "border-[#e10613] bg-[#e10613]/20 text-white" : "border-white/15 bg-white/[0.04] text-zinc-300 hover:border-white/30"
+                  }`}
+                >
+                  {DECISION_LABEL[value]}
+                </button>
+              ))}
+            </div>
+            <Field label="Catatan keputusan (internal, tidak tampil di halaman event)">
+              <input className={inputClass} value={decision.note} maxLength={300} onChange={(e) => setDecision({ note: e.target.value })} />
+            </Field>
+          </section>
+
           <section className={`${cardClass} space-y-3`} aria-labelledby="tr-closeout">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 id="tr-closeout" className="text-sm font-black uppercase tracking-wide text-zinc-100">
@@ -400,6 +436,15 @@ export function TransparencyPanel({ initialEventId }: { initialEventId: string |
             </h2>
             <Field label="Satu catatan per baris (maks. 10)">
               <textarea className={`${inputClass} h-24 py-2`} value={notesText} onChange={(e) => setNotesText(e.target.value)} />
+            </Field>
+          </section>
+
+          <section className={`${cardClass} space-y-2`} aria-labelledby="tr-reason">
+            <h2 id="tr-reason" className="text-sm font-black uppercase tracking-wide text-zinc-100">
+              Alasan perubahan target / RAB
+            </h2>
+            <Field label="Tampil di Riwayat Perubahan halaman event bila target atau pos RAB berubah saat Simpan (opsional)">
+              <input className={inputClass} value={changeReason} maxLength={300} onChange={(e) => setChangeReason(e.target.value)} placeholder="mis. Harga sewa sound naik" />
             </Field>
           </section>
 

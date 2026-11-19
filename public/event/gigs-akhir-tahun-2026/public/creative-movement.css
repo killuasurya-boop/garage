@@ -1,0 +1,412 @@
+/* GIGS Digital Creative Movement — isolated design tokens, no global reset. */
+.gigsCreative {
+  --gigs-red: #FF102F;
+  --gigs-red-deep: #D50021;
+  --gigs-cream: #F5EDDC;
+  --gigs-ink: #090909;
+  --gigs-charcoal: #131315;
+  --gigs-stroke: rgba(245,237,220,.56);
+  --gigs-muted: rgba(245,237,220,.78);
+  --gigs-display: "Barlow Condensed", "Barlow Condensed", Impact, sans-serif;
+  --gigs-body: "Inter", Inter, system-ui, sans-serif;
+  --gigs-motion: cubic-bezier(.22,1,.36,1);
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-height: 780px;
+  color: var(--gigs-cream);
+  background: radial-gradient(ellipse at 70% 35%,#191417 0,transparent 55%), var(--gigs-ink);
+  font-family: var(--gigs-body);
+}
+.gigsCreative * { box-sizing: border-box; }
+.gigsCreative :focus-visible { outline: 3px solid var(--gigs-cream); outline-offset: 4px; }
+.gcm-grain { position: absolute; inset: 0; background: url('/event/gigs-akhir-tahun-2026/gigs/svg/decor/grain-noise.svg') repeat; opacity: .3; mix-blend-mode: screen; pointer-events: none; z-index: 4; }
+.gcm-grid { position: absolute; inset: 0; background: url('/event/gigs-akhir-tahun-2026/gigs/svg/decor/micro-grid.svg') repeat; opacity: .14; pointer-events: none; z-index: 0; }
+.gcm-dots { position: absolute; width: 620px; left: -270px; top: -240px; opacity: .85; z-index: 1; pointer-events: none; }
+.gcm-wrap { max-width: 1570px; margin-inline: auto; padding: 80px clamp(24px, 5.2vw, 88px) 48px; position: relative; z-index: 2; }
+.gcm-breadcrumb { display:flex; align-items: center; gap: 12px; font-size: .82rem; color: var(--gigs-muted); margin-bottom: 35px; }
+.gcm-breadcrumb img { width: 18px; height: 18px; }
+.gcm-breadcrumb a { color: inherit; text-decoration: none; }
+.gcm-breadcrumb a:hover { color: var(--gigs-cream); }
+.gcm-sep { color: var(--gigs-red); font-weight: 700; }
+.gcm-main { display: grid; grid-template-columns: minmax(0, 1.02fr) minmax(0, .98fr); align-items: start; gap: clamp(20px, 3vw, 45px); }
+.gcm-copy { min-width: 0; position: relative; z-index: 3; padding-top: 0; }
+.gcm-eyebrow { position: relative; display: inline-flex; align-items:center; min-height: 49px; padding: 0 34px 0 17px; margin-bottom: 18px; color: var(--gigs-cream); font-family: var(--gigs-display); font-size: clamp(18px, 1.8vw, 27px); font-style: italic; font-weight: 900; line-height: 1; letter-spacing: .01em; text-transform: uppercase; background: var(--gigs-red); clip-path: polygon(5% 0,100% 0,95% 100%,0 100%); }
+.gcm-eyebrowSlash { width: 54px; height: 28px; margin-left: 8px; vertical-align: middle; }
+.gcm-title { font-family: var(--gigs-display); font-size: clamp(68px, 7.5vw, 128px); line-height: .76; font-style: italic; font-weight: 900; letter-spacing: -.018em; margin: 10px 0 24px; text-transform: uppercase; white-space: nowrap; }
+.gcm-title span { display: block; }
+.gcm-title span + span { color: var(--gigs-red); margin-top: .1em; }
+.gcm-description { max-width: 630px; margin: 0 0 24px; padding: 1px 0 1px 18px; border-left: 5px solid var(--gigs-red); font-size: clamp(14px, 1.23vw, 19px); line-height: 1.45; font-weight: 500; letter-spacing: -.01em; color: var(--gigs-cream); }
+.gcm-features { display:grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; max-width: 750px; }
+.gcm-feature { min-height: 79px; display:flex; align-items:center; gap: 10px; padding: 11px 9px 11px 12px; border: 1px solid var(--gigs-stroke); border-radius: 12px; background: rgba(22,22,24,.88); transition: transform .28s var(--gigs-motion), background .28s ease, border-color .28s ease; }
+.gcm-feature:hover { transform: translateY(-4px); border-color: var(--gigs-red); background: rgba(48,14,23,.93); }
+.gcm-featureIcon { width: 38px; height: 38px; flex: 0 0 38px; object-fit: contain; }
+.gcm-featureSep { width: 1px; height: 37px; background: var(--gigs-stroke); flex: 0 0 1px; }
+.gcm-featureText { font-family: var(--gigs-display); font-style: italic; font-weight: 800; font-size: clamp(14px, 1.3vw, 21px); line-height: .94; text-transform: uppercase; white-space: pre-line; }
+.gcm-actions { display: flex; flex-wrap: wrap; gap: 13px; margin-top: 27px; }
+.gcm-cta { display: inline-flex; justify-content: center; align-items: center; gap: 28px; min-height: 62px; padding: 6px 27px; color: var(--gigs-cream); font-family: var(--gigs-display); font-size: clamp(20px,2vw,28px); line-height: 1; font-weight: 900; font-style: italic; text-decoration: none; white-space: nowrap; transition: transform .28s var(--gigs-motion), filter .24s ease, background .24s ease; }
+.gcm-cta:hover { transform: translateY(-3px); filter: brightness(1.15); }
+.gcm-cta img { width: 28px; height: 28px; transition: transform .24s var(--gigs-motion); }
+.gcm-cta:hover img { transform: translateX(5px); }
+.gcm-ctaPrimary { background: var(--gigs-red); clip-path: polygon(8% 0,100% 0,94% 100%,0 100%); padding-inline: 36px 46px; }
+.gcm-ctaOutline { border: 2px solid var(--gigs-cream); border-radius: 8px; background: rgba(10,10,11,.83); transform: skewX(-12deg); }
+.gcm-ctaOutline > * { transform: skewX(12deg); }
+.gcm-ctaOutline:hover { transform: skewX(-12deg) translateY(-3px); }
+.gcm-hero { position: relative; min-width: 0; height: clamp(590px, 56vw, 770px); margin-top: -74px; align-self: stretch; z-index: 1; }
+.gcm-heroGlow { position: absolute; width: 100%; height: 100%; left:0; top:0; opacity:.75; pointer-events:none; }
+.gcm-photoClip { position:absolute; inset: 0 -20px 0 -10px; overflow: hidden; clip-path: polygon(21% 0,100% 0,100% 100%,0 100%,7% 74%,0 58%); background: #171718; }
+.gcm-photo { object-fit: cover; object-position: 50% 53%; filter: contrast(1.11) brightness(.88) saturate(.9); }
+.gcm-photoTint { position:absolute; inset:0; background: linear-gradient(90deg, rgba(9,9,9,.62), transparent 32%), linear-gradient(0deg,rgba(9,9,9,.36), transparent 48%); pointer-events:none; }
+.gcm-redWedge { position: absolute; inset: -20px auto auto -85px; width: 57%; height: 53%; pointer-events: none; background: url('/event/gigs-akhir-tahun-2026/gigs/svg/decor/section-red-diagonal.svg') center/cover no-repeat; opacity:.8; mix-blend-mode: screen; z-index: -1; }
+.gcm-swoosh { position: absolute; width: 109%; height: 72%; bottom: -125px; right: -110px; object-fit: contain; z-index:-1; pointer-events:none; }
+.gcm-cornerDots { position:absolute; width:64%; top:-65px; left:-155px; opacity:.7; pointer-events:none; }
+.gcm-rail { position: relative; display: flex; justify-content: space-between; align-items: center; gap: 15px; margin-top: 25px; padding: 13px clamp(30px, 6vw, 100px); min-height: 59px; background: #0c0c0e; border: 1px solid var(--gigs-stroke); clip-path: polygon(3% 0,100% 0,98% 100%,0 100%); z-index: 5; }
+.gcm-rail::before { content:''; position:absolute; height:100%; width:100px; left:0; top:0; background: url('/event/gigs-akhir-tahun-2026/gigs/svg/decor/triple-slash.svg') left center/auto 68px no-repeat; }
+.gcm-rail span { font-family: var(--gigs-display); font-weight: 900; font-style: italic; letter-spacing: .19em; font-size: clamp(13px, 1.75vw, 24px); }
+.gcm-rail i { width: 9px; height: 9px; border-radius: 50%; background: var(--gigs-red); flex: 0 0 9px; }
+@media (max-width: 1250px) { .gcm-title { font-size: clamp(60px, 7.4vw, 99px); } .gcm-featureText { font-size: 18px; } .gcm-feature { gap: 7px; } .gcm-hero { margin-top: -24px; height: 675px; } }
+@media (max-width: 920px) {
+ .gcm-wrap { padding: 53px 28px 40px; }
+ .gcm-main { grid-template-columns: 1fr; }
+ .gcm-title { font-size: clamp(67px, 12.3vw, 110px); }
+ .gcm-features { max-width: 100%; }
+ .gcm-description { max-width: 730px; }
+ .gcm-hero { height: 540px; margin-top: 20px; width: 100%; }
+ .gcm-photoClip { inset: 0; clip-path: polygon(10% 0,100% 0,100% 100%,0 100%,0 15%); }
+ .gcm-swoosh { bottom:-100px; right:-60px; height: 72%; }
+ .gcm-rail { padding-inline: 65px 35px; }
+}
+@media (max-width: 620px) {
+ .gcm-wrap { padding: 38px 18px 26px; }
+ .gcm-breadcrumb { font-size: .72rem; flex-wrap:wrap; margin-bottom: 24px; gap:7px; }
+ .gcm-eyebrow { min-height: 37px; font-size: 18px; padding-left: 13px; }
+ .gcm-eyebrowSlash { width: 38px; }
+ .gcm-title { font-size: clamp(48px, 13vw, 81px); letter-spacing: -.018em; margin: 14px 0 20px; }
+ .gcm-description { padding-left: 13px; font-size: 14px; }
+ .gcm-features { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+ .gcm-feature { min-height: 66px; padding: 7px; gap: 7px; border-radius: 9px; }
+ .gcm-featureIcon { width: 29px; height: 29px; flex-basis: 29px; }
+ .gcm-featureSep { height: 30px; }
+ .gcm-featureText { font-size: clamp(13px, 3.9vw, 17px); }
+ .gcm-actions { gap: 10px; margin-top: 23px; }
+ .gcm-cta { min-height: 54px; padding: 7px 20px; gap: 12px; font-size: 22px; }
+ .gcm-ctaPrimary { padding-inline: 27px 33px; }
+ .gcm-cta img { width: 24px; height: 24px; }
+ .gcm-hero { height: 450px; margin-top: 13px; }
+ .gcm-photo { object-position: 50% 54%; }
+ .gcm-rail { overflow:hidden; gap:12px; min-height: 48px; padding: 12px 22px 12px 52px; margin-top: 16px; }
+ .gcm-rail::before { width: 54px; background-size: auto 43px; }
+ .gcm-rail span { white-space: nowrap; font-size: 13px; letter-spacing:.11em; }
+ .gcm-rail i { width:5px; height:5px; flex-basis:5px; }
+ .gcm-rail span:nth-of-type(4), .gcm-rail i:nth-of-type(6), .gcm-rail i:nth-of-type(4) { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .gigsCreative *, .gigsCreative *::before, .gigsCreative *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; } }
+.gcm-photo {position:absolute;inset:0;width:100%;height:100%}.gcm-title{font-size:clamp(40px,5.1vw,86px)} @media(max-width:920px){.gcm-title{font-size:clamp(38px,8.8vw,80px)}}/* Composition matched to the supplied 1037 × 478 reference. */
+@media (min-width: 921px) {
+ .gigsCreative { min-height: 0; }
+ .gcm-wrap { max-width: 1680px; padding: 14px 2.7% 12px; }
+ .gcm-main { grid-template-columns: 50% 50%; gap: 0; position: relative; }
+ .gcm-copy { padding-top: 0; }
+ .gcm-eyebrow { min-height: 28px; font-size: clamp(20px,2vw,32px); margin-bottom: 8px; padding-inline: 22px 26px; }
+ .gcm-eyebrowSlash { width: 45px; height: 24px; }
+ .gcm-title { font-size: clamp(58px,7vw,112px); line-height: .84; margin: 0 0 12px; letter-spacing: -.025em; }
+ .gcm-description { max-width: 79%; font-size: clamp(13px,1.25vw,20px); line-height: 1.18; padding-left: 14px; border-left-width: 4px; margin-bottom: 14px; }
+ .gcm-features { gap: 8px 12px; }
+ .gcm-feature { min-height: 48px; padding: 6px 10px; border-radius: 8px; gap: 10px; }
+ .gcm-featureIcon { width: 32px; height: 32px; flex-basis: 32px; }
+ .gcm-featureSep { height: 30px; }
+ .gcm-featureText { font-size: clamp(15px,1.55vw,25px); }
+ .gcm-actions { margin-top: 22px; gap: 16px; }
+ .gcm-cta { min-height: 38px; font-size: clamp(20px,2vw,32px); padding: 7px 28px; gap: 22px; }
+ .gcm-ctaPrimary { padding-inline: 30px; }
+ .gcm-hero { position: absolute; left: 48%; right: -3%; top: -14px; bottom: -24px; height: auto; margin: 0; }
+ .gcm-photoClip { inset: 0; clip-path: polygon(16% 0,100% 0,100% 100%,0 100%); }
+ .gcm-photo { object-position: 50% 52%; }
+ .gcm-photoTint { background: linear-gradient(90deg,var(--gigs-ink),transparent 32%); }
+ .gcm-rail { margin-top: 26px; min-height: 30px; padding: 5px 12%; }
+ .gcm-rail span { font-size: clamp(14px,1.4vw,22px); letter-spacing: .3em; }
+ .gcm-rail::before { background-size: auto 36px; }
+ .gcm-rail i { width: 6px; height: 6px; flex-basis: 6px; }
+ .gcm-grain { opacity: .12; }
+ .gcm-swoosh { bottom: -90px; }
+}
+.gcm-cta { min-height: 44px; }
+@media (min-width: 921px) {
+ .gcm-wrap { padding-top: 14px; padding-bottom: 12px; }
+ .gcm-title { font-family: "Barlow Condensed", Impact, sans-serif; font-size: clamp(64px,7.5vw,120px); line-height: .76; margin-bottom: 10px; }
+ .gcm-title span + span { margin-top: .06em; }
+ .gcm-description { font-style: italic; font-weight: 400; line-height: 1.18; max-width: 80%; margin-bottom: 13px; }
+ .gcm-eyebrow { font-family: "Barlow Condensed", Impact, sans-serif; letter-spacing: .035em; }
+ .gcm-feature { min-height: 48px; }
+ .gcm-actions { margin-top: 22px; }
+ .gcm-cta { font-family: "Barlow Condensed", Impact, sans-serif; min-height: 44px; }
+ .gcm-rail { margin-top: 20px; }
+ .gcm-redWedge { opacity: .35; }
+ .gcm-grid { opacity: .05; }
+}
+#digital-creative-movement { scroll-margin-top: 80px; }
+.gcm-eyebrowSlash { display: inline-block; }
+.gcm-featureText { min-width: 0; overflow-wrap: anywhere; }
+@media (min-width: 921px) {
+ .gcm-title { font-size: clamp(64px,8.15vw,132px); }
+ .gcm-ctaOutline { padding-inline: 22px; }
+ .gcm-rail { margin-inline: -1.5%; }
+}
+@media (max-width: 620px) {
+ .gcm-title { font-size: clamp(32px, 9.8vw, 60px); }
+ .gcm-eyebrowSlash { display: none; }
+ .gcm-rail { flex-wrap: wrap; justify-content: center; padding-left: 42px; }
+ .gcm-rail span { font-size: 11px; letter-spacing: .07em; }
+ .gcm-rail i:last-of-type { display: none; }
+}
+@media (min-width: 921px) {
+ .gcm-title { line-height: .69; margin-bottom: 9px; transform: translateY(-3px); }
+ .gcm-feature { min-height: 46px; gap: 7px; }
+ .gcm-featureText { font-size: clamp(14px,1.4vw,22px); overflow-wrap: normal; }
+ .gcm-actions { margin-top: 18px; }
+ .gcm-title span { transform-origin: left center; }
+ .gcm-title span:first-child { transform: scaleX(1.17); }
+ .gcm-title span:last-child { transform: scaleX(1.045); }
+ .gcm-rail { margin-top: 17px; }
+}
+@media (min-width: 921px) {
+ .gcm-photo { object-position: 50% 32%; transform: scale(1.08); transform-origin: 51% 38%; filter: contrast(1.04) brightness(1.04) saturate(.95); }
+ .gcm-photoTint { background: linear-gradient(90deg, var(--gigs-ink), transparent 26%); }
+ .gcm-rail::after { content: ''; position: absolute; right: 17px; top: 50%; width: 42px; height: 16px; transform: translateY(-50%); background: url('/event/gigs-akhir-tahun-2026/gigs/svg/decor/triple-slash-mini.svg') center / contain no-repeat; }
+}
+@media (max-width: 620px) {
+ .gcm-rail { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); text-align: center; gap: 6px 8px; }
+ .gcm-rail span:nth-of-type(4) { display: block; }
+ .gcm-rail i { display: none; }
+}
+
+/* ==========================================================================
+   OPSI 1: "SURYA" Di Belakang Laptop + Red Laser Keliling Tanpa Henti
+   ========================================================================== */
+#digital-creative-movement {
+  --surya-laser-left: 25.75%;
+  --surya-laser-top: 8.35%;
+  --surya-laser-width: 65.64%;
+  --surya-laser-height: 48.35%;
+  --gcm-bg-x: 0px;
+  --gcm-bg-y: 0px;
+  --gcm-surya-x: 0px;
+  --gcm-surya-y: 0px;
+  --gcm-surya-rx: 0deg;
+  --gcm-surya-ry: 0deg;
+}
+
+@media (max-width: 920px) {
+  #digital-creative-movement {
+    --surya-laser-left: 27.62%;
+    --surya-laser-top: 19.82%;
+    --surya-laser-width: 60.77%;
+    --surya-laser-height: 23.18%;
+  }
+}
+
+.gcm-photoBase {
+  z-index: 1;
+  translate: var(--gcm-bg-x) var(--gcm-bg-y);
+  will-change: translate;
+}
+
+/* Layer tengah: berada tepat DI BELAKANG layar MacBook foreground (.gcm-laptopFg) */
+.gcm-suryaStage {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  perspective: 960px;
+  transform-style: preserve-3d;
+}
+
+.gcm-suryaParallax {
+  position: absolute;
+  inset: 0;
+  translate: var(--gcm-surya-x) var(--gcm-surya-y);
+  transform: rotateX(var(--gcm-surya-rx)) rotateY(var(--gcm-surya-ry));
+  transform-style: preserve-3d;
+  will-change: transform, translate;
+  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, .75));
+  transition: translate .12s linear;
+}
+
+#digital-creative-movement.is-surya-active .gcm-suryaParallax {
+  animation: gcmSuryaHoverFloat 6s ease-in-out infinite;
+}
+
+.gcm-suryaImg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 53%;
+  pointer-events: none;
+  user-select: none;
+}
+
+@media (max-width: 620px) {
+  .gcm-suryaImg {
+    object-position: 50% 54%;
+  }
+}
+
+@media (min-width: 921px) {
+  .gcm-suryaImg {
+    object-position: 50% 32%;
+    transform: scale(1.08);
+    transform-origin: 51% 38%;
+  }
+}
+
+.gcm-suryaFx {
+  mix-blend-mode: screen;
+  opacity: .38;
+}
+
+#digital-creative-movement.is-surya-active .gcm-suryaFx {
+  animation: gcmSuryaFxPulse 3.6s ease-in-out infinite;
+}
+
+/* Red Laser keliling mengikuti kontur huruf SURYA tanpa henti */
+.gcm-suryaLaserSvg {
+  position: absolute;
+  left: var(--surya-laser-left);
+  top: var(--surya-laser-top);
+  width: var(--surya-laser-width);
+  height: var(--surya-laser-height);
+  overflow: visible;
+  pointer-events: none;
+  filter: drop-shadow(0 0 6px rgba(255, 16, 47, .85));
+}
+
+.gcm-laserTrack {
+  fill: none;
+  stroke: rgba(255, 16, 47, .24);
+  stroke-width: 2.5px;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.gcm-laserBeamGlow,
+.gcm-laserBeamCore {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+  will-change: stroke-dashoffset;
+}
+
+.gcm-laserBeamGlow {
+  stroke: #FF102F;
+  stroke-width: 6.5px;
+  stroke-dasharray: 220 780;
+  opacity: .92;
+  animation: gcmLaserOrbitPrimary 4.2s linear infinite;
+}
+
+.gcm-laserBeamCore {
+  stroke: #FFF0F2;
+  stroke-width: 2.1px;
+  stroke-dasharray: 115 885;
+  animation: gcmLaserOrbitPrimaryCore 4.2s linear infinite;
+}
+
+.gcm-laserBeamGlowAlt {
+  stroke-dasharray: 185 815;
+  animation: gcmLaserOrbitAlt 4.2s linear infinite;
+}
+
+.gcm-laserBeamCoreAlt {
+  stroke-dasharray: 95 905;
+  animation: gcmLaserOrbitAltCore 4.2s linear infinite;
+}
+
+.gcm-laserBeamGlowA {
+  stroke-dasharray: 280 720;
+  animation: gcmLaserOrbitPrimary 2.5s linear infinite;
+}
+
+.gcm-laserBeamCoreA {
+  stroke-dasharray: 145 855;
+  animation: gcmLaserOrbitPrimaryCoreA 2.5s linear infinite;
+}
+
+.gcm-laserBeamGlowA2 {
+  stroke-dasharray: 230 770;
+  animation: gcmLaserOrbitAlt 2.5s linear infinite;
+}
+
+.gcm-laserBeamCoreA2 {
+  stroke-dasharray: 115 885;
+  animation: gcmLaserOrbitAltCoreA 2.5s linear infinite;
+}
+
+/* Foreground MacBook: menutupi ujung bawah tulisan SURYA & laser yang lewat di belakang laptop */
+.gcm-laptopFg {
+  z-index: 4;
+  translate: var(--gcm-bg-x) var(--gcm-bg-y);
+  will-change: translate;
+}
+
+.gcm-photoTint {
+  z-index: 5;
+}
+
+@keyframes gcmSuryaHoverFloat {
+  0%, 100% { margin-top: 0px; }
+  50% { margin-top: -3px; }
+}
+
+@keyframes gcmSuryaFxPulse {
+  0%, 100% { opacity: .28; }
+  50% { opacity: .54; }
+}
+
+@keyframes gcmLaserOrbitPrimary {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: -1000; }
+}
+
+@keyframes gcmLaserOrbitPrimaryCore {
+  from { stroke-dashoffset: -52; }
+  to { stroke-dashoffset: -1052; }
+}
+
+@keyframes gcmLaserOrbitAlt {
+  from { stroke-dashoffset: -500; }
+  to { stroke-dashoffset: -1500; }
+}
+
+@keyframes gcmLaserOrbitAltCore {
+  from { stroke-dashoffset: -545; }
+  to { stroke-dashoffset: -1545; }
+}
+
+@keyframes gcmLaserOrbitPrimaryCoreA {
+  from { stroke-dashoffset: -65; }
+  to { stroke-dashoffset: -1065; }
+}
+
+@keyframes gcmLaserOrbitAltCoreA {
+  from { stroke-dashoffset: -555; }
+  to { stroke-dashoffset: -1555; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gcm-suryaParallax,
+  .gcm-suryaFx,
+  .gcm-laserBeamGlow,
+  .gcm-laserBeamCore {
+    animation: none !important;
+  }
+}
+
+body.gigs-reduced-motion .gcm-suryaParallax,
+body.gigs-reduced-motion .gcm-suryaFx,
+body.gigs-reduced-motion .gcm-laserBeamGlow,
+body.gigs-reduced-motion .gcm-laserBeamCore {
+  animation: none !important;
+}

@@ -1,3 +1,4 @@
+import { eventSiteAppJs } from "@/lib/event-site";
 import { patchGigsAppJs } from "@/lib/gigs-event-page-patch";
 import { rateLimit } from "@/lib/rate-limit";
 
@@ -5,7 +6,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // app.js halaman event platform GIGS dengan koreksi kecil (`patchGigsAppJs`), lewat Caddy (Owner 18 Nov 2026).
-// Isi = file asli platform (jaringan internal); koreksi yang jangkarnya tidak cocok dilewati. Cache memori 60 detik.
+// Isi = salinan Garage OS (public/event/<slug>/public/app.js) bila ada, selain itu file asli platform (jaringan internal);
+// koreksi yang jangkarnya tidak cocok dilewati. Cache memori 60 detik.
 const DEFAULT_API = "http://garage-event-platform:4400/event/api/events";
 const cache = new Map<string, { at: number; code: string }>();
 
@@ -19,6 +21,12 @@ export async function GET(request: Request, context: { params: Promise<{ slug: s
 
   const hit = cache.get(slug);
   if (hit && Date.now() - hit.at < 60_000) return new Response(hit.code, { headers });
+  const local = await eventSiteAppJs(slug);
+  if (local !== null) {
+    const { code } = patchGigsAppJs(local);
+    cache.set(slug, { at: Date.now(), code });
+    return new Response(code, { headers });
+  }
   try {
     const res = await fetch(api.replace(/\/api\/events\/?$/, `/${slug}/public/app.js`), { cache: "no-store", signal: AbortSignal.timeout(4000) });
     if (!res.ok) return new Response("Platform tidak tersedia", { status: res.status === 404 ? 404 : 502 });

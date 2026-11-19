@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="900" viewBox="0 0 800 900" fill="none" role="img" aria-label="Bidang diagonal merah dengan gradasi dan halftone">
+<defs>
+  <linearGradient id="g-diag" x1="0" y1="0" x2="800" y2="900" gradientUnits="userSpaceOnUse"><stop stop-color="#FF102F"/><stop offset=".64" stop-color="#D50021"/><stop offset="1" stop-color="#85001A"/></linearGradient>
+  <pattern id="p-diag" width="12" height="12" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1.4" fill="#08080A" opacity=".5"/></pattern>
+  <linearGradient id="fade-diag" x1="0" y1="0" x2="800" y2="500" gradientUnits="userSpaceOnUse"><stop stop-color="white"/><stop offset="1" stop-color="black"/></linearGradient><mask id="m-diag"><rect width="800" height="900" fill="url(#fade-diag)"/></mask>
+</defs><path d="M390 0H800V900H0L250 538L160 428Z" fill="url(#g-diag)"/><path d="M390 0H800V900H0L250 538L160 428Z" fill="url(#p-diag)" mask="url(#m-diag)"/>
+</svg>

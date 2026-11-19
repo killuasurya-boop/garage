@@ -13,6 +13,9 @@ export const PUBLIC_STAGE_LABEL: Record<(typeof PUBLIC_STAGES)[number], string> 
   "tanpa-vendor": "Tanpa vendor",
   terpakai: "Terpakai",
 };
+export const DECISIONS = ["", "go", "nogo", "tunda"] as const;
+export const DECISION_LABEL: Record<(typeof DECISIONS)[number], string> = { "": "Belum diputuskan", go: "GO", nogo: "NO GO", tunda: "TUNDA" };
+
 export const PAY_KINDS = ["", "dp", "termin", "pelunasan", "lunas"] as const;
 
 const rupiah = (label: string) => z.number({ message: `${label} harus angka.` }).int(`${label} harus rupiah bulat.`).min(0, `${label} tidak boleh minus.`).max(10_000_000_000);
@@ -66,6 +69,27 @@ export const publicFinanceSchema = z
         incidentsResolved: z.number().int().min(0).max(1000).default(0),
       })
       .default({ published: false, publishedAt: null, evaluation: "", recommendations: "", surplusDecision: "", incidentsTotal: 0, incidentsResolved: 0 }),
+    // Keputusan GO / NO GO / TUNDA (Owner 19 Nov 2026): tampil di Kesiapan halaman event. Waktu keputusan diisi server.
+    decision: z
+      .object({
+        value: z.enum(DECISIONS).default(""),
+        note: z.string().trim().max(300).default(""),
+        decidedAt: z.string().datetime().nullable().default(null),
+      })
+      .default({ value: "", note: "", decidedAt: null }),
+    // Riwayat perubahan publik (target & pos RAB). Dikelola server saat menyimpan; isian dari layar diabaikan.
+    changes: z
+      .array(
+        z.object({
+          id: z.number().int().min(1),
+          area: z.string().max(20),
+          summary: z.string().max(2000),
+          reason: z.string().max(300).default(""),
+          at: z.string().max(25),
+        }),
+      )
+      .max(200)
+      .default([]),
   })
   .superRefine((value, ctx) => {
     const codes = new Set<string>();
@@ -80,7 +104,39 @@ export const publicFinanceSchema = z
 export type PublicFinance = z.infer<typeof publicFinanceSchema>;
 
 export const EMPTY_CLOSEOUT: PublicFinance["closeout"] = { published: false, publishedAt: null, evaluation: "", recommendations: "", surplusDecision: "", incidentsTotal: 0, incidentsResolved: 0 };
-export const EMPTY_PUBLIC_FINANCE: PublicFinance = { target: 0, notes: [], budgetLines: [], incomes: [], expenses: [], committedCount: 0, committedAmount: 0, closeout: EMPTY_CLOSEOUT };
+export const EMPTY_DECISION: PublicFinance["decision"] = { value: "", note: "", decidedAt: null };
+export const EMPTY_PUBLIC_FINANCE: PublicFinance = { target: 0, notes: [], budgetLines: [], incomes: [], expenses: [], committedCount: 0, committedAmount: 0, closeout: EMPTY_CLOSEOUT, decision: EMPTY_DECISION, changes: [] };
+
+const idr = (n: number) => n.toLocaleString("id-ID");
+
+/**
+ * Ringkasan perubahan target & pos RAB untuk riwayat publik, format sama dengan platform
+ * ("Target 17.000.000 → 21.300.000; Pos 02 Sound: Rp4.500.000 → Rp10.000.000; Pos 03 berganti nama "A" → "B"").
+ * Kosong bila target/RAB tidak berubah (dana masuk/keluar punya riwayat sendiri).
+ */
+export function financeChangeSummary(before: PublicFinance | null, after: PublicFinance): string {
+  if (!before) return "";
+  const parts: string[] = [];
+  if (before.target !== after.target) parts.push(`Target ${idr(before.target)} → ${idr(after.target)}`);
+  const prev = new Map(before.budgetLines.map((l) => [l.code, l]));
+  const next = new Map(after.budgetLines.map((l) => [l.code, l]));
+  for (const line of after.budgetLines) {
+    const old = prev.get(line.code);
+    if (!old) {
+      parts.push(`Pos ${line.code} ${line.name} ditambah: Rp${idr(line.budget)}`);
+      continue;
+    }
+    if (old.budget !== line.budget) parts.push(`Pos ${line.code} ${line.name}: Rp${idr(old.budget)} → Rp${idr(line.budget)}`);
+    if (old.name !== line.name) parts.push(`Pos ${line.code} berganti nama "${old.name}" → "${line.name}"`);
+  }
+  for (const line of before.budgetLines) if (!next.has(line.code)) parts.push(`Pos ${line.code} ${line.name} dihapus`);
+  return parts.join("; ").slice(0, 2000);
+}
+
+/** "YYYY-MM-DD HH:MM:SS" UTC — format waktu yang dibaca halaman event. */
+export function platformTimestamp(date: Date) {
+  return date.toISOString().slice(0, 19).replace("T", " ");
+}
 
 const sum = (values: number[]) => values.reduce((total, n) => total + n, 0);
 /** Tanggal saja → "YYYY-MM-DD 05:00:00" (UTC = 12.00 WIB), format waktu yang dibaca halaman event. */
@@ -186,5 +242,7 @@ export function prefillFromPlatform(config: unknown, summary: unknown): PublicFi
     committedCount: num(s.committed_count),
     committedAmount: num(s.committed_amount),
     closeout: EMPTY_CLOSEOUT,
+    decision: EMPTY_DECISION,
+    changes: [],
   };
 }

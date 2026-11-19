@@ -5,7 +5,15 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { eventPublicFinance, events } from "@/db/schema";
 import { findEventForPlatform, listMasterEvents } from "@/lib/event-master";
-import { EMPTY_PUBLIC_FINANCE, prefillFromPlatform, publicFinanceSchema, publicFinanceTotals, type PublicFinance } from "@/lib/event-public-finance-rules";
+import {
+  EMPTY_PUBLIC_FINANCE,
+  financeChangeSummary,
+  platformTimestamp,
+  prefillFromPlatform,
+  publicFinanceSchema,
+  publicFinanceTotals,
+  type PublicFinance,
+} from "@/lib/event-public-finance-rules";
 import { createAuditLog } from "@/lib/garage-service";
 import { fetchPlatformLineup } from "@/lib/gigs-promo";
 import type { GarageSession } from "@/lib/server-auth";
@@ -85,7 +93,7 @@ export async function prefillPublicFinance(eventId: string, garage: GarageSessio
 
 export async function savePublicFinance(eventId: string, raw: unknown, garage: GarageSession) {
   assertOwnerHuman(garage);
-  const body = (raw ?? {}) as { enabled?: unknown; data?: unknown };
+  const body = (raw ?? {}) as { enabled?: unknown; data?: unknown; changeReason?: unknown };
   const parsed = publicFinanceSchema.safeParse(body.data);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
@@ -95,8 +103,23 @@ export async function savePublicFinance(eventId: string, raw: unknown, garage: G
   const db = getDb();
   // Laporan akhir: waktu terbit diisi server saat pertama diterbitkan; ditarik → kosong.
   const previousCloseout = await db.select({ data: eventPublicFinance.data }).from(eventPublicFinance).where(eq(eventPublicFinance.eventId, eventId)).limit(1);
-  const prevPublishedAt = publicFinanceSchema.safeParse(previousCloseout[0]?.data).data?.closeout.publishedAt ?? null;
+  const previous = publicFinanceSchema.safeParse(previousCloseout[0]?.data).data ?? null;
+  const prevPublishedAt = previous?.closeout.publishedAt ?? null;
   parsed.data.closeout.publishedAt = parsed.data.closeout.published ? (prevPublishedAt ?? new Date().toISOString()) : null;
+  // Keputusan GO/NO GO: waktu diisi server saat keputusan berubah; dikosongkan → waktu ikut kosong.
+  const prevDecision = previous?.decision ?? null;
+  parsed.data.decision.decidedAt = !parsed.data.decision.value
+    ? null
+    : prevDecision && prevDecision.value === parsed.data.decision.value
+      ? (prevDecision.decidedAt ?? new Date().toISOString())
+      : new Date().toISOString();
+  // Riwayat perubahan dikelola server: isian dari layar diabaikan, perubahan target/RAB baru ditambahkan.
+  const history = previous?.changes ?? [];
+  const summary = financeChangeSummary(previous, parsed.data);
+  const reason = typeof body.changeReason === "string" ? body.changeReason.trim().slice(0, 300) : "";
+  parsed.data.changes = summary
+    ? [...history, { id: (history.at(-1)?.id ?? 0) + 1, area: "finance", summary, reason, at: platformTimestamp(new Date()) }].slice(-200)
+    : history;
   const [event] = await db.select({ id: events.id, title: events.title }).from(events).where(eq(events.id, eventId)).limit(1);
   if (!event) throw new PublicFinanceError("EVENT_NOT_FOUND", "Event tidak ditemukan.", 404);
   const [before] = await db.select().from(eventPublicFinance).where(eq(eventPublicFinance.eventId, eventId)).limit(1);
@@ -119,4 +142,11 @@ export async function savePublicFinance(eventId: string, raw: unknown, garage: G
     },
   });
   return getPublicFinance(eventId, garage);
+}
+
+/** Keputusan GO/NO GO dari Garage OS (tanpa syarat transparansi aktif) dalam format halaman event, atau null. Catatan = internal. */
+export async function publicDecisionForEvent(eventId: string): Promise<{ decision: string; decidedAt: string | null } | null> {
+  const [row] = await getDb().select({ data: eventPublicFinance.data }).from(eventPublicFinance).where(eq(eventPublicFinance.eventId, eventId)).limit(1);
+  const decision = publicFinanceSchema.safeParse(row?.data).data?.decision;
+  return decision?.value ? { decision: decision.value, decidedAt: decision.decidedAt } : null;
 }

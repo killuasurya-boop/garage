@@ -577,6 +577,7 @@ export const API_ROUTE_CATALOG: ApiRouteEntry[] = [
   {"path":"/api/profitmax/export","methods":["GET"],"note":""},
   {"path":"/api/public/events/{slug}/menu","methods":["GET"],"note":""},
   {"path":"/api/public/gigs/{slug}/app-js","methods":["GET"],"note":""},
+  {"path":"/api/public/gigs/{slug}/changes","methods":["GET"],"note":""},
   {"path":"/api/public/gigs/{slug}/closeout","methods":["GET"],"note":""},
   {"path":"/api/public/gigs/{slug}/config","methods":["GET"],"note":""},
   {"path":"/api/public/gigs/{slug}/lineup","methods":["GET"],"note":""},

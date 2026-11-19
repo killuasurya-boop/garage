@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <script>window.GIGS_BASE="/event/gigs-akhir-tahun-2026";</script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Daftar Mandiri | GIGS AKHIR TAHUN 2026</title>
+  <link rel="stylesheet" href="/event/gigs-akhir-tahun-2026/design-tokens.css">
+  <link rel="stylesheet" href="/event/gigs-akhir-tahun-2026/public/app.css?v=20261116b">
+  <script src="/event/gigs-akhir-tahun-2026/public/daftar.js?v=20261116a" defer></script>
+</head>
+<body class="gigs-ops gigs-daftar">
+  <header class="gigs-ops-nav">
+    <div class="gigs-container gigs-ops-nav-inner">
+      <a href="/event/gigs-akhir-tahun-2026/" aria-label="Beranda GIGS 2026"><img src="/event/gigs-akhir-tahun-2026/official-assets/gigs-2026-transparent.png" alt="GIGS 2026"></a>
+      <a class="gigs-ops-back" href="/event/gigs-akhir-tahun-2026/">Beranda GIGS</a>
+    </div>
+  </header>
+
+  <main class="gigs-container gigs-ops-main">
+    <section class="gigs-ops-banner gigs-reg-banner">
+      <img class="gigs-layer-cover" src="/event/gigs-akhir-tahun-2026/gigs-svg/backgrounds/bg-sponsor-portal.svg" alt="">
+      <h1>DAFTAR MANDIRI</h1>
+      <p>Sponsor, kreator, dan crew mengisi data sendiri. Data tampil di website <strong>setelah disetujui panitia</strong>; logo sponsor tampil setelah dana <strong>terverifikasi</strong> (SOP V1.3).</p>
+    </section>
+
+    <p id="regClosed" class="gigs-reg-alert" role="status" hidden>Pendaftaran online belum dibuka. Silakan hubungi panitia.</p>
+
+    <div id="regApp">
+      <div class="gigs-reg-tabs" role="tablist" aria-label="Pilih jalur pendaftaran">
+        <button type="button" role="tab" id="tab-sponsor" aria-controls="regForm" aria-selected="true" data-type="sponsor">
+          <strong>Sponsor</strong><small>Rp300.000 – Rp20.000.000 · hak setara</small>
+        </button>
+        <button type="button" role="tab" id="tab-creator" aria-controls="regForm" aria-selected="false" data-type="creator">
+          <strong>Kreator / Talent</strong><small>Band, komika, akustik, komunitas</small>
+        </button>
+        <button type="button" role="tab" id="tab-crew" aria-controls="regForm" aria-selected="false" data-type="crew">
+          <strong>Crew / Tim pendukung</strong><small>Jumlah orang untuk rekap konsumsi</small>
+        </button>
+      </div>
+
+      <form id="regForm" class="gigs-paper-panel gigs-reg-form" role="tabpanel" aria-labelledby="tab-sponsor" novalidate>
+        <h2 class="gigs-paper-title" id="regTitle">Pendaftaran Sponsor</h2>
+        <p class="gigs-paper-sub" id="regLead"></p>
+        <p id="regEditing" class="gigs-reg-editing" hidden></p>
+
+        <div class="gigs-reg-grid">
+          <label class="gigs-field" data-for="sponsor creator crew"><span id="lblName">Nama usaha / brand <b class="gigs-req">*</b></span><input name="name" maxlength="120" required></label>
+          <label class="gigs-field" data-for="sponsor"><span>Kategori usaha <b class="gigs-req">*</b></span>
+            <select name="sponsorCategory">
+              <option value="">Pilih kategori</option>
+              <option value="kuliner">Kuliner &amp; Kopi</option>
+              <option value="fashion">Fashion &amp; Merch</option>
+              <option value="jasa-kreatif">Jasa Kreatif &amp; Desain</option>
+              <option value="teknologi">Gaming &amp; Teknologi</option>
+              <option value="komunitas">Komunitas Lokal</option>
+              <option value="lainnya">Lainnya</option>
+            </select></label>
+          <label class="gigs-field" data-for="creator"><span>Kategori <b class="gigs-req">*</b></span>
+            <select name="creatorCategory">
+              <option value="">Pilih kategori</option>
+              <option value="band">Band</option>
+              <option value="komika">Stand-up / Komika</option>
+              <option value="akustik">Live Akustik</option>
+              <option value="kreator">Konten Kreator</option>
+              <option value="komunitas">Komunitas Kreatif</option>
+              <option value="lainnya">Lainnya</option>
+            </select></label>
+          <label class="gigs-field" data-for="crew"><span>Peran / divisi <b class="gigs-req">*</b></span><input name="role" maxlength="80" placeholder="Mis. Keamanan, Dokumentasi, Logistik"></label>
+          <label class="gigs-field" data-for="sponsor creator crew"><span>Nama penanggung jawab <b class="gigs-req">*</b></span><input name="pic" maxlength="120" autocomplete="name" required></label>
+          <label class="gigs-field" data-for="sponsor creator crew"><span>WhatsApp <b class="gigs-req">*</b></span><input name="whatsapp" inputmode="tel" autocomplete="tel" placeholder="08xxxxxxxxxx" required></label>
+          <label class="gigs-field" data-for="sponsor creator"><span>Instagram <em>(opsional)</em></span><input name="instagram" maxlength="60" placeholder="@username"></label>
+          <label class="gigs-field" data-for="sponsor"><span>Alamat usaha <b class="gigs-req">*</b></span><input name="address" maxlength="200" placeholder="Jalan, kelurahan, Tebing Tinggi"></label>
+          <label class="gigs-field" data-for="sponsor"><span>Nominal kontribusi (Rp) <b class="gigs-req">*</b></span>
+            <input name="amount" type="number" inputmode="numeric" min="300000" max="20000000" step="1000" placeholder="300000">
+            <small class="gigs-reg-hint" id="amountHint">Rp300.000 – Rp20.000.000. Semua nominal mendapat hak promosi yang sama.</small></label>
+          <label class="gigs-field" data-for="creator crew"><span id="lblMembers">Jumlah personel <b class="gigs-req">*</b></span><input name="members" type="number" inputmode="numeric" min="1" max="100" placeholder="5"></label>
+          <label class="gigs-field" data-for="crew"><span>Waktu kehadiran <b class="gigs-req">*</b></span>
+            <select name="attendance">
+              <option value="">Pilih waktu</option>
+              <option value="persiapan">Persiapan (H-1)</option>
+              <option value="hari-h-penuh">Hari H penuh</option>
+              <option value="hari-h-sore">Hari H sore–malam</option>
+            </select></label>
+          <label class="gigs-field" data-for="creator"><span>Tautan portofolio <em>(opsional, https://)</em></span><input name="portfolio" type="url" maxlength="500" placeholder="https://instagram.com/..."></label>
+          <label class="gigs-field" data-for="creator"><span>Kebutuhan teknis <em>(opsional)</em></span><input name="tech" maxlength="300" placeholder="Mis. 2 mic, 1 DI box"></label>
+          <label class="gigs-field" data-for="creator crew"><span>Catatan makanan <em>(opsional)</em></span><input name="diet" maxlength="200" placeholder="Mis. 1 vegetarian, 1 alergi kacang"></label>
+          <label class="gigs-field gigs-reg-wide" data-for="sponsor creator"><span>Deskripsi singkat <b class="gigs-req">*</b></span><textarea name="description" rows="3" maxlength="600"></textarea></label>
+          <div class="gigs-field gigs-reg-wide" data-for="sponsor creator">
+            <span id="lblLogo">Logo / foto <b class="gigs-req">*</b> <em>(PNG/JPG/WebP, maks. 2 MB)</em></span>
+            <label class="gigs-upload-box gigs-reg-upload" for="regLogo">
+              <input type="file" id="regLogo" accept="image/png,image/jpeg,image/webp" hidden>
+              <img id="regLogoPreview" alt="" hidden>
+              <strong id="regLogoText">Pilih berkas</strong>
+              <small>Gunakan logo asli milik Anda.</small>
+            </label>
+          </div>
+          <label class="gigs-reg-consent gigs-reg-wide" data-for="sponsor creator">
+            <input type="checkbox" name="consent">
+            <span>Saya mengizinkan nama, logo, kategori, deskripsi, Instagram<span data-for="sponsor">, alamat usaha, dan nama usaha di daftar dana masuk (halaman Transparansi Dana)</span><span data-for="creator">, dan tautan portofolio</span> ditampilkan di website GIGS 2026 setelah disetujui panitia. Nomor WhatsApp tidak pernah ditampilkan.</span>
+          </label>
+        </div>
+
+        <!-- B4: catatan privasi singkat; isi harus sesuai perilaku sistem (publicList & ringkasan dana publik). -->
+        <details class="gigs-reg-privacy" data-testid="reg-privacy">
+          <summary>Privasi data Anda</summary>
+          <ul>
+            <li><strong>Untuk apa:</strong> hanya untuk mengurus GIGS AKHIR TAHUN 2026 — konfirmasi pendaftaran, jadwal, konsumsi, dan laporan dana. Tidak dijual atau diberikan ke pihak lain.</li>
+            <li><strong>Siapa yang melihat:</strong> nomor WhatsApp, nama penanggung jawab, jumlah personel, catatan makanan, kebutuhan teknis, dan nominal yang Anda ajukan (sebelum disahkan) hanya dilihat panitia yang login.</li>
+            <li data-for="sponsor creator"><strong>Yang tampil publik:</strong> hanya bila Anda mencentang izin di atas dan pendaftaran disetujui panitia. Tanpa izin, profil Anda tidak ditampilkan.</li>
+            <li data-for="sponsor"><strong>Dana:</strong> setelah disahkan dua panitia, nominal dana masuk tampil di halaman Transparansi Dana. Tanpa izin, nominal itu tampil tanpa nama.</li>
+            <li data-for="crew"><strong>Data crew</strong> tidak pernah tampil publik — hanya untuk rekap konsumsi dan jadwal.</li>
+            <li><strong>Ubah atau hapus:</strong> setelah mendaftar Anda menerima ID dan kode edit untuk memperbarui data lewat “Buka data saya”. Untuk menghapus data, hubungi panitia.</li>
+          </ul>
+        </details>
+
+        <div class="gigs-bank-note" data-for="sponsor"><strong>Belum perlu transfer.</strong> Panitia akan menghubungi untuk konfirmasi dan rekening resmi Bank Jago. Logo tampil setelah pendaftaran disetujui dan dana disahkan dua panitia berbeda.</div>
+        <div class="gigs-bank-note" data-for="creator"><strong>Catatan:</strong> slot berdana mengikuti RAB (4 band dan 1 komika). Kreator lain terdaftar <strong>non-dana dengan konsumsi</strong>. Semua kreator tampil setara di website.</div>
+        <div class="gigs-bank-note" data-for="crew"><strong>Khusus rekap konsumsi.</strong> Data crew tidak ditampilkan publik.</div>
+
+        <button type="submit" class="gigs-btn-primary gigs-btn-full" id="regSubmit">Kirim pendaftaran</button>
+        <p id="regMessage" class="gigs-reg-message" role="status" aria-live="polite"></p>
+      </form>
+
+      <section id="regResult" class="gigs-paper-panel gigs-reg-result" hidden aria-labelledby="regResultTitle">
+        <h2 class="gigs-paper-title" id="regResultTitle">Pendaftaran terkirim</h2>
+        <p>Status: <span class="gigs-badge" id="regStatus">DIAJUKAN</span></p>
+        <p><strong>Simpan kode edit ini.</strong> Dengan kode ini Anda bisa memperbarui data dan logo kapan saja.</p>
+        <div class="gigs-reg-code"><span>ID</span><code id="regId"></code><span>Kode edit</span><code id="regCode"></code></div>
+        <div class="gigs-ops-actions">
+          <button type="button" class="gigs-btn-primary" id="regCopyLink">Salin link edit pribadi</button>
+          <button type="button" class="gigs-btn-outline" id="regNew">Daftar baru</button>
+        </div>
+        <p class="gigs-reg-hint">Link edit bersifat pribadi. Jangan bagikan ke orang lain.</p>
+      </section>
+
+      <!-- Muncul setelah cek status: progres hak (sponsor) atau setlist (kreator). -->
+      <section id="regExtras" class="gigs-paper-panel gigs-reg-extras" hidden aria-labelledby="regExtrasTitle">
+        <h2 class="gigs-paper-title" id="regExtrasTitle">Progres Anda</h2>
+        <div id="regBenefits" hidden>
+          <p class="gigs-paper-sub">Hak promosi setara yang sedang dikerjakan panitia untuk usaha Anda.</p>
+          <ul id="regBenefitList" class="gigs-reg-benefits"></ul>
+          <div id="regReport" class="gigs-reg-report" hidden>
+            <h3>Laporan sponsor</h3>
+            <p id="regReportMeta"></p>
+            <h4>Insight (data asli platform)</h4>
+            <p id="regReportInsight"></p>
+            <h4>Catatan panitia</h4>
+            <p id="regReportNote"></p>
+            <button type="button" class="gigs-btn-outline" id="regReportPrint">Cetak / simpan PDF</button>
+          </div>
+        </div>
+        <form id="regSetlist" hidden novalidate>
+          <p class="gigs-paper-sub">Isi lagu yang akan dibawakan (untuk rundown &amp; administrasi royalti musik). Satu lagu per baris: <code>Judul | Pencipta / artis asli | cover atau original</code></p>
+          <label class="gigs-field"><span>Setlist</span><textarea name="songs" rows="6" placeholder="Kopi Dangdut | Fahmi Shahab | cover&#10;Lagu Kami | Band Delta | original"></textarea></label>
+          <button type="submit" class="gigs-btn-primary">Simpan setlist</button>
+          <p id="regSetlistMsg" class="gigs-reg-message" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+
+      <span id="cek" class="gigs-anchor" aria-hidden="true"></span>
+      <form id="regLookup" class="gigs-paper-panel gigs-reg-lookup">
+        <h2 class="gigs-paper-title">Sudah pernah daftar?</h2>
+        <p class="gigs-paper-sub">Masukkan ID dan kode edit untuk melihat status atau memperbarui data.</p>
+        <div class="gigs-reg-grid">
+          <label class="gigs-field"><span>ID pendaftaran</span><input name="id" autocomplete="off" spellcheck="false"></label>
+          <label class="gigs-field"><span>Kode edit</span><input name="code" autocomplete="off" spellcheck="false"></label>
+        </div>
+        <button class="gigs-btn-outline" type="submit">Buka data saya</button>
+        <p id="lookupMessage" class="gigs-reg-message" role="status"></p>
+      </form>
+    </div>
+  </main>
+</body>
+</html>

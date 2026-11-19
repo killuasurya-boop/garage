@@ -1,0 +1,10 @@
+/* GIGS 2026 – consistent source of truth (proposed visual match, not sampled vectors) */
+:root{--gigs-red:#E10613;--gigs-red-hover:#FF2638;--gigs-red-deep:#8C0010;--gigs-bg:#0D0C0C;--gigs-ink:#090909;--gigs-surface:#161616;--gigs-cream:#F4E9D9;--gigs-paper:#FFF3E3;--gigs-muted:#BFB5AC;--gigs-border:#615A58;--gigs-success:#47D889;--gigs-warning:#FFD06A;--gigs-font-display:Anton,'Barlow Condensed',Impact,sans-serif;--gigs-font-body:Inter,Arial,sans-serif;--gigs-grad-hero:linear-gradient(105deg,#090909 0%,#2A080D 45%,#AE0617 100%);--gigs-grad-red:linear-gradient(118deg,#A60113 0%,#F10A1F 58%,#E10613 100%);--gigs-grad-paper:linear-gradient(135deg,#FFF3E3 0%,#E9D7C3 100%);--gigs-radius-btn:8px;--gigs-radius-card:12px;--gigs-motion-fast:160ms;--gigs-motion-base:240ms;--gigs-motion-reveal:600ms;--gigs-ease-out:cubic-bezier(0.22,1,0.36,1);--gigs-spring:cubic-bezier(0.34,1.56,0.64,1);}
+.gigs-decor{pointer-events:none;user-select:none}
+.gigs-bg-hero{background-image:url('/event/gigs-akhir-tahun-2026/gigs-svg/backgrounds/bg-hero-cinematic.svg');background-size:cover;background-position:center}
+.gigs-ui-primary{background-image:url('/event/gigs-akhir-tahun-2026/gigs-svg/ui-shells/ui-button-primary.svg');background-size:100% 100%;color:var(--gigs-cream);border:0;min-height:44px;cursor:pointer;transition:transform var(--gigs-motion-base),filter var(--gigs-motion-base)}
+.gigs-ui-primary:hover{filter:brightness(1.13);transform:translateY(-2px)}
+.gigs-ui-primary:focus-visible{outline:3px solid var(--gigs-cream);outline-offset:4px}
+.gigs-ui-primary:active{transform:translateY(0)}
+.gigs-ui-primary:disabled{opacity:.45;cursor:not-allowed;filter:none;transform:none}
+@media(prefers-reduced-motion:reduce){.gigs-ui-primary{transition:none}}

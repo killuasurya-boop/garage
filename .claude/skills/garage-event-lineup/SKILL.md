@@ -161,3 +161,18 @@ description: Aturan WAJIB modul Lineup & Panitia Event (band/stand-up, rundown, 
   aktif, kewajiban sponsor; data tidak ada = `available:false` (bukan 0 palsu); keputusan GO/NO GO tetap dari platform. closeout =
   `data.closeout` di `event_public_finance` (Owner "Terbitkan laporan akhir" di Transparansi; `publishedAt` diisi server sekali)
   + penonton dari check-in aktif + jam tampil nyata + sponsor publik + kewajiban sponsor; belum terbit → platform.
+
+## Halaman event disajikan Garage OS (Owner 19 Nov 2026, satu pintu tahap 5)
+- Repo platform `killuasurya-boop/EVENT` KOSONG (hanya README); kode platform hanya ada di VPS `/root/garage-event`.
+  Arah Owner: pindahkan semua ke Garage OS bertahap, lalu matikan platform.
+- Caddy mengirim SEMUA `/event/*` ke Garage OS. Halaman publik GIGS (beranda event, `/daftar`, `/transparansi`) +
+  aset = salinan resmi di `public/event/<slug>/` (HTML di `_pages/`, disajikan `src/app/event/[[...path]]/route.ts`
+  lewat `eventSitePage`). Selain itu (Dashboard Penyelenggara `/penyelenggara`, daftar event `/event`, `/event/admin`,
+  API penyelenggara) diteruskan apa adanya ke platform (`proxyToPlatform`, metode/header/isi/cookie, 502 sopan bila mati).
+- `app.js` = salinan Garage OS + `patchGigsAppJs`; platform hanya cadangan bila salinan tidak ada.
+- Mengubah tampilan halaman publik = ubah file di `public/event/<slug>/` (bukan di platform lagi).
+- Kesiapan: keputusan GO / NO GO / TUNDA diisi Owner di Transparansi (`data.decision`, waktu oleh server, catatan
+  internal TIDAK publik); kosong → keputusan platform. Riwayat perubahan target/pos RAB (`data.changes`) dikelola server
+  saat Simpan (`financeChangeSummary`, alasan opsional), tampil di `/api/public/changes` setelah riwayat platform lama.
+- Tahap berikut: fitur Dashboard Penyelenggara (kontrak, dana, live, program, kesiapan, review) dipetakan ke modul
+  Garage OS yang ada, lalu container platform dimatikan (butuh ACC Owner).

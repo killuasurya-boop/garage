@@ -29,6 +29,8 @@ export function loginErrorMessage(status: number, code?: string | null, message?
 /** Hanya kode tetap dari guard halaman; jangan tampilkan teks mentah dari URL. */
 export function loginAccessMessage(reason: string | null) {
   switch (reason) {
+    case "SESSION_EXPIRED":
+      return "Sesi Anda sudah berakhir atau tidak terbaca oleh server. Silakan masuk lagi.";
     case "ACCOUNT_SUSPENDED":
       return "Akun Anda ditangguhkan. Hubungi Owner atau Manajer, atau masuk dengan akun lain.";
     case "ACCOUNT_INACTIVE":

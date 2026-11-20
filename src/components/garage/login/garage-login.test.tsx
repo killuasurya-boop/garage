@@ -16,6 +16,14 @@ describe("login after staff access rejection", () => {
     expect(html).toContain('type="password"');
     expect(html).not.toContain("Membuka area kerja");
   });
+  it("allows re-login when the server rejects a stale browser session", () => {
+    vi.stubGlobal("window", { location: { href: "http://localhost:3001/login", search: "?reason=SESSION_EXPIRED" } });
+    mocks.session.mockReturnValue({ data: { user: { id: "stale-staff" } }, isPending: false });
+    const html = renderToStaticMarkup(<GarageLogin />);
+    expect(html).toContain("Silakan masuk lagi.");
+    expect(html).toContain('type="password"');
+    expect(html).not.toContain("Membuka area kerja");
+  });
   it("keeps normal automatic entry for a valid session", () => {
     vi.stubGlobal("window", { location: { href: "http://localhost:3001/login", search: "" } });
     mocks.session.mockReturnValue({ data: { user: { id: "staff" } }, isPending: false });

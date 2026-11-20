@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="410" height="720" viewBox="0 0 410 720" role="img" aria-label="Ui Mobile Drawer">
+  <title>Ui Mobile Drawer</title>
+  <defs>
+    <linearGradient id="dark" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0" stop-color="#17090C" />
+      <stop offset=".48" stop-color="#0B090A" />
+      <stop offset="1" stop-color="#070708" />
+    </linearGradient>
+    <radialGradient id="spotlightTopRight" cx="92%" cy="8%" r="58%">
+      <stop offset="0" stop-color="#FF2638" stop-opacity=".34" />
+      <stop offset=".38" stop-color="#E10613" stop-opacity=".14" />
+      <stop offset="1" stop-color="#8C0010" stop-opacity="0" />
+    </radialGradient>
+    <radialGradient id="spotlightBottomLeft" cx="12%" cy="94%" r="52%">
+      <stop offset="0" stop-color="#E10613" stop-opacity=".22" />
+      <stop offset=".5" stop-color="#8C0010" stop-opacity=".08" />
+      <stop offset="1" stop-color="#070708" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="leftEdgeGlow" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0" stop-color="#FF2638" stop-opacity=".85" />
+      <stop offset=".5" stop-color="#E10613" stop-opacity=".4" />
+      <stop offset="1" stop-color="#FF2638" stop-opacity=".85" />
+    </linearGradient>
+    <pattern id="micrograin" width="118" height="96" patternUnits="userSpaceOnUse">
+      <circle cx="17" cy="9" r=".85" fill="#F4E9D9" opacity=".14" />
+      <circle cx="89" cy="73" r="1" fill="#F4E9D9" opacity=".1" />
+      <circle cx="32" cy="63" r=".7" fill="#F4E9D9" opacity=".12" />
+      <circle cx="112" cy="38" r="1.1" fill="#E10613" opacity=".16" />
+      <path d="M43 22l3-1 M98 17l2-2 M12 77l1-3" stroke="#F4E9D9" stroke-opacity=".09" stroke-width=".65" />
+    </pattern>
+  </defs>
+  <rect width="410" height="720" fill="url(#dark)" />
+  <rect width="410" height="720" fill="url(#spotlightTopRight)" />
+  <rect width="410" height="720" fill="url(#spotlightBottomLeft)" />
+  <rect width="410" height="720" fill="url(#micrograin)" />
+  <line x1="2" y1="0" x2="2" y2="720" stroke="url(#leftEdgeGlow)" stroke-width="2" />
+  <path d="M260 -12 L422 150 M292 -12 L422 118" stroke="#FF2638" stroke-opacity=".2" stroke-width="1" />
+  <path d="M-12 580 L132 724 M-12 612 L100 724" stroke="#E10613" stroke-opacity=".18" stroke-width="1" />
+</svg>

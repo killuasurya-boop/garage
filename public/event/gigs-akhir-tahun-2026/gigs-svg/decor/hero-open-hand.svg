@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 420">
+  <defs>
+    <linearGradient id="ink" x2=".8" y2="1">
+      <stop stop-color="#e3d7c5"/>
+      <stop offset=".5" stop-color="#817870"/>
+      <stop offset="1" stop-color="#262323"/>
+    </linearGradient>
+    <pattern id="dots" width="5" height="5" patternUnits="userSpaceOnUse">
+      <circle cx="1" cy="1" r="1.15" fill="#090909"/>
+      <circle cx="4" cy="4" r=".65" fill="#090909"/>
+    </pattern>
+    <path id="hand" d="M88 420l21-109c4-20 2-37-11-54L37 184c-15-19 4-38 22-25 18 12 36 32 54 44L86 86c-6-25 20-34 29-10l33 91L139 34c-2-26 27-29 31-3l17 132 14-123c4-26 32-22 30 4l-5 137 26-93c8-24 34-15 29 10l-23 128c-5 29-21 57-39 79-8 10-12 26-12 45l-1 70Z"/>
+  </defs>
+  <path d="M0 260 175 0h100L52 420H0Zm320-106L167 420h92l61-102Z" fill="#e10613"/>
+  <use href="#hand" fill="url(#ink)" stroke="#e10613" stroke-width="4"/>
+  <use href="#hand" fill="url(#dots)" opacity=".63"/>
+  <path d="M116 217c22-15 49-17 79-6m-66 44c25-11 51-9 68 3m-44-43c13 26 12 52-2 76" fill="none" stroke="#292525" stroke-width="4" opacity=".68"/>
+</svg>

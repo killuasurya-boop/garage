@@ -47,6 +47,7 @@ export const PUBLIC_API_ROUTES: Record<string, PublicRoute> = {
   "public/gigs/[slug]/participants": { reason: "Sponsor & kreator disetujui untuk halaman event GIGS (nama/kategori/logo/IG; via Caddy)", abuseGuard: "rateLimit" },
   "public/gigs/[slug]/readiness": { reason: "Kesiapan acara halaman event GIGS (angka ringkasan; via Caddy)", abuseGuard: "rateLimit" },
   "public/gigs/[slug]/closeout": { reason: "Laporan akhir acara yang diterbitkan Owner (angka ringkasan; via Caddy)", abuseGuard: "rateLimit" },
+  "public/gigs/[slug]/changes": { reason: "Riwayat perubahan target & pos RAB halaman event (via Caddy)", abuseGuard: "rateLimit" },
   "public/gigs/[slug]/app-js": { reason: "app.js publik halaman event GIGS + koreksi kecil (via Caddy; tanpa data)", abuseGuard: "rateLimit" },
   "vouchers/validate": { reason: "Cek voucher saat checkout pelanggan", abuseGuard: "rateLimit" },
   "invitations/[token]/rsvp": { reason: "RSVP undangan ber-token", abuseGuard: "token" },

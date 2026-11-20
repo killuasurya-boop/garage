@@ -1,0 +1,808 @@
+/* ==========================================================================
+   THE VENUE — GARAGE COFFEE (Isolated Section Styles & Cinematic Motion)
+   Scoped strictly under #venue / .gigs-venue-section
+   ========================================================================== */
+
+.gigs-venue-section {
+  --venue-ink: #080708;
+  --venue-red: #e10613;
+  --venue-red-hot: #ff2636;
+  --venue-cream: #f5eddc;
+  --venue-muted: rgba(245, 237, 220, 0.78);
+  --venue-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --venue-parallax-y: 0px;
+  --venue-parallax-scale: 1.04;
+  --venue-ribbon-x: 0px;
+
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  padding: 58px 0 68px;
+  background: radial-gradient(circle at 74% 34%, rgba(56, 16, 12, 0.42) 0%, #0d090a 48%, #070607 100%);
+  border-top: 1px solid rgba(225, 6, 19, 0.35);
+  border-bottom: 1px solid rgba(225, 6, 19, 0.4);
+  color: var(--venue-cream);
+}
+
+/* Atmosphere Layers */
+.gigs-venue-section .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.gigs-venue-wedge {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: min(310px, 32vw);
+  height: min(360px, 46vw);
+  background: linear-gradient(135deg, #d80614 0%, #9b000c 65%, transparent 100%);
+  clip-path: polygon(0 0, 100% 0, 22% 58%, 0 100%);
+  opacity: 0.9;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.gigs-venue-watermark {
+  position: absolute;
+  left: -2%;
+  bottom: -48px;
+  z-index: 0;
+  pointer-events: none;
+  user-select: none;
+  font-family: 'Barlow Condensed', var(--gigs-font-display);
+  font-style: italic;
+  font-weight: 900;
+  font-size: clamp(9rem, 22vw, 19rem);
+  line-height: 0.78;
+  letter-spacing: -0.04em;
+  color: rgba(225, 6, 19, 0.16);
+  text-transform: uppercase;
+  mix-blend-mode: screen;
+}
+
+.gigs-venue-grain {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  opacity: 0.22;
+  background-image: url('/event/gigs-akhir-tahun-2026/gigs-svg/textures/texture-film-grain-cream.svg');
+  background-size: 320px 320px;
+}
+
+/* Night Building Parallax Backdrop */
+.gigs-venue-building-wrap {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: min(74%, 980px);
+  height: 78%;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.gigs-venue-building-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 78% 18%;
+  transform: translate3d(0, var(--venue-parallax-y), 0) scale(var(--venue-parallax-scale));
+  transform-origin: center center;
+  will-change: transform;
+  filter: contrast(1.08) saturate(1.12);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.55) 26%, #000 50%),
+    linear-gradient(180deg, #000 0%, #000 68%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.55) 26%, #000 50%),
+    linear-gradient(180deg, #000 0%, #000 68%, transparent 100%);
+  mask-composite: intersect;
+}
+
+.gigs-venue-building-scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, #080708 0%, rgba(8, 7, 8, 0.92) 26%, rgba(8, 7, 8, 0.45) 44%, transparent 66%),
+    linear-gradient(0deg, #080708 2%, rgba(8, 7, 8, 0.72) 22%, transparent 52%);
+}
+
+/* Warm Tungsten Bulb Pulses over Building Lights */
+.gigs-venue-warm-lights {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.gigs-venue-bulb {
+  position: absolute;
+  border-radius: 50%;
+  mix-blend-mode: screen;
+  filter: blur(22px);
+  animation: gigsWarmBulbPulse 3.6s ease-in-out infinite;
+}
+
+.gigs-venue-bulb.is-upper {
+  top: 14%;
+  right: 34%;
+  width: 240px;
+  height: 140px;
+  background: radial-gradient(circle, rgba(255, 178, 72, 0.34) 0%, transparent 72%);
+}
+
+.gigs-venue-bulb.is-string {
+  top: 20%;
+  right: 6%;
+  width: 220px;
+  height: 150px;
+  background: radial-gradient(circle, rgba(255, 196, 98, 0.36) 0%, transparent 72%);
+  animation-delay: -1.4s;
+}
+
+.gigs-venue-bulb.is-patio {
+  bottom: 22%;
+  right: 26%;
+  width: 260px;
+  height: 130px;
+  background: radial-gradient(circle, rgba(255, 130, 50, 0.24) 0%, transparent 72%);
+  animation-delay: -2.4s;
+}
+
+@keyframes gigsWarmBulbPulse {
+  0%, 100% {
+    opacity: 0.65;
+    transform: scale(0.96);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+}
+
+/* Foreground Container */
+.gigs-venue-container {
+  position: relative;
+  z-index: 4;
+}
+
+.gigs-venue-header {
+  max-width: 650px;
+  margin-bottom: 42px;
+}
+
+.gigs-venue-emblem {
+  width: clamp(148px, 15vw, 204px);
+  height: auto;
+  margin-bottom: 18px;
+  filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.8));
+}
+
+/* Split-Mask Slam Headline: THE VENUE */
+.gigs-venue-title {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 14px;
+  font-family: 'Barlow Condensed', var(--gigs-font-display);
+  font-style: italic;
+  font-weight: 900;
+  font-size: clamp(4.2rem, 8.8vw, 7.6rem);
+  line-height: 0.82;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+}
+
+.gigs-venue-word-mask {
+  display: inline-block;
+  overflow: hidden;
+  padding: 4px 10px 4px 2px;
+  margin: -4px -8px -4px -2px;
+}
+
+.gigs-venue-word {
+  display: inline-block;
+  will-change: transform, opacity;
+  transition: transform 720ms var(--venue-ease), opacity 600ms ease, text-shadow 600ms ease;
+}
+
+.gigs-venue-word.is-the {
+  color: var(--venue-cream);
+  text-shadow: 0 12px 32px rgba(0, 0, 0, 0.85);
+}
+
+.gigs-venue-word.is-venue {
+  color: var(--venue-red);
+  text-shadow: 0 0 28px rgba(225, 6, 19, 0.45), 0 14px 36px rgba(0, 0, 0, 0.9);
+}
+
+.gigs-venue-section:not(.is-venue-active) .gigs-venue-word.is-the {
+  opacity: 0;
+  transform: translate3d(0, 105%, 0);
+}
+
+.gigs-venue-section:not(.is-venue-active) .gigs-venue-word.is-venue {
+  opacity: 0;
+  transform: translate3d(28px, 105%, 0);
+}
+
+.gigs-venue-section.is-venue-active .gigs-venue-word.is-venue {
+  transition-delay: 110ms;
+}
+
+/* /// GARAGE COFFEE Sub-Banner */
+.gigs-venue-subbanner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 10px;
+}
+
+.gigs-venue-slashes {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+}
+
+.gigs-venue-slashes i {
+  display: block;
+  width: 11px;
+  height: clamp(24px, 3vw, 36px);
+  background: var(--venue-red);
+  transform: skewX(-20deg);
+  box-shadow: 0 0 14px rgba(225, 6, 19, 0.65);
+  transition: transform 420ms var(--venue-ease), opacity 360ms ease;
+}
+
+.gigs-venue-section:not(.is-venue-active) .gigs-venue-slashes i {
+  opacity: 0;
+  transform: skewX(-20deg) scaleY(0.2);
+}
+
+.gigs-venue-section.is-venue-active .gigs-venue-slashes i:nth-child(1) { transition-delay: 180ms; }
+.gigs-venue-section.is-venue-active .gigs-venue-slashes i:nth-child(2) { transition-delay: 250ms; }
+.gigs-venue-section.is-venue-active .gigs-venue-slashes i:nth-child(3) { transition-delay: 320ms; }
+
+.gigs-venue-coffee-name {
+  font-family: 'Barlow Condensed', var(--gigs-font-display);
+  font-style: italic;
+  font-weight: 900;
+  font-size: clamp(2rem, 4.1vw, 3.35rem);
+  line-height: 0.92;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #fff;
+  text-shadow: 0 8px 24px rgba(0, 0, 0, 0.9);
+  transition: clip-path 680ms var(--venue-ease) 220ms, opacity 500ms ease 220ms;
+  clip-path: inset(0 0 0 0);
+}
+
+.gigs-venue-section:not(.is-venue-active) .gigs-venue-coffee-name {
+  opacity: 0;
+  clip-path: inset(0 100% 0 0);
+}
+
+/* Telemetry Strip: EVENT VENUE // OPEN LOCATION // TEBING TINGGI */
+.gigs-venue-telemetry {
+  margin-top: 16px;
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  padding: 8px 16px 8px 4px;
+  border-top: 1px solid rgba(245, 237, 220, 0.42);
+  border-bottom: 1px solid rgba(245, 237, 220, 0.42);
+  background: linear-gradient(90deg, rgba(12, 10, 11, 0.72) 0%, rgba(12, 10, 11, 0.25) 100%);
+  font-family: 'Barlow Condensed', monospace;
+  font-size: clamp(0.84rem, 1.15vw, 0.98rem);
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--venue-cream);
+  font-variant-numeric: tabular-nums;
+}
+
+.gigs-venue-tel-sep {
+  color: var(--venue-red-hot);
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+/* Diagonal Crimson Ticker Ribbon */
+.gigs-venue-ribbon {
+  position: relative;
+  z-index: 3;
+  margin: 0 -6% 24px;
+  padding: 9px 0;
+  background: linear-gradient(90deg, #9d000c 0%, #e10613 48%, #ff212f 100%);
+  border-top: 2px solid rgba(255, 118, 128, 0.65);
+  border-bottom: 2px solid #6e0008;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.72), 0 0 22px rgba(225, 6, 19, 0.35);
+  transform: translate3d(var(--venue-ribbon-x), 0, 0) rotate(-3.2deg);
+  overflow: hidden;
+  will-change: transform;
+}
+
+.gigs-venue-ribbon-track {
+  display: flex;
+  width: max-content;
+  gap: 32px;
+  font-family: 'Barlow Condensed', var(--gigs-font-display);
+  font-style: italic;
+  font-weight: 900;
+  font-size: clamp(1rem, 1.45vw, 1.24rem);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #fff;
+  animation: gigsVenueRibbonFlow 22s linear infinite;
+}
+
+.gigs-venue-ribbon-track em {
+  font-style: italic;
+  color: rgba(255, 232, 232, 0.82);
+  margin: 0 12px;
+}
+
+@keyframes gigsVenueRibbonFlow {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-50%, 0, 0); }
+}
+
+/* Bottom Grid: Info Box (Left) + Tactical Map Card (Right) */
+.gigs-venue-bottom-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(290px, 0.95fr);
+  gap: 20px;
+  align-items: stretch;
+}
+
+/* Left Card: Location Address & Sharelok Actions */
+.gigs-venue-info-card {
+  position: relative;
+  border-radius: 16px;
+  border: 1.5px solid rgba(245, 237, 220, 0.62);
+  background: rgba(11, 10, 11, 0.92);
+  backdrop-filter: blur(10px);
+  padding: 24px 26px;
+  box-shadow: 0 20px 44px rgba(0, 0, 0, 0.72);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 0.95fr);
+  gap: 22px;
+  overflow: hidden;
+  transition: transform 280ms var(--venue-ease), border-color 220ms ease, box-shadow 240ms ease;
+}
+
+.gigs-venue-info-card:hover {
+  border-color: rgba(255, 58, 72, 0.85);
+  box-shadow: 0 24px 52px rgba(0, 0, 0, 0.82), 0 0 26px rgba(225, 6, 19, 0.25);
+}
+
+.gigs-venue-addr-col {
+  padding-right: 18px;
+  border-right: 1px dashed rgba(245, 237, 220, 0.28);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.gigs-venue-col-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 800;
+  font-size: 0.94rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--venue-cream);
+}
+
+.gigs-venue-col-head .gigs-ico-red {
+  width: 18px;
+  height: 18px;
+  filter: invert(19%) sepia(96%) saturate(6500%) hue-rotate(349deg) brightness(96%) contrast(108%);
+}
+
+.gigs-venue-head-sep {
+  color: var(--venue-red-hot);
+}
+
+.gigs-venue-head-slashes {
+  margin-left: auto;
+  color: rgba(245, 237, 220, 0.42);
+  letter-spacing: 0.04em;
+  font-style: italic;
+}
+
+.gigs-venue-address-block {
+  position: relative;
+  padding-left: 16px;
+}
+
+.gigs-venue-address-block::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 3px;
+  background: var(--venue-red);
+  transform-origin: top center;
+  transition: transform 650ms var(--venue-ease) 260ms;
+}
+
+.gigs-venue-section:not(.is-venue-active) .gigs-venue-address-block::before {
+  transform: scaleY(0);
+}
+
+.gigs-venue-addr-line {
+  display: block;
+  font-size: clamp(0.95rem, 1.2vw, 1.08rem);
+  font-weight: 700;
+  line-height: 1.44;
+  color: #fff;
+  transition: transform 520ms var(--venue-ease), opacity 480ms ease;
+}
+
+.gigs-venue-addr-line.is-zip {
+  font-variant-numeric: tabular-nums;
+}
+
+.gigs-venue-section:not(.is-venue-active) .gigs-venue-addr-line {
+  opacity: 0;
+  transform: translate3d(0, 14px, 0);
+}
+
+.gigs-venue-section.is-venue-active .gigs-venue-addr-line:nth-child(1) { transition-delay: 240ms; }
+.gigs-venue-section.is-venue-active .gigs-venue-addr-line:nth-child(2) { transition-delay: 310ms; }
+.gigs-venue-section.is-venue-active .gigs-venue-addr-line:nth-child(3) { transition-delay: 380ms; }
+.gigs-venue-section.is-venue-active .gigs-venue-addr-line:nth-child(4) { transition-delay: 450ms; }
+
+.gigs-venue-actions-col {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.gigs-venue-btn-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+
+/* Skewed Buttons with Metallic Laser Sheen Sweep */
+.gigs-venue-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 18px;
+  border-radius: 8px;
+  text-decoration: none;
+  font-family: 'Barlow Condensed', var(--gigs-font-display);
+  font-style: italic;
+  font-weight: 900;
+  font-size: 1.06rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  overflow: hidden;
+  transform: skewX(-10deg);
+  transition: transform 240ms var(--venue-ease), background-color 180ms ease, border-color 180ms ease, box-shadow 220ms ease;
+}
+
+.gigs-venue-btn > * {
+  transform: skewX(10deg);
+}
+
+.gigs-venue-btn::after {
+  content: "";
+  position: absolute;
+  top: -20%;
+  left: -65%;
+  width: 45%;
+  height: 140%;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.34) 50%, transparent 100%);
+  transform: skewX(-20deg);
+  transition: left 560ms var(--venue-ease);
+  pointer-events: none;
+}
+
+.gigs-venue-btn:hover::after {
+  left: 130%;
+}
+
+.gigs-venue-btn-maps {
+  background: linear-gradient(90deg, #cf0411 0%, #ef1221 100%);
+  color: #fff;
+  border: 1.5px solid #ff5c66;
+  box-shadow: 0 10px 26px rgba(225, 6, 19, 0.42);
+}
+
+.gigs-venue-btn-maps:hover {
+  transform: skewX(-10deg) translate3d(0, -2px, 0) scale(1.02);
+  box-shadow: 0 14px 32px rgba(225, 6, 19, 0.6);
+}
+
+.gigs-venue-btn-web {
+  background: rgba(18, 16, 17, 0.94);
+  color: var(--venue-cream);
+  border: 1.5px solid rgba(245, 237, 220, 0.72);
+}
+
+.gigs-venue-btn-web:hover {
+  border-color: var(--venue-red);
+  background: rgba(225, 6, 19, 0.14);
+  color: #fff;
+  transform: skewX(-10deg) translate3d(0, -2px, 0) scale(1.02);
+}
+
+.gigs-venue-btn-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.gigs-venue-btn-left img,
+.gigs-venue-btn-arrow {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+  filter: brightness(0) invert(1);
+}
+
+.gigs-venue-btn-arrow {
+  transition: transform 220ms var(--venue-ease);
+}
+
+.gigs-venue-btn:hover .gigs-venue-btn-arrow {
+  transform: translateX(4px);
+}
+
+/* Right Card: Interactive Tactical Map Card */
+.gigs-venue-map-card {
+  position: relative;
+  display: block;
+  text-decoration: none;
+  aspect-ratio: 346 / 218;
+  border-radius: 16px;
+  border: 1.5px solid rgba(245, 237, 220, 0.45);
+  background: #0d0c0d;
+  overflow: hidden;
+  min-height: 200px;
+  box-shadow: 0 20px 44px rgba(0, 0, 0, 0.74);
+  transition: transform 280ms var(--venue-ease), border-color 220ms ease, box-shadow 220ms ease;
+}
+
+.gigs-venue-map-card:hover {
+  transform: translate3d(0, -4px, 0) scale(1.012);
+  border-color: var(--venue-red);
+  box-shadow: 0 24px 52px rgba(0, 0, 0, 0.85), 0 0 28px rgba(225, 6, 19, 0.42);
+}
+
+.gigs-venue-map-tab {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 5;
+  background: var(--venue-red);
+  color: #fff;
+  padding: 6px 18px 6px 24px;
+  clip-path: polygon(14% 0, 100% 0, 100% 100%, 0 100%);
+  font-family: 'Barlow Condensed', var(--gigs-font-display);
+  font-style: italic;
+  font-weight: 900;
+  font-size: 0.92rem;
+  letter-spacing: 0.08em;
+  box-shadow: -4px 4px 14px rgba(0, 0, 0, 0.5);
+}
+
+.gigs-venue-map-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: contrast(1.12) brightness(0.82);
+  transition: transform 420ms var(--venue-ease);
+}
+
+.gigs-venue-map-card:hover .gigs-venue-map-img {
+  transform: scale(1.05);
+}
+
+.gigs-venue-map-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.gigs-venue-route-path {
+  stroke-dasharray: 440;
+  stroke-dashoffset: 440;
+  transition: stroke-dashoffset 1350ms var(--venue-ease) 280ms;
+}
+
+.gigs-venue-section.is-venue-active .gigs-venue-route-path {
+  stroke-dashoffset: 0;
+}
+
+.gigs-venue-sonar-ring {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: gigsMapRadar 2.4s ease-out infinite;
+}
+
+.gigs-venue-sonar-ring.is-ring-2 {
+  animation-delay: -1.2s;
+}
+
+@keyframes gigsMapRadar {
+  0% {
+    transform: scale(0.75);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+
+.gigs-venue-map-callout {
+  position: absolute;
+  left: 42%;
+  top: 21%;
+  z-index: 4;
+  background: var(--venue-cream);
+  color: #090909;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-family: 'Barlow Condensed', var(--gigs-font-display);
+  font-style: italic;
+  font-weight: 900;
+  font-size: 0.88rem;
+  letter-spacing: 0.04em;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.72);
+  animation: gigsBadgeFloat 3.2s ease-in-out infinite;
+}
+
+.gigs-venue-map-callout::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  bottom: -7px;
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 8px solid var(--venue-cream);
+}
+
+@keyframes gigsBadgeFloat {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -4px, 0); }
+}
+
+.gigs-venue-map-hint {
+  position: absolute;
+  left: 12px;
+  bottom: 10px;
+  z-index: 4;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(9, 9, 9, 0.84);
+  border: 1px solid rgba(245, 237, 220, 0.25);
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--venue-cream);
+  letter-spacing: 0.06em;
+}
+
+/* Reduced Motion Respect */
+body.gigs-reduced-motion .gigs-venue-bulb,
+body.gigs-reduced-motion .gigs-venue-ribbon-track,
+body.gigs-reduced-motion .gigs-venue-sonar-ring,
+body.gigs-reduced-motion .gigs-venue-map-callout {
+  animation: none !important;
+}
+
+body.gigs-reduced-motion .gigs-venue-word,
+body.gigs-reduced-motion .gigs-venue-slashes i,
+body.gigs-reduced-motion .gigs-venue-coffee-name,
+body.gigs-reduced-motion .gigs-venue-address-block::before,
+body.gigs-reduced-motion .gigs-venue-addr-line,
+body.gigs-reduced-motion .gigs-venue-route-path {
+  transition: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+  clip-path: none !important;
+  stroke-dashoffset: 0 !important;
+}
+
+/* ==========================================================================
+   RESPONSIVE PARITY (TABLET & MOBILE + 390PX PREVIEW SHELL)
+   ========================================================================== */
+@media (max-width: 1024px) {
+  .gigs-venue-bottom-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .gigs-venue-map-card {
+    min-height: 220px;
+  }
+}
+
+@media (max-width: 720px) {
+  .gigs-venue-section {
+    padding: 46px 0 54px;
+  }
+
+  .gigs-venue-building-wrap {
+    width: 100%;
+    height: 270px;
+    opacity: 0.85;
+  }
+
+  .gigs-venue-building-img {
+    object-position: 86% 10%;
+    -webkit-mask-image: linear-gradient(180deg, #000 38%, transparent 100%);
+    mask-image: linear-gradient(180deg, #000 38%, transparent 100%);
+  }
+
+  .gigs-venue-building-scrim {
+    background: linear-gradient(180deg, rgba(8, 7, 8, 0.12) 0%, rgba(8, 7, 8, 0.86) 72%, #080708 100%);
+  }
+
+  .gigs-venue-header {
+    padding-top: 136px;
+    margin-bottom: 24px;
+  }
+
+  .gigs-venue-info-card {
+    grid-template-columns: 1fr;
+    padding: 18px;
+  }
+
+  .gigs-venue-addr-col {
+    padding-right: 0;
+    padding-bottom: 16px;
+    border-right: 0;
+    border-bottom: 1px dashed rgba(245, 237, 220, 0.28);
+  }
+
+  .gigs-venue-ribbon {
+    transform: rotate(-1.5deg);
+    margin-bottom: 20px;
+  }
+}
+
+.gigs-viewport-shell.is-mobile-preview .gigs-venue-bottom-grid,
+.gigs-viewport-shell.is-mobile-preview .gigs-venue-info-card {
+  grid-template-columns: 1fr;
+}
+
+.gigs-viewport-shell.is-mobile-preview .gigs-venue-addr-col {
+  padding-right: 0;
+  padding-bottom: 16px;
+  border-right: 0;
+  border-bottom: 1px dashed rgba(245, 237, 220, 0.28);
+}
+
+.gigs-viewport-shell.is-mobile-preview .gigs-venue-building-wrap {
+  width: 100%;
+  height: 240px;
+}
+
+.gigs-viewport-shell.is-mobile-preview .gigs-venue-header {
+  padding-top: 110px;
+}

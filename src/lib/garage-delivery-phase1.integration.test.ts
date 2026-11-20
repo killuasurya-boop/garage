@@ -119,6 +119,10 @@ describe("Delivery V3 phase 1 security and consistency", () => {
     expect((await cour.getCourierBoard(kasir())).active.map(o => o.id)).toContain(id);
     expect((await cour.getCourierBoard(owner(otherOutlet))).active.map(o => o.id)).not.toContain(id);
     await expect(cour.assignCourier(id, null, owner(otherOutlet))).rejects.toMatchObject({ status: 404 });
+    await expect(svc.updateCustomerOrderStatus(id, { action: "delivery_status", deliveryStatus: "preparing" }, owner(otherOutlet))).resolves.toBeNull();
+    await expect(svc.updateCustomerOrderStatus(id, { action: "paid", paymentMethod: "QRIS" }, owner(otherOutlet))).resolves.toBeNull();
+    const sameOutlet = await svc.updateCustomerOrderStatus(id, { action: "paid", paymentMethod: "QRIS" }, kasir());
+    expect(sameOutlet.order.id).toBe(id);
   });
 
   it("authorizes proof by recorded order, outlet, and assigned courier", async () => {

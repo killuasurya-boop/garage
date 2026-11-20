@@ -5,7 +5,7 @@ Implementasi mengikuti persetujuan Owner atas rencana pada PR #259. Belum di-mer
 ## Perubahan
 
 - Scope outlet aktif dipakai pada board, assignment/claim, aksi kurir, GPS, serta bukti. Owner tetap memakai mekanisme switch outlet existing; akun, role dan permission tidak ditulis ulang.
-- Order legacy tanpa outlet mengikuti outlet aktif default yang dipilih alur customer ordering (outlet active pertama menurut code), bukan semua outlet. Periksa pemetaan data legacy di staging sebelum rilis atau sebelum mengubah urutan/default outlet; histori tanpa outlet tidak mengandung pemilik outlet yang dapat dipastikan dari kolom tersebut.
+- Scope legacy juga ditegakkan pada API status/pelunasan kasir sebelum respons replay mengembalikan data. Order legacy tanpa outlet mengikuti outlet aktif default yang dipilih alur customer ordering (outlet active pertama menurut code), bukan semua outlet. Periksa pemetaan data legacy di staging sebelum rilis atau sebelum mengubah urutan/default outlet; histori tanpa outlet tidak mengandung pemilik outlet yang dapat dipastikan dari kolom tersebut.
 - `delivery-workflow.ts` menjadi kontrak transisi bersama untuk jalur kurir dan jalur status kasir. Readiness Bar/Dapur berlaku sebelum pickup/depart; delivered wajib bukti; regresi status ditolak dan retry transisi tidak mengulang audit/pesan progress.
 - Foto dibaca hanya bila URL bukti masih direferensikan order yang boleh diakses pengguna. Kurir hanya membaca bukti order miliknya; dispatcher/manajemen mengikuti outlet aktif. Respons foto memakai `private, no-store`.
 - Write GPS dan referensi foto memeriksa ulang status/pemilik/outlet pada update, sehingga request terlambat tidak menulis koordinat setelah delivered. File upload dibersihkan bila pencatatan bukti gagal.

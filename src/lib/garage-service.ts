@@ -1,4 +1,4 @@
-import { transitionDeliveryInTx } from "@/lib/delivery-workflow";
+import { deliveryOutletScope, transitionDeliveryInTx } from "@/lib/delivery-workflow";
 import { createHash, randomBytes, randomInt, randomUUID } from "crypto";
 import { parseDigitalMenuMode } from "@/lib/digital-menu-mode";
 
@@ -10435,6 +10435,14 @@ async function updateCustomerOrderStatusImpl(
     // Kasir hanya boleh memproses pesanan outlet-nya sendiri.
     if (order.outletId && order.outletId !== garage.profile.outlet.id) {
       return null;
+    }
+
+    // Legacy delivery rows have no outlet ID: use the same default-outlet
+    // boundary as courier operations, before idempotent responses expose data.
+    if (order.fulfillment === "delivery" && !order.outletId) {
+      const [scoped] = await tx.select({ id: orders.id }).from(orders)
+        .where(and(eq(orders.id, order.id), await deliveryOutletScope(garage, tx))).limit(1);
+      if (!scoped) return null;
     }
 
     const itemRows = await tx

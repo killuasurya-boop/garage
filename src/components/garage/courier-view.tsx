@@ -30,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { garageApi } from "@/lib/api-client";
 import type { GarageMe } from "@/lib/garage-api-types";
 import { COURIER_STATUS_COPY, TABLE_STATUS_COLORS, type CourierStatusKey } from "@/lib/garage-table-status";
+import { isCourierLocationStale, syncCourierLocations } from "@/lib/courier-location-sync";
 import { useProductionStream } from "@/lib/use-production-stream";
 import { buildCustomerWhatsappMessage, waLink } from "@/lib/whatsapp-link";
 
@@ -59,6 +60,9 @@ type CourierBoard = {
   active: CourierOrder[];
   done: CourierOrder[];
   claimable: CourierOrder[];
+  activeTruncated?: boolean;
+  claimableTruncated?: boolean;
+  history?: { page: number; hasMore: boolean };
   me: { userId: string; name: string; status: CourierStatusKey; assignable: boolean } | null;
   canDispatch: boolean;
   isCourier: boolean;
@@ -98,21 +102,27 @@ const carrying = (status: string | null) => status === "picked_up" || status ===
 
 export function CourierView({ me }: { me: GarageMe }) {
   const [board, setBoard] = useState<CourierBoard | null>(null);
+  const [historyPage, setHistoryPage] = useState(0);
+  const requestSequence = useRef(0);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [gps, setGps] = useState<{ state: "idle" | "on" | "denied" | "unsupported"; sentAt: number | null }>({
+  const [gps, setGps] = useState<{ state: "idle" | "on" | "denied" | "unsupported" | "error" | "partial"; sentAt: number | null }>({
     state: "idle",
     sentAt: null,
   });
 
   const load = useCallback(async () => {
+    const sequence = ++requestSequence.current;
     try {
-      setBoard(await garageApi.get<CourierBoard>("/api/courier"));
+      const data = await garageApi.get<CourierBoard>(`/api/courier?historyPage=${historyPage}`);
+      if (sequence !== requestSequence.current) return;
+      setBoard(data);
       setError(null);
     } catch (err) {
+      if (sequence !== requestSequence.current) return;
       setError(err instanceof Error ? err.message : "Daftar antaran gagal dimuat.");
     }
-  }, []);
+  }, [historyPage]);
 
   const { connected } = useProductionStream(load);
   // Poll cadangan: 20 dtk (60 dtk bila realtime tersambung); jeda saat tab tersembunyi
@@ -135,7 +145,8 @@ export function CourierView({ me }: { me: GarageMe }) {
     [board, me.user.id],
   );
   const carriedKey = carriedIds.join(",");
-  const lastSentRef = useRef(0);
+  const nextSendRef = useRef(0);
+  const sendingRef = useRef(false);
 
   useEffect(() => {
     if (!carriedKey) {
@@ -148,22 +159,30 @@ export function CourierView({ me }: { me: GarageMe }) {
       return;
     }
     const ids = carriedKey.split(",");
+    let mounted = true;
+    let failures = 0;
+    nextSendRef.current = 0;
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
         const now = Date.now();
-        if (now - lastSentRef.current < GPS_INTERVAL_MS) return;
-        lastSentRef.current = now;
+        if (sendingRef.current || now < nextSendRef.current) return;
+        sendingRef.current = true;
         const body = { lat: position.coords.latitude, lng: position.coords.longitude };
-        void Promise.all(ids.map((id) => garageApi.post(`/api/courier/orders/${id}/location`, body).catch(() => null))).then(
-          () => setGps({ state: "on", sentAt: now }),
-        );
+        void syncCourierLocations(ids, (id) =>
+          garageApi.post<{ ok: boolean; at: string }>(`/api/courier/orders/${id}/location`, body),
+        ).then((result) => {
+          if (!mounted) return;
+          failures = result.failed ? failures + 1 : 0;
+          nextSendRef.current = Date.now() + Math.min(120_000, GPS_INTERVAL_MS * 2 ** Math.min(failures, 3));
+          setGps({ state: result.failed ? (result.acceptedAt ? "partial" : "error") : "on", sentAt: result.acceptedAt });
+        }).finally(() => { sendingRef.current = false; });
       },
       (geoError) => {
         setGps({ state: geoError.code === geoError.PERMISSION_DENIED ? "denied" : "idle", sentAt: null });
       },
       { enableHighAccuracy: true, maximumAge: 10_000, timeout: 20_000 },
     );
-    return () => navigator.geolocation.clearWatch(watchId);
+    return () => { mounted = false; navigator.geolocation.clearWatch(watchId); };
   }, [carriedKey]);
 
   async function setAvailability(available: boolean) {
@@ -215,7 +234,7 @@ export function CourierView({ me }: { me: GarageMe }) {
     setError(null);
     try {
       await garageApi.post(`/api/courier/orders/${order.id}/action`, { action });
-      if (action !== "arrive") lastSentRef.current = 0; // kirim GPS pertama secepatnya
+      if (action !== "arrive") nextSendRef.current = 0; // kirim GPS pertama secepatnya
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Status antar gagal diubah.");
@@ -239,7 +258,7 @@ export function CourierView({ me }: { me: GarageMe }) {
           </p>
           <h1 className="mt-1 text-xl font-black text-white">{mine ? "Antaran saya" : "Semua antaran delivery"}</h1>
           <p className="text-sm text-garage-dim">
-            {active.length} aktif · {done.length} selesai hari ini
+            {active.length} aktif · {done.length} selesai pada halaman ini
             {connected ? " · realtime" : ""}
           </p>
         </div>
@@ -250,6 +269,13 @@ export function CourierView({ me }: { me: GarageMe }) {
           </Button>
         </div>
       </header>
+
+      {board?.activeTruncated || board?.claimableTruncated ? (
+        <p role="status" className="rounded-md border border-garage-amber/55 bg-garage-amber/12 p-3 text-sm text-[#ffd79a]">
+          {board.activeTruncated ? "Daftar dibatasi ke 600 antaran aktif tertua. Ada antaran aktif lain yang belum ditampilkan. " : ""}
+          {board.claimableTruncated ? "Menampilkan 20 pesanan tertua yang bisa diambil. Pesanan berikutnya tampil setelah antrean berkurang." : ""}
+        </p>
+      ) : null}
 
       {mine && board ? (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-garage-line bg-garage-bg-1 p-4">
@@ -347,9 +373,15 @@ export function CourierView({ me }: { me: GarageMe }) {
         </div>
       )}
 
-      {done.length ? (
+      {done.length || historyPage > 0 ? (
         <div className="rounded-lg border border-garage-line bg-garage-bg-1 p-4">
-          <p className="mb-2 text-sm font-bold text-garage-dim">Selesai diantar</p>
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm font-bold text-garage-dim">Selesai diantar · 18 jam terakhir · halaman {(board?.history?.page ?? 0) + 1}</p>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" className="h-11" disabled={historyPage === 0} onClick={() => setHistoryPage((page) => Math.max(0, page - 1))}>Sebelumnya</Button>
+              <Button type="button" variant="outline" className="h-11" disabled={!board?.history?.hasMore} onClick={() => setHistoryPage((page) => page + 1)}>Berikutnya</Button>
+            </div>
+          </div>
           <ul className="divide-y divide-garage-line text-sm">
             {done.map((order) => (
               <li key={order.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
@@ -371,10 +403,24 @@ export function CourierView({ me }: { me: GarageMe }) {
 }
 
 function GpsBadge({ state, sentAt, carrying: isCarrying }: { state: string; sentAt: number | null; carrying: boolean }) {
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    if (!isCarrying) return;
+    const timer = window.setInterval(() => setNowMs(Date.now()), 15_000);
+    return () => window.clearInterval(timer);
+  }, [isCarrying]);
   if (!isCarrying) {
     return (
       <span className="inline-flex items-center gap-1.5 rounded-md border border-garage-line px-2.5 py-1.5 text-xs font-bold text-garage-dim">
         <LocateOff className="size-3.5" aria-hidden /> GPS mati (tidak ada antaran jalan)
+      </span>
+    );
+  }
+  if (state === "error" || state === "partial" || (state === "on" && isCourierLocationStale(sentAt, nowMs))) {
+    return (
+      <span role="status" className="inline-flex items-center gap-1.5 rounded-md border border-garage-red/60 bg-garage-red/12 px-2.5 py-1.5 text-xs font-bold text-[#ffc9c9]">
+        <LocateOff className="size-3.5" aria-hidden />
+        {state === "partial" ? "Sebagian lokasi belum diterima server" : state === "on" ? "GPS belum diperbarui lebih dari 90 detik" : "Lokasi belum diterima server — mencoba lagi"}
       </span>
     );
   }

@@ -1443,6 +1443,13 @@
       "when": 1795116291277,
       "tag": "0205_candidates_status_changed_at",
       "breakpoints": true
+    },
+    {
+      "idx": 206,
+      "version": "7",
+      "when": 1795143765221,
+      "tag": "0206_event_incidents",
+      "breakpoints": true
     }
   ]
 }

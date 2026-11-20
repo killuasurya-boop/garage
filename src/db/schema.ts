@@ -6136,6 +6136,33 @@ export const eventOpsChecks = pgTable(
   }),
 );
 
+// Log kejadian Hari-H (Owner 20 Nov 2026, pindahan Dashboard Penyelenggara platform): append-only, ditandai selesai.
+export const eventIncidents = pgTable(
+  "event_incidents",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    // keamanan | kesehatan | teknis | kerumunan | cuaca | lainnya
+    type: text("type").notNull(),
+    // rendah | sedang | tinggi
+    severity: text("severity").notNull().default("sedang"),
+    note: text("note").notNull(),
+    reportedBy: text("reported_by").references(() => user.id, { onDelete: "set null" }),
+    reportedByName: text("reported_by_name"),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    resolvedBy: text("resolved_by").references(() => user.id, { onDelete: "set null" }),
+    resolution: text("resolution"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    eventIdx: index("event_incidents_event_idx").on(table.eventId, table.createdAt),
+    typeCheck: check("event_incidents_type_check", sql`${table.type} in ('keamanan','kesehatan','teknis','kerumunan','cuaca','lainnya')`),
+    severityCheck: check("event_incidents_severity_check", sql`${table.severity} in ('rendah','sedang','tinggi')`),
+  }),
+);
+
 export const eventReviews = pgTable(
   "event_reviews",
   {

@@ -16,9 +16,10 @@ export default async function EventDayPage({ searchParams }: { searchParams: Pro
   if (session.data.profile.passwordResetRequired) redirect("/account/password?required=1");
   const params = await searchParams;
   const eventId = typeof params.event === "string" && /^[0-9a-f-]{36}$/i.test(params.event) ? params.event : null;
+  const tab = params.tab === "kejadian" ? "kejadian" : undefined;
   return (
     <div className="min-h-dvh bg-[var(--garage-bg-1,#0b0b0c)]">
-      <EventDayPanel initialEventId={eventId} />
+      <EventDayPanel initialEventId={eventId} initialTab={tab} />
     </div>
   );
 }

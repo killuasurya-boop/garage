@@ -114,8 +114,8 @@ export const CLEAR_TABLES = [
   "event_sponsor_payments",
   // GIGS EO — pembayaran biaya event (berpasangan dengan baris buku kas yang ikut dihapus)
   "event_expense_payments",
-  // GIGS EO — check-in pintu hari-H (transaksi uji coba)
-  "event_checkins",
+  // GIGS EO — check-in pintu & log kejadian hari-H (catatan uji coba)
+  "event_checkins", "event_incidents",
   // kas & finance transaksional
   "cash_sessions", "cash_session_counts", "cash_session_final_snapshots", "cash_movements", "cash_ledger_entries", "cash_opening_certifications", "petty_cash_entries", "shift_incidents", "expenses", "supplier_invoices", "supplier_receivings",
   "supplier_receiving_items", "finance_daily_closings", "finance_monthly_closings", "financial_snapshots",

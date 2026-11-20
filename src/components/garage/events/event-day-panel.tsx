@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { AlertTriangle, ArrowLeft, Ban, Camera, CheckCircle2, ClipboardList, Mic2, Play, RefreshCw, RotateCcw, Search, ShieldCheck, Square, UserPlus, Users } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Siren, Ban, Camera, CheckCircle2, ClipboardList, Mic2, Play, RefreshCw, RotateCcw, Search, ShieldCheck, Square, UserPlus, Users } from "lucide-react";
 
 import { EventControlNav } from "@/components/ceo/ui/EventControlNav";
 import { garageApi, GarageApiError } from "@/lib/api-client";
@@ -45,7 +45,7 @@ type DayView = {
 };
 type Task = { id: string; title: string; status: string; dueDate: string | null; overdue: boolean; crewName: string | null };
 type OpsItem = { id: string; label: string; pic: string | null; note: string | null; done: boolean };
-type Tab = "checkin" | "panggung" | "tugas" | "kesiapan";
+type Tab = "checkin" | "panggung" | "tugas" | "kesiapan" | "kejadian";
 
 const errText = (error: unknown) => (error instanceof GarageApiError || error instanceof Error ? error.message : "Gagal.");
 const clock = (iso: string) => new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" }).format(new Date(iso));
@@ -64,10 +64,10 @@ function Card({ children, className = "" }: { children: ReactNode; className?: s
   return <div className={`${cardClass} ${className}`}>{children}</div>;
 }
 
-export function EventDayPanel({ initialEventId = null }: { initialEventId?: string | null }) {
+export function EventDayPanel({ initialEventId = null, initialTab }: { initialEventId?: string | null; initialTab?: Tab }) {
   const [view, setView] = useState<DayView | null>(null);
   const [eventId, setEventId] = useState<string | null>(initialEventId);
-  const [tab, setTab] = useState<Tab>("checkin");
+  const [tab, setTab] = useState<Tab>(initialTab ?? "checkin");
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState<{ tone: "ok" | "bad"; text: string } | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -194,15 +194,16 @@ export function EventDayPanel({ initialEventId = null }: { initialEventId?: stri
           </div>
 
           {crew || panitia ? (
-          <div role="tablist" className={`grid grid-cols-2 gap-2 ${crew ? "sm:grid-cols-4" : ""}`}>
+          <div role="tablist" className={`grid grid-cols-2 gap-2 ${crew ? "sm:grid-cols-5" : "sm:grid-cols-3"}`}>
             {(
               [
                 ["checkin", "Check-in", Users],
                 ["panggung", "Panggung", Mic2],
                 ["tugas", "Tugas", ClipboardList],
                 ["kesiapan", "Kesiapan", ShieldCheck],
+                ["kejadian", "Kejadian", Siren],
               ] as const
-            ).filter(([key]) => crew || key === "checkin" || key === "panggung").map(([key, label, Icon]) => (
+            ).filter(([key]) => crew || key === "checkin" || key === "panggung" || key === "kejadian").map(([key, label, Icon]) => (
               <button
                 key={key}
                 type="button"
@@ -219,6 +220,7 @@ export function EventDayPanel({ initialEventId = null }: { initialEventId?: stri
 
           {tab === "checkin" || (!crew && !panitia) ? <CheckinTab view={view} onAct={act} canVoid={crew} /> : null}
           {(crew || panitia) && tab === "panggung" && view.stage ? <StageTab view={view} onAct={act} /> : null}
+          {(crew || panitia) && tab === "kejadian" && view.event ? <IncidentsTab key={view.event.id} eventId={view.event.id} /> : null}
           {crew && tab === "tugas" ? (
             <Card className="space-y-2">
               {!tasks.length ? <p className="text-sm text-zinc-400">Belum ada tugas panitia untuk event ini.</p> : null}
@@ -576,6 +578,143 @@ function StageTab({ view, onAct }: { view: DayView; onAct: (action: () => Promis
         ))}
       </ul>
       {!stage.slots.length ? <p className="text-sm text-zinc-400">Belum ada penampil terkonfirmasi di Lineup.</p> : null}
+    </div>
+  );
+}
+
+// ─── Log kejadian (Owner 20 Nov 2026) ───────────────────────────────────────
+type Incident = { id: string; type: string; severity: string; note: string; reportedByName: string | null; createdAt: string; resolved: boolean; resolvedAt: string | null; resolution: string | null };
+const INCIDENT_TYPES = [
+  ["keamanan", "Keamanan"],
+  ["kesehatan", "Kesehatan"],
+  ["teknis", "Teknis / alat"],
+  ["kerumunan", "Kerumunan"],
+  ["cuaca", "Cuaca"],
+  ["lainnya", "Lainnya"],
+] as const;
+const SEVERITY_LABEL: Record<string, string> = { rendah: "Rendah", sedang: "Sedang", tinggi: "TINGGI" };
+const severityClass = (s: string) =>
+  s === "tinggi" ? "border-[#ff8a8a]/60 bg-[#ff8a8a]/15 text-[#ffd0d0]" : s === "sedang" ? "border-[var(--garage-amber)]/50 bg-[var(--garage-amber)]/10 text-amber-100" : "border-white/15 text-zinc-300";
+
+function IncidentsTab({ eventId }: { eventId: string }) {
+  const [data, setData] = useState<{ items: Incident[]; open: number; total: number } | null>(null);
+  const [type, setType] = useState<string>("keamanan");
+  const [severity, setSeverity] = useState<string>("sedang");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ tone: "ok" | "bad"; text: string } | null>(null);
+
+  const refresh = useCallback(async () => {
+    try {
+      setData(await garageApi.get(`/api/event-day/incidents?eventId=${eventId}`, { cache: "no-store" }));
+    } catch (e) {
+      setMsg({ tone: "bad", text: errText(e) });
+    }
+  }, [eventId]);
+  useEffect(() => {
+    const first = window.setTimeout(() => void refresh(), 0);
+    const timer = window.setInterval(() => void refresh(), 15_000);
+    return () => {
+      window.clearTimeout(first);
+      window.clearInterval(timer);
+    };
+  }, [refresh]);
+
+  const report = async () => {
+    if (note.trim().length < 3) return setMsg({ tone: "bad", text: "Tulis kejadiannya dulu." });
+    setBusy(true);
+    try {
+      await garageApi.post("/api/event-day/incidents", { eventId, type, severity, note: note.trim() });
+      setNote("");
+      setMsg({ tone: "ok", text: severity === "tinggi" ? "Kejadian tercatat. Owner diberi tahu." : "Kejadian tercatat." });
+      await refresh();
+    } catch (e) {
+      setMsg({ tone: "bad", text: errText(e) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const resolve = async (item: Incident) => {
+    const resolution = window.prompt("Bagaimana ditangani? (wajib)", "");
+    if (!resolution || resolution.trim().length < 3) return;
+    try {
+      await garageApi.post(`/api/event-day/incidents/${item.id}/resolve`, { resolution: resolution.trim() });
+      setMsg({ tone: "ok", text: "Kejadian ditandai selesai." });
+      await refresh();
+    } catch (e) {
+      setMsg({ tone: "bad", text: errText(e) });
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <Card className="space-y-3">
+        <p className="text-sm font-semibold text-zinc-100">Catat kejadian</p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <label className="space-y-1 text-xs text-zinc-300">
+            Jenis
+            <select className={inputClass} value={type} onChange={(e) => setType(e.target.value)}>
+              {INCIDENT_TYPES.map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="space-y-1 text-xs text-zinc-300">
+            Tingkat
+            <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Tingkat kejadian">
+              {(["rendah", "sedang", "tinggi"] as const).map((value) => (
+                <button key={value} type="button" role="radio" aria-checked={severity === value} className={`${smallBtn} h-11 ${severity === value ? severityClass(value) : ""}`} onClick={() => setSeverity(value)}>
+                  {SEVERITY_LABEL[value]}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <label className="block space-y-1 text-xs text-zinc-300">
+          Apa yang terjadi
+          <textarea className={`${inputClass} h-20 py-2`} maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} placeholder="mis. Penonton pingsan dekat panggung, dibawa ke pos P3K" />
+        </label>
+        <button type="button" className={primaryBtn} disabled={busy} onClick={() => void report()}>
+          <Siren size={16} /> Catat kejadian
+        </button>
+        {msg ? <p role="status" className={`text-sm ${msg.tone === "ok" ? "text-[#a8f0c4]" : "text-[#ff8a8a]"}`}>{msg.text}</p> : null}
+      </Card>
+      <Card className="space-y-2">
+        <p className="text-sm text-zinc-300">
+          {data ? `${data.total} kejadian · ${data.open} belum selesai` : "Memuat…"}
+        </p>
+        {data && !data.items.length ? <p className="text-sm text-zinc-400">Belum ada kejadian tercatat. Semoga tetap aman.</p> : null}
+        <ul className="divide-y divide-white/10">
+          {data?.items.map((item) => (
+            <li key={item.id} className="flex flex-wrap items-start justify-between gap-2 py-2">
+              <div className="min-w-0 flex-1 space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={`rounded border px-2 py-0.5 text-xs font-bold ${severityClass(item.severity)}`}>{SEVERITY_LABEL[item.severity] ?? item.severity}</span>
+                  <span className="text-xs font-semibold uppercase text-zinc-300">{INCIDENT_TYPES.find(([v]) => v === item.type)?.[1] ?? item.type}</span>
+                  <span className="text-xs text-zinc-400">
+                    {clock(item.createdAt)}
+                    {item.reportedByName ? ` · ${item.reportedByName}` : ""}
+                  </span>
+                </div>
+                <p className="break-words text-sm text-zinc-100">{item.note}</p>
+                {item.resolved ? (
+                  <p className="break-words text-xs text-[#a8f0c4]">
+                    Selesai {item.resolvedAt ? clock(item.resolvedAt) : ""} · {item.resolution}
+                  </p>
+                ) : null}
+              </div>
+              {!item.resolved ? (
+                <button type="button" className={smallBtn} onClick={() => void resolve(item)}>
+                  <CheckCircle2 size={14} /> Selesai
+                </button>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      </Card>
     </div>
   );
 }

@@ -230,3 +230,36 @@ describe("Akun Panitia di Hari-H (Owner 18 Nov 2026)", () => {
     await expect(day.setSlotState(standup, "start", session("Panitia" as Role, { agentKey: { id: "k" } }))).rejects.toMatchObject({ code: "HUMAN_SESSION_REQUIRED" });
   });
 });
+
+describe("Log kejadian Hari-H (Owner 20 Nov 2026)", () => {
+  it("Panitia event & Owner mencatat; TINGGI → notifikasi Owner; selesai sekali dengan keterangan; laporan akhir menghitungnya", async () => {
+    const panitia = () => session("Panitia" as Role);
+    // Kasir (meja pintu) & panitia event lain tidak boleh.
+    await expect(day.reportIncident({ eventId, type: "teknis", severity: "sedang", note: "Mic mati" }, session("Kasir" as Role))).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(day.listIncidents(otherEventId, panitia())).rejects.toMatchObject({ code: "EVENT_NOT_FOUND" });
+    await expect(day.reportIncident({ eventId, type: "teknis", severity: "sedang", note: "x" }, session("Panitia" as Role, { agentKey: { id: "k" } }))).rejects.toMatchObject({ code: "HUMAN_SESSION_REQUIRED" });
+
+    await t.getDb().insert(t.schema.staffProfiles).values({ userId: OWNER, role: "Owner", outletId, shiftLabel: "Pagi", deviceLabel: "HP Owner", status: "active" } as any).onConflictDoNothing();
+    const low = await day.reportIncident({ eventId, type: "teknis", severity: "rendah", note: "Kabel gitar longgar" }, panitia());
+    const high = await day.reportIncident({ eventId, type: "kesehatan", severity: "tinggi", note: "Penonton pingsan dekat panggung" }, owner());
+    const notes = (await t.getDb().select().from(t.schema.staffNotifications)).filter((n: any) => n.kind === "event_incident");
+    expect(notes.length).toBeGreaterThanOrEqual(1);
+    expect(notes[0]).toMatchObject({ title: expect.stringContaining("Kejadian TINGGI"), url: `/event-day?event=${eventId}&tab=kejadian` });
+    expect(notes.every((n: any) => !String(n.body).includes("Kabel gitar"))).toBe(true);
+
+    await day.resolveIncident(high.id, { resolution: "Dibawa ke pos P3K, sadar kembali" }, panitia());
+    await expect(day.resolveIncident(high.id, { resolution: "lagi" }, owner())).rejects.toMatchObject({ code: "ALREADY_RESOLVED" });
+    const list = await day.listIncidents(eventId, panitia());
+    expect(list).toMatchObject({ total: 2, open: 1 });
+    expect(list.items.find((i: any) => i.id === low.id)).toMatchObject({ resolved: false, reportedByName: "Panitia Eday" });
+    expect(await day.incidentCounts(eventId)).toEqual({ total: 2, resolved: 1 });
+    expect(await day.incidentCounts(otherEventId)).toBeNull();
+    // Yang belum selesai tetap tampil walau sudah ada >300 kejadian selesai; hitungan dari seluruh log.
+    await t.getDb().insert(t.schema.eventIncidents).values(
+      Array.from({ length: 305 }, (_, i) => ({ eventId, type: "lainnya", severity: "rendah", note: `Selesai ${i}`, resolvedAt: new Date(), resolution: "ok", createdAt: new Date(Date.now() + 60_000 + i) })) as any,
+    );
+    const big = await day.listIncidents(eventId, owner());
+    expect(big).toMatchObject({ total: 307, open: 1 });
+    expect(big.items.some((i: any) => i.id === low.id && !i.resolved)).toBe(true);
+  });
+});

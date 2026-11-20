@@ -19,6 +19,6 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     return ok(await courierDeliveryAction(id, body.data.action, session.data));
   } catch (error) {
     if (error instanceof CourierError) return fail(error.status, "COURIER_ACTION_FAILED", error.message);
-    return fail(500, "COURIER_ACTION_FAILED", error instanceof Error ? error.message : "Status antar gagal diubah.");
+    return fail(500, "COURIER_ACTION_FAILED", "Status antar gagal diubah.");
   }
 }

@@ -23,6 +23,7 @@ import {
   Utensils,
   UtensilsCrossed,
 } from "lucide-react";
+import { isCourierLocationStale } from "@/lib/courier-location-sync";
 import type { LucideIcon } from "lucide-react";
 
 export type TrackerStepView = { key: string; label: string; hint: string; state: "done" | "current" | "todo" };
@@ -176,6 +177,7 @@ export function CourierLiveCard({
 }) {
   const moving = deliveryStatus === "on_the_way" || deliveryStatus === "picked_up";
   const hasPoint = courier.lat != null && courier.lng != null;
+  const stale = isCourierLocationStale(courier.locationAt, nowMs);
   const d = 0.006;
   const mapSrc = hasPoint
     ? `https://www.openstreetmap.org/export/embed.html?bbox=${(courier.lng as number) - d},${(courier.lat as number) - d},${
@@ -196,18 +198,21 @@ export function CourierLiveCard({
           <span className="text-xs font-bold text-[#d0d0d6]">Menunggu pesanan siap</span>
         )}
       </div>
+      {moving && hasPoint && stale ? (
+        <p role="status" className="text-sm text-[#ffd79a]">Posisi terakhir — GPS belum diperbarui lebih dari 90 detik. Posisi kurir saat ini belum dapat dipastikan.</p>
+      ) : null}
       {moving && hasPoint ? (
         <>
           <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#d0d0d6]">
             <span className="inline-flex items-center gap-1">
               <MapPin className="size-3.5" aria-hidden />
-              {courier.distanceKm != null ? `± ${courier.distanceKm.toLocaleString("id-ID")} km dari lokasi Anda` : "Posisi kurir"}
+              {courier.distanceKm != null ? `${stale ? "Jarak dari posisi terakhir: " : ""}± ${courier.distanceKm.toLocaleString("id-ID")} km dari lokasi Anda` : "Posisi kurir"}
             </span>
             {courier.locationAt ? <span>Update {minutesAgo(courier.locationAt, nowMs)}</span> : null}
           </p>
           {mapSrc ? (
             <iframe
-              title="Posisi kurir"
+              title={stale ? "Posisi terakhir kurir" : "Posisi kurir"}
               src={mapSrc}
               loading="lazy"
               className="h-48 w-full rounded-md border border-[#34343c] bg-[#111116]"

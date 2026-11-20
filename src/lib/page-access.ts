@@ -11,10 +11,19 @@ export async function requireModulePageAccess(moduleId: ModuleId) {
   if (session.response) {
     const next = encodeURIComponent(`/os?module=${moduleId}`);
     if (session.response.status === 401) {
-      redirect(`/login?next=${next}`);
+      redirect(`/login?next=${next}&reason=SESSION_EXPIRED`);
     }
 
-    redirect(`/login?next=${next}`);
+    const body = await session.response.json().catch(() => null);
+    const code = body?.error?.code;
+    if (code === "PASSWORD_RESET_REQUIRED") redirect("/account/password?required=1");
+    if (code === "TWO_FACTOR_REQUIRED") redirect("/control/2fa?enforced=1");
+    // Sesi identitas bisa sah walau akses staf ditolak. Jangan pantulkan ke
+    // auto-redirect login yang langsung membuka modul ini lagi.
+    const reason = ["ACCOUNT_SUSPENDED", "ACCOUNT_INACTIVE", "STAFF_PROFILE_MISSING"].includes(code)
+      ? code
+      : "ACCESS_DENIED";
+    redirect(`/login?next=${next}&reason=${reason}`);
   }
 
   const role = session.data.profile.role;

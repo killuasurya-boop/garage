@@ -19,6 +19,6 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     return ok(await assignCourier(id, body.data.courierUserId, session.data));
   } catch (error) {
     if (error instanceof CourierError) return fail(error.status, "COURIER_ASSIGN_FAILED", error.message);
-    return fail(500, "COURIER_ASSIGN_FAILED", error instanceof Error ? error.message : "Gagal menugaskan kurir.");
+    return fail(500, "COURIER_ASSIGN_FAILED", "Gagal menugaskan kurir.");
   }
 }

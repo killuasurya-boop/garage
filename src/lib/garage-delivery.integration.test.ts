@@ -166,10 +166,18 @@ describe("Wajib bayar dulu (take away & delivery)", () => {
     expect(paid.order.status).toBe("paid");
     expect(await ticketsOf(id)).not.toHaveLength(0);
 
-    for (const step of ["preparing", "on_the_way", "delivered"]) {
-      const r = await svc.updateCustomerOrderStatus(id, { action: "delivery_status", deliveryStatus: step }, kasir());
-      expect(r.order.deliveryStatus).toBe(step);
-    }
+    await expect(svc.updateCustomerOrderStatus(id, { action: "delivery_status", deliveryStatus: "delivered" }, kasir())).rejects.toThrow(/Urutan/);
+    await expect(svc.updateCustomerOrderStatus(id, { action: "delivery_status", deliveryStatus: "on_the_way" }, kasir())).rejects.toThrow(/Bar\/Dapur/);
+    const { eq } = await import("drizzle-orm");
+    await t.getDb().update(t.schema.kitchenTickets).set({ status: "ready" }).where(eq(t.schema.kitchenTickets.orderId, id));
+    const departed = await svc.updateCustomerOrderStatus(id, { action: "delivery_status", deliveryStatus: "on_the_way" }, kasir());
+    expect(departed.order.deliveryStatus).toBe("on_the_way");
+    await expect(svc.updateCustomerOrderStatus(id, { action: "delivery_status", deliveryStatus: "delivered" }, kasir())).rejects.toThrow(/foto bukti/);
+    const cour = await import("@/lib/garage-courier");
+    await cour.attachDeliveryProof(id, "/api/courier/proof/proof-legacy.jpg", { ...kasir(), profile: { ...kasir().profile, role: "Owner" } });
+    const arrived = await svc.updateCustomerOrderStatus(id, { action: "delivery_status", deliveryStatus: "delivered" }, kasir());
+    expect(arrived.order.deliveryStatus).toBe("delivered");
+    await expect(svc.updateCustomerOrderStatus(id, { action: "delivery_status", deliveryStatus: "preparing" }, kasir())).rejects.toThrow(/Urutan/);
   });
 
   it("dine-in QR tidak berubah: 'Terima' tanpa bayar tetap boleh", async () => {

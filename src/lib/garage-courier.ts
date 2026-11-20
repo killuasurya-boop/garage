@@ -14,7 +14,6 @@ import {
   acceptsCourierLocation,
   AUTO_REJECT_REASON,
   DELIVERY_STATUSES,
-  deliveryStatusPatch,
   isUnpaidOrderExpired,
   validLatLng,
   type DeliveryStatus,
@@ -27,14 +26,8 @@ import { notifyStaff } from "@/lib/staff-notifications";
 import { publishProductionChange } from "@/lib/production-events";
 import type { GarageSession } from "@/lib/server-auth";
 
-export class CourierError extends Error {
-  constructor(
-    message: string,
-    public status = 400,
-  ) {
-    super(message);
-  }
-}
+import { CourierError, deliveryOutletScope, transitionDeliveryInTx } from "@/lib/delivery-workflow";
+export { CourierError } from "@/lib/delivery-workflow";
 
 function timeLabel() {
   return new Intl.DateTimeFormat("id-ID", {
@@ -191,8 +184,9 @@ export async function setCourierAvailability(
   return mine ?? null;
 }
 
-async function lockDeliveryOrder(tx: Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0], orderId: string) {
-  const [order] = await tx.select().from(orders).where(eq(orders.id, orderId)).limit(1).for("update");
+async function lockDeliveryOrder(tx: Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0], orderId: string, garage: GarageSession) {
+  const scope = await deliveryOutletScope(garage, tx);
+  const [order] = await tx.select().from(orders).where(and(eq(orders.id, orderId), scope)).limit(1).for("update");
   if (!order) throw new CourierError("Order tidak ditemukan.", 404);
   if (order.fulfillment !== "delivery") throw new CourierError("Hanya order delivery yang memakai kurir.");
   return order;
@@ -206,10 +200,12 @@ async function lockCourierProfile(tx: Parameters<Parameters<ReturnType<typeof ge
 export async function assignCourier(orderId: string, courierUserId: string | null, garage: GarageSession) {
   if (!canDispatch(garage)) throw new CourierError("Hanya kasir, manajer, atau owner yang bisa menugaskan kurir.", 403);
   const db = getDb();
+  let changed = false;
   const result = await db.transaction(async (tx) => {
-    const order = await lockDeliveryOrder(tx, orderId);
+    const order = await lockDeliveryOrder(tx, orderId, garage);
     if (order.status !== "paid") throw new CourierError("Order delivery harus lunas sebelum ditugaskan ke kurir.");
     if (order.deliveryStatus === "delivered") throw new CourierError("Pesanan sudah selesai diantar.");
+    if (courierUserId === order.courierUserId) return order;
     let courierName: string | null = null;
     const carrying = order.deliveryStatus === "picked_up" || order.deliveryStatus === "on_the_way";
     if (courierUserId && order.courierUserId && courierUserId !== order.courierUserId && carrying) {
@@ -266,6 +262,7 @@ export async function assignCourier(orderId: string, courierUserId: string | nul
       })
       .where(eq(orders.id, order.id))
       .returning();
+    changed = true;
     await tx.insert(auditLogs).values({
       time: timeLabel(),
       actor: actorOf(garage),
@@ -277,6 +274,7 @@ export async function assignCourier(orderId: string, courierUserId: string | nul
     });
     return updated;
   });
+  if (!changed) return courierOrderView(result);
   publishProductionChange();
   if (courierUserId) {
     // Kurir langsung diberi tahu (layar mana pun + HP terkunci lewat push).
@@ -297,10 +295,10 @@ export async function assignCourier(orderId: string, courierUserId: string | nul
   return courierOrderView(result);
 }
 
-const COURIER_ACTIONS: Record<string, { to: DeliveryStatus; from: Array<string | null> }> = {
-  pickup: { to: "picked_up", from: [null, "preparing"] },
-  depart: { to: "on_the_way", from: [null, "preparing", "picked_up"] },
-  arrive: { to: "delivered", from: ["picked_up", "on_the_way"] },
+const COURIER_ACTIONS: Record<string, { to: DeliveryStatus }> = {
+  pickup: { to: "picked_up" },
+  depart: { to: "on_the_way" },
+  arrive: { to: "delivered" },
 };
 
 /** Kurir yang ditugaskan (atau Owner/Manajer) memajukan status antar. */
@@ -308,43 +306,16 @@ export async function courierDeliveryAction(orderId: string, action: string, gar
   const rule = COURIER_ACTIONS[action];
   if (!rule) throw new CourierError("Aksi kurir tidak dikenal.");
   const db = getDb();
+  let changed = false;
   const result = await db.transaction(async (tx) => {
-    const order = await lockDeliveryOrder(tx, orderId);
+    const order = await lockDeliveryOrder(tx, orderId, garage);
     if (order.courierUserId !== garage.user.id && !isManagement(garage)) {
       throw new CourierError("Pesanan ini tidak ditugaskan ke Anda.", 403);
     }
-    if (order.status !== "paid") throw new CourierError("Order belum lunas.");
-    if (order.deliveryStatus === rule.to) return order; // idempoten (tombol ditekan dua kali)
-    if (!rule.from.includes(order.deliveryStatus ?? null)) {
-      throw new CourierError("Urutan status antar tidak sesuai. Muat ulang daftar antaran.");
-    }
-    // Ambil pesanan hanya setelah Bar/Dapur selesai semua; tiketnya lalu ditutup
-    // (diserahkan ke kurir) supaya tidak menggantung di layar produksi.
-    const takingFromStation =
-      rule.to === "picked_up" || (rule.to === "on_the_way" && order.deliveryStatus !== "picked_up");
-    if (takingFromStation) {
-      const pending = await tx
-        .select({ ticketNo: kitchenTickets.ticketNo })
-        .from(kitchenTickets)
-        .where(and(eq(kitchenTickets.orderId, order.id), inArray(kitchenTickets.status, ["queue", "cooking"])));
-      if (pending.length) {
-        throw new CourierError("Pesanan masih dibuat Bar/Dapur. Tunggu sampai semua SIAP.", 409);
-      }
-      await tx
-        .update(kitchenTickets)
-        .set({ status: "delivered", deliveredAt: new Date(), deliveredByName: garage.user.name, updatedAt: new Date() })
-        .where(and(eq(kitchenTickets.orderId, order.id), eq(kitchenTickets.status, "ready")));
-    }
-    // "Sudah sampai" wajib foto bukti terkirim (PDF owner).
-    if (rule.to === "delivered" && !order.deliveryProofUrl) {
-      throw new CourierError("Ambil foto bukti terkirim dulu sebelum menandai Sudah sampai.", 409);
-    }
-    const now = new Date();
-    const [updated] = await tx
-      .update(orders)
-      .set(deliveryStatusPatch(rule.to, now))
-      .where(eq(orders.id, order.id))
-      .returning();
+    const transition = await transitionDeliveryInTx(tx, order, rule.to, garage.user.name);
+    if (!transition.changed) return transition.order;
+    const updated = transition.order;
+    changed = true;
     await tx.insert(auditLogs).values({
       time: timeLabel(),
       actor: actorOf(garage),
@@ -356,6 +327,7 @@ export async function courierDeliveryAction(orderId: string, action: string, gar
     });
     return updated;
   });
+  if (!changed) return courierOrderView(result);
   publishProductionChange();
   if (rule.to === "on_the_way" || rule.to === "delivered") {
     await announceOrderProgress(result.id, rule.to, { courierName: result.courierName }).catch(() => null);
@@ -367,8 +339,9 @@ export async function courierDeliveryAction(orderId: string, action: string, gar
 export async function claimDeliveryOrder(orderId: string, garage: GarageSession) {
   if (!isCourier(garage)) throw new CourierError("Hanya akun kurir yang bisa mengambil pesanan.", 403);
   const db = getDb();
+  let changed = false;
   const result = await db.transaction(async (tx) => {
-    const order = await lockDeliveryOrder(tx, orderId);
+    const order = await lockDeliveryOrder(tx, orderId, garage);
     if (order.status !== "paid") throw new CourierError("Order belum lunas.");
     if (order.courierUserId === garage.user.id) return order; // idempoten
     if (order.courierUserId) throw new CourierError("Pesanan ini sudah diambil kurir lain.", 409);
@@ -394,6 +367,7 @@ export async function claimDeliveryOrder(orderId: string, garage: GarageSession)
       .where(and(eq(orders.id, order.id), isNull(orders.courierUserId)))
       .returning();
     if (!updated) throw new CourierError("Pesanan ini sudah diambil kurir lain.", 409);
+    changed = true;
     await tx.insert(auditLogs).values({
       time: timeLabel(),
       actor: actorOf(garage),
@@ -405,6 +379,7 @@ export async function claimDeliveryOrder(orderId: string, garage: GarageSession)
     });
     return updated;
   });
+  if (!changed) return courierOrderView(result);
   publishProductionChange();
   await announceOrderProgress(result.id, "courier_assigned", { courierName: result.courierName }).catch(() => null);
   return courierOrderView(result);
@@ -416,7 +391,7 @@ export async function assertCanAttachDeliveryProof(orderId: string, garage: Gara
   const [order] = await getDb()
     .select({ id: orders.id, courierUserId: orders.courierUserId, deliveryStatus: orders.deliveryStatus, orderNo: orders.orderNo })
     .from(orders)
-    .where(eq(orders.id, orderId))
+    .where(and(eq(orders.id, orderId), eq(orders.fulfillment, "delivery"), await deliveryOutletScope(garage)))
     .limit(1);
   if (!order) throw new CourierError("Order tidak ditemukan.", 404);
   if (order.courierUserId !== garage.user.id && !isManagement(garage)) {
@@ -431,9 +406,24 @@ export async function assertCanAttachDeliveryProof(orderId: string, garage: Gara
 export async function attachDeliveryProof(orderId: string, proofUrl: string, garage: GarageSession) {
   const db = getDb();
   const order = await assertCanAttachDeliveryProof(orderId, garage);
-  await db.update(orders).set({ deliveryProofUrl: proofUrl, updatedAt: new Date() }).where(eq(orders.id, order.id));
+  const [updated] = await db.update(orders).set({ deliveryProofUrl: proofUrl, updatedAt: new Date() })
+    .where(and(eq(orders.id, order.id), await deliveryOutletScope(garage),
+      inArray(orders.deliveryStatus, ["picked_up", "on_the_way"]),
+      isManagement(garage) ? undefined : eq(orders.courierUserId, garage.user.id)))
+    .returning({ id: orders.id });
+  if (!updated) throw new CourierError("Pesanan sudah berubah. Muat ulang sebelum mengunggah bukti.", 409);
   publishProductionChange();
   return { ok: true, proofUrl };
+}
+
+/** File names are not authorization; the order reference and active outlet are. */
+export async function assertCanReadDeliveryProof(file: string, garage: GarageSession) {
+  const [order] = await getDb().select({ courierUserId: orders.courierUserId }).from(orders)
+    .where(and(eq(orders.deliveryProofUrl, `/api/courier/proof/${file}`), eq(orders.fulfillment, "delivery"), await deliveryOutletScope(garage))).limit(1);
+  if (!order || (!canDispatch(garage) && !isManagement(garage) &&
+    (!isCourier(garage) || order.courierUserId !== garage.user.id))) {
+    throw new CourierError("Foto tidak ditemukan.", 404);
+  }
 }
 
 /** Posisi GPS kurir — hanya kurir yang ditugaskan, hanya saat pesanan dibawa. */
@@ -444,7 +434,7 @@ export async function updateCourierLocation(orderId: string, lat: unknown, lng: 
   const [order] = await db
     .select({ id: orders.id, courierUserId: orders.courierUserId, deliveryStatus: orders.deliveryStatus })
     .from(orders)
-    .where(eq(orders.id, orderId))
+    .where(and(eq(orders.id, orderId), eq(orders.fulfillment, "delivery"), await deliveryOutletScope(garage)))
     .limit(1);
   if (!order) throw new CourierError("Order tidak ditemukan.", 404);
   if (order.courierUserId !== garage.user.id) throw new CourierError("Pesanan ini tidak ditugaskan ke Anda.", 403);
@@ -452,11 +442,14 @@ export async function updateCourierLocation(orderId: string, lat: unknown, lng: 
     throw new CourierError("Lokasi hanya dikirim saat pesanan sedang diantar.", 409);
   }
   const now = new Date();
-  await db
+  const [updated] = await db
     .update(orders)
     .set({ courierLat: point.lat, courierLng: point.lng, courierLocationAt: now })
-    .where(eq(orders.id, order.id));
-  return { ok: true, at: now.toISOString() };
+    .where(and(eq(orders.id, order.id), await deliveryOutletScope(garage),
+      eq(orders.courierUserId, garage.user.id), inArray(orders.deliveryStatus, ["picked_up", "on_the_way"])))
+    .returning({ at: orders.courierLocationAt });
+  if (!updated) throw new CourierError("Lokasi hanya dikirim saat pesanan sedang diantar.", 409);
+  return { ok: true, at: updated.at!.toISOString() };
 }
 
 export type CourierOrderView = ReturnType<typeof courierOrderView>;
@@ -490,27 +483,25 @@ function courierOrderView(row: typeof orders.$inferSelect, items: Array<{ itemNa
  * Daftar antaran: kurir melihat miliknya (aktif + selesai hari ini); Owner/Manajer
  * & kasir melihat semua delivery lunas yang belum selesai + selesai hari ini.
  */
-export async function getCourierBoard(garage: GarageSession) {
+export async function getCourierBoard(garage: GarageSession, options: { historyPage?: number } = {}) {
   if (!isCourier(garage) && !isManagement(garage) && !canDispatch(garage)) {
     throw new CourierError("Modul kurir hanya untuk kurir, kasir, manajer, atau owner.", 403);
   }
   const db = getDb();
   const since = new Date(Date.now() - 18 * 60 * 60 * 1000);
+  const historyPage = Math.min(1000, Math.max(0, Math.floor(options.historyPage ?? 0)));
+  const outletScope = await deliveryOutletScope(garage);
   const scope = isCourier(garage) ? [eq(orders.courierUserId, garage.user.id)] : [];
-  const rows = await db
-    .select()
-    .from(orders)
-    .where(
-      and(
-        eq(orders.fulfillment, "delivery"),
-        eq(orders.status, "paid"),
-        ...scope,
-        // Aktif (belum sampai) + yang selesai diantar dalam 18 jam terakhir.
-        or(isNull(orders.deliveryStatus), ne(orders.deliveryStatus, "delivered"), gte(orders.deliveredAt, since)),
-      ),
-    )
-    .orderBy(desc(orders.createdAt))
-    .limit(60);
+  const base = [eq(orders.fulfillment, "delivery"), eq(orders.status, "paid"), outletScope, ...scope];
+  // History can never displace an older active delivery. A visible bound keeps
+  // the live query safe on the VPS; history has its own pagination.
+  const activeRows = await db.select().from(orders)
+    .where(and(...base, or(isNull(orders.deliveryStatus), ne(orders.deliveryStatus, "delivered"))))
+    .orderBy(asc(orders.createdAt), asc(orders.id)).limit(601);
+  const doneRows = await db.select().from(orders)
+    .where(and(...base, eq(orders.deliveryStatus, "delivered"), gte(orders.deliveredAt, since)))
+    .orderBy(desc(orders.deliveredAt), desc(orders.id)).limit(21).offset(historyPage * 20);
+  const rows = [...activeRows.slice(0, 600), ...doneRows.slice(0, 20)];
   const ids = rows.map((row) => row.id);
   const items = ids.length
     ? await db
@@ -543,17 +534,20 @@ export async function getCourierBoard(garage: GarageSession) {
             eq(orders.status, "paid"),
             isNull(orders.courierUserId),
             or(isNull(orders.deliveryStatus), ne(orders.deliveryStatus, "delivered")),
-            or(eq(orders.outletId, garage.profile.outlet.id), isNull(orders.outletId)),
+            outletScope,
           ),
         )
         .orderBy(asc(orders.createdAt))
-        .limit(20)
+        .limit(21)
     : [];
   const couriers = await listCouriers(garage);
   return {
     active: views.filter((view) => view.deliveryStatus !== "delivered"),
     done: views.filter((view) => view.deliveryStatus === "delivered"),
-    claimable: claimableRows.map((row) => courierOrderView(row)),
+    claimable: claimableRows.slice(0, 20).map((row) => courierOrderView(row)),
+    activeTruncated: activeRows.length > 600,
+    claimableTruncated: claimableRows.length > 20,
+    history: { page: historyPage, hasMore: doneRows.length > 20 },
     me: isCourier(garage) ? couriers.find((courier) => courier.userId === garage.user.id) ?? null : null,
     couriers: isCourier(garage) ? [] : couriers,
     canDispatch: canDispatch(garage),

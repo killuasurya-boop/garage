@@ -1,0 +1,101 @@
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import type { Role } from "@/lib/garage-data";
+import type { GarageSession } from "@/lib/server-auth";
+import {
+  seedGarageBasics,
+  setupGarageTestDb,
+  teardownGarageTestDb,
+  type GarageTestDb,
+} from "@/lib/test-helpers/garage-test-db";
+
+// =============================================================================
+// Take away & Delivery menu digital (keputusan owner Okt 2026):
+// - Take away: QRIS / Transfer / bayar di kasir — WAJIB lunas dulu baru dibuat.
+// - Delivery: QRIS saja (tanpa COD), WA + alamat wajib, min. 2 produk,
+//   ongkir Rp5.000 di luar service/pajak; status antar dikelola kasir.
+// =============================================================================
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+let t: GarageTestDb;
+let svc: any;
+let outletId = "";
+
+const KASIR = "user-itest-dlv-kasir";
+
+function kasir(): GarageSession {
+  return {
+    user: { id: KASIR, name: "Kasir Delivery" },
+    profile: {
+      id: `sp-${KASIR}`,
+      role: "Kasir" as Role,
+      shiftLabel: "Pagi",
+      deviceLabel: "DLV-1",
+      passwordResetRequired: false,
+      workstation: null,
+      outlet: { id: outletId, code: "TST", name: "Outlet Test", timezone: "Asia/Jakarta" },
+    },
+  } as unknown as GarageSession;
+}
+
+const ADDRESS = "Jl. Sudirman No. 12, dekat Masjid Raya — Patokan: pagar hijau";
+
+function deliveryInput(overrides: Record<string, unknown> = {}) {
+  return {
+    orderType: "delivery",
+    customerMode: "guest",
+    guestName: "Rina",
+    guestPhone: "081234567890",
+    paymentMethod: "QRIS",
+    paymentProvider: "QRIS GARAGE",
+    source: "instagram",
+    deliveryAddress: ADDRESS,
+    items: [{ itemId: "itm-coffee", variantId: "reg", qty: 2 }],
+    ...overrides,
+  };
+}
+
+async function ticketsOf(orderId: string) {
+  const { eq } = await import("drizzle-orm");
+  return t.getDb().select().from(t.schema.kitchenTickets).where(eq(t.schema.kitchenTickets.orderId, orderId));
+}
+
+const STANDBY = "user-itest-dlv-standby";
+
+beforeAll(async () => {
+  t = await setupGarageTestDb();
+  outletId = (await seedGarageBasics(t, { userId: KASIR })).outletId;
+  // Delivery hanya bisa dipesan bila ada kurir "Siap antar" (Pengaturan default).
+  await t.getDb().insert(t.schema.user).values({ id: STANDBY, name: "Zaki Standby", email: `${STANDBY}@garage.id` });
+  await t
+    .getDb()
+    .insert(t.schema.staffProfiles)
+    .values({ userId: STANDBY, outletId, role: "Waiter", workstation: "kurir", courierAvailability: "available" });
+  svc = await import("@/lib/garage-service");
+}, 60_000);
+
+afterAll(async () => {
+  await teardownGarageTestDb(t);
+});
+
+
+describe("Audit reproduction — isolation (observed current behavior, not desired contract)", () => {
+  it("reproduces a cashier seeing and releasing another outlet's delivery", async () => {
+    const cour = await import("@/lib/garage-courier");
+    const made = await svc.createCustomerOrder(deliveryInput());
+    await svc.updateCustomerOrderStatus(made.order.id, { action: "paid", paymentMethod: "QRIS" }, kasir());
+    const [other] = await t.getDb().insert(t.schema.outlets).values({ code: "AUDIT-B", name: "Other outlet", timezone: "Asia/Jakarta" }).returning();
+    const outsider = { ...kasir(), profile: { ...kasir().profile, outlet: { id: other.id, code: "AUDIT-B", name: "Other outlet", timezone: "Asia/Jakarta" } } } as GarageSession;
+    const board = await cour.getCourierBoard(outsider);
+    expect(board.active.some((o: { id: string }) => o.id === made.order.id)).toBe(true);
+    const released = await cour.assignCourier(made.order.id, null, outsider);
+    expect(released.id).toBe(made.order.id);
+    const marked = await svc.updateCustomerOrderStatus(made.order.id, { action: "delivery_status", deliveryStatus: "delivered" }, kasir());
+    expect(marked.order.deliveryStatus).toBe("delivered");
+    const { eq } = await import("drizzle-orm");
+    const [raw] = await t.getDb().select().from(t.schema.orders).where(eq(t.schema.orders.id, made.order.id));
+    expect(raw.deliveryProofUrl).toBeNull();
+    const tickets = await ticketsOf(made.order.id);
+    expect(tickets.some((ticket: { status: string }) => ticket.status === "queue" || ticket.status === "cooking")).toBe(true);
+  });
+});

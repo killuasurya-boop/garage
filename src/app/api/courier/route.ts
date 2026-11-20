@@ -10,9 +10,9 @@ export async function GET(request: Request) {
   const session = await requireGarageSession();
   if (session.response) return session.response;
   try {
-    return okWithEtag(request, await getCourierBoard(session.data));
+    return okWithEtag(request, await getCourierBoard(session.data, { historyPage: Number(new URL(request.url).searchParams.get("historyPage")) || 0 }));
   } catch (error) {
     if (error instanceof CourierError) return fail(error.status, "COURIER_FORBIDDEN", error.message);
-    return fail(500, "COURIER_BOARD_FAILED", error instanceof Error ? error.message : "Daftar antaran gagal dimuat.");
+    return fail(500, "COURIER_BOARD_FAILED", "Daftar antaran gagal dimuat.");
   }
 }

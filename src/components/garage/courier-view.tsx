@@ -106,9 +106,10 @@ export function CourierView({ me }: { me: GarageMe }) {
   const requestSequence = useRef(0);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [gps, setGps] = useState<{ state: "idle" | "on" | "denied" | "unsupported" | "error" | "partial"; sentAt: number | null }>({
+  const [gps, setGps] = useState<{ state: "idle" | "on" | "denied" | "unsupported" | "error" | "partial"; sentAt: number | null; orderKey: string }>({
     state: "idle",
     sentAt: null,
+    orderKey: "",
   });
 
   const load = useCallback(async () => {
@@ -145,17 +146,19 @@ export function CourierView({ me }: { me: GarageMe }) {
     [board, me.user.id],
   );
   const carriedKey = carriedIds.join(",");
+  // An acknowledgement belongs to its delivery batch, never to the next order.
+  const currentGps = gps.orderKey === carriedKey ? gps : { state: "idle", sentAt: null };
   const nextSendRef = useRef(0);
   const sendingRef = useRef(false);
 
   useEffect(() => {
     if (!carriedKey) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- GPS mati bila tidak ada antaran
-      setGps((prev) => (prev.state === "on" ? { state: "idle", sentAt: null } : prev));
+      setGps((prev) => (prev.state === "on" ? { state: "idle", sentAt: null, orderKey: "" } : prev));
       return;
     }
     if (typeof navigator === "undefined" || !navigator.geolocation) {
-      setGps({ state: "unsupported", sentAt: null });
+      setGps({ state: "unsupported", sentAt: null, orderKey: carriedKey });
       return;
     }
     const ids = carriedKey.split(",");
@@ -164,6 +167,7 @@ export function CourierView({ me }: { me: GarageMe }) {
     nextSendRef.current = 0;
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
+        if (!mounted) return;
         const now = Date.now();
         if (sendingRef.current || now < nextSendRef.current) return;
         sendingRef.current = true;
@@ -174,11 +178,12 @@ export function CourierView({ me }: { me: GarageMe }) {
           if (!mounted) return;
           failures = result.failed ? failures + 1 : 0;
           nextSendRef.current = Date.now() + Math.min(120_000, GPS_INTERVAL_MS * 2 ** Math.min(failures, 3));
-          setGps({ state: result.failed ? (result.acceptedAt ? "partial" : "error") : "on", sentAt: result.acceptedAt });
+          setGps({ state: result.failed ? (result.acceptedAt ? "partial" : "error") : "on", sentAt: result.acceptedAt, orderKey: carriedKey });
         }).finally(() => { sendingRef.current = false; });
       },
       (geoError) => {
-        setGps({ state: geoError.code === geoError.PERMISSION_DENIED ? "denied" : "idle", sentAt: null });
+        if (!mounted) return;
+        setGps({ state: geoError.code === geoError.PERMISSION_DENIED ? "denied" : "idle", sentAt: null, orderKey: carriedKey });
       },
       { enableHighAccuracy: true, maximumAge: 10_000, timeout: 20_000 },
     );
@@ -263,7 +268,7 @@ export function CourierView({ me }: { me: GarageMe }) {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {mine ? <GpsBadge state={gps.state} sentAt={gps.sentAt} carrying={carriedIds.length > 0} /> : null}
+          {mine ? <GpsBadge state={currentGps.state} sentAt={currentGps.sentAt} carrying={carriedIds.length > 0} /> : null}
           <Button type="button" variant="outline" size="sm" className="garage-press h-10 border-garage-line-2" onClick={() => void load()}>
             <RefreshCw className="size-4" aria-hidden /> Muat ulang
           </Button>

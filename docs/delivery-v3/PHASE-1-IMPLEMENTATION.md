@@ -9,7 +9,7 @@ Implementasi mengikuti persetujuan Owner atas rencana pada PR #259. Belum di-mer
 - `delivery-workflow.ts` menjadi kontrak transisi bersama untuk jalur kurir dan jalur status kasir. Readiness Bar/Dapur berlaku sebelum pickup/depart; delivered wajib bukti; regresi status ditolak dan retry transisi tidak mengulang audit/pesan progress.
 - Foto dibaca hanya bila URL bukti masih direferensikan order yang boleh diakses pengguna. Kurir hanya membaca bukti order miliknya; dispatcher/manajemen mengikuti outlet aktif. Respons foto memakai `private, no-store`.
 - Write GPS dan referensi foto memeriksa ulang status/pemilik/outlet pada update, sehingga request terlambat tidak menulis koordinat setelah delivered. File upload dibersihkan bila pencatatan bukti gagal.
-- UI GPS memakai acknowledgement dan timestamp server. Total/partial failure terlihat, request tidak bertumpuk, retry memakai backoff terbatas. Telemetri lebih dari 90 detik atau tanpa timestamp ditandai basi (bukan SLA pengantaran).
+- UI GPS memakai acknowledgement dan timestamp server yang terikat ke batch order aktif; konfirmasi order lama tidak dipakai untuk antaran baru. Total/partial failure terlihat, request tidak bertumpuk, retry memakai backoff terbatas. Telemetri lebih dari 90 detik atau tanpa timestamp ditandai basi (bukan SLA pengantaran).
 - Antaran aktif diquery terpisah, tertua dulu. Riwayat 18 jam terakhir memiliki halaman 20 order; `GET /api/courier?historyPage=N` memakai indeks halaman mulai 0. Board mengembalikan `history: {page, hasMore}`.
 - Query aktif dibatasi ke 600 tertua + indikator `activeTruncated`; klaim 20 tertua + `claimableTruncated`. Batas ini terlihat di layar, sehingga backlog tidak diam-diam tergeser oleh riwayat.
 - Error tidak terduga pada API kurir memakai pesan generik, bukan SQL/stack.
@@ -21,7 +21,7 @@ Tidak menambah migrasi, rekening/ledger, provider pembayaran, COD, mode checkout
 - 36 tes relevan lulus: delivery/tarif existing, regresi antar-outlet/legacy, bukti privat, jalur transisi, replay, GPS vs arrival, pagination backlog, acknowledgement/freshness GPS, dan katalog guard API.
 - TypeScript sumber terbaru lulus dengan heap 6 GB.
 - `db:generate` tidak menemukan perubahan skema.
-- Pemeriksaan komponen CourierView pada 1366×900 dan 390×844 lulus: penolakan POST GPS terlihat, tidak mengklaim GPS terkirim, pagination mempertahankan order aktif, warning batas terlihat, tidak ada page error/overflow horizontal.
+- Pemeriksaan komponen CourierView pada 1366×900 dan 390×844 lulus: penolakan POST GPS terlihat, tidak mengklaim GPS terkirim, pagination mempertahankan order aktif, warning batas terlihat, pergantian order tidak memakai acknowledgement lama, posisi basi ditandai setelah waktu dimajukan, tidak ada page error/overflow horizontal.
 - Pemeriksaan UI menggunakan komponen sumber, CSS build existing, serta API/stream simulasi dalam harness lokal. Ini bukan login staf sungguhan atau UAT staging.
 - Hasil lint penuh, build produksi dan CI dicatat pada deskripsi PR implementasi setelah selesai.
 

@@ -45,6 +45,14 @@ test("GIGS EO: lineup master → keuangan event → hari-H (check-in, panggung, 
   await expect(page.getByText(`Band E2E ${tag}`).first()).toBeVisible();
   await page.getByRole("tab", { name: "Kesiapan" }).click();
   await expect(page.getByText(/Checklist operasional/)).toBeVisible();
+  // Log kejadian (Owner 20 Nov 2026): catat dari HP, lalu tandai selesai.
+  await page.getByRole("tab", { name: "Kejadian" }).click();
+  await page.getByLabel("Apa yang terjadi").fill(`Kabel mic E2E ${tag} lepas`);
+  await page.getByRole("button", { name: "Catat kejadian" }).click();
+  await expect(page.getByText(`Kabel mic E2E ${tag} lepas`)).toBeVisible();
+  const incidents = (await (await api.get(`/api/event-day/incidents?eventId=${eventId}`)).json()).data;
+  const mine = incidents.items.find((i: { note: string }) => i.note === `Kabel mic E2E ${tag} lepas`);
+  await post(`/api/event-day/incidents/${mine.id}/resolve`, { resolution: "Diganti kabel cadangan" });
   await post(`/api/event-day/slots/${performer.id}`, { action: "undo" });
 
   // Laporan sponsor (#12): saat dicetak isinya tetap terlihat (aturan cetak struk global tidak menyembunyikannya).

@@ -176,3 +176,8 @@ description: Aturan WAJIB modul Lineup & Panitia Event (band/stand-up, rundown, 
   saat Simpan (`financeChangeSummary`, alasan opsional), tampil di `/api/public/changes` setelah riwayat platform lama.
 - Tahap berikut: fitur Dashboard Penyelenggara (kontrak, dana, live, program, kesiapan, review) dipetakan ke modul
   Garage OS yang ada, lalu container platform dimatikan (butuh ACC Owner).
+- Log kejadian Hari-H (Owner 20 Nov 2026, migrasi 0206 `event_incidents`, tab "Kejadian" di `/event-day`): Owner, Manajer
+  (event outletnya) & Panitia (event tempat ia panitia aktif) mencatat jenis + tingkat + isi; append-only, "Selesai" sekali
+  dengan keterangan wajib (409 bila sudah). TINGGI → notifikasi HP Owner (`event_incident`, tanpa isi kejadian lain).
+  Laporan akhir publik memakai hitungan log ini bila ada (`incidentCounts`), selain itu angka isian Owner. Reset grand
+  opening: CLEAR (catatan uji coba, seperti check-in).

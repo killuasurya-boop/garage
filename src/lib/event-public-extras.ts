@@ -142,8 +142,11 @@ export async function garageCloseout(event: EventRow) {
     publicSponsorsOf(event.id),
   ]);
   const totals = publicFinanceTotals(finance.data);
+  // Kejadian: dari log Hari-H bila ada catatan (Owner 20 Nov 2026); selain itu angka isian Owner di Transparansi.
+  const { incidentCounts } = await import("@/lib/event-day-service");
+  const logged = await incidentCounts(event.id);
   return buildCloseout({
-    closeout: finance.data.closeout,
+    closeout: logged ? { ...finance.data.closeout, incidentsTotal: logged.total, incidentsResolved: logged.resolved } : finance.data.closeout,
     event: { name: event.title, venue: event.venueName },
     finance: { income: totals.income, expense: totals.expense, target: finance.data.target },
     attendance: checkins.reduce((s, c) => s + c.pax, 0),

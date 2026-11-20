@@ -2,7 +2,7 @@ import { and, asc, desc, eq, isNotNull, isNull, ne, or, sql } from "drizzle-orm"
 import { z } from "zod";
 
 import { getDb } from "@/db";
-import { eventCheckins, eventCrew, eventGuests, eventInvitations, eventOpsChecks, eventPerformers, eventRsvps, events } from "@/db/schema";
+import { eventCheckins, eventCrew, eventGuests, eventIncidents, eventInvitations, eventOpsChecks, eventPerformers, eventRsvps, events, staffProfiles } from "@/db/schema";
 import { checkinDecision, clockDot, extractInvitationToken, OPS_CHECK_TEMPLATE, stageState } from "@/lib/event-day-rules";
 import { findInvitationByToken } from "@/lib/event-invitations";
 import { buildRundown, type LineupKind, type PerformerStatus } from "@/lib/event-lineup-rules";
@@ -468,4 +468,104 @@ export async function addOpsCheck(input: z.infer<typeof opsCheckCreateSchema>, g
     .returning();
   await audit(garage, "Tambah item checklist operasional event", row.label, { eventId: event.id, checkId: row.id });
   return { id: row.id };
+}
+
+// ─── Log kejadian Hari-H (Owner 20 Nov 2026) ────────────────────────────────
+// Dari Dashboard Penyelenggara platform. Owner, Manajer (event outletnya) & Panitia (event tempat ia panitia aktif)
+// mencatat dan menandai selesai. Append-only: tidak ada hapus/ubah isi; salah catat = tandai selesai + keterangan.
+// Kejadian TINGGI → notifikasi ke HP Owner. Laporan akhir menghitung kejadian dari sini.
+
+export const INCIDENT_TYPES = ["keamanan", "kesehatan", "teknis", "kerumunan", "cuaca", "lainnya"] as const;
+export const INCIDENT_SEVERITIES = ["rendah", "sedang", "tinggi"] as const;
+export const incidentCreateSchema = z.object({
+  eventId: z.string().uuid(),
+  type: z.enum(INCIDENT_TYPES),
+  severity: z.enum(INCIDENT_SEVERITIES).default("sedang"),
+  note: z.string().trim().min(3, "Tulis kejadiannya (min. 3 huruf).").max(500),
+});
+export const incidentResolveSchema = z.object({ resolution: z.string().trim().min(3, "Tulis penanganannya (min. 3 huruf).").max(300) });
+
+function assertIncidentRole(garage: GarageSession) {
+  if (!isEventCrew(garage) && !isPanitia(garage)) throw new EventDayError("FORBIDDEN", "Log kejadian untuk Owner, Manajer, dan Panitia.", 403);
+  if (garage.profile.agentKey) throw new EventDayError("HUMAN_SESSION_REQUIRED", "Log kejadian hanya untuk staf yang login langsung.", 403);
+}
+
+const incidentView = (r: typeof eventIncidents.$inferSelect) => ({
+  id: r.id,
+  type: r.type,
+  severity: r.severity,
+  note: r.note,
+  reportedByName: r.reportedByName,
+  createdAt: r.createdAt.toISOString(),
+  resolved: Boolean(r.resolvedAt),
+  resolvedAt: r.resolvedAt?.toISOString() ?? null,
+  resolution: r.resolution,
+});
+
+export async function listIncidents(eventId: string, garage: GarageSession) {
+  assertIncidentRole(garage);
+  const event = await loadEvent(eventId, garage);
+  const rows = await getDb().select().from(eventIncidents).where(eq(eventIncidents.eventId, event.id)).orderBy(desc(eventIncidents.createdAt)).limit(300);
+  const items = rows.map(incidentView);
+  return { eventId: event.id, items, open: items.filter((i) => !i.resolved).length, total: items.length };
+}
+
+export async function reportIncident(input: z.infer<typeof incidentCreateSchema>, garage: GarageSession) {
+  assertIncidentRole(garage);
+  const event = await loadEvent(input.eventId, garage);
+  const [row] = await getDb()
+    .insert(eventIncidents)
+    .values({ eventId: event.id, type: input.type, severity: input.severity, note: input.note, reportedBy: garage.user.id, reportedByName: garage.user.name ?? garage.profile.role })
+    .returning();
+  await audit(garage, "Catat kejadian event", event.title, { eventId: event.id, incidentId: row.id, type: row.type, severity: row.severity });
+  if (row.severity === "tinggi") await notifyOwnersIncident(event, row).catch(() => null);
+  return incidentView(row);
+}
+
+export async function resolveIncident(id: string, input: z.infer<typeof incidentResolveSchema>, garage: GarageSession) {
+  assertIncidentRole(garage);
+  const db = getDb();
+  const [row] = await db.select().from(eventIncidents).where(eq(eventIncidents.id, id)).limit(1);
+  if (!row) throw new EventDayError("NOT_FOUND", "Kejadian tidak ditemukan.", 404);
+  const event = await loadEvent(row.eventId, garage);
+  // Tandai selesai sekali saja (klik ganda / dua HP bersamaan tidak menimpa penanganan pertama).
+  const [updated] = await db
+    .update(eventIncidents)
+    .set({ resolvedAt: new Date(), resolvedBy: garage.user.id, resolution: input.resolution })
+    .where(and(eq(eventIncidents.id, id), isNull(eventIncidents.resolvedAt)))
+    .returning();
+  if (!updated) throw new EventDayError("ALREADY_RESOLVED", "Kejadian ini sudah ditandai selesai.", 409);
+  await audit(garage, "Kejadian event selesai ditangani", event.title, { eventId: event.id, incidentId: id, type: row.type, severity: row.severity });
+  return incidentView(updated);
+}
+
+async function notifyOwnersIncident(event: { id: string; title: string }, row: typeof eventIncidents.$inferSelect) {
+  const owners = await getDb()
+    .select({ userId: staffProfiles.userId, outletId: staffProfiles.outletId })
+    .from(staffProfiles)
+    .where(and(eq(staffProfiles.role, "Owner"), eq(staffProfiles.status, "active")));
+  const { notifyStaff } = await import("@/lib/staff-notifications");
+  for (const owner of owners) {
+    await notifyStaff({
+      outletId: owner.outletId,
+      audience: "user",
+      userId: owner.userId,
+      kind: "event_incident",
+      severity: "warning",
+      title: `Kejadian TINGGI · ${event.title}`,
+      body: `${row.type}: ${row.note}`.slice(0, 300),
+      url: `/event-day?event=${event.id}&tab=kejadian`,
+      dedupKey: `event-incident:${row.id}:${owner.userId}`,
+    }).catch(() => null);
+  }
+}
+
+/** Jumlah kejadian (total & sudah ditangani) untuk laporan akhir; null bila belum ada catatan sama sekali. */
+export async function incidentCounts(eventId: string): Promise<{ total: number; resolved: number } | null> {
+  const [row] = await getDb()
+    .select({ total: sql<number>`count(*)::int`, resolved: sql<number>`count(${eventIncidents.resolvedAt})::int` })
+    .from(eventIncidents)
+    .where(eq(eventIncidents.eventId, eventId));
+  const total = Number(row?.total ?? 0);
+  return total ? { total, resolved: Number(row?.resolved ?? 0) } : null;
 }

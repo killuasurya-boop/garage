@@ -220,6 +220,8 @@ describe("Kontrak vendor (Owner 20 Nov 2026)", () => {
   it("tambah pada pos aktif, tampil dengan 'dibayar' dari pos; selesai/batal final; batal wajib alasan; tanpa uang", async () => {
     const line = await svc.createBudgetLine({ eventId, category: "sound", title: "Sound Kontrak", plannedAmount: 4_000_000 }, owner());
     await expect(svc.createVendorContract({ budgetLineId: line.id, vendor: "Vendor X", value: 1 }, session("Manajer" as Role))).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(svc.contractSchema.safeParse({ budgetLineId: line.id, vendor: "Vendor Besar", value: 2_500_000_000 }).success).toBe(false);
+    expect(svc.contractSchema.safeParse({ budgetLineId: line.id, vendor: "Vendor Besar", value: 2_000_000_000 }).success).toBe(true);
     const ledgerBefore = (await t.getDb().select().from(t.schema.cashLedgerEntries)).length;
     const a = await svc.createVendorContract({ budgetLineId: line.id, vendor: "Sound Jaya", pic: "Rafly", phone: "0812 3456 7890", value: 3_500_000, terms: "Termasuk lighting", dueDate: "2020-01-01" }, owner());
     const b = await svc.createVendorContract({ budgetLineId: line.id, vendor: "Sound Cadangan", value: 1_000_000 }, owner());

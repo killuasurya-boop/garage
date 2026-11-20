@@ -574,7 +574,8 @@ export const contractSchema = z.object({
     .nullable()
     .optional()
     .or(z.literal("")),
-  value: rupiah.min(0).max(10_000_000_000),
+  // Kolom integer (sama dengan pos anggaran): maks. Rp2 miliar, supaya tidak gagal di database.
+  value: rupiah.min(0).max(2_000_000_000, "Nilai kontrak maksimal Rp2.000.000.000."),
   terms: optionalText(1000),
   dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Tanggal tenggat tidak valid.").nullable().optional().or(z.literal("")),
 });

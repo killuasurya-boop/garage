@@ -181,3 +181,7 @@ description: Aturan WAJIB modul Lineup & Panitia Event (band/stand-up, rundown, 
   dengan keterangan wajib (409 bila sudah). TINGGI → notifikasi HP Owner (`event_incident`, tanpa isi kejadian lain).
   Laporan akhir publik memakai hitungan log ini bila ada (`incidentCounts`), selain itu angka isian Owner. Reset grand
   opening: CLEAR (catatan uji coba, seperti check-in).
+- Kontrak vendor (Owner 20 Nov 2026, migrasi 0207 `event_vendor_contracts`, Keuangan Event): Owner saja, per pos anggaran
+  AKTIF (vendor, PIC, WA, nilai, syarat, tenggat). Status aktif → selesai (catatan opsional) / batal (alasan wajib); keduanya
+  final (409 `CONTRACT_CLOSED`). TIDAK menggerakkan uang; "dibayar" = pembayaran pos itu yang sudah ada. Reset grand opening:
+  KEEP. Staging menyamarkan PIC & WA vendor.

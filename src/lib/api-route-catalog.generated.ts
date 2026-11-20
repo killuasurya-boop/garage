@@ -193,6 +193,8 @@ export const API_ROUTE_CATALOG: ApiRouteEntry[] = [
   {"path":"/api/event-day/ops","methods":["GET","POST"],"note":""},
   {"path":"/api/event-day","methods":["GET"],"note":""},
   {"path":"/api/event-day/slots/{id}","methods":["POST"],"note":""},
+  {"path":"/api/event-finance/contracts/{id}","methods":["PATCH"],"note":""},
+  {"path":"/api/event-finance/contracts","methods":["POST"],"note":""},
   {"path":"/api/event-finance/import-platform","methods":["POST"],"note":""},
   {"path":"/api/event-finance/lines/{id}","methods":["PATCH"],"note":""},
   {"path":"/api/event-finance/payments/{id}/proof","methods":["GET","POST"],"note":""},

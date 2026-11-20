@@ -215,3 +215,34 @@ describe("Keuangan event", () => {
     }
   });
 });
+
+describe("Kontrak vendor (Owner 20 Nov 2026)", () => {
+  it("tambah pada pos aktif, tampil dengan 'dibayar' dari pos; selesai/batal final; batal wajib alasan; tanpa uang", async () => {
+    const line = await svc.createBudgetLine({ eventId, category: "sound", title: "Sound Kontrak", plannedAmount: 4_000_000 }, owner());
+    await expect(svc.createVendorContract({ budgetLineId: line.id, vendor: "Vendor X", value: 1 }, session("Manajer" as Role))).rejects.toMatchObject({ code: "FORBIDDEN" });
+    const ledgerBefore = (await t.getDb().select().from(t.schema.cashLedgerEntries)).length;
+    const a = await svc.createVendorContract({ budgetLineId: line.id, vendor: "Sound Jaya", pic: "Rafly", phone: "0812 3456 7890", value: 3_500_000, terms: "Termasuk lighting", dueDate: "2020-01-01" }, owner());
+    const b = await svc.createVendorContract({ budgetLineId: line.id, vendor: "Sound Cadangan", value: 1_000_000 }, owner());
+    expect((await t.getDb().select().from(t.schema.cashLedgerEntries)).length).toBe(ledgerBefore);
+
+    await svc.recordExpensePayment({ budgetLineId: line.id, amount: 1_000_000, paidAt: "2026-11-01", source: "external", payee: "Sound Jaya", idempotencyKey: `kontrak-${line.id}` }, owner());
+    const view = await svc.getEventFinance(owner(), eventId);
+    const ca = view.contracts.find((c: any) => c.id === a.id);
+    expect(ca).toMatchObject({ vendor: "Sound Jaya", lineTitle: "Sound Kontrak", value: 3_500_000, linePaid: 1_000_000, status: "aktif", overdue: true });
+
+    await expect(svc.updateVendorContract(b.id, { status: "batal" }, owner())).rejects.toMatchObject({ code: "CANCEL_REASON_REQUIRED" });
+    await svc.updateVendorContract(b.id, { status: "batal", cancelReason: "Tidak jadi dipakai" }, owner());
+    await svc.updateVendorContract(a.id, { value: 3_750_000 }, owner());
+    await svc.updateVendorContract(a.id, { status: "selesai", doneNote: "Alat sudah dikembalikan" }, owner());
+    await expect(svc.updateVendorContract(a.id, { value: 1 }, owner())).rejects.toMatchObject({ code: "CONTRACT_CLOSED" });
+    await expect(svc.updateVendorContract(b.id, { status: "aktif" }, owner())).rejects.toMatchObject({ code: "CONTRACT_CLOSED" });
+
+    const after = (await svc.getEventFinance(owner(), eventId)).contracts;
+    expect(after.find((c: any) => c.id === a.id)).toMatchObject({ status: "selesai", value: 3_750_000, overdue: false, doneNote: "Alat sudah dikembalikan" });
+    expect(after.find((c: any) => c.id === b.id)).toMatchObject({ status: "batal", cancelReason: "Tidak jadi dipakai" });
+
+    await svc.updateBudgetLine(line.id, { status: "arsip" }, owner()).catch(() => null);
+    const archived = (await svc.getEventFinance(owner(), eventId)).budget.rows.find((r: any) => r.id === line.id);
+    if (archived?.status === "arsip") await expect(svc.createVendorContract({ budgetLineId: line.id, vendor: "Telat", value: 1 }, owner())).rejects.toMatchObject({ code: "LINE_ARCHIVED" });
+  });
+});

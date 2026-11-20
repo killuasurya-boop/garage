@@ -90,6 +90,8 @@ export const KEEP_TABLES = [
   "event_performers", "event_crew", "event_crew_tasks",
   // GIGS EO: anggaran event = rencana (bukan uang), tidak dihapus
   "event_budget_lines",
+  // Kontrak vendor per pos anggaran = kesepakatan persiapan acara (bukan uang), tidak dihapus
+  "event_vendor_contracts",
   // GIGS satu pintu: pendaftar kreator/sponsor/kru & transparansi publik = data persiapan acara, tidak dihapus
   "event_registrations", "event_public_finance",
   // GIGS EO Fase 4: checklist operasional & evaluasi event = data persiapan/catatan (bukan transaksi)

@@ -41,6 +41,22 @@ type Payment = {
   status: "posted" | "void";
   voidReason: string | null;
 };
+type Contract = {
+  id: string;
+  budgetLineId: string;
+  lineTitle: string;
+  linePaid: number;
+  vendor: string;
+  pic: string | null;
+  phone: string | null;
+  value: number;
+  terms: string | null;
+  dueDate: string | null;
+  status: "aktif" | "selesai" | "batal";
+  overdue: boolean;
+  doneNote: string | null;
+  cancelReason: string | null;
+};
 type FinanceView = {
   masterEvents: MasterEvent[];
   today?: string;
@@ -54,6 +70,7 @@ type FinanceView = {
     totals: { planned: number; paid: number; remaining: number; over: number };
   };
   payments?: Payment[];
+  contracts?: Contract[];
   sponsor?: { count: number; agreed: number; paid: number; remaining: number; inkind: number };
   menu?: { available: boolean; netSales: number; cost: number | null; paidBills: number; note: string | null };
   profit?: { menuContribution: number; menuMarginKnown: boolean; income: number; current: number; projected: number; status: "untung" | "rugi"; projectedStatus: "untung" | "rugi" };
@@ -120,7 +137,9 @@ export function EventFinancePanel({ initialEventId = null }: { initialEventId?: 
   const [notice, setNotice] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [dialog, setDialog] = useState<null | { kind: "line"; row: BudgetRow | null } | { kind: "pay"; row: BudgetRow } | { kind: "void"; payment: Payment }>(null);
+  const [dialog, setDialog] = useState<
+    null | { kind: "line"; row: BudgetRow | null } | { kind: "pay"; row: BudgetRow } | { kind: "void"; payment: Payment } | { kind: "contract"; contract: Contract | null }
+  >(null);
 
   const load = useCallback(async (id: string | null) => {
     setLoading(true);
@@ -420,6 +439,68 @@ export function EventFinancePanel({ initialEventId = null }: { initialEventId?: 
             </div>
           </section>
 
+          <section className={`${cardClass} space-y-2`} aria-labelledby="ef-contracts">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 id="ef-contracts" className="font-bold text-zinc-100">
+                Kontrak vendor
+              </h3>
+              <button type="button" className={`${smallBtn} print:hidden`} disabled={!budget?.rows.some((r) => r.status === "aktif")} onClick={() => setDialog({ kind: "contract", contract: null })}>
+                <Plus size={13} /> Tambah kontrak
+              </button>
+            </div>
+            <p className="text-xs text-zinc-400">Kesepakatan dengan vendor per pos anggaran. Pembayaran tetap dicatat lewat tombol Bayar di pos.</p>
+            {!view.contracts?.length ? <p className="text-sm text-zinc-400">Belum ada kontrak vendor.</p> : null}
+            <ul className="divide-y divide-white/10">
+              {view.contracts?.map((c) => (
+                <li key={c.id} className={`flex flex-wrap items-start justify-between gap-2 py-2 ${c.status === "batal" ? "opacity-60" : ""}`}>
+                  <div className="min-w-0 space-y-0.5">
+                    <p className="font-semibold text-zinc-100">
+                      {c.vendor} · {c.lineTitle}
+                    </p>
+                    <p className="text-xs text-zinc-300">
+                      Nilai {idr(c.value)} · dibayar (pos) {idr(c.linePaid)}
+                      {c.dueDate ? ` · tenggat ${c.dueDate}` : ""}
+                      {c.pic ? ` · PIC ${c.pic}` : ""}
+                    </p>
+                    {c.terms ? <p className="break-words text-xs text-zinc-400">{c.terms}</p> : null}
+                    {c.status === "selesai" ? <p className="text-xs text-[#a8f0c4]">Selesai{c.doneNote ? `: ${c.doneNote}` : ""}</p> : null}
+                    {c.status === "batal" ? <p className="text-xs text-[#ffb4b4]">Dibatalkan: {c.cancelReason}</p> : null}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1 print:hidden">
+                    {c.overdue ? <Badge tone="red">Lewat tenggat</Badge> : null}
+                    {c.status === "aktif" ? (
+                      <>
+                        <button type="button" className={smallBtn} onClick={() => setDialog({ kind: "contract", contract: c })}>
+                          <Pencil size={13} /> Ubah
+                        </button>
+                        <button
+                          type="button"
+                          className={smallBtn}
+                          onClick={() => {
+                            const note = window.prompt("Catatan selesai (opsional), mis. barang/jasa sudah diterima lengkap", "");
+                            if (note !== null) void run(() => garageApi.patch(`/api/event-finance/contracts/${c.id}`, { status: "selesai", doneNote: note.trim() || null }));
+                          }}
+                        >
+                          <CheckCircle2 size={13} /> Selesai
+                        </button>
+                        <button
+                          type="button"
+                          className={smallBtn}
+                          onClick={() => {
+                            const reason = window.prompt("Alasan membatalkan kontrak (wajib)", "");
+                            if (reason && reason.trim()) void run(() => garageApi.patch(`/api/event-finance/contracts/${c.id}`, { status: "batal", cancelReason: reason.trim() }));
+                          }}
+                        >
+                          <Ban size={13} /> Batalkan
+                        </button>
+                      </>
+                    ) : null}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+
           <section className={`${cardClass} space-y-2`}>
             <h3 className="font-bold text-zinc-100">Riwayat pembayaran</h3>
             {!view.payments?.length ? <p className="text-sm text-zinc-400">Belum ada pembayaran.</p> : null}
@@ -491,6 +572,14 @@ export function EventFinancePanel({ initialEventId = null }: { initialEventId?: 
       ) : null}
       {dialog?.kind === "pay" ? (
         <PayForm row={dialog.row} sources={view?.sources ?? []} today={view?.today ?? ""} onClose={() => setDialog(null)} onSave={(body) => run(() => garageApi.post("/api/event-finance/payments", body))} />
+      ) : null}
+      {dialog?.kind === "contract" ? (
+        <ContractForm
+          contract={dialog.contract}
+          lines={(budget?.rows ?? []).filter((r) => r.status === "aktif")}
+          onClose={() => setDialog(null)}
+          onSave={(body) => run(() => (dialog.contract ? garageApi.patch(`/api/event-finance/contracts/${dialog.contract.id}`, body) : garageApi.post("/api/event-finance/contracts", body)))}
+        />
       ) : null}
       {dialog?.kind === "void" ? (
         <VoidForm payment={dialog.payment} onClose={() => setDialog(null)} onSave={(reason) => run(() => garageApi.post(`/api/event-finance/payments/${dialog.payment.id}/void`, { reason }))} />
@@ -788,5 +877,79 @@ function ReviewCard({
       </form>
       {review?.updatedAt ? <p className="text-xs text-zinc-500">Terakhir disimpan {dateTime(review.updatedAt)}</p> : null}
     </details>
+  );
+}
+
+function ContractForm({
+  contract,
+  lines,
+  onClose,
+  onSave,
+}: {
+  contract: Contract | null;
+  lines: BudgetRow[];
+  onClose: () => void;
+  onSave: (body: Record<string, unknown>) => Promise<boolean>;
+}) {
+  const [budgetLineId, setBudgetLineId] = useState(contract?.budgetLineId ?? lines[0]?.id ?? "");
+  const [vendor, setVendor] = useState(contract?.vendor ?? "");
+  const [pic, setPic] = useState(contract?.pic ?? "");
+  const [phone, setPhone] = useState(contract?.phone ?? "");
+  const [value, setValue] = useState(contract ? String(contract.value) : "");
+  const [dueDate, setDueDate] = useState(contract?.dueDate ?? "");
+  const [terms, setTerms] = useState(contract?.terms ?? "");
+  const [busy, setBusy] = useState(false);
+  const submit = async () => {
+    setBusy(true);
+    const body: Record<string, unknown> = { vendor: vendor.trim(), pic: pic.trim() || null, phone: phone.trim() || null, value: Number(value.replace(/\D/g, "")) || 0, dueDate: dueDate || null, terms: terms.trim() || null };
+    if (!contract) body.budgetLineId = budgetLineId;
+    const ok = await onSave(body);
+    setBusy(false);
+    if (ok) onClose();
+  };
+  return (
+    <Modal title={contract ? "Ubah kontrak vendor" : "Tambah kontrak vendor"} onClose={onClose}>
+      <div className="space-y-3">
+        {!contract ? (
+          <Field label="Pos anggaran">
+            <select className={inputClass} value={budgetLineId} onChange={(e) => setBudgetLineId(e.target.value)}>
+              {lines.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.title} · rencana {idr(l.plannedAmount)}
+                </option>
+              ))}
+            </select>
+          </Field>
+        ) : null}
+        <Field label="Nama vendor">
+          <input className={inputClass} value={vendor} maxLength={120} onChange={(e) => setVendor(e.target.value)} />
+        </Field>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="PIC vendor">
+            <input className={inputClass} value={pic} maxLength={80} onChange={(e) => setPic(e.target.value)} />
+          </Field>
+          <Field label="WhatsApp vendor">
+            <input className={inputClass} value={phone} inputMode="tel" maxLength={20} onChange={(e) => setPhone(e.target.value)} />
+          </Field>
+          <Field label="Nilai kontrak (Rp)">
+            <input className={`${inputClass} text-right tabular-nums`} inputMode="numeric" value={value} onChange={(e) => setValue(e.target.value)} />
+          </Field>
+          <Field label="Tenggat">
+            <input type="date" className={inputClass} value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+          </Field>
+        </div>
+        <Field label="Syarat / isi kesepakatan">
+          <textarea className={`${inputClass} h-24 py-2`} value={terms} maxLength={1000} onChange={(e) => setTerms(e.target.value)} />
+        </Field>
+        <div className="flex justify-end gap-2">
+          <button type="button" className={ghostBtn} onClick={onClose}>
+            Batal
+          </button>
+          <button type="button" className={primaryBtn} disabled={busy || vendor.trim().length < 2 || (!contract && !budgetLineId)} onClick={() => void submit()}>
+            Simpan
+          </button>
+        </div>
+      </div>
+    </Modal>
   );
 }

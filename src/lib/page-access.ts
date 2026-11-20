@@ -11,7 +11,7 @@ export async function requireModulePageAccess(moduleId: ModuleId) {
   if (session.response) {
     const next = encodeURIComponent(`/os?module=${moduleId}`);
     if (session.response.status === 401) {
-      redirect(`/login?next=${next}`);
+      redirect(`/login?next=${next}&reason=SESSION_EXPIRED`);
     }
 
     const body = await session.response.json().catch(() => null);

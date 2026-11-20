@@ -6044,6 +6044,40 @@ export const eventBudgetLines = pgTable(
   }),
 );
 
+// Kontrak vendor per pos anggaran event (Owner 20 Nov 2026, pindahan Dashboard Penyelenggara platform).
+// Hanya kesepakatan (nilai, syarat, tenggat); uang tetap lewat pembayaran pos (`event_expense_payments`).
+export const eventVendorContracts = pgTable(
+  "event_vendor_contracts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "restrict" }),
+    budgetLineId: uuid("budget_line_id")
+      .notNull()
+      .references(() => eventBudgetLines.id, { onDelete: "restrict" }),
+    vendor: text("vendor").notNull(),
+    pic: text("pic"),
+    phone: text("phone"),
+    value: integer("value").notNull().default(0),
+    terms: text("terms"),
+    dueDate: date("due_date"),
+    // aktif | selesai | batal
+    status: text("status").notNull().default("aktif"),
+    doneNote: text("done_note"),
+    cancelReason: text("cancel_reason"),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    eventIdx: index("event_vendor_contracts_event_idx").on(table.eventId),
+    lineIdx: index("event_vendor_contracts_line_idx").on(table.budgetLineId),
+    valueCheck: check("event_vendor_contracts_value_check", sql`${table.value} >= 0`),
+    statusCheck: check("event_vendor_contracts_status_check", sql`${table.status} in ('aktif','selesai','batal')`),
+  }),
+);
+
 export const eventExpensePayments = pgTable(
   "event_expense_payments",
   {

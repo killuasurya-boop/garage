@@ -2,7 +2,7 @@ import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { getDb } from "@/db";
-import { cashLedgerEntries, eventBudgetLines, eventExpensePayments, eventPerformers, eventReviews, events } from "@/db/schema";
+import { cashLedgerEntries, eventBudgetLines, eventExpensePayments, eventPerformers, eventReviews, events, eventVendorContracts } from "@/db/schema";
 import { postAccountCash } from "@/lib/cash-ledger";
 import {
   budgetSummary,
@@ -211,6 +211,7 @@ export async function getEventFinance(garage: GarageSession, eventId: string | n
       status: p.status as "posted" | "void",
       voidReason: p.voidReason,
     })),
+    contracts: await contractsOf(id, budget.rows, wibDate(now)),
     sponsor,
     menu,
     profit,
@@ -556,4 +557,121 @@ export async function getEventReviewAndComparison(eventId: string, garage: Garag
       : null,
     comparison: await eventComparison(eventId),
   };
+}
+
+// ─── Kontrak vendor (Owner 20 Nov 2026, pindahan Dashboard Penyelenggara) ───
+// Kesepakatan dengan vendor per pos anggaran: nilai, syarat, tenggat, status aktif → selesai / batal (final).
+// Tidak menggerakkan uang: "dibayar" = total pembayaran pos itu (buku kas / uang pribadi Owner) yang sudah ada.
+
+export const contractSchema = z.object({
+  budgetLineId: z.string().uuid(),
+  vendor: z.string().trim().min(2, "Nama vendor wajib diisi.").max(120),
+  pic: optionalText(80),
+  phone: z
+    .string()
+    .trim()
+    .regex(/^[0-9+\s-]{8,20}$/, "Nomor WA vendor tidak valid.")
+    .nullable()
+    .optional()
+    .or(z.literal("")),
+  // Kolom integer (sama dengan pos anggaran): maks. Rp2 miliar, supaya tidak gagal di database.
+  value: rupiah.min(0).max(2_000_000_000, "Nilai kontrak maksimal Rp2.000.000.000."),
+  terms: optionalText(1000),
+  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Tanggal tenggat tidak valid.").nullable().optional().or(z.literal("")),
+});
+export const contractPatchSchema = contractSchema
+  .omit({ budgetLineId: true })
+  .partial()
+  .extend({
+    status: z.enum(["aktif", "selesai", "batal"]).optional(),
+    doneNote: optionalText(300),
+    cancelReason: optionalText(300),
+  });
+
+async function contractsOf(eventId: string, rows: Array<{ id: string; title: string; paid: number }>, today: string) {
+  const list = await getDb().select().from(eventVendorContracts).where(eq(eventVendorContracts.eventId, eventId)).orderBy(asc(eventVendorContracts.createdAt));
+  const lineById = new Map(rows.map((r) => [r.id, r]));
+  return list.map((c) => {
+    const line = lineById.get(c.budgetLineId);
+    const due = c.dueDate ? String(c.dueDate) : null;
+    return {
+      id: c.id,
+      budgetLineId: c.budgetLineId,
+      lineTitle: line?.title ?? "-",
+      linePaid: line?.paid ?? 0,
+      vendor: c.vendor,
+      pic: c.pic,
+      phone: c.phone,
+      value: c.value,
+      terms: c.terms,
+      dueDate: due,
+      status: c.status as "aktif" | "selesai" | "batal",
+      overdue: c.status === "aktif" && Boolean(due && due < today),
+      doneNote: c.doneNote,
+      cancelReason: c.cancelReason,
+    };
+  });
+}
+
+export async function createVendorContract(input: z.infer<typeof contractSchema>, garage: GarageSession) {
+  assertOwnerHuman(garage);
+  const db = getDb();
+  const [line] = await db.select().from(eventBudgetLines).where(eq(eventBudgetLines.id, input.budgetLineId)).limit(1);
+  if (!line) throw new EventFinanceError("LINE_NOT_FOUND", "Pos anggaran tidak ditemukan.", 404);
+  if (line.status !== "aktif") throw new EventFinanceError("LINE_ARCHIVED", "Pos anggaran sudah diarsip.", 409);
+  const [row] = await db
+    .insert(eventVendorContracts)
+    .values({
+      eventId: line.eventId,
+      budgetLineId: line.id,
+      vendor: input.vendor,
+      pic: input.pic?.trim() || null,
+      phone: input.phone?.trim() || null,
+      value: input.value,
+      terms: input.terms?.trim() || null,
+      dueDate: input.dueDate || null,
+      createdBy: garage.user.id,
+    })
+    .returning();
+  await audit(garage, "Tambah kontrak vendor event", `${row.vendor} · ${line.title}`, { eventId: line.eventId, contractId: row.id, value: row.value });
+  return { id: row.id };
+}
+
+export async function updateVendorContract(id: string, patch: z.infer<typeof contractPatchSchema>, garage: GarageSession) {
+  assertOwnerHuman(garage);
+  const db = getDb();
+  const [before] = await db.select().from(eventVendorContracts).where(eq(eventVendorContracts.id, id)).limit(1);
+  if (!before) throw new EventFinanceError("NOT_FOUND", "Kontrak tidak ditemukan.", 404);
+  if (before.status !== "aktif") throw new EventFinanceError("CONTRACT_CLOSED", "Kontrak yang sudah selesai/batal tidak bisa diubah.", 409);
+  const values: Partial<typeof eventVendorContracts.$inferInsert> = { updatedAt: new Date() };
+  if (patch.vendor !== undefined) values.vendor = patch.vendor;
+  if (patch.pic !== undefined) values.pic = patch.pic?.trim() || null;
+  if (patch.phone !== undefined) values.phone = patch.phone?.trim() || null;
+  if (patch.value !== undefined) values.value = patch.value;
+  if (patch.terms !== undefined) values.terms = patch.terms?.trim() || null;
+  if (patch.dueDate !== undefined) values.dueDate = patch.dueDate || null;
+  if (patch.status === "batal") {
+    const reason = patch.cancelReason?.trim();
+    if (!reason) throw new EventFinanceError("CANCEL_REASON_REQUIRED", "Alasan pembatalan kontrak wajib diisi.");
+    values.status = "batal";
+    values.cancelReason = reason;
+  } else if (patch.status === "selesai") {
+    values.status = "selesai";
+    values.doneNote = patch.doneNote?.trim() || null;
+  }
+  // Tidak menimpa perubahan status orang lain (dua layar bersamaan): hanya baris yang masih aktif.
+  const [row] = await db
+    .update(eventVendorContracts)
+    .set(values)
+    .where(and(eq(eventVendorContracts.id, id), eq(eventVendorContracts.status, "aktif")))
+    .returning();
+  if (!row) throw new EventFinanceError("CONTRACT_CLOSED", "Kontrak ini baru saja ditutup. Muat ulang.", 409);
+  const changed = Object.keys(values).filter((k) => k !== "updatedAt");
+  await audit(garage, values.status === "batal" ? "Batalkan kontrak vendor event" : values.status === "selesai" ? "Kontrak vendor event selesai" : "Ubah kontrak vendor event", row.vendor, {
+    eventId: row.eventId,
+    contractId: id,
+    before: Object.fromEntries(changed.map((k) => [k, (before as Record<string, unknown>)[k]])),
+    after: Object.fromEntries(changed.map((k) => [k, (row as Record<string, unknown>)[k]])),
+  });
+  return { id, status: row.status };
 }

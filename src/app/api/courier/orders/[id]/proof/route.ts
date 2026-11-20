@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { fail, ok } from "@/lib/api-response";
@@ -55,6 +55,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   try {
     return ok(await attachDeliveryProof(id, `/api/courier/proof/${fileName}`, session.data), { status: 201 });
   } catch (error) {
+    await unlink(path.join(deliveryProofDir(), fileName)).catch(() => null);
     if (error instanceof CourierError) return fail(error.status, "COURIER_PROOF_FAILED", error.message);
     return fail(500, "COURIER_PROOF_FAILED", "Foto bukti gagal dicatat.");
   }

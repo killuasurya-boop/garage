@@ -505,9 +505,16 @@ const incidentView = (r: typeof eventIncidents.$inferSelect) => ({
 export async function listIncidents(eventId: string, garage: GarageSession) {
   assertIncidentRole(garage);
   const event = await loadEvent(eventId, garage);
-  const rows = await getDb().select().from(eventIncidents).where(eq(eventIncidents.eventId, event.id)).orderBy(desc(eventIncidents.createdAt)).limit(300);
-  const items = rows.map(incidentView);
-  return { eventId: event.id, items, open: items.filter((i) => !i.resolved).length, total: items.length };
+  const db = getDb();
+  // Semua yang BELUM selesai selalu tampil (bisa ditandai Selesai); yang selesai cukup 300 terbaru. Hitungan dari seluruh log.
+  const [open, done, counts] = await Promise.all([
+    db.select().from(eventIncidents).where(and(eq(eventIncidents.eventId, event.id), isNull(eventIncidents.resolvedAt))).orderBy(desc(eventIncidents.createdAt)),
+    db.select().from(eventIncidents).where(and(eq(eventIncidents.eventId, event.id), isNotNull(eventIncidents.resolvedAt))).orderBy(desc(eventIncidents.createdAt)).limit(300),
+    incidentCounts(event.id),
+  ]);
+  const items = [...open, ...done].map(incidentView);
+  const total = counts?.total ?? 0;
+  return { eventId: event.id, items, open: total - (counts?.resolved ?? 0), total };
 }
 
 export async function reportIncident(input: z.infer<typeof incidentCreateSchema>, garage: GarageSession) {

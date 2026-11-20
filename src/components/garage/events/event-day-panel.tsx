@@ -220,7 +220,7 @@ export function EventDayPanel({ initialEventId = null, initialTab }: { initialEv
 
           {tab === "checkin" || (!crew && !panitia) ? <CheckinTab view={view} onAct={act} canVoid={crew} /> : null}
           {(crew || panitia) && tab === "panggung" && view.stage ? <StageTab view={view} onAct={act} /> : null}
-          {(crew || panitia) && tab === "kejadian" && view.event ? <IncidentsTab eventId={view.event.id} /> : null}
+          {(crew || panitia) && tab === "kejadian" && view.event ? <IncidentsTab key={view.event.id} eventId={view.event.id} /> : null}
           {crew && tab === "tugas" ? (
             <Card className="space-y-2">
               {!tasks.length ? <p className="text-sm text-zinc-400">Belum ada tugas panitia untuk event ini.</p> : null}

@@ -254,5 +254,12 @@ describe("Log kejadian Hari-H (Owner 20 Nov 2026)", () => {
     expect(list.items.find((i: any) => i.id === low.id)).toMatchObject({ resolved: false, reportedByName: "Panitia Eday" });
     expect(await day.incidentCounts(eventId)).toEqual({ total: 2, resolved: 1 });
     expect(await day.incidentCounts(otherEventId)).toBeNull();
+    // Yang belum selesai tetap tampil walau sudah ada >300 kejadian selesai; hitungan dari seluruh log.
+    await t.getDb().insert(t.schema.eventIncidents).values(
+      Array.from({ length: 305 }, (_, i) => ({ eventId, type: "lainnya", severity: "rendah", note: `Selesai ${i}`, resolvedAt: new Date(), resolution: "ok", createdAt: new Date(Date.now() + 60_000 + i) })) as any,
+    );
+    const big = await day.listIncidents(eventId, owner());
+    expect(big).toMatchObject({ total: 307, open: 1 });
+    expect(big.items.some((i: any) => i.id === low.id && !i.resolved)).toBe(true);
   });
 });

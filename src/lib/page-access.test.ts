@@ -15,7 +15,7 @@ function denied(status: number, code: string) {
 describe("staff page login redirects", () => {
   it("sends expired sessions to normal login", async () => {
     denied(401, "UNAUTHENTICATED");
-    await expect(requireModulePageAccess("pos")).rejects.toThrow("REDIRECT:/login?next=%2Fos%3Fmodule%3Dpos");
+    await expect(requireModulePageAccess("pos")).rejects.toThrow("REDIRECT:/login?next=%2Fos%3Fmodule%3Dpos&reason=SESSION_EXPIRED");
   });
   it("lets mandatory password changes reach their recovery page", async () => {
     denied(403, "PASSWORD_RESET_REQUIRED");

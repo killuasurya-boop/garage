@@ -43,7 +43,7 @@ export class CashOpeningError extends Error {
 export const certifyOpeningSchema = z.object({
   account: z.enum(CERTIFIABLE_ACCOUNTS),
   outletId: z.string().uuid().nullable().optional(),
-  countedBalance: z.number().int().min(0).max(10_000_000_000),
+  countedBalance: z.number().int().min(0).max(2_000_000_000),
   /** Saldo buku kas yang dilihat Owner saat mengisi; berubah sejak itu = ditolak. */
   expectedLedgerBalance: z.number().int(),
   evidenceRef: z.string().trim().min(3).max(120),

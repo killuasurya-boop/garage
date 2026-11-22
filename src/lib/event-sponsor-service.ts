@@ -93,7 +93,7 @@ export const sponsorInputSchema = z.object({
   // Akun Instagram ("@akun" / tautan profil); di website, klik logo sponsor membuka profil ini.
   instagram: optionalText(80),
   showOnWebsite: z.boolean().optional(),
-  agreedAmount: z.number().int("Nilai kesepakatan harus rupiah bulat.").min(0).max(10_000_000_000),
+  agreedAmount: z.number().int("Nilai kesepakatan harus rupiah bulat.").min(0).max(2_000_000_000, "Maksimal Rp2.000.000.000."),
   notes: optionalText(1000),
 });
 export type SponsorInput = z.infer<typeof sponsorInputSchema>;
@@ -123,12 +123,12 @@ export const sponsorBulkSchema = z.object({
 
 export const installmentsSchema = z.object({
   installments: z
-    .array(z.object({ label: z.string().trim().min(1).max(40), amount: z.number().int().positive(), dueDate: dateString }))
+    .array(z.object({ label: z.string().trim().min(1).max(40), amount: z.number().int().positive().max(2_000_000_000, "Maksimal Rp2.000.000.000."), dueDate: dateString }))
     .max(24, "Maksimal 24 cicilan."),
 });
 
 export const paymentSchema = z.object({
-  amount: z.number().int("Nominal harus rupiah bulat.").positive("Nominal harus lebih dari 0."),
+  amount: z.number().int("Nominal harus rupiah bulat.").positive("Nominal harus lebih dari 0.").max(2_000_000_000, "Maksimal Rp2.000.000.000."),
   receivedAt: z.string().datetime({ offset: true }).or(dateString),
   reference: z.string().trim().min(4, "Nomor referensi mutasi minimal 4 karakter.").max(80),
   note: optionalText(300),
@@ -146,7 +146,7 @@ export const inkindSchema = z.object({
   item: z.string().trim().min(2, "Nama barang wajib diisi.").max(120),
   qty: z.number().int().positive().max(1_000_000),
   unit: optionalText(20),
-  estimatedValue: z.number().int().min(0).max(10_000_000_000),
+  estimatedValue: z.number().int().min(0).max(2_000_000_000, "Maksimal Rp2.000.000.000."),
   receivedAt: dateString.nullable().optional(),
   note: optionalText(300),
 });

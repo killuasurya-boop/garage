@@ -64,7 +64,7 @@ export const budgetLineSchema = z.object({
   eventId: z.string().uuid(),
   category: z.enum(EVENT_COST_CATEGORIES),
   title: z.string().trim().min(2, "Nama pos biaya wajib diisi.").max(120),
-  plannedAmount: rupiah.min(0, "Anggaran tidak boleh minus.").max(5_000_000_000),
+  plannedAmount: rupiah.min(0, "Anggaran tidak boleh minus.").max(2_000_000_000, "Maksimal Rp2.000.000.000."),
   performerId: z.string().uuid().nullable().optional(),
   notes: optionalText(500),
 });
@@ -73,7 +73,7 @@ export const budgetLinePatchSchema = budgetLineSchema.omit({ eventId: true }).pa
 const dateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Tanggal tidak valid.");
 export const expensePaymentSchema = z.object({
   budgetLineId: z.string().uuid(),
-  amount: rupiah.positive("Nominal harus lebih dari 0.").max(5_000_000_000),
+  amount: rupiah.positive("Nominal harus lebih dari 0.").max(2_000_000_000, "Maksimal Rp2.000.000.000."),
   paidAt: z.string().datetime({ offset: true }).or(dateOnly),
   source: z.enum(EVENT_PAY_SOURCES),
   payee: z.string().trim().min(2, "Nama penerima wajib diisi.").max(120),

@@ -312,7 +312,7 @@ export const eventLineupTools: AgentTool[] = [
       event: eventArg,
       nama: z.string().trim().min(2).max(120),
       paket: z.string().trim().max(60).optional(),
-      nilaiDisepakati: z.number().int().min(0).max(10_000_000_000).optional(),
+      nilaiDisepakati: z.number().int().min(0).max(2_000_000_000).optional(),
       instagram: z.string().trim().max(80).optional(),
       website: z.string().trim().regex(/^https:\/\/\S+$/, "Tautan harus https://").max(300).optional(),
       tampilDiWebsite: z.boolean().optional(),

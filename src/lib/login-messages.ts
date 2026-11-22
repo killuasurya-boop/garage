@@ -25,3 +25,21 @@ export function loginErrorMessage(status: number, code?: string | null, message?
   if (message && !/^[A-Za-z ]+\.?$/.test(message)) return message;
   return "Login gagal. Periksa email dan password, lalu coba lagi.";
 }
+
+/** Hanya kode tetap dari guard halaman; jangan tampilkan teks mentah dari URL. */
+export function loginAccessMessage(reason: string | null) {
+  switch (reason) {
+    case "SESSION_EXPIRED":
+      return "Sesi Anda sudah berakhir atau tidak terbaca oleh server. Silakan masuk lagi.";
+    case "ACCOUNT_SUSPENDED":
+      return "Akun Anda ditangguhkan. Hubungi Owner atau Manajer, atau masuk dengan akun lain.";
+    case "ACCOUNT_INACTIVE":
+      return "Akun Anda sudah tidak aktif. Hubungi Owner atau Manajer, atau masuk dengan akun lain.";
+    case "STAFF_PROFILE_MISSING":
+      return "Profil staf Garage tidak ditemukan. Hubungi Owner atau Manajer untuk memeriksa akses akun.";
+    case "ACCESS_DENIED":
+      return "Akun Anda belum bisa membuka area kerja ini. Hubungi Owner atau Manajer, atau masuk dengan akun lain.";
+    default:
+      return null;
+  }
+}

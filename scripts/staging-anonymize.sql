@@ -74,6 +74,10 @@ UPDATE event_sponsors SET contact_name = CASE WHEN contact_name IS NULL THEN NUL
 UPDATE event_registrations SET pic = pg_temp.anon_name(pic, 'Kontak'), whatsapp = pg_temp.anon_phone(whatsapp),
   address = CASE WHEN address IS NULL THEN NULL ELSE 'Alamat disamarkan' END, diet = NULL;
 
+-- Kontrak vendor event (20 Nov 2026): PIC & WA vendor disamarkan; nama vendor & nilai tetap.
+UPDATE event_vendor_contracts SET pic = CASE WHEN pic IS NULL THEN NULL ELSE pg_temp.anon_name(pic, 'Kontak') END,
+  phone = CASE WHEN phone IS NULL THEN NULL ELSE pg_temp.anon_phone(phone) END;
+
 -- Token, sesi, kunci & antrean keluar: staging tidak boleh memakai akses produksi
 -- atau mengirim apa pun ke pelanggan/staf.
 DELETE FROM session;

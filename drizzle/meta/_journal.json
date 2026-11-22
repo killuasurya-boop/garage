@@ -1450,6 +1450,20 @@
       "when": 1795143765221,
       "tag": "0206_event_incidents",
       "breakpoints": true
+    },
+    {
+      "idx": 207,
+      "version": "7",
+      "when": 1795145784488,
+      "tag": "0207_event_vendor_contracts",
+      "breakpoints": true
+    },
+    {
+      "idx": 208,
+      "version": "7",
+      "when": 1795357780737,
+      "tag": "0208_platform_import_refs",
+      "breakpoints": true
     }
   ]
 }

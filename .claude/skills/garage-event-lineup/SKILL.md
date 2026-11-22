@@ -181,3 +181,14 @@ description: Aturan WAJIB modul Lineup & Panitia Event (band/stand-up, rundown, 
   dengan keterangan wajib (409 bila sudah). TINGGI → notifikasi HP Owner (`event_incident`, tanpa isi kejadian lain).
   Laporan akhir publik memakai hitungan log ini bila ada (`incidentCounts`), selain itu angka isian Owner. Reset grand
   opening: CLEAR (catatan uji coba, seperti check-in).
+- Kontrak vendor (Owner 20 Nov 2026, migrasi 0207 `event_vendor_contracts`, Keuangan Event): Owner saja, per pos anggaran
+  AKTIF (vendor, PIC, WA, nilai, syarat, tenggat). Status aktif → selesai (catatan opsional) / batal (alasan wajib); keduanya
+  final (409 `CONTRACT_CLOSED`). TIDAK menggerakkan uang; "dibayar" = pembayaran pos itu yang sudah ada. Reset grand opening:
+  KEEP. Staging menyamarkan PIC & WA vendor.
+- Impor Dashboard Penyelenggara platform (Owner 22 Nov 2026, migrasi 0208 `platform_ref` di kontrak & kejadian): kartu di
+  Keuangan Event. Browser Owner membaca `/event/<slug>/api/organizer/{ledger,contracts,live}` dengan LOGIN DASHBOARD LAMA
+  (cookie platform; Garage tidak menyimpan password platform) → `POST /api/event-import/platform` (Owner, `dryRun` pratinjau).
+  Buku dana SAH & tidak batal → Transparansi (BUKAN buku kas; saklar tampil tidak diubah), kontrak → Kontrak vendor (pos dicocokkan
+  catatan "RAB platform GIGS #kode" lalu nama pos), log → Kejadian. Aturan murni `platform-import-rules.ts`. Impor ulang aman.
+- Penerus `/event/*` ke platform membuang cookie Garage OS (Better Auth, `garage_member_*`, `garage_partner_*`,
+  `garage_active_outlet`); cookie platform tetap.

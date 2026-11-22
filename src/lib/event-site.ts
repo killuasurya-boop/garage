@@ -44,6 +44,22 @@ export function platformOrigin() {
 const HOP_HEADERS = new Set(["host", "connection", "keep-alive", "transfer-encoding", "upgrade", "proxy-connection", "te", "trailer", "content-length"]);
 const DROP_RESPONSE = new Set(["connection", "keep-alive", "transfer-encoding", "content-encoding", "content-length", "set-cookie"]);
 
+// Cookie milik Garage OS (sesi staf Better Auth, member, mitra, outlet aktif). Cookie lain = milik platform.
+const GARAGE_COOKIE_PREFIXES = ["garage_active_outlet", "garage_member_", "garage_partner_"];
+
+/** Buang cookie milik Garage OS dari header Cookie (hanya cookie platform yang diteruskan). */
+export function platformCookies(header: string | null): string {
+  if (!header) return "";
+  return header
+    .split(";")
+    .map((part) => part.trim())
+    .filter((part) => {
+      const name = part.split("=")[0]?.trim().toLowerCase() ?? "";
+      return name && !name.includes("better-auth") && !GARAGE_COOKIE_PREFIXES.some((prefix) => name.startsWith(prefix));
+    })
+    .join("; ");
+}
+
 /** Teruskan permintaan /event/... ke platform GIGS (metode, header, isi, cookie) dan kembalikan balasannya apa adanya. */
 export async function proxyToPlatform(request: Request, pathname: string, search: string): Promise<Response> {
   if (!pathname.startsWith("/event")) return new Response("Not found", { status: 404 });
@@ -51,6 +67,10 @@ export async function proxyToPlatform(request: Request, pathname: string, search
   request.headers.forEach((value, key) => {
     if (!HOP_HEADERS.has(key.toLowerCase())) headers.set(key, value);
   });
+  // Cookie sesi Garage OS (Better Auth, member, dll.) tidak pernah dikirim ke platform; cookie platform tetap.
+  const cookie = platformCookies(request.headers.get("cookie"));
+  if (cookie) headers.set("cookie", cookie);
+  else headers.delete("cookie");
   headers.set("x-forwarded-host", request.headers.get("host") ?? "");
   headers.set("x-forwarded-proto", "https");
   const method = request.method.toUpperCase();

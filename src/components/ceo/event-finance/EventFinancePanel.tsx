@@ -41,10 +41,26 @@ type Payment = {
   status: "posted" | "void";
   voidReason: string | null;
 };
+type Contract = {
+  id: string;
+  budgetLineId: string;
+  lineTitle: string;
+  linePaid: number;
+  vendor: string;
+  pic: string | null;
+  phone: string | null;
+  value: number;
+  terms: string | null;
+  dueDate: string | null;
+  status: "aktif" | "selesai" | "batal";
+  overdue: boolean;
+  doneNote: string | null;
+  cancelReason: string | null;
+};
 type FinanceView = {
   masterEvents: MasterEvent[];
   today?: string;
-  event: { id: string; title: string; startsAt: string; endsAt: string; status: string } | null;
+  event: { id: string; title: string; startsAt: string; endsAt: string; status: string; platformSlug?: string | null } | null;
   categories?: Option[];
   sources?: Option[];
   performers?: Array<{ id: string; name: string; status: string }>;
@@ -54,6 +70,7 @@ type FinanceView = {
     totals: { planned: number; paid: number; remaining: number; over: number };
   };
   payments?: Payment[];
+  contracts?: Contract[];
   sponsor?: { count: number; agreed: number; paid: number; remaining: number; inkind: number };
   menu?: { available: boolean; netSales: number; cost: number | null; paidBills: number; note: string | null };
   profit?: { menuContribution: number; menuMarginKnown: boolean; income: number; current: number; projected: number; status: "untung" | "rugi"; projectedStatus: "untung" | "rugi" };
@@ -120,7 +137,9 @@ export function EventFinancePanel({ initialEventId = null }: { initialEventId?: 
   const [notice, setNotice] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [dialog, setDialog] = useState<null | { kind: "line"; row: BudgetRow | null } | { kind: "pay"; row: BudgetRow } | { kind: "void"; payment: Payment }>(null);
+  const [dialog, setDialog] = useState<
+    null | { kind: "line"; row: BudgetRow | null } | { kind: "pay"; row: BudgetRow } | { kind: "void"; payment: Payment } | { kind: "contract"; contract: Contract | null }
+  >(null);
 
   const load = useCallback(async (id: string | null) => {
     setLoading(true);
@@ -420,6 +439,68 @@ export function EventFinancePanel({ initialEventId = null }: { initialEventId?: 
             </div>
           </section>
 
+          <section className={`${cardClass} space-y-2`} aria-labelledby="ef-contracts">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 id="ef-contracts" className="font-bold text-zinc-100">
+                Kontrak vendor
+              </h3>
+              <button type="button" className={`${smallBtn} print:hidden`} disabled={!budget?.rows.some((r) => r.status === "aktif")} onClick={() => setDialog({ kind: "contract", contract: null })}>
+                <Plus size={13} /> Tambah kontrak
+              </button>
+            </div>
+            <p className="text-xs text-zinc-400">Kesepakatan dengan vendor per pos anggaran. Pembayaran tetap dicatat lewat tombol Bayar di pos.</p>
+            {!view.contracts?.length ? <p className="text-sm text-zinc-400">Belum ada kontrak vendor.</p> : null}
+            <ul className="divide-y divide-white/10">
+              {view.contracts?.map((c) => (
+                <li key={c.id} className={`flex flex-wrap items-start justify-between gap-2 py-2 ${c.status === "batal" ? "opacity-60" : ""}`}>
+                  <div className="min-w-0 space-y-0.5">
+                    <p className="font-semibold text-zinc-100">
+                      {c.vendor} · {c.lineTitle}
+                    </p>
+                    <p className="text-xs text-zinc-300">
+                      Nilai {idr(c.value)} · dibayar (pos) {idr(c.linePaid)}
+                      {c.dueDate ? ` · tenggat ${c.dueDate}` : ""}
+                      {c.pic ? ` · PIC ${c.pic}` : ""}
+                    </p>
+                    {c.terms ? <p className="break-words text-xs text-zinc-400">{c.terms}</p> : null}
+                    {c.status === "selesai" ? <p className="text-xs text-[#a8f0c4]">Selesai{c.doneNote ? `: ${c.doneNote}` : ""}</p> : null}
+                    {c.status === "batal" ? <p className="text-xs text-[#ffb4b4]">Dibatalkan: {c.cancelReason}</p> : null}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1 print:hidden">
+                    {c.overdue ? <Badge tone="red">Lewat tenggat</Badge> : null}
+                    {c.status === "aktif" ? (
+                      <>
+                        <button type="button" className={smallBtn} onClick={() => setDialog({ kind: "contract", contract: c })}>
+                          <Pencil size={13} /> Ubah
+                        </button>
+                        <button
+                          type="button"
+                          className={smallBtn}
+                          onClick={() => {
+                            const note = window.prompt("Catatan selesai (opsional), mis. barang/jasa sudah diterima lengkap", "");
+                            if (note !== null) void run(() => garageApi.patch(`/api/event-finance/contracts/${c.id}`, { status: "selesai", doneNote: note.trim() || null }));
+                          }}
+                        >
+                          <CheckCircle2 size={13} /> Selesai
+                        </button>
+                        <button
+                          type="button"
+                          className={smallBtn}
+                          onClick={() => {
+                            const reason = window.prompt("Alasan membatalkan kontrak (wajib)", "");
+                            if (reason && reason.trim()) void run(() => garageApi.patch(`/api/event-finance/contracts/${c.id}`, { status: "batal", cancelReason: reason.trim() }));
+                          }}
+                        >
+                          <Ban size={13} /> Batalkan
+                        </button>
+                      </>
+                    ) : null}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+
           <section className={`${cardClass} space-y-2`}>
             <h3 className="font-bold text-zinc-100">Riwayat pembayaran</h3>
             {!view.payments?.length ? <p className="text-sm text-zinc-400">Belum ada pembayaran.</p> : null}
@@ -454,6 +535,7 @@ export function EventFinancePanel({ initialEventId = null }: { initialEventId?: 
               ))}
             </ul>
           </section>
+          <PlatformImportCard key={`import-${view.event.id}`} eventId={view.event.id} platformSlug={view.event.platformSlug ?? null} onDone={() => void load(eventId)} />
           <ReviewCard key={view.event.id} eventId={view.event.id} review={view.review ?? null} onSave={(body) => run(() => garageApi.put("/api/event-finance/review", body))} />
 
           {view.comparison?.length ? (
@@ -491,6 +573,14 @@ export function EventFinancePanel({ initialEventId = null }: { initialEventId?: 
       ) : null}
       {dialog?.kind === "pay" ? (
         <PayForm row={dialog.row} sources={view?.sources ?? []} today={view?.today ?? ""} onClose={() => setDialog(null)} onSave={(body) => run(() => garageApi.post("/api/event-finance/payments", body))} />
+      ) : null}
+      {dialog?.kind === "contract" ? (
+        <ContractForm
+          contract={dialog.contract}
+          lines={(budget?.rows ?? []).filter((r) => r.status === "aktif")}
+          onClose={() => setDialog(null)}
+          onSave={(body) => run(() => (dialog.contract ? garageApi.patch(`/api/event-finance/contracts/${dialog.contract.id}`, body) : garageApi.post("/api/event-finance/contracts", body)))}
+        />
       ) : null}
       {dialog?.kind === "void" ? (
         <VoidForm payment={dialog.payment} onClose={() => setDialog(null)} onSave={(reason) => run(() => garageApi.post(`/api/event-finance/payments/${dialog.payment.id}/void`, { reason }))} />
@@ -788,5 +878,216 @@ function ReviewCard({
       </form>
       {review?.updatedAt ? <p className="text-xs text-zinc-500">Terakhir disimpan {dateTime(review.updatedAt)}</p> : null}
     </details>
+  );
+}
+
+function ContractForm({
+  contract,
+  lines,
+  onClose,
+  onSave,
+}: {
+  contract: Contract | null;
+  lines: BudgetRow[];
+  onClose: () => void;
+  onSave: (body: Record<string, unknown>) => Promise<boolean>;
+}) {
+  const [budgetLineId, setBudgetLineId] = useState(contract?.budgetLineId ?? lines[0]?.id ?? "");
+  const [vendor, setVendor] = useState(contract?.vendor ?? "");
+  const [pic, setPic] = useState(contract?.pic ?? "");
+  const [phone, setPhone] = useState(contract?.phone ?? "");
+  const [value, setValue] = useState(contract ? String(contract.value) : "");
+  const [dueDate, setDueDate] = useState(contract?.dueDate ?? "");
+  const [terms, setTerms] = useState(contract?.terms ?? "");
+  const [busy, setBusy] = useState(false);
+  const submit = async () => {
+    setBusy(true);
+    const body: Record<string, unknown> = { vendor: vendor.trim(), pic: pic.trim() || null, phone: phone.trim() || null, value: Number(value.replace(/\D/g, "")) || 0, dueDate: dueDate || null, terms: terms.trim() || null };
+    if (!contract) body.budgetLineId = budgetLineId;
+    const ok = await onSave(body);
+    setBusy(false);
+    if (ok) onClose();
+  };
+  return (
+    <Modal title={contract ? "Ubah kontrak vendor" : "Tambah kontrak vendor"} onClose={onClose}>
+      <div className="space-y-3">
+        {!contract ? (
+          <Field label="Pos anggaran">
+            <select className={inputClass} value={budgetLineId} onChange={(e) => setBudgetLineId(e.target.value)}>
+              {lines.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.title} · rencana {idr(l.plannedAmount)}
+                </option>
+              ))}
+            </select>
+          </Field>
+        ) : null}
+        <Field label="Nama vendor">
+          <input className={inputClass} value={vendor} maxLength={120} onChange={(e) => setVendor(e.target.value)} />
+        </Field>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="PIC vendor">
+            <input className={inputClass} value={pic} maxLength={80} onChange={(e) => setPic(e.target.value)} />
+          </Field>
+          <Field label="WhatsApp vendor">
+            <input className={inputClass} value={phone} inputMode="tel" maxLength={20} onChange={(e) => setPhone(e.target.value)} />
+          </Field>
+          <Field label="Nilai kontrak (Rp)">
+            <input className={`${inputClass} text-right tabular-nums`} inputMode="numeric" value={value} onChange={(e) => setValue(e.target.value)} />
+          </Field>
+          <Field label="Tenggat">
+            <input type="date" className={inputClass} value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+          </Field>
+        </div>
+        <Field label="Syarat / isi kesepakatan">
+          <textarea className={`${inputClass} h-24 py-2`} value={terms} maxLength={1000} onChange={(e) => setTerms(e.target.value)} />
+        </Field>
+        <div className="flex justify-end gap-2">
+          <button type="button" className={ghostBtn} onClick={onClose}>
+            Batal
+          </button>
+          <button type="button" className={primaryBtn} disabled={busy || vendor.trim().length < 2 || (!contract && !budgetLineId)} onClick={() => void submit()}>
+            Simpan
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Impor Dashboard Penyelenggara platform (Owner 22 Nov 2026) ─────────────
+// Browser Owner membaca data dashboard lama memakai login dashboard itu sendiri (Garage OS tidak menyimpan password
+// platform), lalu server memetakan & menyimpan. Pratinjau dulu; impor ulang tidak membuat dobel.
+type ImportSummary = {
+  dryRun: boolean;
+  funds: { incomes: number; expenses: number; incomeTotal: number; expenseTotal: number; skipped: { waiting: number; voided: number; duplicate: number; unknownCode: string[]; invalid: number } };
+  contracts: { new: number; existing: number; unmatched: string[]; invalid: number };
+  incidents: { new: number; existing: number; invalid: number };
+  budgetLinesFromDashboard: boolean;
+};
+
+function PlatformImportCard({ eventId, platformSlug, onDone }: { eventId: string; platformSlug: string | null; onDone: () => void }) {
+  const [slug, setSlug] = useState(platformSlug ?? "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loginNeeded, setLoginNeeded] = useState(false);
+  const [payload, setPayload] = useState<Record<string, unknown> | null>(null);
+  const [summary, setSummary] = useState<ImportSummary | null>(null);
+
+  const readDashboard = async () => {
+    const s = slug.trim();
+    if (!/^[a-z0-9][a-z0-9-]{0,80}$/.test(s)) throw new Error("Isi slug platform event, mis. gigs-akhir-tahun-2026.");
+    const base = `/event/${s}/api`;
+    const get = async (path: string) => {
+      const res = await fetch(`${base}/${path}`, { credentials: "same-origin", cache: "no-store" });
+      if (res.status === 401 || res.status === 403) {
+        setLoginNeeded(true);
+        throw new Error("Belum login di Dashboard Penyelenggara. Login dulu (tab baru), lalu tekan Baca data lagi.");
+      }
+      if (!res.ok) throw new Error(`Dashboard Penyelenggara tidak bisa dibaca (${path}, status ${res.status}).`);
+      return (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    };
+    const [ledger, contracts, live, config] = await Promise.all([get("organizer/ledger"), get("organizer/contracts"), get("organizer/live"), get("public/config").catch(() => ({}))]);
+    setLoginNeeded(false);
+    const finance = (config as { finance?: { budgetLines?: unknown[] } }).finance;
+    return {
+      eventId,
+      ledger: Array.isArray(ledger.entries) ? ledger.entries : [],
+      contracts: Array.isArray(contracts.contracts) ? contracts.contracts : [],
+      log: Array.isArray(live.log) ? live.log : [],
+      budgetLines: Array.isArray(finance?.budgetLines) ? finance.budgetLines : [],
+    };
+  };
+
+  const preview = async () => {
+    setBusy(true);
+    setError(null);
+    setSummary(null);
+    try {
+      const body = await readDashboard();
+      setPayload(body);
+      setSummary(await garageApi.post<ImportSummary>("/api/event-import/platform", { ...body, dryRun: true }));
+    } catch (e) {
+      setError(errText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const commit = async () => {
+    if (!payload) return;
+    setBusy(true);
+    setError(null);
+    try {
+      setSummary(await garageApi.post<ImportSummary>("/api/event-import/platform", { ...payload, dryRun: false }));
+      setPayload(null);
+      onDone();
+    } catch (e) {
+      setError(errText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const s = summary;
+  return (
+    <section className={`${cardClass} space-y-3 print:hidden`} aria-labelledby="ef-import">
+      <h3 id="ef-import" className="font-bold text-zinc-100">
+        Impor dari Dashboard Penyelenggara (platform lama)
+      </h3>
+      <p className="text-xs text-zinc-400">
+        Memindahkan buku dana yang sudah SAH (ke Transparansi, bukan buku kas), kontrak vendor, dan log kejadian. Login dulu di Dashboard Penyelenggara di browser ini.
+        Pratinjau ditampilkan sebelum disimpan; impor ulang tidak membuat data dobel.
+      </p>
+      <div className="flex flex-wrap items-end gap-2">
+        <Field label="Slug platform">
+          <input className={inputClass} value={slug} onChange={(e) => setSlug(e.target.value.trim().toLowerCase())} placeholder="gigs-akhir-tahun-2026" />
+        </Field>
+        <button type="button" className={ghostBtn} disabled={busy} onClick={() => void preview()}>
+          <Download size={15} /> Baca data
+        </button>
+        {loginNeeded && slug ? (
+          <a className={ghostBtn} href={`/event/${slug}/penyelenggara`} target="_blank" rel="noreferrer">
+            Buka Dashboard Penyelenggara
+          </a>
+        ) : null}
+      </div>
+      {error ? <p className="text-sm text-[#ffb4b4]" role="alert">{error}</p> : null}
+      {s ? (
+        <div className="space-y-2 rounded-md border border-white/10 p-3 text-sm text-zinc-200" role="status">
+          <p className="font-semibold text-zinc-100">{s.dryRun ? "Pratinjau (belum disimpan)" : "Selesai diimpor"}</p>
+          <ul className="list-disc space-y-1 pl-5">
+            <li>
+              Dana masuk SAH: {s.funds.incomes} ({idr(s.funds.incomeTotal)}) · Dana keluar SAH: {s.funds.expenses} ({idr(s.funds.expenseTotal)})
+            </li>
+            <li>
+              Kontrak vendor baru: {s.contracts.new}
+              {s.contracts.existing ? ` · sudah ada ${s.contracts.existing}` : ""}
+            </li>
+            <li>
+              Log kejadian baru: {s.incidents.new}
+              {s.incidents.existing ? ` · sudah ada ${s.incidents.existing}` : ""}
+            </li>
+            {s.funds.skipped.waiting || s.funds.skipped.voided || s.funds.skipped.duplicate ? (
+              <li className="text-zinc-400">
+                Dilewati: {s.funds.skipped.waiting} belum SAH, {s.funds.skipped.voided} dibatalkan, {s.funds.skipped.duplicate} sudah ada
+              </li>
+            ) : null}
+            {s.funds.skipped.unknownCode.length ? <li className="text-[#ffd59a]">Dana keluar dengan pos RAB tidak dikenal (dilewati): {s.funds.skipped.unknownCode.join(", ")}</li> : null}
+            {s.contracts.unmatched.length ? (
+              <li className="text-[#ffd59a]">Kontrak tanpa pos anggaran yang cocok (tekan &ldquo;Impor RAB dari platform&rdquo; dulu): {s.contracts.unmatched.join(", ")}</li>
+            ) : null}
+            {s.budgetLinesFromDashboard ? <li className="text-zinc-400">Pos RAB Transparansi diambil dari dashboard (Transparansi belum punya pos).</li> : null}
+          </ul>
+          {s.dryRun ? (
+            <button type="button" className={primaryBtn} disabled={busy || !payload} onClick={() => void commit()}>
+              <CheckCircle2 size={15} /> Impor sekarang
+            </button>
+          ) : (
+            <p className="text-xs text-zinc-400">Saklar tampil Transparansi tidak diubah oleh impor. Cek hasilnya di menu Transparansi, Kontrak vendor, dan tab Kejadian.</p>
+          )}
+        </div>
+      ) : null}
+    </section>
   );
 }

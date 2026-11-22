@@ -60,7 +60,7 @@ type Contract = {
 type FinanceView = {
   masterEvents: MasterEvent[];
   today?: string;
-  event: { id: string; title: string; startsAt: string; endsAt: string; status: string } | null;
+  event: { id: string; title: string; startsAt: string; endsAt: string; status: string; platformSlug?: string | null } | null;
   categories?: Option[];
   sources?: Option[];
   performers?: Array<{ id: string; name: string; status: string }>;
@@ -535,6 +535,7 @@ export function EventFinancePanel({ initialEventId = null }: { initialEventId?: 
               ))}
             </ul>
           </section>
+          <PlatformImportCard key={`import-${view.event.id}`} eventId={view.event.id} platformSlug={view.event.platformSlug ?? null} onDone={() => void load(eventId)} />
           <ReviewCard key={view.event.id} eventId={view.event.id} review={view.review ?? null} onSave={(body) => run(() => garageApi.put("/api/event-finance/review", body))} />
 
           {view.comparison?.length ? (
@@ -951,5 +952,142 @@ function ContractForm({
         </div>
       </div>
     </Modal>
+  );
+}
+
+// ─── Impor Dashboard Penyelenggara platform (Owner 22 Nov 2026) ─────────────
+// Browser Owner membaca data dashboard lama memakai login dashboard itu sendiri (Garage OS tidak menyimpan password
+// platform), lalu server memetakan & menyimpan. Pratinjau dulu; impor ulang tidak membuat dobel.
+type ImportSummary = {
+  dryRun: boolean;
+  funds: { incomes: number; expenses: number; incomeTotal: number; expenseTotal: number; skipped: { waiting: number; voided: number; duplicate: number; unknownCode: string[]; invalid: number } };
+  contracts: { new: number; existing: number; unmatched: string[]; invalid: number };
+  incidents: { new: number; existing: number; invalid: number };
+  budgetLinesFromDashboard: boolean;
+};
+
+function PlatformImportCard({ eventId, platformSlug, onDone }: { eventId: string; platformSlug: string | null; onDone: () => void }) {
+  const [slug, setSlug] = useState(platformSlug ?? "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loginNeeded, setLoginNeeded] = useState(false);
+  const [payload, setPayload] = useState<Record<string, unknown> | null>(null);
+  const [summary, setSummary] = useState<ImportSummary | null>(null);
+
+  const readDashboard = async () => {
+    const s = slug.trim();
+    if (!/^[a-z0-9][a-z0-9-]{0,80}$/.test(s)) throw new Error("Isi slug platform event, mis. gigs-akhir-tahun-2026.");
+    const base = `/event/${s}/api`;
+    const get = async (path: string) => {
+      const res = await fetch(`${base}/${path}`, { credentials: "same-origin", cache: "no-store" });
+      if (res.status === 401 || res.status === 403) {
+        setLoginNeeded(true);
+        throw new Error("Belum login di Dashboard Penyelenggara. Login dulu (tab baru), lalu tekan Baca data lagi.");
+      }
+      if (!res.ok) throw new Error(`Dashboard Penyelenggara tidak bisa dibaca (${path}, status ${res.status}).`);
+      return (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    };
+    const [ledger, contracts, live, config] = await Promise.all([get("organizer/ledger"), get("organizer/contracts"), get("organizer/live"), get("public/config").catch(() => ({}))]);
+    setLoginNeeded(false);
+    const finance = (config as { finance?: { budgetLines?: unknown[] } }).finance;
+    return {
+      eventId,
+      ledger: Array.isArray(ledger.entries) ? ledger.entries : [],
+      contracts: Array.isArray(contracts.contracts) ? contracts.contracts : [],
+      log: Array.isArray(live.log) ? live.log : [],
+      budgetLines: Array.isArray(finance?.budgetLines) ? finance.budgetLines : [],
+    };
+  };
+
+  const preview = async () => {
+    setBusy(true);
+    setError(null);
+    setSummary(null);
+    try {
+      const body = await readDashboard();
+      setPayload(body);
+      setSummary(await garageApi.post<ImportSummary>("/api/event-import/platform", { ...body, dryRun: true }));
+    } catch (e) {
+      setError(errText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const commit = async () => {
+    if (!payload) return;
+    setBusy(true);
+    setError(null);
+    try {
+      setSummary(await garageApi.post<ImportSummary>("/api/event-import/platform", { ...payload, dryRun: false }));
+      setPayload(null);
+      onDone();
+    } catch (e) {
+      setError(errText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const s = summary;
+  return (
+    <section className={`${cardClass} space-y-3 print:hidden`} aria-labelledby="ef-import">
+      <h3 id="ef-import" className="font-bold text-zinc-100">
+        Impor dari Dashboard Penyelenggara (platform lama)
+      </h3>
+      <p className="text-xs text-zinc-400">
+        Memindahkan buku dana yang sudah SAH (ke Transparansi, bukan buku kas), kontrak vendor, dan log kejadian. Login dulu di Dashboard Penyelenggara di browser ini.
+        Pratinjau ditampilkan sebelum disimpan; impor ulang tidak membuat data dobel.
+      </p>
+      <div className="flex flex-wrap items-end gap-2">
+        <Field label="Slug platform">
+          <input className={inputClass} value={slug} onChange={(e) => setSlug(e.target.value.trim().toLowerCase())} placeholder="gigs-akhir-tahun-2026" />
+        </Field>
+        <button type="button" className={ghostBtn} disabled={busy} onClick={() => void preview()}>
+          <Download size={15} /> Baca data
+        </button>
+        {loginNeeded && slug ? (
+          <a className={ghostBtn} href={`/event/${slug}/penyelenggara`} target="_blank" rel="noreferrer">
+            Buka Dashboard Penyelenggara
+          </a>
+        ) : null}
+      </div>
+      {error ? <p className="text-sm text-[#ffb4b4]" role="alert">{error}</p> : null}
+      {s ? (
+        <div className="space-y-2 rounded-md border border-white/10 p-3 text-sm text-zinc-200" role="status">
+          <p className="font-semibold text-zinc-100">{s.dryRun ? "Pratinjau (belum disimpan)" : "Selesai diimpor"}</p>
+          <ul className="list-disc space-y-1 pl-5">
+            <li>
+              Dana masuk SAH: {s.funds.incomes} ({idr(s.funds.incomeTotal)}) · Dana keluar SAH: {s.funds.expenses} ({idr(s.funds.expenseTotal)})
+            </li>
+            <li>
+              Kontrak vendor baru: {s.contracts.new}
+              {s.contracts.existing ? ` · sudah ada ${s.contracts.existing}` : ""}
+            </li>
+            <li>
+              Log kejadian baru: {s.incidents.new}
+              {s.incidents.existing ? ` · sudah ada ${s.incidents.existing}` : ""}
+            </li>
+            {s.funds.skipped.waiting || s.funds.skipped.voided || s.funds.skipped.duplicate ? (
+              <li className="text-zinc-400">
+                Dilewati: {s.funds.skipped.waiting} belum SAH, {s.funds.skipped.voided} dibatalkan, {s.funds.skipped.duplicate} sudah ada
+              </li>
+            ) : null}
+            {s.funds.skipped.unknownCode.length ? <li className="text-[#ffd59a]">Dana keluar dengan pos RAB tidak dikenal (dilewati): {s.funds.skipped.unknownCode.join(", ")}</li> : null}
+            {s.contracts.unmatched.length ? (
+              <li className="text-[#ffd59a]">Kontrak tanpa pos anggaran yang cocok (tekan &ldquo;Impor RAB dari platform&rdquo; dulu): {s.contracts.unmatched.join(", ")}</li>
+            ) : null}
+            {s.budgetLinesFromDashboard ? <li className="text-zinc-400">Pos RAB Transparansi diambil dari dashboard (Transparansi belum punya pos).</li> : null}
+          </ul>
+          {s.dryRun ? (
+            <button type="button" className={primaryBtn} disabled={busy || !payload} onClick={() => void commit()}>
+              <CheckCircle2 size={15} /> Impor sekarang
+            </button>
+          ) : (
+            <p className="text-xs text-zinc-400">Saklar tampil Transparansi tidak diubah oleh impor. Cek hasilnya di menu Transparansi, Kontrak vendor, dan tab Kejadian.</p>
+          )}
+        </div>
+      ) : null}
+    </section>
   );
 }

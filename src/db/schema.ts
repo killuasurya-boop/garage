@@ -6066,12 +6066,15 @@ export const eventVendorContracts = pgTable(
     status: text("status").notNull().default("aktif"),
     doneNote: text("done_note"),
     cancelReason: text("cancel_reason"),
+    // Asal impor Dashboard Penyelenggara platform ("contract:<id>") — mencegah impor dobel.
+    platformRef: text("platform_ref"),
     createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
     eventIdx: index("event_vendor_contracts_event_idx").on(table.eventId),
+    platformRefIdx: uniqueIndex("event_vendor_contracts_platform_ref_idx").on(table.eventId, table.platformRef).where(sql`${table.platformRef} IS NOT NULL`),
     lineIdx: index("event_vendor_contracts_line_idx").on(table.budgetLineId),
     valueCheck: check("event_vendor_contracts_value_check", sql`${table.value} >= 0`),
     statusCheck: check("event_vendor_contracts_status_check", sql`${table.status} in ('aktif','selesai','batal')`),
@@ -6188,10 +6191,13 @@ export const eventIncidents = pgTable(
     resolvedAt: timestamp("resolved_at", { withTimezone: true }),
     resolvedBy: text("resolved_by").references(() => user.id, { onDelete: "set null" }),
     resolution: text("resolution"),
+    // Asal impor Dashboard Penyelenggara platform ("log:<id>") — mencegah impor dobel.
+    platformRef: text("platform_ref"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
     eventIdx: index("event_incidents_event_idx").on(table.eventId, table.createdAt),
+    platformRefIdx: uniqueIndex("event_incidents_platform_ref_idx").on(table.eventId, table.platformRef).where(sql`${table.platformRef} IS NOT NULL`),
     typeCheck: check("event_incidents_type_check", sql`${table.type} in ('keamanan','kesehatan','teknis','kerumunan','cuaca','lainnya')`),
     severityCheck: check("event_incidents_severity_check", sql`${table.severity} in ('rendah','sedang','tinggi')`),
   }),

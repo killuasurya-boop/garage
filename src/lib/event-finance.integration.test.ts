@@ -248,3 +248,48 @@ describe("Kontrak vendor (Owner 20 Nov 2026)", () => {
     if (archived?.status === "arsip") await expect(svc.createVendorContract({ budgetLineId: line.id, vendor: "Telat", value: 1 }, owner())).rejects.toMatchObject({ code: "LINE_ARCHIVED" });
   });
 });
+
+describe("Impor Dashboard Penyelenggara platform (Owner 22 Nov 2026)", () => {
+  it("pratinjau tidak menulis; impor menyimpan kontrak, kejadian & dana Transparansi; impor ulang tidak dobel; tanpa buku kas", async () => {
+    const imp = await import("@/lib/platform-import-service");
+    await svc.createBudgetLine({ eventId, category: "sound", title: "Sound Impor", plannedAmount: 5_000_000, notes: "RAB platform GIGS #02" }, owner());
+    const payload = {
+      eventId,
+      budgetLines: [{ code: "02", name: "Sound Impor", budget: 5_000_000 }],
+      ledger: [
+        { id: 1, kind: "masuk", declared_amount: 500000, approved_at: "2026-11-17 03:00:00", participant_name: "Kopi Sponsor" },
+        { id: 2, kind: "keluar", declared_amount: 1_000_000, approved_at: "2026-11-18 03:00:00", budget_code: "02", business_name: "Sound Jaya" },
+        { id: 3, kind: "masuk", declared_amount: 700000, approved_at: null },
+      ],
+      contracts: [{ id: 11, budgetCode: "02", vendor: "Sound Jaya", value: 5_000_000, status: "dipesan" }, { id: 12, budgetCode: "77", vendor: "Tanpa Pos", value: 1 }],
+      log: [{ id: 21, type: "keamanan", severity: "kritis", message: "Ribut dekat pintu", at: "2026-11-18 14:00:00", resolved: true, resolved_note: "Aman" }],
+    };
+    await expect(imp.importFromPlatformDashboard({ ...payload, dryRun: true } as any, session("Manajer" as Role))).rejects.toMatchObject({ code: "FORBIDDEN" });
+    const ledgerBefore = (await t.getDb().select().from(t.schema.cashLedgerEntries)).length;
+
+    const preview = await imp.importFromPlatformDashboard({ ...payload, dryRun: true } as any, owner());
+    expect(preview).toMatchObject({ dryRun: true, funds: { incomes: 1, expenses: 1 }, contracts: { new: 1, unmatched: ["Tanpa Pos (pos 77)"] }, incidents: { new: 1 } });
+    expect((await t.getDb().select().from(t.schema.eventIncidents)).filter((i: any) => i.eventId === eventId)).toHaveLength(0);
+
+    const done = await imp.importFromPlatformDashboard({ ...payload, dryRun: false } as any, owner());
+    expect(done).toMatchObject({ dryRun: false, contracts: { new: 1 }, incidents: { new: 1 } });
+    const contracts = (await t.getDb().select().from(t.schema.eventVendorContracts)).filter((c: any) => c.platformRef === "contract:11");
+    expect(contracts).toEqual([expect.objectContaining({ vendor: "Sound Jaya", value: 5_000_000, status: "aktif" })]);
+    const incidents = (await t.getDb().select().from(t.schema.eventIncidents)).filter((i: any) => i.eventId === eventId);
+    expect(incidents).toEqual([expect.objectContaining({ type: "keamanan", severity: "tinggi", platformRef: "log:21" })]);
+    expect(incidents[0].resolvedAt).not.toBeNull();
+    const pf = await import("@/lib/event-public-finance");
+    const fin = (await pf.getPublicFinance(eventId, owner())).data!;
+    expect(fin.incomes).toEqual([expect.objectContaining({ from: "Kopi Sponsor", amount: 500000 })]);
+    expect(fin.expenses).toEqual([expect.objectContaining({ code: "02", amount: 1_000_000 })]);
+    expect((await t.getDb().select().from(t.schema.cashLedgerEntries)).length).toBe(ledgerBefore);
+
+    const again = await imp.importFromPlatformDashboard({ ...payload, dryRun: false } as any, owner());
+    expect(again).toMatchObject({ funds: { incomes: 0, expenses: 0 }, contracts: { new: 0, existing: 1 }, incidents: { new: 0, existing: 1 } });
+    expect((await pf.getPublicFinance(eventId, owner())).data!.incomes).toHaveLength(1);
+
+    // Lebih dari kapasitas Transparansi → ditolak jelas (pratinjau pun), tidak dipotong diam-diam.
+    const many = Array.from({ length: 300 }, (_, i) => ({ id: 1000 + i, kind: "masuk", declared_amount: 1000 + i, approved_at: "2026-11-19 03:00:00", participant_name: `Donatur ${i}` }));
+    await expect(imp.importFromPlatformDashboard({ ...payload, ledger: many, dryRun: true } as any, owner())).rejects.toMatchObject({ code: "FINANCE_CAPACITY" });
+  });
+});

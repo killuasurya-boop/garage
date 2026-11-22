@@ -93,6 +93,16 @@ export async function importFromPlatformDashboard(input: z.infer<typeof platform
   const incidentPlan = planIncidents(input.log);
   const incidents = incidentPlan.items.filter((i) => !knownIncidents.has(i.platformRef));
 
+  // Transparansi menampung maks. 300 dana masuk & 300 dana keluar: tolak dengan jelas, jangan memotong diam-diam.
+  const MAX_FINANCE_ROWS = 300;
+  if (finance.incomes.length + ledger.incomes.length > MAX_FINANCE_ROWS || finance.expenses.length + ledger.expenses.length > MAX_FINANCE_ROWS) {
+    throw new PlatformImportError(
+      "FINANCE_CAPACITY",
+      `Transparansi hanya menampung ${MAX_FINANCE_ROWS} dana masuk & ${MAX_FINANCE_ROWS} dana keluar. Akan menjadi ${finance.incomes.length + ledger.incomes.length} masuk & ${finance.expenses.length + ledger.expenses.length} keluar — rapikan/gabungkan dulu di Transparansi.`,
+      409,
+    );
+  }
+
   const summary = {
     event: event.title,
     funds: { incomes: ledger.incomes.length, expenses: ledger.expenses.length, incomeTotal: ledger.incomes.reduce((s, e) => s + e.amount, 0), expenseTotal: ledger.expenses.reduce((s, e) => s + e.amount, 0), skipped: ledger.skipped },
@@ -147,8 +157,8 @@ export async function importFromPlatformDashboard(input: z.infer<typeof platform
       const data: PublicFinance = {
         ...finance,
         budgetLines: budgetLinesForFinance,
-        incomes: [...finance.incomes, ...ledger.incomes].slice(0, 300),
-        expenses: [...finance.expenses, ...ledger.expenses].slice(0, 300),
+        incomes: [...finance.incomes, ...ledger.incomes],
+        expenses: [...finance.expenses, ...ledger.expenses],
       };
       const parsed = publicFinanceSchema.safeParse(data);
       if (!parsed.success) throw new PlatformImportError("INVALID_FINANCE", parsed.error.issues[0]?.message ?? "Data dana dari dashboard tidak valid.");

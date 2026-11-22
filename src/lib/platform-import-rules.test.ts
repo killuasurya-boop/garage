@@ -24,6 +24,18 @@ describe("impor Dashboard Penyelenggara: buku dana", () => {
     expect(plan.skipped).toMatchObject({ waiting: 1, voided: 1, duplicate: 1, unknownCode: ["99"] });
   });
 
+  it("dua transaksi sah yang sama persis tetap dua; impor ulang hanya melewati sebanyak yang sudah ada", () => {
+    const same = { kind: "keluar", declared_amount: 100000, approved_at: "2026-11-18 02:00:00", budget_code: "02" };
+    const entries = [{ ...same, id: 1, business_name: "Vendor A" }, { ...same, id: 2, business_name: "Vendor B" }];
+    const first = planLedger(entries, { incomes: [], expenses: [], budgetLines: [line("02", "Sound")] });
+    expect(first.expenses).toHaveLength(2);
+    const again = planLedger(entries, { incomes: [], expenses: first.expenses, budgetLines: [line("02", "Sound")] });
+    expect(again.expenses).toHaveLength(0);
+    expect(again.skipped.duplicate).toBe(2);
+    const partly = planLedger(entries, { incomes: [], expenses: first.expenses.slice(0, 1), budgetLines: [line("02", "Sound")] });
+    expect(partly.expenses).toHaveLength(1);
+  });
+
   it("tanggal WIB dari stempel UTC platform", () => {
     expect(platformDate("2026-11-17 18:30:00")).toBe("2026-11-18");
     expect(platformDate("bukan tanggal")).toBeNull();

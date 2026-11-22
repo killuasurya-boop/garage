@@ -287,5 +287,9 @@ describe("Impor Dashboard Penyelenggara platform (Owner 22 Nov 2026)", () => {
     const again = await imp.importFromPlatformDashboard({ ...payload, dryRun: false } as any, owner());
     expect(again).toMatchObject({ funds: { incomes: 0, expenses: 0 }, contracts: { new: 0, existing: 1 }, incidents: { new: 0, existing: 1 } });
     expect((await pf.getPublicFinance(eventId, owner())).data!.incomes).toHaveLength(1);
+
+    // Lebih dari kapasitas Transparansi → ditolak jelas (pratinjau pun), tidak dipotong diam-diam.
+    const many = Array.from({ length: 300 }, (_, i) => ({ id: 1000 + i, kind: "masuk", declared_amount: 1000 + i, approved_at: "2026-11-19 03:00:00", participant_name: `Donatur ${i}` }));
+    await expect(imp.importFromPlatformDashboard({ ...payload, ledger: many, dryRun: true } as any, owner())).rejects.toMatchObject({ code: "FINANCE_CAPACITY" });
   });
 });

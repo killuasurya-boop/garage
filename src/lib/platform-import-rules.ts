@@ -37,10 +37,18 @@ const PAY_KINDS = new Set(["dp", "termin", "pelunasan", "lunas"]);
 
 export function planLedger(entries: unknown, current: Pick<PublicFinance, "incomes" | "expenses" | "budgetLines">) {
   const codes = new Set(current.budgetLines.map((l) => l.code));
-  const seen = new Set([
-    ...current.incomes.map((e) => `in|${e.date}|${e.amount}|${e.from.toLowerCase()}`),
-    ...current.expenses.map((e) => `out|${e.date}|${e.amount}|${e.code}`),
-  ]);
+  // Penanda impor ulang berbasis JUMLAH (multiset): dua transaksi sah yang kebetulan sama tanggal, nominal & pos tetap
+  // dua; hanya sebanyak yang sudah ada di Transparansi yang dilewati.
+  const existing = new Map<string, number>();
+  const bump = (key: string) => existing.set(key, (existing.get(key) ?? 0) + 1);
+  current.incomes.forEach((e) => bump(`in|${e.date}|${e.amount}|${e.from.toLowerCase()}`));
+  current.expenses.forEach((e) => bump(`out|${e.date}|${e.amount}|${e.code}`));
+  const alreadyThere = (key: string) => {
+    const n = existing.get(key) ?? 0;
+    if (n <= 0) return false;
+    existing.set(key, n - 1);
+    return true;
+  };
   const incomes: PublicFinance["incomes"] = [];
   const expenses: PublicFinance["expenses"] = [];
   const skipped = { waiting: 0, voided: 0, duplicate: 0, unknownCode: [] as string[], invalid: 0 };
@@ -61,12 +69,10 @@ export function planLedger(entries: unknown, current: Pick<PublicFinance, "incom
     }
     if (e.kind === "masuk") {
       const from = str(e.participant_name, 120) || str(e.business_name, 120);
-      const key = `in|${date}|${amount}|${from.toLowerCase()}`;
-      if (seen.has(key)) {
+      if (alreadyThere(`in|${date}|${amount}|${from.toLowerCase()}`)) {
         skipped.duplicate += 1;
         continue;
       }
-      seen.add(key);
       incomes.push({ date, from, amount });
     } else if (e.kind === "keluar") {
       const code = str(e.budget_code, 6);
@@ -74,12 +80,10 @@ export function planLedger(entries: unknown, current: Pick<PublicFinance, "incom
         if (!skipped.unknownCode.includes(code || "-")) skipped.unknownCode.push(code || "-");
         continue;
       }
-      const key = `out|${date}|${amount}|${code}`;
-      if (seen.has(key)) {
+      if (alreadyThere(`out|${date}|${amount}|${code}`)) {
         skipped.duplicate += 1;
         continue;
       }
-      seen.add(key);
       const payKind = str(e.pay_kind, 20);
       const to = str(e.business_name, 120) || str(e.contract_vendor, 120);
       expenses.push({

@@ -241,7 +241,7 @@ function EventSection({ ev, onChanged }: { ev: EventView; onChanged: () => Promi
         {ev.canManageTasks ? <NewTaskForm ev={ev} onSaved={onChanged} /> : null}
       </div>
 
-      {ev.eventId && ev.notes ? <CrewNotesCard key={ev.notes.revision} eventId={ev.eventId} notes={ev.notes} canEdit={ev.canEditNotes} onSaved={onChanged} /> : null}
+      {ev.eventId && ev.notes ? <CrewNotesCard key={`${ev.eventId}:${ev.notes.revision}`} eventId={ev.eventId} notes={ev.notes} canEdit={ev.canEditNotes} onSaved={onChanged} /> : null}
       {ev.consumption ? <ConsumptionCard data={ev.consumption} fileName={`Rekap-konsumsi-${ev.title.replace(/[^\w-]+/g, "_").slice(0, 40)}.csv`} /> : null}
 
       {ev.finance ? (

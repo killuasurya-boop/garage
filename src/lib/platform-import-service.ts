@@ -36,7 +36,7 @@ export const platformImportSchema = z.object({
     .max(40)
     .default([]),
   notes: z
-    .object({ rundown: z.string().max(4000).optional(), readiness: z.string().max(4000).optional() })
+    .object({ rundown: z.string().max(4000).nullable().optional(), readiness: z.string().max(4000).nullable().optional() })
     .passthrough()
     .nullable()
     .optional(),
@@ -129,7 +129,12 @@ export async function importFromPlatformDashboard(input: z.infer<typeof platform
       await tx
         .insert(eventCrewNotes)
         .values({ eventId: event.id, ...values, revision: 1 })
-        .onConflictDoUpdate({ target: eventCrewNotes.eventId, set: { ...values, revision: sql`${eventCrewNotes.revision} + 1` } });
+        .onConflictDoUpdate({
+          target: eventCrewNotes.eventId,
+          set: { ...values, revision: sql`${eventCrewNotes.revision} + 1` },
+          // Dicek ulang saat menulis: catatan yang disimpan orang lain selama impor tidak pernah ditimpa.
+          setWhere: sql`btrim(${eventCrewNotes.rundown}) = '' and btrim(${eventCrewNotes.readiness}) = ''`,
+        });
     }
     if (contracts.length) {
       await tx

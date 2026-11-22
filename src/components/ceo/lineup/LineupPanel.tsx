@@ -1162,7 +1162,7 @@ function TaskForm({ row, crew, onClose, onSave }: { row: TaskView | null; crew: 
 
 /** Catatan panitia + rekap konsumsi (Owner ubah; Manajer baca). Hanya event master. */
 function ExtrasTab({ eventId, eventTitle }: { eventId: string | null; eventTitle: string }) {
-  const [data, setData] = useState<{ notes: EventNotes; consumption: Consumption; canEditNotes: boolean } | null>(null);
+  const [data, setData] = useState<{ eventId: string; notes: EventNotes; consumption: Consumption; canEditNotes: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
   const load = useCallback(() => setVersion((v) => v + 1), []);
@@ -1173,7 +1173,7 @@ function ExtrasTab({ eventId, eventTitle }: { eventId: string | null; eventTitle
       .get<{ notes: EventNotes; consumption: Consumption; canEditNotes: boolean }>(`/api/event-lineup/extras?eventId=${eventId}`, { cache: "no-store" })
       .then((d) => {
         if (!alive) return;
-        setData(d);
+        setData({ ...d, eventId });
         setError(null);
       })
       .catch((e) => alive && setError(e instanceof Error ? e.message : "Gagal memuat."));
@@ -1183,10 +1183,11 @@ function ExtrasTab({ eventId, eventTitle }: { eventId: string | null; eventTitle
   }, [eventId, version]);
   if (!eventId) return <div className={`${cardClass} text-sm text-zinc-300`}>Catatan & rekap konsumsi butuh event dari menu Event (bukan nama lama).</div>;
   if (error) return <div className={`${cardClass} text-sm text-amber-200`} role="alert">{error}</div>;
-  if (!data) return <div className={`${cardClass} text-sm text-zinc-300`}>Memuat…</div>;
+  // Data event sebelumnya tidak pernah dipakai untuk event yang baru dipilih (simpan bisa salah event).
+  if (!data || data.eventId !== eventId) return <div className={`${cardClass} text-sm text-zinc-300`}>Memuat…</div>;
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-      <CrewNotesCard key={data.notes.revision} eventId={eventId} notes={data.notes} canEdit={data.canEditNotes} onSaved={load} />
+      <CrewNotesCard key={`${eventId}:${data.notes.revision}`} eventId={eventId} notes={data.notes} canEdit={data.canEditNotes} onSaved={load} />
       <ConsumptionCard data={data.consumption} fileName={`Rekap-konsumsi-${eventTitle.replace(/[^\w-]+/g, "_").slice(0, 40)}.csv`} />
     </div>
   );

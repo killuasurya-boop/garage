@@ -285,6 +285,8 @@ describe("Impor Dashboard Penyelenggara platform (Owner 22 Nov 2026)", () => {
     expect(fin.expenses).toEqual([expect.objectContaining({ code: "02", amount: 1_000_000 })]);
     expect((await t.getDb().select().from(t.schema.cashLedgerEntries)).length).toBe(ledgerBefore);
 
+    // Jalur route memvalidasi lewat schema: catatan dengan nilai null tetap diterima.
+    expect(imp.platformImportSchema.safeParse({ ...payload, dryRun: true }).success).toBe(true);
     const notesSvc = await import("@/lib/event-crew-notes-service");
     expect(await notesSvc.loadEventNotes(eventId)).toMatchObject({ rundown: "Open gate 18.30", readiness: "", revision: 1, updatedByName: "Impor Dashboard Penyelenggara" });
 

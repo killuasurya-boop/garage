@@ -104,7 +104,9 @@ const nextConfig: NextConfig = {
   // backup, dan salinan uji (terukur 1,7 GB). Data & artefak ini tidak pernah
   // dibaca aplikasi saat runtime (upload/selfie memakai volume Docker).
   outputFileTracingExcludes: {
-    "*": [
+    // Pola rute harus diawali slash. "*" juga cocok dengan "next-server",
+    // sehingga output/** menghapus next/dist/build/output/log.js dari runtime.
+    "/**": [
       ".pglite-data/**",
       ".pglite-data.*/**",
       "pglite-data*/**",

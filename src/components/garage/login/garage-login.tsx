@@ -25,7 +25,7 @@ import { garageApi } from "@/lib/api-client";
 import type { HealthData } from "@/lib/garage-api-types";
 import type { Role } from "@/lib/garage-data";
 import { authClient } from "@/lib/auth-client";
-import { loginErrorMessage } from "@/lib/login-messages";
+import { loginAccessMessage, loginErrorMessage } from "@/lib/login-messages";
 import { oauthContinueUrl, signedOAuthQuery } from "@/lib/oauth-login-continue";
 
 // Modul login terpisah dari garage-app.tsx supaya /login & /pos-login cukup mengunduh
@@ -212,15 +212,18 @@ export function GarageLogin({
 }: GarageLoginProps) {
   const session = authClient.useSession();
   const userId = session.data?.user?.id;
+  const [accessError] = useState(() =>
+    loginAccessMessage(new URLSearchParams(window.location.search).get("reason")),
+  );
 
   useEffect(() => {
-    if (userId) window.location.assign(returnTo);
-  }, [userId, returnTo]);
+    if (userId && !accessError) window.location.replace(returnTo);
+  }, [userId, returnTo, accessError]);
 
-  if (session.isPending) {
+  if (session.isPending && !accessError) {
     return <LoginLoading title={variant === "pos" ? "Masuk ke POS Garage" : "Masuk ke Garage OS"} />;
   }
-  if (userId) {
+  if (userId && !accessError) {
     return <LoginLoading title="Membuka area kerja" />;
   }
 
@@ -229,9 +232,9 @@ export function GarageLogin({
       variant={variant}
       initialEmail={initialEmail}
       includeOwnerPreset={includeOwnerPreset}
-      onSignedIn={async () => {
-        await session.refetch();
-        window.location.assign(returnTo);
+      initialError={accessError}
+      onSignedIn={() => {
+        window.location.replace(returnTo);
       }}
     />
   );
@@ -239,11 +242,13 @@ export function GarageLogin({
 
 export function LoginScreen({
   onSignedIn,
+  initialError = null,
   variant = "os",
   initialEmail,
   includeOwnerPreset = false,
 }: {
   onSignedIn: () => void | Promise<void>;
+  initialError?: string | null;
   variant?: "os" | "pos";
   initialEmail?: string;
   includeOwnerPreset?: boolean;
@@ -268,7 +273,7 @@ export function LoginScreen({
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [capsLock, setCapsLock] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initialError);
   const [pending, setPending] = useState(false);
   const [idleNotice] = useState(
     () => new URLSearchParams(window.location.search).get("reason") === "idle_timeout",

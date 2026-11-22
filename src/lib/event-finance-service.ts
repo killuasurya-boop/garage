@@ -185,7 +185,7 @@ export async function getEventFinance(garage: GarageSession, eventId: string | n
   return {
     masterEvents,
     today: wibDate(now),
-    event: { id: event.id, title: event.title, startsAt: event.startsAt.toISOString(), endsAt: event.endsAt.toISOString(), status: event.status },
+    event: { id: event.id, title: event.title, startsAt: event.startsAt.toISOString(), endsAt: event.endsAt.toISOString(), status: event.status, platformSlug: event.platformSlug ?? null },
     categories: EVENT_COST_CATEGORIES.map((c) => ({ value: c, label: EVENT_COST_LABEL[c] })),
     sources: EVENT_PAY_SOURCES.map((s) => ({ value: s, label: EVENT_PAY_SOURCE_LABEL[s] })),
     performers,

@@ -36,6 +36,16 @@ test("GIGS EO: lineup master → keuangan event → hari-H (check-in, panggung, 
   await expect(page.locator("table").getByText(`Honor E2E ${tag}`)).toBeVisible();
   await expect(page.getByText(`Vendor E2E ${tag} · Honor E2E ${tag}`)).toBeVisible();
 
+  // Catatan panitia + rekap konsumsi (Owner 22 Nov 2026): tab Lineup "Konsumsi & Catatan".
+  await page.goto(`/control/lineup?eventId=${eventId}&tab=konsumsi`);
+  await expect(page.getByRole("heading", { name: "Rekap konsumsi" })).toBeVisible({ timeout: 90_000 });
+  await expect(page.locator("table").getByText(`Band E2E ${tag}`)).toBeVisible();
+  await page.getByLabel("Catatan rundown").fill(`Soundcheck E2E ${tag}`);
+  await page.getByRole("button", { name: "Simpan catatan" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Catatan tersimpan." })).toBeVisible();
+  const extras = (await (await api.get(`/api/event-lineup/extras?eventId=${eventId}`)).json()).data;
+  expect(extras.notes.rundown).toBe(`Soundcheck E2E ${tag}`);
+
   // Hari-H: walk-in, panggung mulai lalu undo, checklist operasional.
   await post("/api/event-day/checkins", { eventId, walkInName: `Tamu E2E ${tag}`, pax: 1 });
   await post(`/api/event-day/slots/${performer.id}`, { action: "start" });

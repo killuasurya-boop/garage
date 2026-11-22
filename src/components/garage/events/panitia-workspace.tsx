@@ -7,6 +7,7 @@ import { AlertTriangle, ArrowLeft, CalendarDays, CheckCircle2, ClipboardList, Cl
 import { garageApi, GarageApiError } from "@/lib/api-client";
 import { TASK_STATUS_LABEL, type TaskStatus } from "@/lib/event-lineup-rules";
 import type { PanitiaWorkspace } from "@/lib/event-panitia-service";
+import { ConsumptionCard, CrewNotesCard } from "@/components/garage/events/crew-notes-consumption";
 
 // Ruang Panitia (Owner 17 Nov 2026): untuk anggota panitia yang ditautkan Owner ke akun login stafnya.
 // Semua hak dicek di server; layar ini hanya menampilkan & mengirim perubahan.
@@ -239,6 +240,9 @@ function EventSection({ ev, onChanged }: { ev: EventView; onChanged: () => Promi
         </ul>
         {ev.canManageTasks ? <NewTaskForm ev={ev} onSaved={onChanged} /> : null}
       </div>
+
+      {ev.eventId && ev.notes ? <CrewNotesCard key={ev.notes.revision} eventId={ev.eventId} notes={ev.notes} canEdit={ev.canEditNotes} onSaved={onChanged} /> : null}
+      {ev.consumption ? <ConsumptionCard data={ev.consumption} fileName={`Rekap-konsumsi-${ev.title.replace(/[^\w-]+/g, "_").slice(0, 40)}.csv`} /> : null}
 
       {ev.finance ? (
         <div className={`${card} space-y-2`}>

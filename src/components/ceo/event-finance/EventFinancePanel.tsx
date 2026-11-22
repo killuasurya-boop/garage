@@ -964,6 +964,7 @@ type ImportSummary = {
   contracts: { new: number; existing: number; unmatched: string[]; invalid: number };
   incidents: { new: number; existing: number; invalid: number };
   budgetLinesFromDashboard: boolean;
+  notes?: string;
 };
 
 function PlatformImportCard({ eventId, platformSlug, onDone }: { eventId: string; platformSlug: string | null; onDone: () => void }) {
@@ -987,7 +988,7 @@ function PlatformImportCard({ eventId, platformSlug, onDone }: { eventId: string
       if (!res.ok) throw new Error(`Dashboard Penyelenggara tidak bisa dibaca (${path}, status ${res.status}).`);
       return (await res.json().catch(() => ({}))) as Record<string, unknown>;
     };
-    const [ledger, contracts, live, config] = await Promise.all([get("organizer/ledger"), get("organizer/contracts"), get("organizer/live"), get("public/config").catch(() => ({}))]);
+    const [ledger, contracts, live, config, summaryData] = await Promise.all([get("organizer/ledger"), get("organizer/contracts"), get("organizer/live"), get("public/config").catch(() => ({})), get("organizer/summary").catch(() => ({}))]);
     setLoginNeeded(false);
     const finance = (config as { finance?: { budgetLines?: unknown[] } }).finance;
     return {
@@ -996,6 +997,7 @@ function PlatformImportCard({ eventId, platformSlug, onDone }: { eventId: string
       contracts: Array.isArray(contracts.contracts) ? contracts.contracts : [],
       log: Array.isArray(live.log) ? live.log : [],
       budgetLines: Array.isArray(finance?.budgetLines) ? finance.budgetLines : [],
+      notes: (summaryData as { notes?: unknown }).notes ?? null,
     };
   };
 
@@ -1036,7 +1038,7 @@ function PlatformImportCard({ eventId, platformSlug, onDone }: { eventId: string
         Impor dari Dashboard Penyelenggara (platform lama)
       </h3>
       <p className="text-xs text-zinc-400">
-        Memindahkan buku dana yang sudah SAH (ke Transparansi, bukan buku kas), kontrak vendor, dan log kejadian. Login dulu di Dashboard Penyelenggara di browser ini.
+        Memindahkan buku dana yang sudah SAH (ke Transparansi, bukan buku kas), kontrak vendor, log kejadian, dan catatan panitia. Login dulu di Dashboard Penyelenggara di browser ini.
         Pratinjau ditampilkan sebelum disimpan; impor ulang tidak membuat data dobel.
       </p>
       <div className="flex flex-wrap items-end gap-2">
@@ -1077,6 +1079,7 @@ function PlatformImportCard({ eventId, platformSlug, onDone }: { eventId: string
             {s.contracts.unmatched.length ? (
               <li className="text-[#ffd59a]">Kontrak tanpa pos anggaran yang cocok (tekan &ldquo;Impor RAB dari platform&rdquo; dulu): {s.contracts.unmatched.join(", ")}</li>
             ) : null}
+            {s.notes && s.notes !== "tidak ada" ? <li className="text-zinc-300">Catatan panitia (rundown & kesiapan): {s.notes}</li> : null}
             {s.budgetLinesFromDashboard ? <li className="text-zinc-400">Pos RAB Transparansi diambil dari dashboard (Transparansi belum punya pos).</li> : null}
           </ul>
           {s.dryRun ? (

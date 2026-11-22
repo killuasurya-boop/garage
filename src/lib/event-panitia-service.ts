@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { getDb } from "@/db";
 import { eventBudgetLines, eventCrew, eventCrewTasks, eventExpensePayments, eventPerformers, events } from "@/db/schema";
+import { panitiaExtras } from "@/lib/event-crew-notes-service";
 import { EVENT_COST_LABEL, type EventCostCategory } from "@/lib/event-finance-rules";
 import { LineupError } from "@/lib/event-lineup-service";
 import {
@@ -165,6 +166,7 @@ export async function getPanitiaWorkspace(garage: GarageSession, now = new Date(
       tasks,
       assignees: canManageTasks ? [...crewNames.entries()].map(([id, c]) => ({ id, name: c.name, role: CREW_ROLE_LABEL[c.role] ?? c.role })) : [],
       finance,
+      ...(await panitiaExtras(first.eventId, roles)),
     });
   }
   return { today, name: garage.user.name ?? "Panitia", events: out };

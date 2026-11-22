@@ -4,11 +4,11 @@
 // dryRun = pratinjau tanpa menulis. Impor ulang aman: kontrak & kejadian ber-`platform_ref` unik, dana dicocokkan isinya.
 // Tidak ada uang yang bergerak: dana masuk/keluar masuk ke Transparansi (catatan publik), BUKAN buku kas.
 
-import { and, eq, isNotNull } from "drizzle-orm";
+import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { getDb } from "@/db";
-import { eventBudgetLines, eventIncidents, eventPublicFinance, events, eventVendorContracts } from "@/db/schema";
+import { eventBudgetLines, eventCrewNotes, eventIncidents, eventPublicFinance, events, eventVendorContracts } from "@/db/schema";
 import { EMPTY_PUBLIC_FINANCE, publicFinanceSchema, type PublicFinance } from "@/lib/event-public-finance-rules";
 import { createAuditLog } from "@/lib/garage-service";
 import { matchBudgetLine, planContracts, planIncidents, planLedger } from "@/lib/platform-import-rules";
@@ -35,6 +35,11 @@ export const platformImportSchema = z.object({
     .array(z.object({ code: z.string().max(6), name: z.string().max(80), budget: z.number().optional(), purpose: z.string().max(300).optional(), pic: z.string().max(60).optional(), needsVendor: z.boolean().optional() }).passthrough())
     .max(40)
     .default([]),
+  notes: z
+    .object({ rundown: z.string().max(4000).optional(), readiness: z.string().max(4000).optional() })
+    .passthrough()
+    .nullable()
+    .optional(),
 });
 
 export async function importFromPlatformDashboard(input: z.infer<typeof platformImportSchema>, garage: GarageSession) {
@@ -45,12 +50,17 @@ export async function importFromPlatformDashboard(input: z.infer<typeof platform
   if (!event) throw new PlatformImportError("EVENT_NOT_FOUND", "Event tidak ditemukan.", 404);
 
   const rabNames = new Map(input.budgetLines.map((l) => [l.code.trim(), l.name.trim()]));
-  const [lines, financeRow, contractRefs, incidentRefs] = await Promise.all([
+  const [lines, financeRow, contractRefs, incidentRefs, notesRow] = await Promise.all([
     db.select({ id: eventBudgetLines.id, title: eventBudgetLines.title, notes: eventBudgetLines.notes, status: eventBudgetLines.status }).from(eventBudgetLines).where(eq(eventBudgetLines.eventId, event.id)),
     db.select().from(eventPublicFinance).where(eq(eventPublicFinance.eventId, event.id)).limit(1),
     db.select({ ref: eventVendorContracts.platformRef }).from(eventVendorContracts).where(and(eq(eventVendorContracts.eventId, event.id), isNotNull(eventVendorContracts.platformRef))),
     db.select({ ref: eventIncidents.platformRef }).from(eventIncidents).where(and(eq(eventIncidents.eventId, event.id), isNotNull(eventIncidents.platformRef))),
+    db.select().from(eventCrewNotes).where(eq(eventCrewNotes.eventId, event.id)).limit(1),
   ]);
+  // Catatan panitia: hanya diisi bila catatan Garage OS masih kosong (tidak pernah menimpa).
+  const platformNotes = { rundown: (input.notes?.rundown ?? "").trim().slice(0, 4000), readiness: (input.notes?.readiness ?? "").trim().slice(0, 4000) };
+  const garageNotesEmpty = !notesRow[0] || (!notesRow[0].rundown.trim() && !notesRow[0].readiness.trim());
+  const importNotes = garageNotesEmpty && Boolean(platformNotes.rundown || platformNotes.readiness);
 
   // Transparansi: pos RAB diambil dari dashboard bila Transparansi belum punya pos (supaya dana keluar bisa dicocokkan kodenya).
   const saved = financeRow[0] ? publicFinanceSchema.safeParse(financeRow[0].data).data : null;
@@ -109,10 +119,18 @@ export async function importFromPlatformDashboard(input: z.infer<typeof platform
     contracts: { new: contracts.length, existing: contractsExisting, unmatched, invalid: contractPlan.invalid },
     incidents: { new: incidents.length, existing: incidentPlan.items.length - incidents.length, invalid: incidentPlan.invalid },
     budgetLinesFromDashboard: !finance.budgetLines.length && budgetLinesForFinance.length > 0,
+    notes: importNotes ? "akan diisi" : platformNotes.rundown || platformNotes.readiness ? "Garage OS sudah punya catatan (tidak ditimpa)" : "tidak ada",
   };
   if (input.dryRun) return { dryRun: true, ...summary };
 
   await db.transaction(async (tx) => {
+    if (importNotes) {
+      const values = { ...platformNotes, updatedBy: garage.user.id, updatedByName: "Impor Dashboard Penyelenggara", updatedAt: new Date() };
+      await tx
+        .insert(eventCrewNotes)
+        .values({ eventId: event.id, ...values, revision: 1 })
+        .onConflictDoUpdate({ target: eventCrewNotes.eventId, set: { ...values, revision: sql`${eventCrewNotes.revision} + 1` } });
+    }
     if (contracts.length) {
       await tx
         .insert(eventVendorContracts)
@@ -177,7 +195,7 @@ export async function importFromPlatformDashboard(input: z.infer<typeof platform
     action: "Impor data Dashboard Penyelenggara platform",
     object: event.title,
     device: garage.profile.deviceLabel ?? "Garage OS",
-    metadata: { module: "platform-import", eventId: event.id, funds: summary.funds, contracts: { new: contracts.length, unmatched: unmatched.length }, incidents: { new: incidents.length } },
+    metadata: { module: "platform-import", eventId: event.id, funds: summary.funds, contracts: { new: contracts.length, unmatched: unmatched.length }, incidents: { new: incidents.length }, notes: importNotes },
   });
   return { dryRun: false, ...summary };
 }

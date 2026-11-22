@@ -263,12 +263,13 @@ describe("Impor Dashboard Penyelenggara platform (Owner 22 Nov 2026)", () => {
       ],
       contracts: [{ id: 11, budgetCode: "02", vendor: "Sound Jaya", value: 5_000_000, status: "dipesan" }, { id: 12, budgetCode: "77", vendor: "Tanpa Pos", value: 1 }],
       log: [{ id: 21, type: "keamanan", severity: "kritis", message: "Ribut dekat pintu", at: "2026-11-18 14:00:00", resolved: true, resolved_note: "Aman" }],
+      notes: { rundown: "Open gate 18.30", readiness: null, updated_by: "ketua", revision: 4 },
     };
     await expect(imp.importFromPlatformDashboard({ ...payload, dryRun: true } as any, session("Manajer" as Role))).rejects.toMatchObject({ code: "FORBIDDEN" });
     const ledgerBefore = (await t.getDb().select().from(t.schema.cashLedgerEntries)).length;
 
     const preview = await imp.importFromPlatformDashboard({ ...payload, dryRun: true } as any, owner());
-    expect(preview).toMatchObject({ dryRun: true, funds: { incomes: 1, expenses: 1 }, contracts: { new: 1, unmatched: ["Tanpa Pos (pos 77)"] }, incidents: { new: 1 } });
+    expect(preview).toMatchObject({ dryRun: true, funds: { incomes: 1, expenses: 1 }, contracts: { new: 1, unmatched: ["Tanpa Pos (pos 77)"] }, incidents: { new: 1 }, notes: "akan diisi" });
     expect((await t.getDb().select().from(t.schema.eventIncidents)).filter((i: any) => i.eventId === eventId)).toHaveLength(0);
 
     const done = await imp.importFromPlatformDashboard({ ...payload, dryRun: false } as any, owner());
@@ -284,7 +285,12 @@ describe("Impor Dashboard Penyelenggara platform (Owner 22 Nov 2026)", () => {
     expect(fin.expenses).toEqual([expect.objectContaining({ code: "02", amount: 1_000_000 })]);
     expect((await t.getDb().select().from(t.schema.cashLedgerEntries)).length).toBe(ledgerBefore);
 
-    const again = await imp.importFromPlatformDashboard({ ...payload, dryRun: false } as any, owner());
+    const notesSvc = await import("@/lib/event-crew-notes-service");
+    expect(await notesSvc.loadEventNotes(eventId)).toMatchObject({ rundown: "Open gate 18.30", readiness: "", revision: 1, updatedByName: "Impor Dashboard Penyelenggara" });
+
+    const again = await imp.importFromPlatformDashboard({ ...payload, notes: { rundown: "Versi lain", readiness: "" }, dryRun: false } as any, owner());
+    expect(again.notes).toBe("Garage OS sudah punya catatan (tidak ditimpa)");
+    expect((await notesSvc.loadEventNotes(eventId)).rundown).toBe("Open gate 18.30");
     expect(again).toMatchObject({ funds: { incomes: 0, expenses: 0 }, contracts: { new: 0, existing: 1 }, incidents: { new: 0, existing: 1 } });
     expect((await pf.getPublicFinance(eventId, owner())).data!.incomes).toHaveLength(1);
 

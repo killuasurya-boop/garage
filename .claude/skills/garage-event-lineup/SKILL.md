@@ -192,3 +192,11 @@ description: Aturan WAJIB modul Lineup & Panitia Event (band/stand-up, rundown, 
   catatan "RAB platform GIGS #kode" lalu nama pos), log → Kejadian. Aturan murni `platform-import-rules.ts`. Impor ulang aman.
 - Penerus `/event/*` ke platform membuang cookie Garage OS (Better Auth, `garage_member_*`, `garage_partner_*`,
   `garage_active_outlet`); cookie platform tetap.
+- Catatan panitia & rekap konsumsi (Owner 22 Nov 2026, migrasi 0209 `event_crew_notes`, pindahan Dashboard Penyelenggara):
+  satu baris per event master (catatan rundown, catatan kesiapan, porsi tambahan MC/tamu, `revision` kunci optimis → 409
+  `NOTES_CONFLICT`). Ubah: Owner, atau Ketua/Sekretaris panitia event itu (`PUT /api/panitia/notes`, `saveEventNotes`).
+  Baca: Owner/Manajer di tab Lineup "Konsumsi & Catatan" (`GET /api/event-lineup/extras`), semua panitia aktif di Ruang
+  Panitia. Rekap konsumsi (`buildConsumption`, murni) = panitia aktif + talent konfirmasi (berhonor = ada pos anggaran aktif
+  tertaut) + porsi tambahan; jumlah orang/kehadiran/catatan makanan dari pendaftaran website tertaut. Di Ruang Panitia hanya
+  Ketua/Sekretaris/Bendahara/seksi Konsumsi. Tanpa kontak/uang. CSV aman formula. Impor Dashboard mengisi catatan hanya bila
+  catatan Garage kosong. Reset grand opening: KEEP.

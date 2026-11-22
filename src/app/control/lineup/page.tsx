@@ -4,7 +4,7 @@ import { ControlDashboardRoute } from "@/components/ceo/layout/ControlDashboardR
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const TABS: LineupTab[] = ["lineup", "rundown", "panitia", "tugas"];
+const TABS: LineupTab[] = ["lineup", "rundown", "panitia", "tugas", "konsumsi"];
 
 export default async function ControlLineupPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const params = await searchParams;

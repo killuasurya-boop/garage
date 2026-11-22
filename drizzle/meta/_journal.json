@@ -1450,6 +1450,13 @@
       "when": 1795143765221,
       "tag": "0206_event_incidents",
       "breakpoints": true
+    },
+    {
+      "idx": 207,
+      "version": "7",
+      "when": 1795145784488,
+      "tag": "0207_event_vendor_contracts",
+      "breakpoints": true
     }
   ]
 }

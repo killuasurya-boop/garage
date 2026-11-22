@@ -29,9 +29,12 @@ test("GIGS EO: lineup master → keuangan event → hari-H (check-in, panggung, 
   const line = await post("/api/event-finance", { eventId, category: "honor", title: `Honor E2E ${tag}`, plannedAmount: 750000, performerId: performer.id });
   const today = new Date(Date.now() + 7 * 3_600_000).toISOString().slice(0, 10);
   await post("/api/event-finance/payments", { budgetLineId: line.id, amount: 750000, paidAt: today, source: "external", payee: `Band E2E ${tag}`, idempotencyKey: `e2e-gigs-${tag}-pay` });
+  // Kontrak vendor (Owner 20 Nov 2026): kesepakatan per pos, tanpa uang.
+  await post("/api/event-finance/contracts", { budgetLineId: line.id, vendor: `Vendor E2E ${tag}`, value: 750000, terms: "Tampil 30 menit" });
   await page.goto("/control/event-finance");
   await expect(page.getByRole("heading", { name: "Keuangan Event" })).toBeVisible({ timeout: 90_000 });
   await expect(page.locator("table").getByText(`Honor E2E ${tag}`)).toBeVisible();
+  await expect(page.getByText(`Vendor E2E ${tag} · Honor E2E ${tag}`)).toBeVisible();
 
   // Hari-H: walk-in, panggung mulai lalu undo, checklist operasional.
   await post("/api/event-day/checkins", { eventId, walkInName: `Tamu E2E ${tag}`, pax: 1 });
@@ -49,7 +52,8 @@ test("GIGS EO: lineup master → keuangan event → hari-H (check-in, panggung, 
   await page.getByRole("tab", { name: "Kejadian" }).click();
   await page.getByLabel("Apa yang terjadi").fill(`Kabel mic E2E ${tag} lepas`);
   await page.getByRole("button", { name: "Catat kejadian" }).click();
-  await expect(page.getByText(`Kabel mic E2E ${tag} lepas`)).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Kejadian tercatat." })).toBeVisible();
+  await expect(page.locator("li").getByText(`Kabel mic E2E ${tag} lepas`)).toBeVisible();
   const incidents = (await (await api.get(`/api/event-day/incidents?eventId=${eventId}`)).json()).data;
   const mine = incidents.items.find((i: { note: string }) => i.note === `Kabel mic E2E ${tag} lepas`);
   await post(`/api/event-day/incidents/${mine.id}/resolve`, { resolution: "Diganti kabel cadangan" });

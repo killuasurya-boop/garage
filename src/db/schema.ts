@@ -6300,3 +6300,36 @@ export const eventCrewNotes = pgTable("event_crew_notes", {
   updatedByName: text("updated_by_name"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// Pengajuan dana panitia (Owner 23 Nov 2026, pindahan Dashboard Penyelenggara): Ketua/Bendahara panitia mengajukan dana
+// masuk/keluar + bukti; Owner mengesahkan → baris Transparansi (catatan publik), BUKAN buku kas. Bukti = berkas privat.
+export const eventFundRequests = pgTable(
+  "event_fund_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    date: date("date", { mode: "string" }).notNull(),
+    amount: integer("amount").notNull(),
+    party: text("party").notNull().default(""),
+    budgetCode: text("budget_code"),
+    payKind: text("pay_kind").notNull().default(""),
+    description: text("description").notNull().default(""),
+    proofFile: text("proof_file"),
+    status: text("status").notNull().default("diajukan"),
+    submittedBy: text("submitted_by").references(() => user.id, { onDelete: "set null" }),
+    submittedByName: text("submitted_by_name").notNull(),
+    decidedBy: text("decided_by").references(() => user.id, { onDelete: "set null" }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    decisionNote: text("decision_note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    eventIdx: index("event_fund_requests_event_idx").on(table.eventId, table.status),
+    kindCheck: check("event_fund_requests_kind_check", sql`${table.kind} in ('masuk','keluar')`),
+    statusCheck: check("event_fund_requests_status_check", sql`${table.status} in ('diajukan','disahkan','ditolak')`),
+    amountCheck: check("event_fund_requests_amount_check", sql`${table.amount} > 0`),
+  }),
+);

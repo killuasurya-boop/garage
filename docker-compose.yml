@@ -73,6 +73,8 @@ services:
       # sehingga hilang tiap redeploy. Hanya disajikan lewat API terproteksi.
       - garage-cash-receipts:/app/storage/cash-receipts
       - garage-company-documents:/app/storage/company-documents
+      # Bukti pengajuan dana panitia event (transfer/nota) — privat, hanya lewat API, persisten.
+      - garage-event-proofs:/app/storage/event-proofs
     depends_on:
       db:
         condition: service_healthy
@@ -130,5 +132,6 @@ volumes:
   garage-supplier-docs:
   garage-cash-receipts:
   garage-company-documents:
+  garage-event-proofs:
   caddy-data:
   caddy-config:

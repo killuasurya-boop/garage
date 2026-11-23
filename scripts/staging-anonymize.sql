@@ -115,3 +115,6 @@ SELECT 'ANONYMIZED' AS status,
   (SELECT count(*) FROM customers) AS customers,
   (SELECT count(*) FROM orders) AS orders,
   (SELECT count(*) FROM customers WHERE phone !~ '^0899' AND phone IS NOT NULL AND btrim(phone) <> '') AS customer_phone_left;
+
+-- Pengajuan dana panitia (23 Nov 2026): berkas bukti tidak ikut ke staging → tautan dikosongkan.
+UPDATE event_fund_requests SET proof_file = NULL;

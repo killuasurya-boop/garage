@@ -46,6 +46,29 @@ test("GIGS EO: lineup master → keuangan event → hari-H (check-in, panggung, 
   const extras = (await (await api.get(`/api/event-lineup/extras?eventId=${eventId}`)).json()).data;
   expect(extras.notes.rundown).toBe(`Soundcheck E2E ${tag}`);
 
+  // Pengajuan dana panitia (Owner 23 Nov 2026): Bendahara ajukan + bukti → Owner sahkan di Transparansi → baris dana keluar.
+  const me = (await (await api.get("/api/me")).json()).data;
+  await post("/api/event-lineup/crew", { eventId, name: `Bendahara E2E ${tag}`, role: "bendahara", userId: me.user.id });
+  const tr = (await (await api.get(`/api/event-transparency?eventId=${eventId}`)).json()).data;
+  const code = `E${tag.slice(0, 3)}`;
+  const put = await api.put(`/api/event-transparency?eventId=${eventId}`, {
+    data: { enabled: tr.enabled, data: { ...tr.data, budgetLines: [...tr.data.budgetLines, { code, name: `Pos E2E ${tag}`, budget: 1_000_000 }] } },
+  });
+  expect(put.ok(), await put.text()).toBeTruthy();
+  const png = Buffer.from("89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d4944415478da63f8ffff3f0005fe02fea7d6a4a30000000049454e44ae426082", "hex");
+  const submit = await api.post("/api/panitia/fund-requests", {
+    multipart: { eventId, kind: "keluar", date: today, amount: "250000", budgetCode: code, party: `Vendor Dana ${tag}`, description: "DP", proof: { name: "bukti.png", mimeType: "image/png", buffer: png } },
+  });
+  expect(submit.status(), await submit.text()).toBe(201);
+  await page.goto(`/control/event-transparency?eventId=${eventId}`);
+  const requests = page.locator("section", { has: page.getByRole("heading", { name: /Pengajuan dana panitia/ }) });
+  await expect(requests).toBeVisible({ timeout: 90_000 });
+  const row = requests.locator("li", { hasText: `Vendor Dana ${tag}` });
+  await row.getByRole("button", { name: "Sahkan" }).click();
+  await expect(row.getByRole("button", { name: "Sahkan" })).toHaveCount(0);
+  const after = (await (await api.get(`/api/event-transparency?eventId=${eventId}`)).json()).data;
+  expect(after.data.expenses).toEqual(expect.arrayContaining([expect.objectContaining({ code, amount: 250000 })]));
+
   // Hari-H: walk-in, panggung mulai lalu undo, checklist operasional.
   await post("/api/event-day/checkins", { eventId, walkInName: `Tamu E2E ${tag}`, pax: 1 });
   await post(`/api/event-day/slots/${performer.id}`, { action: "start" });

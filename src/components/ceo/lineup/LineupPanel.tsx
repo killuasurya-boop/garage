@@ -1187,7 +1187,7 @@ function ExtrasTab({ eventId, eventTitle }: { eventId: string | null; eventTitle
   if (!data || data.eventId !== eventId) return <div className={`${cardClass} text-sm text-zinc-300`}>Memuat…</div>;
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-      <CrewNotesCard key={`${eventId}:${data.notes.revision}`} eventId={eventId} notes={data.notes} canEdit={data.canEditNotes} onSaved={load} />
+      <CrewNotesCard key={eventId} eventId={eventId} notes={data.notes} canEdit={data.canEditNotes} onSaved={load} />
       <ConsumptionCard data={data.consumption} fileName={`Rekap-konsumsi-${eventTitle.replace(/[^\w-]+/g, "_").slice(0, 40)}.csv`} />
     </div>
   );

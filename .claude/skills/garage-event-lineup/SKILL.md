@@ -200,3 +200,11 @@ description: Aturan WAJIB modul Lineup & Panitia Event (band/stand-up, rundown, 
   tertaut) + porsi tambahan; jumlah orang/kehadiran/catatan makanan dari pendaftaran website tertaut. Di Ruang Panitia hanya
   Ketua/Sekretaris/Bendahara/seksi Konsumsi. Tanpa kontak/uang. CSV aman formula. Impor Dashboard mengisi catatan hanya bila
   catatan Garage kosong. Reset grand opening: KEEP.
+- Pengajuan dana panitia (Owner 23 Nov 2026, migrasi 0210 `event_fund_requests`, pindahan Dashboard Penyelenggara): Ketua/
+  Bendahara panitia AKTIF event itu mengajukan dana masuk/keluar + bukti WAJIB (JPG/PNG/WebP/PDF ≤5 MB, magic bytes dicek,
+  disimpan privat `storage/event-proofs/<uuid>`), `POST /api/panitia/fund-requests` (multipart). Dana keluar wajib kode pos
+  RAB yang ada di Transparansi. Owner (login langsung) mengesahkan/menolak di Transparansi (`POST /api/event-fund-requests/
+  [id]/decide`, tolak wajib alasan, hanya dari `diajukan` → 409 `ALREADY_DECIDED`). Sah = baris dana masuk/keluar
+  Transparansi dalam tx yang sama (baris Transparansi dikunci FOR UPDATE, kapasitas 300 dijaga), TIDAK PERNAH buku kas.
+  Bukti (`GET .../proof`): Owner, pengaju, Ketua/Bendahara event itu; no-store + nosniff. Notifikasi HP Owner
+  `event_fund_request`. Reset grand opening: KEEP. Staging: `proof_file` dikosongkan.

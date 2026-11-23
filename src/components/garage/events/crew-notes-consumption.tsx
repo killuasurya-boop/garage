@@ -9,7 +9,7 @@ import type { EventNotes } from "@/lib/event-crew-notes-service";
 
 // Catatan panitia + rekap konsumsi (Owner 22 Nov 2026, pindahan Dashboard Penyelenggara). Dipakai papan Lineup (Owner/
 // Manajer) dan Ruang Panitia. Hak ubah dicek di server; `canEdit` hanya menyembunyikan tombol.
-// Pemakai memberi `key={notes.revision}` agar isian di-reset setelah simpan / data baru.
+// Pemakai memberi `key={eventId}`: isian di-reset saat event berganti.
 
 const card = "rounded-lg border border-white/10 bg-[var(--garage-bg-2,#17171b)] p-4";
 const area = "min-h-28 w-full rounded-md border border-white/15 bg-black/30 px-3 py-2 text-base text-zinc-50 focus:border-amber-300 focus:outline-none";
@@ -18,7 +18,13 @@ const stamp = (iso: string | null) =>
   iso ? new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" }).format(new Date(iso)) : null;
 
 export function CrewNotesCard({ eventId, notes, canEdit, onSaved }: { eventId: string; notes: EventNotes; canEdit: boolean; onSaved: () => void | Promise<void> }) {
-  const [draft, setDraft] = useState({ rundown: notes.rundown, readiness: notes.readiness, extraPortions: notes.extraPortions });
+  // Draft selalu membawa revisi dasarnya. Revisi baru dari server: draft yang belum diubah ikut diperbarui; draft yang
+  // sedang diubah tetap memakai revisi lamanya → simpan ditolak 409 (tidak menimpa simpanan orang lain diam-diam).
+  const fromNotes = (n: EventNotes) => ({ rundown: n.rundown, readiness: n.readiness, extraPortions: n.extraPortions, base: n.revision, dirty: false });
+  const [draft, setDraftState] = useState(() => fromNotes(notes));
+  if (draft.base !== notes.revision && !draft.dirty) setDraftState(fromNotes(notes));
+  const setDraft = (patch: Partial<Pick<typeof draft, "rundown" | "readiness" | "extraPortions">>) => setDraftState((d) => ({ ...d, ...patch, dirty: true }));
+  const stale = draft.dirty && draft.base !== notes.revision;
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -26,7 +32,8 @@ export function CrewNotesCard({ eventId, notes, canEdit, onSaved }: { eventId: s
     setSaving(true);
     setMsg(null);
     try {
-      await garageApi.put("/api/panitia/notes", { eventId, ...draft, revision: notes.revision });
+      await garageApi.put("/api/panitia/notes", { eventId, rundown: draft.rundown, readiness: draft.readiness, extraPortions: draft.extraPortions, revision: draft.base });
+      setDraftState((d) => ({ ...d, dirty: false }));
       setMsg("Catatan tersimpan.");
       await onSaved();
     } catch (e) {
@@ -43,15 +50,20 @@ export function CrewNotesCard({ eventId, notes, canEdit, onSaved }: { eventId: s
         <NotebookPen size={16} className="text-[#ff6b75]" /> Catatan panitia
       </h3>
       <p className="text-xs text-zinc-300">{who}</p>
+      {stale ? (
+        <p className="text-sm text-amber-200" role="alert">
+          Catatan sudah diubah orang lain sejak Anda mulai mengetik. Salin teks Anda, muat ulang halaman, lalu simpan lagi.
+        </p>
+      ) : null}
       {canEdit ? (
         <>
           <label className="block space-y-1 text-sm text-zinc-200">
             <span>Catatan rundown</span>
-            <textarea className={area} maxLength={4000} value={draft.rundown} onChange={(e) => setDraft({ ...draft, rundown: e.target.value })} />
+            <textarea className={area} maxLength={4000} value={draft.rundown} onChange={(e) => setDraft({ rundown: e.target.value })} />
           </label>
           <label className="block space-y-1 text-sm text-zinc-200">
             <span>Catatan kesiapan</span>
-            <textarea className={area} maxLength={4000} value={draft.readiness} onChange={(e) => setDraft({ ...draft, readiness: e.target.value })} />
+            <textarea className={area} maxLength={4000} value={draft.readiness} onChange={(e) => setDraft({ readiness: e.target.value })} />
           </label>
           <label className="block space-y-1 text-sm text-zinc-200">
             <span>Porsi konsumsi tambahan (MC, tamu, lainnya)</span>
@@ -62,7 +74,7 @@ export function CrewNotesCard({ eventId, notes, canEdit, onSaved }: { eventId: s
               inputMode="numeric"
               className="h-11 w-32 rounded-md border border-white/15 bg-black/30 px-3 text-base text-zinc-50 focus:border-amber-300 focus:outline-none"
               value={draft.extraPortions}
-              onChange={(e) => setDraft({ ...draft, extraPortions: Math.max(0, Math.min(1000, Number(e.target.value) || 0)) })}
+              onChange={(e) => setDraft({ extraPortions: Math.max(0, Math.min(1000, Number(e.target.value) || 0)) })}
             />
           </label>
           <div className="flex flex-wrap items-center gap-3">

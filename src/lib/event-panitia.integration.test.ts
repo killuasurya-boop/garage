@@ -196,3 +196,64 @@ describe("Catatan panitia & rekap konsumsi (Owner 22 Nov 2026)", () => {
     expect(anggota.canEditNotes).toBe(false);
   });
 });
+
+describe("Pengajuan dana panitia (Owner 23 Nov 2026)", () => {
+  let fund: any;
+  let dir = "";
+  const JPG = { type: "image/jpeg", bytes: new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]) };
+  beforeAll(async () => {
+    const os = await import("node:os");
+    const fs = await import("node:fs/promises");
+    dir = await fs.mkdtemp(`${os.tmpdir()}/fund-proof-`);
+    process.env.GARAGE_STORAGE_BASE_DIR = dir;
+    fund = await import("@/lib/event-fund-request-service");
+    const pf = await import("@/lib/event-public-finance");
+    const { EMPTY_PUBLIC_FINANCE } = await import("@/lib/event-public-finance-rules");
+    await pf.savePublicFinance(eventId, { enabled: false, data: { ...EMPTY_PUBLIC_FINANCE, budgetLines: [{ code: "02", name: "Sound", budget: 5_000_000 }] } }, owner());
+  });
+  afterAll(async () => {
+    delete process.env.GARAGE_STORAGE_BASE_DIR;
+    if (dir) await (await import("node:fs/promises")).rm(dir, { recursive: true, force: true });
+  });
+
+  it("hanya Ketua/Bendahara; bukti wajib & isinya dicek; pos RAB harus ada", async () => {
+    const keluar = { eventId, kind: "keluar", date: "2026-11-23", amount: 750_000, party: "Sound Jaya", budgetCode: "02", payKind: "dp", description: "DP sound" };
+    await expect(fund.submitFundRequest(keluar, JPG, session(ASING, "Waiter" as Role))).rejects.toMatchObject({ code: "FORBIDDEN" }); // seksi dokumentasi
+    await expect(fund.submitFundRequest(keluar, null, session(BENDAHARA, "Waiter" as Role))).rejects.toMatchObject({ code: "PROOF_MISSING" });
+    await expect(fund.submitFundRequest(keluar, { type: "image/jpeg", bytes: new Uint8Array([0x25, 0x50, 0x44, 0x46]) }, session(BENDAHARA, "Waiter" as Role))).rejects.toMatchObject({ code: "PROOF_MISMATCH" });
+    await expect(fund.submitFundRequest({ ...keluar, budgetCode: "99" }, JPG, session(BENDAHARA, "Waiter" as Role))).rejects.toMatchObject({ code: "BUDGET_CODE_UNKNOWN" });
+    const row = await fund.submitFundRequest(keluar, JPG, session(BENDAHARA, "Waiter" as Role));
+    expect(row).toMatchObject({ status: "diajukan", hasProof: true, submittedByName: "bendahara" });
+    const ws = (await panitia.getPanitiaWorkspace(session(KETUA, "Waiter" as Role))).events[0];
+    expect(ws.fundRequests.items).toHaveLength(1);
+    expect(ws.fundRequests.budgetCodes).toEqual([{ code: "02", name: "Sound" }]);
+    expect((await panitia.getPanitiaWorkspace(session(ASING, "Waiter" as Role))).events[0].fundRequests).toBeNull();
+  });
+
+  it("Owner mengesahkan → baris Transparansi, tanpa buku kas; tidak bisa diputus dua kali; tolak wajib alasan; bukti privat", async () => {
+    const pf = await import("@/lib/event-public-finance");
+    const [req] = (await fund.listFundRequests(eventId, owner())).items;
+    await expect(fund.listFundRequests(eventId, session(KETUA, "Waiter" as Role))).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(fund.decideFundRequest(req.id, { action: "sahkan", note: "" }, session(OWNER, "Owner" as Role, { agentKey: { id: "k" } }))).rejects.toMatchObject({ code: "HUMAN_SESSION_REQUIRED" });
+    const ledgerBefore = (await t.getDb().select().from(t.schema.cashLedgerEntries)).length;
+    await fund.decideFundRequest(req.id, { action: "sahkan", note: "" }, owner());
+    const fin = (await pf.getPublicFinance(eventId, owner())).data!;
+    expect(fin.expenses).toEqual([expect.objectContaining({ code: "02", amount: 750_000, payKind: "dp", description: "ke Sound Jaya · DP sound" })]);
+    expect((await t.getDb().select().from(t.schema.cashLedgerEntries)).length).toBe(ledgerBefore);
+    await expect(fund.decideFundRequest(req.id, { action: "tolak", note: "telat" }, owner())).rejects.toMatchObject({ code: "ALREADY_DECIDED" });
+
+    const masuk = await fund.submitFundRequest({ eventId, kind: "masuk", date: "2026-11-23", amount: 1_000_000, party: "Kopi Sponsor", budgetCode: "", payKind: "", description: "" }, JPG, session(KETUA, "Waiter" as Role));
+    await fund.decideFundRequest(masuk.id, { action: "tolak", note: "Belum masuk mutasi" }, owner());
+    expect((await pf.getPublicFinance(eventId, owner())).data!.incomes).toHaveLength(0);
+
+    const proof = await fund.readFundProof(req.id, owner());
+    expect(proof.type).toBe("image/jpeg");
+    expect(Array.from(proof.bytes.slice(0, 3))).toEqual([0xff, 0xd8, 0xff]);
+    await fund.readFundProof(req.id, session(KETUA, "Waiter" as Role));
+    await expect(fund.readFundProof(req.id, session(ASING, "Waiter" as Role))).rejects.toMatchObject({ code: "FORBIDDEN" });
+    const logs = await t.getDb().select().from(t.schema.auditLogs);
+    expect(logs.filter((l: any) => (l.metadata as any)?.module === "event-fund-request").map((l: any) => l.action)).toEqual(
+      expect.arrayContaining(["Ajukan dana keluar", "Sahkan pengajuan dana keluar", "Tolak pengajuan dana masuk"]),
+    );
+  });
+});

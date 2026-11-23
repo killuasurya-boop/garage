@@ -12,6 +12,9 @@ Garage (Owner) memeriksa dulu.
    - **Harga jual** = usulan harga di menu Garage. Owner yang menetapkan.
    - Portal menampilkan *Bagian Garage* per porsi (harga jual − harga setor).
 4. **Langkah 3 · Foto & kirim** — foto (opsional, bisa menyusul), catatan untuk Garage, periksa ringkasan, **Kirim ke Garage**.
+   - Ada **contoh foto yang baik** (terang & di tengah) dan yang dihindari (gelap, buram, terlalu jauh), plus 3 tips singkat.
+   - Setelah memilih foto, portal memberi **saran otomatis** bila foto gelap/pucat, resolusinya kecil (ideal 800×800), atau tidak kotak.
+     Saran tidak memblokir — foto tetap bisa dikirim.
 
 Status di daftar *Produk saya*:
 

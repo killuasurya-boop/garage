@@ -90,3 +90,17 @@ describe("antrean pengajuan produk (dashboard Owner)", () => {
     expect(summarizeSubmissionQueue([], now)).toEqual({ pending: 0, revision: 0, overdue: 0, oldestSubmittedAt: null });
   });
 });
+
+describe("saran kualitas foto produk", () => {
+  it("foto kotak, terang, 800px = tanpa saran; gelap/pucat/kecil/tidak kotak diberi saran", async () => {
+    const { photoQualityHints } = await import("@/lib/partner-product-submission");
+    expect(photoQualityHints({ width: 800, height: 800, meanLuma: 130, p90Luma: 200 })).toEqual([]);
+    // Gaya foto menu Garage (latar gelap, objek terang; foto tergelap: rata-rata 35, p90 82) tidak ditegur.
+    expect(photoQualityHints({ width: 800, height: 800, meanLuma: 35, p90Luma: 82 })).toEqual([]);
+    expect(photoQualityHints({ width: 800, height: 800, meanLuma: 15, p90Luma: 36 }).join(" ")).toMatch(/gelap/);
+    expect(photoQualityHints({ width: 800, height: 800, meanLuma: 240, p90Luma: 255 }).join(" ")).toMatch(/pucat/);
+    expect(photoQualityHints({ width: 320, height: 320, meanLuma: 130, p90Luma: 200 }).join(" ")).toMatch(/Resolusi kecil \(320×320\)/);
+    expect(photoQualityHints({ width: 1600, height: 900, meanLuma: 130, p90Luma: 200 }).join(" ")).toMatch(/tidak kotak/);
+    expect(photoQualityHints({ width: 1200, height: 1000, meanLuma: 130, p90Luma: 200 })).toEqual([]);
+  });
+});

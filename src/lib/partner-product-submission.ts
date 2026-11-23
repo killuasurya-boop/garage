@@ -169,3 +169,27 @@ export function summarizeSubmissionQueue(rows: SubmissionQueueRow[], now: Date =
     oldestSubmittedAt: oldest ? new Date(oldest).toISOString() : null,
   };
 }
+
+// ─── Cek kualitas foto produk (di HP mitra, sebelum unggah; hanya saran, tidak memblokir) ─
+
+/** Menu digital menampilkan foto kotak; ukuran ideal 800×800 (sama dengan foto menu Garage). */
+export const PHOTO_IDEAL_SIZE = 800;
+
+/**
+ * meanLuma = rata-rata kecerahan 0–255; p90Luma = kecerahan bagian terang (persentil 90).
+ * "Gelap" dinilai dari p90: foto menu Garage bergaya gelap (rata-rata ±65) tetapi objeknya terang (p90 ≥ 82),
+ * sedangkan foto kurang cahaya tidak punya bagian terang sama sekali.
+ */
+export type PhotoStats = { width: number; height: number; meanLuma: number; p90Luma: number };
+
+/** Saran kualitas foto dalam bahasa awam. Kosong = foto sudah baik. */
+export function photoQualityHints(stats: PhotoStats): string[] {
+  const hints: string[] = [];
+  const short = Math.min(stats.width, stats.height);
+  const ratio = Math.max(stats.width, stats.height) / Math.max(1, short);
+  if (stats.p90Luma < 75) hints.push("Foto tampak gelap. Coba foto di tempat lebih terang atau dekat jendela.");
+  else if (stats.meanLuma > 215) hints.push("Foto tampak terlalu terang/pucat. Kurangi cahaya atau matikan flash.");
+  if (short < 500) hints.push(`Resolusi kecil (${stats.width}×${stats.height}). Foto bisa pecah; pakai foto minimal ${PHOTO_IDEAL_SIZE}×${PHOTO_IDEAL_SIZE}.`);
+  if (ratio > 1.35) hints.push("Foto tidak kotak, tepinya akan terpotong di menu. Pastikan produk ada di tengah.");
+  return hints;
+}

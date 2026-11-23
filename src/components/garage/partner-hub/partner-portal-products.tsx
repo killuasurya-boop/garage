@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 
 import { DialogOverlay, DialogPortal } from "@/components/ui/dialog";
+import { PhotoGuide, PhotoQualityNotice } from "./partner-photo-guide";
 import {
   garageShare,
   MAX_SUBMISSION_VARIANTS,
@@ -745,8 +746,12 @@ function ProductFormDialog({
                           }}
                         />
                       </label>
-                      <p className="mt-1 text-xs text-[#b8b8bf]">Foto terang, produk di tengah. JPG/PNG/WebP maks 8 MB.</p>
+                      <p className="mt-1 text-xs text-[#b8b8bf]">Foto kotak, terang, produk di tengah. JPG/PNG/WebP maks 8 MB.</p>
                     </div>
+                  </div>
+                  <div className="mt-3 grid gap-3">
+                    <PhotoQualityNotice previewUrl={preview} />
+                    <PhotoGuide compact={Boolean(preview || product?.imageUrl)} />
                   </div>
                 </div>
 

@@ -148,3 +148,8 @@ description: Aturan WAJIB Smart Partner Hub (mitra resmi, produk partner, portal
   (kartu atas, "dikembalikan ke mitra" dilipat). Target periksa `SUBMISSION_REVIEW_TARGET_HOURS` = 24 jam (lewat = merah).
   "Periksa" → `/partners?tab=manage&partner=<id>&product=<linkId>`: DeskManage membuka mitra, menggulir & menyorot produk.
   `listPartners` memberi `pendingSubmissions` (chip per mitra). Semua waktu ditampilkan WIB (`submissionTimeWib`).
+  Panduan foto (Owner 24 Nov 2026, no migration): langkah "Foto & kirim" menampilkan `PhotoGuide` (`partner-photo-guide.tsx`):
+  1 contoh bagus + 3 "hindari" (gelap/buram/terlalu jauh) dari SATU foto menu asli + efek CSS (tanpa aset baru), 3 tips; dilipat
+  setelah ada foto. `PhotoQualityNotice` membaca foto terpilih di browser (32×32 canvas) → `photoQualityHints` (pure): gelap =
+  p90 kecerahan < 75 (foto menu Garage yang bergaya gelap tetap lolos; jangan ganti ke rata-rata), pucat = rata-rata > 215,
+  resolusi < 500 px, rasio > 1.35. Hanya saran, tidak pernah memblokir kirim/unggah.

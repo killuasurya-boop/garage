@@ -233,6 +233,11 @@ test("UAT-C: Portal Mitra terima → proses → siap; 2 waiter klaim bersamaan, 
   await form.getByLabel("Harga jual").fill("20000");
   await expect(form.getByText(/Bagian Garage/)).toContainText("5.000");
   await form.getByRole("button", { name: /Lanjut/ }).click();
+  // Langkah Foto: contoh foto tampil; foto kecil diberi saran (tetap boleh dikirim).
+  await expect(form.getByRole("region", { name: "Contoh foto yang baik" })).toBeVisible();
+  await form.locator('input[type="file"]').setInputFiles({ name: "kecil.png", mimeType: "image/png", buffer: png });
+  await expect(form.getByRole("status").filter({ hasText: "Saran foto" })).toContainText(/Resolusi kecil \(16×16\)/);
+  await expect(form.getByText("Lihat contoh foto yang baik")).toBeVisible();
   await form.getByRole("button", { name: /Kirim ke Garage/ }).click();
   await expect(form.getByText("Pengajuan terkirim")).toBeVisible({ timeout: 30_000 });
   await form.getByRole("button", { name: "Selesai" }).click();

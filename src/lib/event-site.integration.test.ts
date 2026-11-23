@@ -190,6 +190,9 @@ describe("Platform GIGS dimatikan (Owner 23 Nov 2026): salinan publik menjaga ha
     const list = await GET(req("http://x/event"), ctx([]));
     expect(list.status).toBe(302);
     expect(list.headers.get("location")).toBe(`/event/${SLUG}`);
+    const events = await GET(req("http://x/event/api/events"), ctx(["api", "events"]));
+    expect(events.status).toBe(200);
+    expect((await events.json()).events.some((e: { slug: string }) => e.slug === SLUG)).toBe(true);
   });
 
   it("impor RAB / lineup oleh Owner tetap jujur: platform tidak terjangkau → error, bukan salinan diam-diam", async () => {

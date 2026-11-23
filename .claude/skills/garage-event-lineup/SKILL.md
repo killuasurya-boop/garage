@@ -222,4 +222,4 @@ description: Aturan WAJIB modul Lineup & Panitia Event (band/stand-up, rundown, 
 - Platform GIGS DIMATIKAN (Owner 23 Nov 2026, workflow sekali pakai #268 → `docker stop` + restart=no pada container
   `garage-event-*`; container/image/data tetap ada). Nyalakan lagi di VPS: `docker update --restart=unless-stopped <nama>
   && docker start <nama>`. Saat mati: lineup halaman event dari salinan `public/lineup`, `/event` → 302 ke event online
-  pertama di salinan (`eventListFallback`); `?lama=1`, `/event/admin`, API penyelenggara = 502.
+  pertama di salinan (`eventListFallback`), `/event/api/events` (lencana menu beranda) → salinan daftar event; `?lama=1`, `/event/admin`, API penyelenggara = 502.

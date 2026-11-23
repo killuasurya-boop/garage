@@ -6,10 +6,13 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Handshake } from "lucide-react";
 
+import { SubmissionQueue, type SubmissionQueue as SubmissionQueueData } from "./partner-submission-queue";
+
 type Summary =
-  | { enabled: false }
+  | { enabled: false; submissions?: SubmissionQueueData }
   | {
       enabled: true;
+      submissions?: SubmissionQueueData;
       partners: Array<{ partnerId: string; name: string; operationalStatus: string; todaySales: number; monthSales: number }>;
       draftCount: number;
       openCount: number;
@@ -38,8 +41,13 @@ export function PartnerDashboardWidget({ role }: { role: string }) {
       cancelled = true;
     };
   }, [role]);
-  if (!data || !data.enabled || (data.partners.length === 0 && data.draftCount === 0)) return null;
+  if (!data) return null;
+  // Pengajuan produk mitra yang menunggu Owner tampil paling atas (juga saat Partner Hub mati).
+  const queue = data.submissions?.pending ? <SubmissionQueue queue={data.submissions} variant="dashboard" /> : null;
+  if (!data.enabled || (data.partners.length === 0 && data.draftCount === 0)) return queue;
   return (
+    <>
+    {queue}
     <section className="rounded-xl border border-[#34343c] bg-[#17171c] p-4" aria-labelledby="pdw-title">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 id="pdw-title" className="flex items-center gap-2 text-base font-bold text-white">
@@ -61,6 +69,7 @@ export function PartnerDashboardWidget({ role }: { role: string }) {
         {data.draftCount ? <span className="text-[#ffd08a]"> · {data.draftCount} mitra belum aktif</span> : null}
       </p>
     </section>
+    </>
   );
 }
 

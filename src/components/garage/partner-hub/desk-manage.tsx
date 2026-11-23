@@ -3,11 +3,12 @@
 // Kelola Mitra (Owner/Manajer, papan 05): registrasi, status siklus hidup, rekening, akun login, produk & harga.
 // Aksi Owner-only (setujui/aktifkan, verifikasi rekening, setujui produk, ubah harga) dicek ulang di server.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Download, Plus, ShieldCheck, UserPlus } from "lucide-react";
 
 import { PartnerHealthBoard, PartnerPerformanceStaff, PriceProposalQueue } from "./desk-growth";
 import { api, Btn, Card, Chip, Field, inputCls, Notice, rp } from "./desk-shared";
+import { SubmissionQueue, type SubmissionQueue as SubmissionQueueData, type SubmissionItem } from "./partner-submission-queue";
 import { matchesPartnerFilter, PartnerStatusControl, PartnerStatusFilter, type PartnerFilter } from "./partner-status-control";
 
 type Partner = {
@@ -25,6 +26,8 @@ type Partner = {
   payoutSchedule: string | null;
   lastOrderByDay: Record<string, string | null>;
   productCount: number;
+  /** Produk yang diajukan mitra dan menunggu keputusan Owner. */
+  pendingSubmissions?: number;
   availableCount: number;
   soldOutCount: number;
   bank: Array<{ id: string; bankName: string; accountName: string; accountMasked: string; status: string; accountNumber?: string }>;
@@ -69,11 +72,16 @@ export function DeskManage({ role }: { role: string }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [healthKey, setHealthKey] = useState(0);
   const [filter, setFilter] = useState<PartnerFilter>("all");
+  const [submissions, setSubmissions] = useState<SubmissionQueueData | null>(null);
+  // Produk yang disorot setelah "Periksa" (dari Dashboard / antrean pengajuan).
+  const [focusProduct, setFocusProduct] = useState<string | null>(null);
   const isOwner = role === "Owner";
 
   const load = useCallback(async () => {
     try {
-      setPartners(await api<Partner[]>("/api/partners"));
+      const [list, queue] = await Promise.all([api<Partner[]>("/api/partners"), api<SubmissionQueueData>("/api/partners/product-submissions").catch(() => null)]);
+      setPartners(list);
+      setSubmissions(queue);
     } catch (error) {
       setMessage({ tone: "error", text: (error as Error).message });
       setPartners([]);
@@ -83,7 +91,20 @@ export function DeskManage({ role }: { role: string }) {
     // Ambil data saat tampil (pola repo: fetch-on-mount).
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
+    // Tautan dari Dashboard: ?partner=<id>&product=<linkId> → buka mitra & sorot produknya.
+    const params = new URLSearchParams(window.location.search);
+    const partnerParam = params.get("partner");
+    if (partnerParam) {
+      setOpenId(partnerParam);
+      setFilter("all");
+      setFocusProduct(params.get("product"));
+    }
   }, [load]);
+  const review = (item: SubmissionItem) => {
+    setFilter("all");
+    setOpenId(item.partnerId);
+    setFocusProduct(item.linkId);
+  };
 
   async function run(key: string, fn: () => Promise<unknown>, ok: string) {
     setBusy(key);
@@ -102,6 +123,7 @@ export function DeskManage({ role }: { role: string }) {
   return (
     <div className="grid gap-4">
       <Notice message={message} />
+      {submissions && (submissions.pending || submissions.revision) ? <SubmissionQueue queue={submissions} variant="desk" onReview={review} /> : null}
       <PartnerHealthBoard refreshKey={healthKey} />
       <PriceProposalQueue isOwner={isOwner} onDecided={() => setHealthKey((k) => k + 1)} />
       {isOwner ? <ImportCatalogCard busy={busy === "import"} onImport={() => void run("import", () => api("/api/partners/import-catalog", { method: "POST" }), "Katalog awal diimpor: mitra Draft + produk nonaktif. Lengkapi data & setujui produk satu per satu.")} /> : null}
@@ -133,6 +155,7 @@ export function DeskManage({ role }: { role: string }) {
                   {partner.productKind ?? "-"} · {partner.phone ?? "tanpa WA"}
                 </p>
                 <p className="mt-1.5 flex flex-wrap gap-1.5" aria-label="Kesiapan mitra">
+                  {partner.pendingSubmissions ? <Chip tone="amber">{partner.pendingSubmissions} pengajuan produk menunggu</Chip> : null}
                   <Chip tone={partner.productCount ? "default" : "amber"}>
                     {partner.productCount ? `${partner.productCount} produk · ${partner.availableCount} tersedia · ${partner.soldOutCount} habis` : "Belum ada produk"}
                   </Chip>
@@ -155,7 +178,7 @@ export function DeskManage({ role }: { role: string }) {
                 <Btn onClick={() => setOpenId(openId === partner.id ? null : partner.id)}>{openId === partner.id ? "Tutup" : "Kelola"}</Btn>
               </div>
             </div>
-            {openId === partner.id ? <PartnerDetail partner={partner} allPartners={partners} isOwner={isOwner} busy={busy} run={run} /> : null}
+            {openId === partner.id ? <PartnerDetail partner={partner} allPartners={partners} isOwner={isOwner} busy={busy} run={run} focusProduct={focusProduct} /> : null}
           </Card>
         ))}
         </>
@@ -220,14 +243,17 @@ function PartnerDetail({
   isOwner,
   busy,
   run,
+  focusProduct,
 }: {
   partner: Partner;
   allPartners: Partner[];
   isOwner: boolean;
   busy: string | null;
   run: (key: string, fn: () => Promise<unknown>, ok: string) => Promise<void>;
+  focusProduct?: string | null;
 }) {
   const [products, setProducts] = useState<Product[] | null>(null);
+  const focused = useRef<string | null>(null);
   const [terms, setTerms] = useState(partner.terms ?? "");
   const [profile, setProfile] = useState({
     name: partner.name,
@@ -258,6 +284,16 @@ function PartnerDetail({
     await run(key, fn, ok);
     await loadProducts();
   };
+  useEffect(() => {
+    // Gulir ke produk yang diminta (sekali per tautan) setelah daftar produk termuat.
+    if (!products || !focusProduct || focused.current === focusProduct) return;
+    const el = document.getElementById(`partner-product-${focusProduct}`);
+    if (!el) return;
+    focused.current = focusProduct;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "center" });
+    el.focus({ preventScroll: true });
+  }, [products, focusProduct]);
   const query = productQuery.trim().toLowerCase();
   const shownProducts = (products ?? []).filter((p) => (!hideInactive || p.active) && (!query || `${p.code} ${p.name}`.toLowerCase().includes(query)));
   const moveTargets = allPartners.filter((x) => x.id !== partner.id && x.status !== "nonaktif");
@@ -480,7 +516,12 @@ function PartnerDetail({
           <ul className="grid gap-2">
             {shownProducts.length === 0 ? <li className="text-sm text-[#b8b8bf]">Tidak ada produk yang cocok dengan pencarian.</li> : null}
             {shownProducts.map((p) => (
-              <li key={p.linkId} className="rounded-lg border border-[#2a2a30] p-3 text-sm">
+              <li
+                key={p.linkId}
+                id={`partner-product-${p.linkId}`}
+                tabIndex={-1}
+                className={`scroll-mt-24 rounded-lg border p-3 text-sm outline-none ${focusProduct === p.linkId ? "border-[#f5a742] bg-[#f5a742]/[0.06] ring-2 ring-[#f5a742]/50" : "border-[#2a2a30]"}`}
+              >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="font-semibold text-white">
                     {p.code} · {p.name}

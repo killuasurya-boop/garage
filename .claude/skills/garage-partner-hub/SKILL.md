@@ -142,3 +142,9 @@ description: Aturan WAJIB Smart Partner Hub (mitra resmi, produk partner, portal
   `withdrawn` tidak bisa disetujui). Harga jual dari mitra = usulan; Owner ubah lewat Pengaturan/harga sebelum menyetujui.
   Setelah disetujui, perubahan harga lewat Pengajuan harga (alur lama). Portal Mitra kini bertab: Pesanan · Produk · Keuangan · Akun
   (tab terakhir diingat di sessionStorage). Foto produk ada di kartu "Produk saya" (komponen lama `partner-portal-photos.tsx` dihapus).
+  Antrean pengajuan (Owner 23 Nov 2026, no migration): `listPartnerProductSubmissions` (Owner/Manajer, baca saja; pending tertua dulu
+  lalu revision) → `GET /api/partners/product-submissions` + ikut di `GET /api/partners/dashboard` (`submissions`, juga saat hub OFF).
+  UI `partner-submission-queue.tsx`: Dashboard (di atas kartu Partner Hub, maks 4, hanya bila ada yang menunggu) & Kelola Mitra
+  (kartu atas, "dikembalikan ke mitra" dilipat). Target periksa `SUBMISSION_REVIEW_TARGET_HOURS` = 24 jam (lewat = merah).
+  "Periksa" → `/partners?tab=manage&partner=<id>&product=<linkId>`: DeskManage membuka mitra, menggulir & menyorot produk.
+  `listPartners` memberi `pendingSubmissions` (chip per mitra). Semua waktu ditampilkan WIB (`submissionTimeWib`).

@@ -1314,6 +1314,13 @@ describe("Smart Partner Hub — produk mandiri mitra (pengajuan dari Portal Mitr
     expect(own).toMatchObject({ active: false, submissionStatus: "pending", submissionNote: "Bisa 30 porsi per malam" });
     expect(own.variants).toEqual([{ variantId: "regular", label: "Regular", sellPrice: 23_000, unitCost: 18_000 }]);
 
+    // Antrean Owner (Dashboard & Kelola Mitra): menunggu terhitung, Kasir tidak boleh melihat.
+    const queue = await svc.listPartnerProductSubmissions(manager());
+    expect(queue).toMatchObject({ pending: 1, revision: 0, overdue: 0 });
+    expect(queue.items[0]).toMatchObject({ linkId: created.linkId, partnerName: "Mitra Dimsum", name: "Siomay Udang", sellPrice: 23_000, unitCost: 18_000, status: "pending" });
+    expect((await svc.listPartners(owner())).find((p) => p.id === partnerB.id)?.pendingSubmissions).toBe(1);
+    await expect(svc.listPartnerProductSubmissions(kasir())).rejects.toThrow(/Owner\/Manajer/);
+
     // Isian tidak sah ditolak server (harga jual di bawah setor); kode berikutnya tidak bentrok.
     await expect(svc.submitPartnerProductByPartner(session, { name: "X Produk", category: "Dimsum", variants: [{ label: "", unitCost: 10_000, sellPrice: 9_000 }] })).rejects.toThrow(/di bawah harga setor/);
 
@@ -1324,6 +1331,7 @@ describe("Smart Partner Hub — produk mandiri mitra (pengajuan dari Portal Mitr
     await expect(svc.requestPartnerProductRevision(created.linkId, "x", manager())).rejects.toThrow(/perlu diperbaiki/);
 
     await svc.requestPartnerProductRevision(created.linkId, "Harga jual terlalu tinggi", manager());
+    expect(await svc.listPartnerProductSubmissions(owner())).toMatchObject({ pending: 0, revision: 1 });
     let row = (await svc.listPartnerProducts(partnerB.id, { outletId, showCost: true })).find((p) => p.linkId === created.linkId)!;
     expect(row).toMatchObject({ submissionStatus: "revision", reviewNote: "Harga jual terlalu tinggi", active: false });
 
@@ -1347,6 +1355,7 @@ describe("Smart Partner Hub — produk mandiri mitra (pengajuan dari Portal Mitr
     expect(approvedMenu.status).toBe("active");
     row = (await svc.listPartnerProducts(partnerB.id, { outletId, showCost: true })).find((p) => p.linkId === created.linkId)!;
     expect(row).toMatchObject({ active: true, submissionStatus: "approved" });
+    expect((await svc.listPartnerProductSubmissions(owner())).items.some((i) => i.linkId === created.linkId)).toBe(false);
     await expect(svc.updatePartnerProductSubmission(session, created.linkId, { name: "Ubah", category: "Dimsum", variants: [{ label: "", unitCost: 1, sellPrice: 2 }] })).rejects.toMatchObject({ status: 409 });
     await expect(svc.withdrawPartnerProductSubmission(session, created.linkId)).rejects.toMatchObject({ status: 409 });
     const events = await svc.listPartnerEvents(partnerB.id, owner());

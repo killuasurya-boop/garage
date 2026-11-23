@@ -26,7 +26,7 @@ Maksimal 10 pengajuan terbuka sekaligus. Anda mendapat notifikasi HP saat disetu
 
 ## Untuk Owner / Manajer
 
-Garage OS → **Kelola Mitra** → buka mitra → daftar produk. Produk bertanda **Diajukan mitra** menampilkan deskripsi & catatan mitra.
+Pengajuan yang menunggu muncul di **Dashboard** (kartu "Pengajuan produk mitra", target diperiksa ≤ 24 jam) dan di atas **Partner Hub → Kelola Mitra**. Tombol **Periksa** langsung membuka mitra dan menyorot produknya. Semua waktu dalam WIB. Produk bertanda **Diajukan mitra** menampilkan deskripsi & catatan mitra.
 
 - **Setujui produk** (Owner saja) — produk aktif dan langsung bisa dipesan.
 - **Pengaturan** — ubah nama/kategori/harga jual sebelum menyetujui bila perlu.

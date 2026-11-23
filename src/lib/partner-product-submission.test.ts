@@ -61,3 +61,32 @@ describe("produk mandiri mitra — aturan murni", () => {
     expect(garageShare({ unitCost: 15000, sellPrice: 20000 })).toBe(5000);
   });
 });
+
+describe("antrean pengajuan produk (dashboard Owner)", () => {
+  const now = new Date("2026-11-23T13:31:00Z"); // 20.31 WIB
+  it("label umur & waktu WIB", async () => {
+    const { submissionAgeLabel, submissionTimeWib } = await import("@/lib/partner-product-submission");
+    expect(submissionAgeLabel(new Date(now.getTime() - 30_000), now)).toBe("baru saja");
+    expect(submissionAgeLabel(new Date(now.getTime() - 25 * 60_000), now)).toBe("25 mnt lalu");
+    expect(submissionAgeLabel(new Date(now.getTime() - 3 * 3_600_000), now)).toBe("3 jam lalu");
+    expect(submissionAgeLabel(new Date(now.getTime() - 50 * 3_600_000), now)).toBe("2 hari lalu");
+    expect(submissionAgeLabel(null, now)).toBe("-");
+    expect(submissionTimeWib(now)).toMatch(/23 Nov.*20[.:]31 WIB$/);
+  });
+
+  it("ringkasan: menunggu, dikembalikan, terlambat > 24 jam, tertua", async () => {
+    const { summarizeSubmissionQueue } = await import("@/lib/partner-product-submission");
+    const old = new Date(now.getTime() - 30 * 3_600_000);
+    const summary = summarizeSubmissionQueue(
+      [
+        { status: "pending", submittedAt: new Date(now.getTime() - 3_600_000) },
+        { status: "pending", submittedAt: old },
+        { status: "revision", submittedAt: old },
+        { status: "approved", submittedAt: old },
+      ],
+      now,
+    );
+    expect(summary).toEqual({ pending: 2, revision: 1, overdue: 1, oldestSubmittedAt: old.toISOString() });
+    expect(summarizeSubmissionQueue([], now)).toEqual({ pending: 0, revision: 0, overdue: 0, oldestSubmittedAt: null });
+  });
+});

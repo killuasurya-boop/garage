@@ -125,3 +125,47 @@ export function nextPartnerSubmissionCode(partnerCode: string, takenCodes: Itera
 export function garageShare(variant: { unitCost: number; sellPrice: number }) {
   return Math.max(0, variant.sellPrice - variant.unitCost);
 }
+
+// ─── Antrean pengajuan untuk Owner/Manajer (dashboard & Kelola Mitra) ────────
+
+/** Target Owner memeriksa pengajuan; lebih lama dari ini ditandai "terlambat" (merah). */
+export const SUBMISSION_REVIEW_TARGET_HOURS = 24;
+
+/** Umur pengajuan dalam bahasa awam: "baru saja", "25 mnt lalu", "3 jam lalu", "2 hari lalu". */
+export function submissionAgeLabel(submittedAt: Date | string | null, now: Date = new Date()) {
+  if (!submittedAt) return "-";
+  const minutes = Math.max(0, Math.floor((now.getTime() - new Date(submittedAt).getTime()) / 60_000));
+  if (minutes < 2) return "baru saja";
+  if (minutes < 60) return `${minutes} mnt lalu`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} jam lalu`;
+  return `${Math.floor(hours / 24)} hari lalu`;
+}
+
+/** Waktu lengkap WIB untuk tooltip/keterangan, mis. "Sen, 23 Nov 20.31 WIB". */
+export function submissionTimeWib(submittedAt: Date | string | null) {
+  if (!submittedAt) return "-";
+  const text = new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(submittedAt));
+  return `${text} WIB`;
+}
+
+export function isSubmissionOverdue(submittedAt: Date | string | null, now: Date = new Date()) {
+  return Boolean(submittedAt) && now.getTime() - new Date(submittedAt!).getTime() > SUBMISSION_REVIEW_TARGET_HOURS * 3_600_000;
+}
+
+export type SubmissionQueueRow = { status: string | null; submittedAt: Date | string | null };
+
+/** Ringkasan antrean: jumlah menunggu Owner, dikembalikan ke mitra, terlambat, dan pengajuan tertua yang menunggu. */
+export function summarizeSubmissionQueue(rows: SubmissionQueueRow[], now: Date = new Date()) {
+  const pending = rows.filter((row) => row.status === "pending");
+  const oldest = pending
+    .map((row) => row.submittedAt)
+    .filter((at): at is Date | string => Boolean(at))
+    .sort((a, b) => new Date(a).getTime() - new Date(b).getTime())[0];
+  return {
+    pending: pending.length,
+    revision: rows.filter((row) => row.status === "revision").length,
+    overdue: pending.filter((row) => isSubmissionOverdue(row.submittedAt, now)).length,
+    oldestSubmittedAt: oldest ? new Date(oldest).toISOString() : null,
+  };
+}

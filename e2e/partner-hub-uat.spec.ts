@@ -239,6 +239,20 @@ test("UAT-C: Portal Mitra terima → proses → siap; 2 waiter klaim bersamaan, 
   const submitted = photos.getByRole("listitem").filter({ hasText: "Es Krim Uji E2E" });
   await expect(submitted.getByText("Menunggu persetujuan")).toBeVisible({ timeout: 30_000 });
 
+  // Owner melihat pengajuan di Dashboard → "Periksa" membuka Kelola Mitra dengan produk itu disorot.
+  const owner = await as(browser, "owner@garage.id");
+  const ownerErrors = failOnPageErrors(owner.page);
+  await owner.page.goto("/os?module=dashboard");
+  const queue = owner.page.getByRole("region", { name: /Pengajuan produk mitra/ });
+  await expect(queue).toBeVisible({ timeout: 60_000 });
+  await expect(queue).toContainText("1 menunggu");
+  await queue.getByRole("link", { name: /Periksa Es Krim Uji E2E/ }).click();
+  await expect(owner.page).toHaveURL(/tab=manage&partner=.+&product=/);
+  const focused = owner.page.locator('li[id^="partner-product-"]').filter({ hasText: "Es Krim Uji E2E" });
+  await expect(focused.getByText("Diajukan mitra")).toBeVisible({ timeout: 60_000 });
+  await expect(focused).toHaveClass(/ring-2/);
+  ownerErrors();
+
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(1);
   assertNoErrors();

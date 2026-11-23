@@ -92,6 +92,7 @@ import {
   normalizedVariantLabel,
   partnerSubmissionProblems,
   submissionVariantIds,
+  summarizeSubmissionQueue,
   type SubmissionInput,
 } from "@/lib/partner-product-submission";
 import { isPartnerPickupOrder, partnerShiftCoverage, partnerShiftPayoutNote, partnerShiftSales, type PartnerShiftLine } from "@/lib/partner-cashier-rules";
@@ -216,6 +217,8 @@ export async function listPartners(garage: GarageSession) {
       // Buka/Jeda kemarin tidak terbawa ke hari ini (lihat effectiveOperationalStatus).
       operationalStatus: effectiveOperationalStatus({ operationalStatus: partner.operationalStatus, operationalStatusAt: partner.operationalStatusAt }),
       productCount: own.length,
+      // Produk yang diajukan mitra dan menunggu keputusan Owner.
+      pendingSubmissions: own.filter((row) => !row.link.active && row.link.submissionStatus === "pending").length,
       availableCount: own.filter((row) => row.link.active && row.item.stock !== "sold_out").length,
       soldOutCount: own.filter((row) => row.link.active && row.item.stock === "sold_out").length,
       bank: banks
@@ -706,6 +709,52 @@ export async function withdrawPartnerProductSubmission(session: PartnerSession, 
     await logEvent(tx, { partnerId: session.partner.id, kind: "product_withdrawn", subjectId: link.id, fromStatus: link.submissionStatus, toStatus: "withdrawn", actor: partnerActor(session) });
     return { linkId: link.id, status: "withdrawn" as const };
   });
+}
+
+/**
+ * Antrean pengajuan produk mitra di outlet (Owner/Manajer, baca saja): yang menunggu Owner (tertua dulu) dan yang
+ * dikembalikan ke mitra. Dipakai widget Dashboard & kartu "Pengajuan produk mitra" di Kelola Mitra.
+ */
+export async function listPartnerProductSubmissions(garage: GarageSession, options: { limit?: number } = {}) {
+  assertOwnerOrManager(garage, "Melihat pengajuan produk mitra");
+  const db = getDb();
+  const rows = await db
+    .select({
+      linkId: partnerProductLinks.id,
+      code: partnerProductLinks.code,
+      status: partnerProductLinks.submissionStatus,
+      submittedAt: partnerProductLinks.submittedAt,
+      submissionNote: partnerProductLinks.submissionNote,
+      reviewNote: partnerProductLinks.reviewNote,
+      partnerId: partners.id,
+      partnerName: partners.name,
+      menuItemId: menuItems.id,
+      name: menuItems.name,
+      category: menuItems.category,
+      imageUrl: menuItems.imageUrl,
+    })
+    .from(partnerProductLinks)
+    .innerJoin(partners, eq(partnerProductLinks.partnerId, partners.id))
+    .innerJoin(menuItems, eq(partnerProductLinks.menuItemId, menuItems.id))
+    .where(and(eq(partners.outletId, garage.profile.outlet.id), eq(partnerProductLinks.active, false), inArray(partnerProductLinks.submissionStatus, ["pending", "revision"])))
+    .orderBy(asc(partnerProductLinks.submittedAt));
+  const variants = rows.length ? await db.select().from(menuVariants).where(inArray(menuVariants.itemId, rows.map((r) => r.menuItemId))).orderBy(asc(menuVariants.sortOrder)) : [];
+  const items = rows.map(({ menuItemId, ...row }) => {
+    const own = variants.filter((v) => v.itemId === menuItemId);
+    return {
+      ...row,
+      submittedAt: row.submittedAt ? row.submittedAt.toISOString() : null,
+      variantCount: own.length,
+      // Harga terendah sebagai gambaran cepat (detail lengkap di Kelola Mitra).
+      sellPrice: own.length ? Math.min(...own.map((v) => v.price)) : 0,
+      unitCost: own.length ? Math.min(...own.map((v) => v.baseCost)) : 0,
+    };
+  });
+  const pending = items.filter((item) => item.status === "pending");
+  return {
+    ...summarizeSubmissionQueue(items.map((item) => ({ status: item.status, submittedAt: item.submittedAt }))),
+    items: [...pending, ...items.filter((item) => item.status === "revision")].slice(0, options.limit ?? 50),
+  };
 }
 
 /** Owner/Manajer mengembalikan pengajuan mitra untuk diperbaiki (alasan wajib, tampil di Portal Mitra). */

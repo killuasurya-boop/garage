@@ -34,6 +34,7 @@ import { LogoUpload } from "@/components/ceo/ui/LogoUpload";
 import { PasteListDialog, type PasteResult } from "@/components/ceo/ui/PasteListDialog";
 import { CREW_COLUMNS, parseCrewRows, parseTalentRows, TALENT_COLUMNS } from "@/lib/paste-list";
 import { FormSection, ReadinessChips, TalentCardPreview } from "@/components/ceo/ui/WebsitePreview";
+import { EVENT_PLATFORM_RETIRED } from "@/lib/event-platform-status";
 import { garageApi, GarageApiError } from "@/lib/api-client";
 import { ConsumptionCard, CrewNotesCard } from "@/components/garage/events/crew-notes-consumption";
 import type { Consumption } from "@/lib/event-consumption-rules";
@@ -489,14 +490,16 @@ function LineupTab({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <ol className="grid min-w-0 flex-1 gap-1 text-sm text-zinc-200 sm:grid-cols-3" aria-label="Cara pakai lineup">
-          <li><b className="text-amber-300">1.</b> Impor dari platform GIGS atau Tambah penampil</li>
+          <li><b className="text-amber-300">1.</b> {EVENT_PLATFORM_RETIRED ? "Tambah penampil atau Tempel daftar" : "Impor dari platform GIGS atau Tambah penampil"}</li>
           <li><b className="text-amber-300">2.</b> Klik “Ubah”: logo, tagline, Instagram, jam</li>
           <li><b className="text-amber-300">3.</b> Status Terkonfirmasi → otomatis tayang di website</li>
         </ol>
         <div className="flex flex-wrap gap-2">
-          <button type="button" className={ghostBtn} onClick={onImport} disabled={importing} title="Ambil band/talent yang sudah tayang di platform GIGS (nama, jenis, logo)">
-            <Download size={16} /> {importing ? "Mengimpor…" : "Impor dari platform GIGS"}
-          </button>
+          {EVENT_PLATFORM_RETIRED ? null : (
+            <button type="button" className={ghostBtn} onClick={onImport} disabled={importing} title="Ambil band/talent yang sudah tayang di platform GIGS (nama, jenis, logo)">
+              <Download size={16} /> {importing ? "Mengimpor…" : "Impor dari platform GIGS"}
+            </button>
+          )}
           <button type="button" className={ghostBtn} onClick={onPaste} title="Tempel daftar talent dari Excel, Google Sheets, atau WhatsApp">
             <ClipboardPaste size={16} /> Tempel daftar
           </button>

@@ -1,3 +1,4 @@
+import { platformJsonSnapshot } from "@/lib/event-platform-snapshot";
 import { NextResponse } from "next/server";
 
 import { publicLineupFor } from "@/lib/event-lineup-service";
@@ -34,6 +35,9 @@ export async function GET(request: Request, context: { params: Promise<{ slug: s
   try {
     return NextResponse.json({ slots: enrichSlotsForEventPage(await fetchRawPlatformSlots(slug, 3000), logoByKey) }, { headers });
   } catch (error) {
+    // Platform mati (dimatikan 23 Nov 2026) → salinan slot publik terakhir (sudah berisi nama resmi & logo Garage).
+    const snap = platformJsonSnapshot(slug, "public/lineup") as { slots?: unknown[] } | undefined;
+    if (Array.isArray(snap?.slots)) return NextResponse.json({ slots: snap.slots }, { headers });
     console.error("[public/gigs/lineup] platform", error instanceof Error ? error.message : "gagal");
     return NextResponse.json({ slots: [] }, { status: 502, headers });
   }

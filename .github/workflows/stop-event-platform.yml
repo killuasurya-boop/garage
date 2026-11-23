@@ -1,0 +1,48 @@
+name: Sekali pakai - matikan platform GIGS lama
+
+# Owner 23 Nov 2026 ("Kamu kerjakan sendiri", pilih opsi 1): hentikan container platform event lama
+# (stack /root/garage-event). Hanya `docker stop` + matikan restart otomatis; container, image, data TIDAK dihapus.
+# Nyalakan lagi: docker update --restart=unless-stopped <nama> && docker start <nama>
+# Hanya dijalankan manual (workflow_dispatch) — tidak pernah otomatis; dihapus setelah dipakai.
+on:
+  workflow_dispatch:
+
+env:
+  VPS_HOST: 201.18.211.55
+  VPS_USER: root
+  VPS_HOST_KEY: "201.18.211.55 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOO6lqbnNI86okZIyf1XgoF5Rr+D8JWg4RkMurApKZwj"
+
+jobs:
+  stop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    steps:
+      - name: Siapkan SSH
+        run: |
+          install -m 700 -d ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          echo "$VPS_HOST_KEY" > ~/.ssh/known_hosts
+
+      - name: Hentikan container platform event
+        run: |
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes $VPS_USER@$VPS_HOST '
+            set -e
+            echo "== Sebelum =="
+            docker ps -a --format "{{.Names}}\t{{.Status}}"
+            NAMES=$(docker ps --format "{{.Names}}" | grep -E "^garage-event" || true)
+            if [ -z "$NAMES" ]; then echo "Tidak ada container garage-event yang berjalan."; exit 0; fi
+            echo "== Dihentikan: $NAMES =="
+            for n in $NAMES; do docker update --restart=no "$n" >/dev/null; docker stop "$n"; done
+            echo "== Sesudah =="
+            docker ps -a --format "{{.Names}}\t{{.Status}}"
+          '
+
+      - name: Cek situs tetap jalan
+        run: |
+          sleep 5
+          for p in /api/health /event/gigs-akhir-tahun-2026 /event/gigs-akhir-tahun-2026/api/public/config /event/gigs-akhir-tahun-2026/transparansi /; do
+            echo "$(curl -s -o /dev/null -w '%{http_code}' "https://garagecoffee.id$p" || true) $p"
+          done
+          echo "dashboard lama (harus 502): $(curl -s -o /dev/null -w '%{http_code}' 'https://garagecoffee.id/event/gigs-akhir-tahun-2026/penyelenggara?lama=1')"

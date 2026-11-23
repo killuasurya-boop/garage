@@ -44,6 +44,10 @@ type Product = {
   promotedOnWebsite?: boolean;
   active: boolean;
   available: boolean;
+  /** Produk mandiri mitra: pending | revision | approved (NULL = didaftarkan staf). */
+  submissionStatus?: string | null;
+  submissionNote?: string | null;
+  reviewNote?: string | null;
   variants: Array<{ variantId: string; label: string; sellPrice: number; unitCost?: number }>;
 };
 
@@ -237,6 +241,7 @@ function PartnerDetail({
   const [account, setAccount] = useState({ phone: partner.phone ?? "", displayName: partner.picName ?? "", pin: "" });
   const [product, setProduct] = useState({ code: "", name: "", category: partner.productKind ?? "", unitCost: "", sellPrice: "" });
   const [editing, setEditing] = useState<string | null>(null);
+  const [revising, setRevising] = useState<string | null>(null);
   const [pinReset, setPinReset] = useState<{ id: string; pin: string } | null>(null);
   const [hideInactive, setHideInactive] = useState(false);
   const [statusTarget, setStatusTarget] = useState<{ to: string; label: string } | null>(null);
@@ -481,10 +486,22 @@ function PartnerDetail({
                     {p.code} · {p.name}
                   </span>
                   <span className="flex flex-wrap gap-2">
+                    {!p.active && p.submissionStatus === "pending" ? <Chip tone="amber">Diajukan mitra</Chip> : null}
+                    {!p.active && p.submissionStatus === "revision" ? <Chip tone="red">Dikembalikan ke mitra</Chip> : null}
                     <Chip tone={p.active ? "green" : "amber"}>{p.active ? "Disetujui" : "Menunggu Owner"}</Chip>
                     <Chip tone={p.available ? "green" : "red"}>{p.available ? "Tersedia" : "Habis"}</Chip>
                   </span>
                 </div>
+                {!p.active && (p.submissionStatus === "pending" || p.submissionStatus === "revision") ? (
+                  <div className="mt-2 grid gap-1 rounded-lg border border-[#ffd08a]/30 bg-[#2a1d0a]/50 px-3 py-2 text-xs text-[#ffe2b0]">
+                    <p>
+                      Diajukan sendiri oleh mitra dari Portal Mitra. Periksa nama, harga, dan foto. Harga jual masih usulan — ubah lewat Pengaturan sebelum menyetujui bila perlu.
+                    </p>
+                    {p.description ? <p className="text-[#f4f4f5]">Deskripsi: {p.description}</p> : null}
+                    {p.submissionNote ? <p className="text-[#f4f4f5]">Catatan mitra: {p.submissionNote}</p> : null}
+                    {p.submissionStatus === "revision" && p.reviewNote ? <p className="text-[#ffd0d4]">Diminta perbaikan: {p.reviewNote} — menunggu mitra mengirim ulang.</p> : null}
+                  </div>
+                ) : null}
                 <div className="mt-2 overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead className="text-[#b8b8bf]">
@@ -520,7 +537,21 @@ function PartnerDetail({
                     Tandai {p.available ? "Habis" : "Tersedia"}
                   </Btn>
                   <Btn onClick={() => setEditing(editing === p.linkId ? null : p.linkId)}>{editing === p.linkId ? "Tutup pengaturan" : "Pengaturan"}</Btn>
+                  {!p.active && p.submissionStatus === "pending" ? (
+                    <Btn tone="danger" onClick={() => setRevising(revising === p.linkId ? null : p.linkId)}>
+                      {revising === p.linkId ? "Batal" : "Minta perbaikan"}
+                    </Btn>
+                  ) : null}
                 </div>
+                {revising === p.linkId ? (
+                  <RevisionRequest
+                    product={p}
+                    busy={busy === `prev-${p.linkId}`}
+                    onSend={(note) =>
+                      void runP(`prev-${p.linkId}`, () => api(`/api/partners/products/${p.linkId}/revision`, { method: "POST", body: JSON.stringify({ note }) }), "Pengajuan dikembalikan ke mitra untuk diperbaiki.").then(() => setRevising(null))
+                    }
+                  />
+                ) : null}
                 {editing === p.linkId ? (
                   // key ikut harga terkini: setelah aturan harga/perubahan lain, form dibuat ulang dari data server
                   // (tidak menyimpan harga lama sebagai "perubahan" yang bisa membatalkan aturan).
@@ -1329,6 +1360,31 @@ function ActivationChecklist({
           </Btn>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/** Owner/Manajer mengembalikan pengajuan produk mitra dengan catatan (tampil di Portal Mitra + push ke HP mitra). */
+function RevisionRequest({ product, busy, onSend }: { product: Product; busy: boolean; onSend: (note: string) => void }) {
+  const [note, setNote] = useState("");
+  const quick = ["Foto kurang jelas", "Harga perlu disesuaikan", "Deskripsi kurang lengkap", "Nama produk perlu diganti"];
+  return (
+    <div className="mt-2 grid gap-2 rounded-lg border border-[#ff5a66]/40 bg-black/30 p-3">
+      <Field label={`Apa yang perlu diperbaiki di ${product.name}?`}>
+        <textarea value={note} onChange={(e) => setNote(e.target.value.slice(0, 300))} rows={2} className="min-h-16 w-full rounded-lg border border-[#3a3a42] bg-black/30 px-3 py-2 text-sm text-white outline-none focus-visible:border-[#ff5a66] focus-visible:ring-2 focus-visible:ring-[#ff5a66]/40" placeholder="Contoh: Foto kurang terang, harga jual Rp 25.000 terlalu tinggi." />
+      </Field>
+      <div className="flex flex-wrap gap-1.5">
+        {quick.map((text) => (
+          <button key={text} type="button" onClick={() => setNote((n) => (n.trim() ? `${n.trim()}. ${text}` : text))} className="min-h-9 rounded-full border border-[#3a3a42] px-3 text-xs font-semibold text-[#e4e4e8] hover:bg-white/10">
+            + {text}
+          </button>
+        ))}
+      </div>
+      <div>
+        <Btn tone="danger" busy={busy} disabled={note.trim().length < 5} onClick={() => onSend(note.trim())}>
+          Kirim ke mitra
+        </Btn>
+      </div>
     </div>
   );
 }

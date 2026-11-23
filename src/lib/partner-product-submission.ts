@@ -1,0 +1,127 @@
+// Produk mandiri mitra (Owner Nov 2026): mitra mengajukan produk sendiri dari Portal Mitra.
+// Aturan murni (tanpa DB) — dipakai service, route, dan UI portal/staf.
+//
+// Alur: mitra ajukan → "pending" (produk NONAKTIF, menu diarsipkan, tidak bisa dipesan)
+//   → Owner setujui  → "approved" (link aktif, menu aktif — lewat setPartnerProductActive yang sudah ada)
+//   → Owner/Manajer minta perbaikan → "revision" (+ catatan) → mitra perbaiki → "pending" lagi
+//   → mitra tarik pengajuan → "withdrawn" (disembunyikan; kode produk tidak dipakai ulang).
+// Produk yang didaftarkan staf memakai submission_status NULL (alur lama, tidak berubah).
+
+export const SUBMISSION_STATUSES = ["pending", "revision", "approved", "withdrawn"] as const;
+export type SubmissionStatus = (typeof SUBMISSION_STATUSES)[number];
+
+/** Batas pengajuan terbuka (menunggu + perlu perbaikan) per mitra — mencegah antrean Owner menumpuk. */
+export const MAX_OPEN_PARTNER_SUBMISSIONS = 10;
+export const MAX_SUBMISSION_VARIANTS = 6;
+export const MAX_PARTNER_PRICE = 10_000_000;
+
+export const SUBMISSION_STATUS_LABEL: Record<SubmissionStatus, string> = {
+  pending: "Menunggu persetujuan",
+  revision: "Perlu perbaikan",
+  approved: "Disetujui",
+  withdrawn: "Ditarik",
+};
+
+/** Kategori yang disarankan di formulir (mitra tetap boleh mengetik kategori sendiri). */
+export const PARTNER_CATEGORY_SUGGESTIONS = ["Makanan", "Minuman", "Dessert", "Snack", "Frozen", "Paket"] as const;
+
+export type PartnerProductView = "selling" | "inactive" | SubmissionStatus;
+
+/** Status tampilan satu produk mitra (portal & staf). */
+export function partnerProductView(input: { active: boolean; submissionStatus: string | null }): PartnerProductView {
+  if (input.active) return "selling";
+  if (input.submissionStatus === "pending" || input.submissionStatus === "revision" || input.submissionStatus === "withdrawn") {
+    return input.submissionStatus;
+  }
+  return "inactive";
+}
+
+/** Mitra hanya boleh mengubah / menarik pengajuan yang belum pernah disetujui. */
+export function canPartnerEditSubmission(submissionStatus: string | null) {
+  return submissionStatus === "pending" || submissionStatus === "revision";
+}
+
+export type SubmissionVariantInput = { label: string; unitCost: number; sellPrice: number };
+export type SubmissionInput = {
+  name: string;
+  category: string;
+  description?: string | null;
+  note?: string | null;
+  variants: SubmissionVariantInput[];
+};
+
+/** Masalah isian (bahasa awam, untuk ditampilkan langsung ke mitra). Kosong = boleh dikirim. */
+export function partnerSubmissionProblems(input: SubmissionInput): string[] {
+  const problems: string[] = [];
+  const name = input.name.trim();
+  if (name.length < 2) problems.push("Nama produk minimal 2 huruf.");
+  if (name.length > 120) problems.push("Nama produk maksimal 120 huruf.");
+  const category = input.category.trim();
+  if (category.length < 2) problems.push("Pilih atau ketik kategori produk.");
+  if (category.length > 60) problems.push("Kategori maksimal 60 huruf.");
+  if ((input.description ?? "").trim().length > 500) problems.push("Deskripsi maksimal 500 huruf.");
+  if ((input.note ?? "").trim().length > 300) problems.push("Catatan untuk Garage maksimal 300 huruf.");
+  if (!input.variants.length) problems.push("Isi minimal satu harga.");
+  if (input.variants.length > MAX_SUBMISSION_VARIANTS) problems.push(`Maksimal ${MAX_SUBMISSION_VARIANTS} varian per produk.`);
+  const seen = new Set<string>();
+  input.variants.forEach((variant, index) => {
+    const label = variant.label.trim() || (input.variants.length === 1 ? "Regular" : "");
+    const name = label || `Varian ${index + 1}`;
+    if (!label) problems.push(`${name}: isi nama varian (mis. Kecil, Besar, Isi 4).`);
+    if (label.length > 60) problems.push(`${name}: nama varian maksimal 60 huruf.`);
+    const key = label.toLowerCase();
+    if (label && seen.has(key)) problems.push(`Nama varian "${label}" dobel.`);
+    seen.add(key);
+    if (!Number.isInteger(variant.unitCost) || variant.unitCost <= 0) problems.push(`${name}: isi harga setor (rupiah bulat, lebih dari 0).`);
+    if (!Number.isInteger(variant.sellPrice) || variant.sellPrice <= 0) problems.push(`${name}: isi harga jual (rupiah bulat, lebih dari 0).`);
+    if (variant.unitCost > MAX_PARTNER_PRICE || variant.sellPrice > MAX_PARTNER_PRICE) problems.push(`${name}: harga terlalu besar.`);
+    if (Number.isInteger(variant.unitCost) && Number.isInteger(variant.sellPrice) && variant.sellPrice > 0 && variant.sellPrice < variant.unitCost) {
+      problems.push(`${name}: harga jual tidak boleh di bawah harga setor.`);
+    }
+  });
+  return problems;
+}
+
+/** Label varian rapi: satu varian tanpa nama = "Regular". */
+export function normalizedVariantLabel(label: string, total: number) {
+  const trimmed = label.trim();
+  return trimmed || (total === 1 ? "Regular" : trimmed);
+}
+
+/** ID varian stabil dari label (huruf kecil, a-z0-9-, maks 30, unik dalam satu produk). */
+export function submissionVariantIds(labels: string[]): string[] {
+  const used = new Set<string>();
+  return labels.map((label, index) => {
+    const base =
+      label
+        .toLowerCase()
+        .normalize("NFKD")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 24) || `v${index + 1}`;
+    let id = base;
+    let n = 2;
+    while (used.has(id)) id = `${base}-${n++}`;
+    used.add(id);
+    return id;
+  });
+}
+
+/**
+ * Kode produk berikutnya untuk mitra: `<KODE MITRA>-M<nn>` (M = diajukan Mitra), mis. DSM-M01.
+ * Mengikuti pola kode produk staf (3–20 huruf/angka/strip); kode yang sudah terpakai dilewati.
+ */
+export function nextPartnerSubmissionCode(partnerCode: string, takenCodes: Iterable<string>) {
+  const prefix = partnerCode.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12) || "MTR";
+  const taken = new Set([...takenCodes].map((code) => code.toUpperCase()));
+  for (let n = 1; n < 1000; n += 1) {
+    const code = `${prefix}-M${String(n).padStart(2, "0")}`;
+    if (!taken.has(code)) return code;
+  }
+  throw new Error("Kode produk mitra habis.");
+}
+
+/** Bagian Garage per unit (harga jual − harga setor) — hanya informasi di formulir. */
+export function garageShare(variant: { unitCost: number; sellPrice: number }) {
+  return Math.max(0, variant.sellPrice - variant.unitCost);
+}

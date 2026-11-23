@@ -85,6 +85,15 @@ import {
   PRICE_PROPOSAL_STATUS_LABEL,
 } from "@/lib/partner-hub-insights";
 import { normalizePhone } from "@/lib/member-types";
+import {
+  canPartnerEditSubmission,
+  MAX_OPEN_PARTNER_SUBMISSIONS,
+  nextPartnerSubmissionCode,
+  normalizedVariantLabel,
+  partnerSubmissionProblems,
+  submissionVariantIds,
+  type SubmissionInput,
+} from "@/lib/partner-product-submission";
 import { isPartnerPickupOrder, partnerShiftCoverage, partnerShiftPayoutNote, partnerShiftSales, type PartnerShiftLine } from "@/lib/partner-cashier-rules";
 import { PAYMENT_STATUS_LABEL, paymentStatusOf } from "@/lib/payment-status";
 
@@ -528,15 +537,200 @@ export async function setPartnerProductActive(linkId: string, active: boolean, g
   const [link] = await db.select().from(partnerProductLinks).where(eq(partnerProductLinks.id, linkId)).limit(1);
   if (!link) throw new PartnerHubError("PRODUCT_NOT_FOUND", "Produk mitra tidak ditemukan.", 404);
   await loadPartner(db, link.partnerId, garage.profile.outlet.id);
-  return db.transaction(async (tx) => {
+  if (active && link.submissionStatus === "withdrawn") {
+    throw new PartnerHubError("SUBMISSION_WITHDRAWN", "Pengajuan produk ini sudah ditarik mitra, tidak bisa disetujui.", 409);
+  }
+  // Pengajuan mitra yang disetujui ditandai "approved" (sekali jalan; produk staf tetap NULL).
+  const approvingSubmission = active && canPartnerEditSubmission(link.submissionStatus);
+  const result = await db.transaction(async (tx) => {
     await tx
       .update(partnerProductLinks)
-      .set({ active, approvedBy: active ? garage.user.id : link.approvedBy, approvedAt: active ? new Date() : link.approvedAt, updatedAt: new Date() })
+      .set({
+        active,
+        approvedBy: active ? garage.user.id : link.approvedBy,
+        approvedAt: active ? new Date() : link.approvedAt,
+        ...(approvingSubmission ? { submissionStatus: "approved", reviewedAt: new Date(), reviewNote: null } : {}),
+        updatedAt: new Date(),
+      })
       .where(eq(partnerProductLinks.id, linkId));
     await tx.update(menuItems).set({ status: active ? "active" : "archived", updatedAt: new Date() }).where(eq(menuItems.id, link.menuItemId));
     await logEvent(tx, { partnerId: link.partnerId, kind: active ? "product_approved" : "product_deactivated", subjectId: linkId, actor: staffActor(garage) });
     return { linkId, active };
   });
+  if (approvingSubmission) {
+    const [item] = await db.select({ name: menuItems.name }).from(menuItems).where(eq(menuItems.id, link.menuItemId)).limit(1);
+    await pushToPartner(link.partnerId, { title: "Produk disetujui", body: `${item?.name ?? link.code} sudah bisa dijual di Garage.`, tag: `partner-product-${linkId}` });
+  }
+  return result;
+}
+
+// ─── Produk mandiri mitra (pengajuan dari Portal Mitra) ──────────────────────
+
+function submissionProblemsOrThrow(input: SubmissionInput) {
+  const problems = partnerSubmissionProblems(input);
+  if (problems.length) throw new PartnerHubError("INVALID_SUBMISSION", problems[0]);
+  const labels = input.variants.map((v) => normalizedVariantLabel(v.label, input.variants.length));
+  const ids = submissionVariantIds(labels);
+  return input.variants.map((v, index) => ({ variantId: ids[index], label: labels[index], unitCost: v.unitCost, sellPrice: v.sellPrice }));
+}
+
+async function notifySubmission(session: PartnerSession, title: string, body: string, dedupKey: string) {
+  try {
+    const { notifyStaff } = await import("@/lib/staff-notifications");
+    await notifyStaff({ outletId: session.partner.outletId, audience: "management", kind: "partner_product_submission", severity: "info", title, body, url: "/partners?tab=manage", dedupKey });
+  } catch {
+    /* notifikasi tidak boleh menggagalkan pengajuan */
+  }
+}
+
+async function loadOwnSubmission(db: DbLike, session: PartnerSession, linkId: string) {
+  const [link] = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(linkId)
+    ? await db.select().from(partnerProductLinks).where(and(eq(partnerProductLinks.id, linkId), eq(partnerProductLinks.partnerId, session.partner.id))).limit(1)
+    : [];
+  // 404 juga untuk produk mitra lain: tidak membocorkan keberadaannya.
+  if (!link || link.submissionStatus === "withdrawn") throw new PartnerHubError("PRODUCT_NOT_FOUND", "Produk tidak ditemukan.", 404);
+  return link;
+}
+
+/**
+ * Mitra mengajukan produk sendiri. Produk dibuat NONAKTIF (menu diarsipkan → tidak tampil & tidak bisa dipesan)
+ * sampai Owner menyetujui lewat alur persetujuan produk yang sudah ada. Harga setor & usulan harga jual dicatat
+ * di riwayat harga; Owner tetap bisa mengubah harga sebelum/sesudah menyetujui.
+ */
+export async function submitPartnerProductByPartner(session: PartnerSession, input: SubmissionInput) {
+  if (session.partner.status === "nonaktif") throw new PartnerHubError("PARTNER_INACTIVE", "Mitra nonaktif tidak bisa mengajukan produk.", 403);
+  const variants = submissionProblemsOrThrow(input);
+  const db = getDb();
+  const created = await db.transaction(async (tx) => {
+    // Kunci baris mitra: pengajuan bersamaan dari dua HP tidak melewati batas / bentrok kode.
+    await tx.select({ id: partners.id }).from(partners).where(eq(partners.id, session.partner.id)).for("update");
+    const [open] = await tx
+      .select({ n: sql<number>`count(*)::int` })
+      .from(partnerProductLinks)
+      .where(and(eq(partnerProductLinks.partnerId, session.partner.id), inArray(partnerProductLinks.submissionStatus, ["pending", "revision"])));
+    if ((open?.n ?? 0) >= MAX_OPEN_PARTNER_SUBMISSIONS) {
+      throw new PartnerHubError("TOO_MANY_SUBMISSIONS", `Masih ada ${MAX_OPEN_PARTNER_SUBMISSIONS} pengajuan yang menunggu. Tunggu Garage memeriksanya dulu.`, 409);
+    }
+    const prefix = session.partner.code.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12) || "MTR";
+    const taken = await tx
+      .select({ code: partnerProductLinks.code })
+      .from(partnerProductLinks)
+      .where(sql`upper(${partnerProductLinks.code}) like ${`${prefix}-M%`}`);
+    const takenMenu = await tx.select({ sku: menuItems.sku }).from(menuItems).where(sql`upper(${menuItems.sku}) like ${`${prefix}-M%`}`);
+    const code = nextPartnerSubmissionCode(prefix, [...taken.map((r) => r.code), ...takenMenu.map((r) => r.sku ?? "")]);
+    const menuId = `ptn-${code.toLowerCase()}`;
+    const name = input.name.trim();
+    const category = input.category.trim();
+    await tx.insert(menuItems).values({
+      id: menuId,
+      sku: code,
+      name,
+      category,
+      section: category,
+      productType: "partner",
+      brand: session.partner.name,
+      station: "none",
+      prep: "0m",
+      stock: "ready",
+      // Belum disetujui: diarsipkan agar tidak muncul di kasir/menu digital (aktif lagi saat Owner menyetujui).
+      status: "archived",
+      description: input.description?.trim() || null,
+      batchEligible: false,
+      tags: ["Mitra"],
+    });
+    await tx.insert(menuVariants).values(variants.map((v, index) => ({ itemId: menuId, variantId: v.variantId, label: v.label, price: v.sellPrice, baseCost: v.unitCost, sortOrder: index })));
+    const now = new Date();
+    const [link] = await tx
+      .insert(partnerProductLinks)
+      .values({ partnerId: session.partner.id, menuItemId: menuId, code, active: false, submissionStatus: "pending", submissionNote: input.note?.trim() || null, submittedAt: now })
+      .returning();
+    await tx.insert(partnerPriceHistory).values(
+      variants.map((v) => ({ linkId: link.id, variantId: v.variantId, unitCost: v.unitCost, sellPrice: v.sellPrice, reason: "Usulan awal dari mitra", createdBy: null })),
+    );
+    await logEvent(tx, { partnerId: session.partner.id, kind: "product_submitted", subjectId: link.id, toStatus: "pending", actor: partnerActor(session), metadata: { code, name, variants } });
+    return { linkId: link.id, menuItemId: menuId, code, name };
+  });
+  await notifySubmission(session, `${session.partner.name} mengajukan produk baru`, `${created.name} (${created.code}) menunggu persetujuan Owner.`, `partner_product_submission:${created.linkId}`);
+  return created;
+}
+
+/** Mitra memperbaiki pengajuan yang belum disetujui (menunggu / perlu perbaikan) → kembali "menunggu persetujuan". */
+export async function updatePartnerProductSubmission(session: PartnerSession, linkId: string, input: SubmissionInput) {
+  const variants = submissionProblemsOrThrow(input);
+  const db = getDb();
+  const result = await db.transaction(async (tx) => {
+    await loadOwnSubmission(tx, session, linkId);
+    const [link] = await tx.select().from(partnerProductLinks).where(eq(partnerProductLinks.id, linkId)).for("update");
+    if (!canPartnerEditSubmission(link.submissionStatus) || link.active) {
+      throw new PartnerHubError("SUBMISSION_LOCKED", "Produk sudah disetujui. Perubahan harga lewat Pengajuan harga; perubahan lain hubungi Garage.", 409);
+    }
+    const name = input.name.trim();
+    const category = input.category.trim();
+    await tx
+      .update(menuItems)
+      .set({ name, category, section: category, description: input.description?.trim() || null, updatedAt: new Date() })
+      .where(eq(menuItems.id, link.menuItemId));
+    // Belum pernah dijual → varian boleh diganti utuh (tidak ada baris pesanan yang merujuk).
+    await tx.delete(menuVariants).where(eq(menuVariants.itemId, link.menuItemId));
+    await tx.insert(menuVariants).values(variants.map((v, index) => ({ itemId: link.menuItemId, variantId: v.variantId, label: v.label, price: v.sellPrice, baseCost: v.unitCost, sortOrder: index })));
+    await tx.insert(partnerPriceHistory).values(
+      variants.map((v) => ({ linkId: link.id, variantId: v.variantId, unitCost: v.unitCost, sellPrice: v.sellPrice, reason: "Revisi pengajuan mitra", createdBy: null })),
+    );
+    await tx
+      .update(partnerProductLinks)
+      .set({ submissionStatus: "pending", submissionNote: input.note?.trim() || null, submittedAt: new Date(), updatedAt: new Date() })
+      .where(eq(partnerProductLinks.id, link.id));
+    await logEvent(tx, { partnerId: session.partner.id, kind: "product_resubmitted", subjectId: link.id, fromStatus: link.submissionStatus, toStatus: "pending", actor: partnerActor(session), metadata: { name, variants } });
+    return { linkId: link.id, code: link.code, name, wasRevision: link.submissionStatus === "revision" };
+  });
+  if (result.wasRevision) {
+    await notifySubmission(session, `${session.partner.name} memperbaiki pengajuan produk`, `${result.name} (${result.code}) siap diperiksa lagi.`, `partner_product_resubmit:${result.linkId}:${Date.now()}`);
+  }
+  return { linkId: result.linkId, code: result.code, status: "pending" as const };
+}
+
+/** Mitra menarik pengajuan yang belum disetujui. Data tidak dihapus (jejak audit), hanya disembunyikan. */
+export async function withdrawPartnerProductSubmission(session: PartnerSession, linkId: string) {
+  const db = getDb();
+  return db.transaction(async (tx) => {
+    const link = await loadOwnSubmission(tx, session, linkId);
+    if (!canPartnerEditSubmission(link.submissionStatus) || link.active) {
+      throw new PartnerHubError("SUBMISSION_LOCKED", "Produk yang sudah disetujui tidak bisa ditarik. Tandai Habis bila tidak dijual.", 409);
+    }
+    await tx.update(partnerProductLinks).set({ submissionStatus: "withdrawn", updatedAt: new Date() }).where(eq(partnerProductLinks.id, link.id));
+    await tx.update(menuItems).set({ status: "archived", updatedAt: new Date() }).where(eq(menuItems.id, link.menuItemId));
+    await tx
+      .update(partnerPriceProposals)
+      .set({ status: "cancelled", decisionNote: "Pengajuan produk ditarik mitra", updatedAt: new Date() })
+      .where(and(eq(partnerPriceProposals.linkId, link.id), eq(partnerPriceProposals.status, "pending")));
+    await logEvent(tx, { partnerId: session.partner.id, kind: "product_withdrawn", subjectId: link.id, fromStatus: link.submissionStatus, toStatus: "withdrawn", actor: partnerActor(session) });
+    return { linkId: link.id, status: "withdrawn" as const };
+  });
+}
+
+/** Owner/Manajer mengembalikan pengajuan mitra untuk diperbaiki (alasan wajib, tampil di Portal Mitra). */
+export async function requestPartnerProductRevision(linkId: string, note: string, garage: GarageSession) {
+  assertOwnerOrManager(garage, "Meminta perbaikan produk mitra");
+  const reason = note.trim();
+  if (reason.length < 5) throw new PartnerHubError("REASON_REQUIRED", "Tulis apa yang perlu diperbaiki (minimal 5 huruf).");
+  const db = getDb();
+  const [row] = await db
+    .select({ link: partnerProductLinks, name: menuItems.name })
+    .from(partnerProductLinks)
+    .innerJoin(menuItems, eq(partnerProductLinks.menuItemId, menuItems.id))
+    .where(eq(partnerProductLinks.id, linkId))
+    .limit(1);
+  if (!row) throw new PartnerHubError("PRODUCT_NOT_FOUND", "Produk mitra tidak ditemukan.", 404);
+  await loadPartner(db, row.link.partnerId, garage.profile.outlet.id);
+  if (row.link.active || !canPartnerEditSubmission(row.link.submissionStatus)) {
+    throw new PartnerHubError("NOT_A_SUBMISSION", "Hanya pengajuan mitra yang belum disetujui yang bisa dikembalikan.", 409);
+  }
+  await db.transaction(async (tx) => {
+    await tx.update(partnerProductLinks).set({ submissionStatus: "revision", reviewNote: reason, reviewedAt: new Date(), updatedAt: new Date() }).where(eq(partnerProductLinks.id, linkId));
+    await logEvent(tx, { partnerId: row.link.partnerId, kind: "product_revision_requested", subjectId: linkId, fromStatus: row.link.submissionStatus, toStatus: "revision", reason, actor: staffActor(garage) });
+  });
+  await pushToPartner(row.link.partnerId, { title: "Produk perlu diperbaiki", body: `${row.name}: ${reason}`, tag: `partner-product-${linkId}` });
+  return { linkId, status: "revision" as const };
 }
 
 /**
@@ -773,7 +967,7 @@ export async function listPartnerProducts(partnerId: string, viewer: { outletId:
     .select({ link: partnerProductLinks, item: menuItems })
     .from(partnerProductLinks)
     .innerJoin(menuItems, eq(partnerProductLinks.menuItemId, menuItems.id))
-    .where(eq(partnerProductLinks.partnerId, partner.id))
+    .where(and(eq(partnerProductLinks.partnerId, partner.id), or(isNull(partnerProductLinks.submissionStatus), ne(partnerProductLinks.submissionStatus, "withdrawn"))))
     .orderBy(asc(partnerProductLinks.code));
   const variants = rows.length
     ? await db.select().from(menuVariants).where(inArray(menuVariants.itemId, rows.map((row) => row.item.id))).orderBy(asc(menuVariants.sortOrder))
@@ -789,6 +983,11 @@ export async function listPartnerProducts(partnerId: string, viewer: { outletId:
     showInDigitalMenu: item.showInDigitalMenu,
     promotedOnWebsite: (item.tags ?? []).includes(PARTNER_WEBSITE_TAG),
     active: link.active,
+    // Produk mandiri mitra: NULL = didaftarkan staf.
+    submissionStatus: link.submissionStatus,
+    submissionNote: link.submissionNote,
+    reviewNote: link.reviewNote,
+    submittedAt: link.submittedAt,
     available: item.stock !== "sold_out",
     availabilityUpdatedAt: link.availabilityUpdatedAt,
     availabilityUpdatedBy: link.availabilityUpdatedBy,

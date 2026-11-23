@@ -128,3 +128,17 @@ description: Aturan WAJIB Smart Partner Hub (mitra resmi, produk partner, portal
   `partner-product-image.ts` (multipart `image`, JPG/PNG/WebP ≤8 MB → WebP ≤200 KB, `/garage-uploads/menu`) and the single writer
   `setPartnerProductImage` (access checked BEFORE the file is written; event `product_photo`). Display only: price, approval and
   Promo Website pick are unchanged. Portal section "Foto produk" (`partner-portal-photos.tsx`) lists all the partner's products incl. pending.
+- Produk mandiri mitra (Owner 23 Nov 2026, migration 0211): mitra mengajukan produk sendiri dari Portal Mitra tab "Produk"
+  (`partner-portal-products.tsx`, formulir 3 langkah Info → Harga → Foto & kirim). Pure rules `partner-product-submission.ts`
+  (validasi bahasa awam, kode `<KODE>-Mnn`, ID varian, `partnerProductView`), body Zod `partner-product-submission-schema.ts`.
+  `partner_product_links.submission_status`: NULL = didaftarkan staf (alur lama); `pending` | `revision` | `approved` | `withdrawn`
+  + `submission_note` (catatan mitra), `review_note` (catatan Garage). Server: `submitPartnerProductByPartner`
+  (`POST /api/partner/products`; partner_id dari sesi, mitra nonaktif ditolak, maks `MAX_OPEN_PARTNER_SUBMISSIONS` terbuka,
+  baris mitra dikunci FOR UPDATE) → produk link NONAKTIF + `menu_items.status 'archived'` (tidak tampil/tidak bisa dipesan) +
+  riwayat harga "Usulan awal dari mitra" + notif management. Mitra boleh ubah/tarik HANYA pending/revision
+  (`PATCH`/`DELETE /api/partner/products/[linkId]`; mitra lain = 404; tarik = soft `withdrawn`, disembunyikan dari
+  `listPartnerProducts`, pengajuan harga pending dibatalkan). Owner/Manajer "Minta perbaikan" (`POST /api/partners/products/[linkId]/revision`,
+  catatan ≥5 huruf, push ke mitra). Persetujuan tetap HANYA Owner lewat `setPartnerProductActive` (menandai `approved`, push mitra;
+  `withdrawn` tidak bisa disetujui). Harga jual dari mitra = usulan; Owner ubah lewat Pengaturan/harga sebelum menyetujui.
+  Setelah disetujui, perubahan harga lewat Pengajuan harga (alur lama). Portal Mitra kini bertab: Pesanan · Produk · Keuangan · Akun
+  (tab terakhir diingat di sessionStorage). Foto produk ada di kartu "Produk saya" (komponen lama `partner-portal-photos.tsx` dihapus).

@@ -5,7 +5,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Bell, BellOff, BellRing, Check, CheckCircle2, ChefHat, CircleX, FileText, Loader2, LogOut, PackageCheck, Store, Sun, Timer } from "lucide-react";
+import { Bell, BellOff, BellRing, Check, CheckCircle2, ChefHat, CircleX, FileText, Loader2, LogOut, Package, PackageCheck, Store, Sun, Timer, UserRound, Wallet } from "lucide-react";
 
 import { partnerFacingPayoutStatus, settlementPayoutState } from "@/lib/partner-hub-rules";
 
@@ -16,7 +16,7 @@ import { GarageBrandLogo } from "@/components/garage/member-auth/garage-brand-lo
 
 import { usePartnerAlerts } from "./partner-portal-alerts";
 import { PartnerPerformancePanel, PartnerPricePanel } from "./partner-portal-growth";
-import { PartnerProductPhotos } from "./partner-portal-photos";
+import { PartnerProductsPanel, type PortalProduct } from "./partner-portal-products";
 import { PartnerEarnings, PartnerInfo, PartnerPayouts, PartnerPinChange, RejectPanel, type PartnerPayout, type PartnerProfile } from "./partner-portal-extras";
 
 type Ticket = {
@@ -34,7 +34,7 @@ type Ticket = {
 };
 type Overview = {
   partner: { id: string; name: string; code: string; status: string; operationalStatus: string };
-  products: Array<{ linkId: string; name: string; category: string; imageUrl: string | null; active: boolean; available: boolean; variants: Array<{ variantId?: string; label: string; sellPrice: number; unitCost?: number }> }>;
+  products: PortalProduct[];
   mustChangePin?: boolean;
   activeTickets: Ticket[];
   cancelledTickets?: Array<Ticket & { cancelledAt: string | null }>;
@@ -59,6 +59,15 @@ const OP_STYLE: Record<string, string> = {
 const rp = (n: number) => `Rp ${new Intl.NumberFormat("id-ID").format(Math.round(n))}`;
 const time = (iso: string) => new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
 const STATUS_LABEL: Record<string, string> = { queue: "Pesanan baru", accepted: "Diterima", cooking: "Diproses", ready: "Siap Antar" };
+type PortalTab = "orders" | "products" | "finance" | "account";
+const PORTAL_TABS: Array<{ key: PortalTab; label: string; icon: typeof ChefHat }> = [
+  { key: "orders", label: "Pesanan", icon: ChefHat },
+  { key: "products", label: "Produk", icon: Package },
+  { key: "finance", label: "Keuangan", icon: Wallet },
+  { key: "account", label: "Akun", icon: UserRound },
+];
+const TAB_STORAGE_KEY = "garage-partner-portal-tab";
+
 const SETTLEMENT_LABEL: Record<string, string> = { draft: "Draft", submitted: "Diajukan", approved: "Disetujui", partially_paid: "Dibayar sebagian", paid: "Lunas", disputed: "Sengketa" };
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
@@ -84,7 +93,28 @@ export function PartnerPortal() {
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<{ tone: "error" | "ok"; text: string } | null>(null);
   const [rejecting, setRejecting] = useState<string | null>(null);
+  const [tab, setTabState] = useState<PortalTab>("orders");
   const now = useNow();
+  useEffect(() => {
+    // Ingat tab terakhir per perangkat (kenyamanan saja; gagal baca = tetap "Pesanan").
+    try {
+      const saved = window.sessionStorage.getItem(TAB_STORAGE_KEY) as PortalTab | null;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (saved && PORTAL_TABS.some((t) => t.key === saved)) setTabState(saved);
+    } catch {
+      /* storage diblokir */
+    }
+  }, []);
+  const setTab = (next: PortalTab) => {
+    setTabState(next);
+    setMessage(null);
+    try {
+      window.sessionStorage.setItem(TAB_STORAGE_KEY, next);
+    } catch {
+      /* storage diblokir */
+    }
+    window.scrollTo({ top: 0 });
+  };
   const queueNos = useMemo(() => (overview ? overview.activeTickets.filter((t) => t.status === "queue").map((t) => t.ticketNo) : null), [overview]);
   const alerts = usePartnerAlerts(queueNos);
   // Ringkasan yang harus dibuat (belum Siap Antar), dijumlah per produk — enak untuk membuat sekaligus.
@@ -176,19 +206,53 @@ export function PartnerPortal() {
         </div>
       </header>
 
-      <div className="mx-auto grid max-w-3xl gap-4 px-4 pt-4">
+      <div className="mx-auto max-w-3xl px-4 pt-4">
         <section>
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#ff5a66]">Garage OS · Portal Mitra</p>
           <h1 className="mt-1 text-2xl font-black text-white">{p.name}</h1>
           <p className="text-sm text-[#b8b8bf]">Kelola produk, pesanan, dan setoran milik usaha Anda.</p>
         </section>
+      </div>
 
+      <nav aria-label="Menu Portal Mitra" className="sticky top-0 z-20 mt-3 border-y border-[#2a2a30] bg-[#0b0b0d]/95 supports-backdrop-filter:backdrop-blur-sm">
+        <div className="mx-auto grid max-w-3xl grid-cols-4 gap-1 px-2 py-1.5" role="tablist">
+          {PORTAL_TABS.map(({ key, label, icon: Icon }) => {
+            const selected = tab === key;
+            const badge = key === "orders" ? overview.activeTickets.filter((t) => t.status === "queue").length : key === "products" ? overview.products.filter((x) => !x.active && x.submissionStatus === "revision").length : 0;
+            return (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                id={`partner-tab-${key}`}
+                aria-selected={selected}
+                aria-controls={`partner-panel-${key}`}
+                onClick={() => setTab(key)}
+                className={`relative flex min-h-14 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-lg text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff5a66] motion-reduce:transition-none ${selected ? "bg-[#3a1015] text-white" : "text-[#c8c8cf] hover:bg-white/5"}`}
+              >
+                <Icon className={`size-5 ${selected ? "text-[#ff5a66]" : ""}`} aria-hidden />
+                {label}
+                {badge ? (
+                  <span className="absolute top-1 right-[calc(50%-1.6rem)] grid min-w-5 place-items-center rounded-full bg-[#d11a2a] px-1 text-[11px] leading-5 text-white" aria-label={`${badge} perlu perhatian`}>
+                    {badge}
+                  </span>
+                ) : null}
+                {selected ? <span className="absolute inset-x-4 bottom-0 h-0.5 rounded-full bg-[#ff5a66]" aria-hidden /> : null}
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+
+      <div className="mx-auto grid max-w-3xl gap-4 px-4 pt-4">
         {message ? (
           <p role={message.tone === "error" ? "alert" : "status"} className={`rounded-lg border px-3 py-2 text-sm ${message.tone === "error" ? "border-[#ff5a66]/50 bg-[#3a1015] text-[#ffd0d4]" : "border-[#22c55e]/40 bg-[#0f2a1a] text-[#bbf7d0]"}`}>
             {message.text}
           </p>
         ) : null}
 
+        {tab === "orders" ? (
+        <div role="tabpanel" id="partner-panel-orders" aria-labelledby="partner-tab-orders" className="grid gap-4">
         <section className="rounded-xl border border-[#34343c] bg-[#17171c] p-4">
           <div className="flex items-center justify-between gap-3">
             <p className="flex items-center gap-2 text-sm font-semibold text-white">
@@ -398,52 +462,31 @@ export function PartnerPortal() {
           )}
         </section>
 
-        <section className="rounded-xl border border-[#34343c] bg-[#17171c] p-4">
-          <h2 className="text-base font-bold text-white">Ketersediaan produk</h2>
-          <p className="text-xs text-[#b8b8bf]">Tanpa hitung stok — tandai Habis bila tidak bisa dibuat. Berlaku di kasir, waiter & menu digital.</p>
-          <ul className="mt-3 grid gap-2">
-            {overview.products.filter((product) => product.active).map((product) => (
-              <li key={product.linkId} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#3a3a42] bg-black/20 p-3">
-                <div className="min-w-0">
-                  <p className="font-semibold text-white">{product.name}</p>
-                  <p className="text-xs text-[#b8b8bf]">
-                    {product.category} · {product.variants.map((v) => rp(v.sellPrice)).join(" / ")}
-                  </p>
-                </div>
-                <div className="flex gap-2" role="group" aria-label={`Ketersediaan ${product.name}`}>
-                  <button
-                    type="button"
-                    aria-pressed={product.available}
-                    disabled={busy !== null || product.available}
-                    onClick={() => void run(`av-${product.linkId}`, () => api(`/api/partner/products/${product.linkId}/availability`, { method: "PATCH", body: JSON.stringify({ available: true }) }))}
-                    className={`min-h-11 rounded-lg border px-3 text-sm font-bold ${product.available ? "border-[#22c55e] bg-[#14532d] text-[#bbf7d0]" : "border-[#3a3a42] text-[#e4e4e8] hover:bg-white/10"}`}
-                  >
-                    Tersedia
-                  </button>
-                  <button
-                    type="button"
-                    aria-pressed={!product.available}
-                    disabled={busy !== null || !product.available}
-                    onClick={() => void run(`av-${product.linkId}`, () => api(`/api/partner/products/${product.linkId}/availability`, { method: "PATCH", body: JSON.stringify({ available: false }) }))}
-                    className={`min-h-11 rounded-lg border px-3 text-sm font-bold ${!product.available ? "border-[#ff5a66] bg-[#3f1d22] text-[#fecdd3]" : "border-[#3a3a42] text-[#e4e4e8] hover:bg-white/10"}`}
-                  >
-                    Habis
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </section>
+        </div>
+        ) : null}
 
-        <PartnerProductPhotos products={overview.products} onChanged={load} />
+        {tab === "products" ? (
+          <div role="tabpanel" id="partner-panel-products" aria-labelledby="partner-tab-products" className="grid gap-4">
+            <PartnerProductsPanel products={overview.products} onChanged={load} />
+            <PartnerPricePanel products={overview.products} refreshKey={overview.products.map((p) => p.variants.map((v) => `${v.variantId}:${v.unitCost}`).join(",")).join("|")} />
+          </div>
+        ) : null}
 
-        <PartnerEarnings refreshKey={overview.activeTickets.map((t) => `${t.ticketNo}:${t.status}`).join("|") + `#${overview.today.liability}`} />
-        <PartnerPerformancePanel />
-        <PartnerPricePanel products={overview.products} refreshKey={overview.products.map((p) => p.variants.map((v) => `${v.variantId}:${v.unitCost}`).join(",")).join("|")} />
-        <PartnerFinance settlements={overview.settlements} now={now} />
-        <PartnerPayouts payouts={overview.payouts ?? []} />
-        <PartnerInfo profile={overview.profile ?? null} />
-        <PartnerPinChange />
+        {tab === "finance" ? (
+          <div role="tabpanel" id="partner-panel-finance" aria-labelledby="partner-tab-finance" className="grid gap-4">
+            <PartnerEarnings refreshKey={overview.activeTickets.map((t) => `${t.ticketNo}:${t.status}`).join("|") + `#${overview.today.liability}`} />
+            <PartnerPerformancePanel />
+            <PartnerFinance settlements={overview.settlements} now={now} />
+            <PartnerPayouts payouts={overview.payouts ?? []} />
+          </div>
+        ) : null}
+
+        {tab === "account" ? (
+          <div role="tabpanel" id="partner-panel-account" aria-labelledby="partner-tab-account" className="grid gap-4">
+            <PartnerInfo profile={overview.profile ?? null} />
+            <PartnerPinChange />
+          </div>
+        ) : null}
       </div>
     </main>
   );

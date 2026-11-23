@@ -6,6 +6,7 @@ import { AlertTriangle, Archive, Ban, Banknote, Camera, CheckCircle2, Download, 
 import { PageHeader } from "@/components/ceo/layout/PageHeader";
 import { EventControlNav, StepHint } from "@/components/ceo/ui/EventControlNav";
 import { Badge } from "@/components/ceo/ui/Badge";
+import { EVENT_PLATFORM_RETIRED } from "@/lib/event-platform-status";
 import { garageApi, GarageApiError } from "@/lib/api-client";
 
 // Keuangan Event (GIGS EO Fase 2, Owner 17 Nov 2026): Owner saja. Semua angka dihitung server
@@ -313,9 +314,11 @@ export function EventFinancePanel({ initialEventId = null }: { initialEventId?: 
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 className="font-bold text-zinc-100">Anggaran & realisasi</h3>
               <div className="flex flex-wrap gap-2 print:hidden">
-                <button type="button" className={ghostBtn} onClick={importBudget} disabled={importing} title="Ambil RAB dari platform GIGS sebagai pos anggaran (rencana saja)">
-                  <Download size={16} /> {importing ? "Mengimpor…" : "Impor RAB dari platform GIGS"}
-                </button>
+                {EVENT_PLATFORM_RETIRED ? null : (
+                  <button type="button" className={ghostBtn} onClick={importBudget} disabled={importing} title="Ambil RAB dari platform GIGS sebagai pos anggaran (rencana saja)">
+                    <Download size={16} /> {importing ? "Mengimpor…" : "Impor RAB dari platform GIGS"}
+                  </button>
+                )}
                 <button type="button" className={primaryBtn} onClick={() => setDialog({ kind: "line", row: null })}>
                   <Plus size={16} /> Tambah pos biaya
                 </button>
@@ -535,7 +538,7 @@ export function EventFinancePanel({ initialEventId = null }: { initialEventId?: 
               ))}
             </ul>
           </section>
-          <PlatformImportCard key={`import-${view.event.id}`} eventId={view.event.id} platformSlug={view.event.platformSlug ?? null} onDone={() => void load(eventId)} />
+          {EVENT_PLATFORM_RETIRED ? null : <PlatformImportCard key={`import-${view.event.id}`} eventId={view.event.id} platformSlug={view.event.platformSlug ?? null} onDone={() => void load(eventId)} />}
           <ReviewCard key={view.event.id} eventId={view.event.id} review={view.review ?? null} onSave={(body) => run(() => garageApi.put("/api/event-finance/review", body))} />
 
           {view.comparison?.length ? (

@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
+import { assertCanReadDeliveryProof, CourierError } from "@/lib/garage-courier";
 import { fail } from "@/lib/api-response";
 import { DELIVERY_PROOF_FILE, deliveryProofDir } from "@/lib/delivery-proof-storage";
 import { requireGarageSession } from "@/lib/server-auth";
@@ -16,16 +17,18 @@ export async function GET(_request: Request, context: { params: Promise<{ file: 
   const { file } = await context.params;
   if (!DELIVERY_PROOF_FILE.test(file)) return fail(404, "PROOF_NOT_FOUND", "Foto tidak ditemukan.");
   try {
+    await assertCanReadDeliveryProof(file, session.data);
     const buffer = await readFile(path.join(deliveryProofDir(), file));
     return new Response(new Uint8Array(buffer), {
       headers: {
         "content-type": TYPES[path.extname(file)] ?? "application/octet-stream",
-        "cache-control": "private, max-age=3600",
+        "cache-control": "private, no-store",
         "content-disposition": "inline",
         "x-content-type-options": "nosniff",
       },
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof CourierError) return fail(error.status, "PROOF_NOT_FOUND", error.message);
     return fail(404, "PROOF_NOT_FOUND", "Foto tidak ditemukan.");
   }
 }

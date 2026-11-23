@@ -225,3 +225,11 @@ description: Aturan WAJIB modul Lineup & Panitia Event (band/stand-up, rundown, 
   kind="foto"`). `publicLineupFor` mengirim `photo`; `garageLineupAsEventSlots` menambah `photo` hanya bila ada; tambalan app.js
   `lineup-photo` (`...(slot.photo ? { photo } : {})` setelah foto bawaan) → tanpa foto tetap 5 foto umum `photos/lineup-N.jpg`.
   Beranda tidak memakai foto (kartu beranda tanpa latar foto). Hapus foto = kembali ke foto umum.
+- Platform GIGS DIMATIKAN (Owner 23 Nov 2026, workflow sekali pakai #268 → `docker stop` + restart=no pada container
+  `garage-event-*`; container/image/data tetap ada). Nyalakan lagi di VPS: `docker update --restart=unless-stopped <nama>
+  && docker start <nama>`. Saat mati: lineup halaman event dari salinan `public/lineup`, `/event` → 302 ke event online
+  pertama di salinan (`eventListFallback`), `/event/api/events` (lencana menu beranda) → salinan daftar event; `?lama=1`, `/event/admin`, API penyelenggara = 502.
+- Tombol baca-platform disembunyikan saat platform mati (`EVENT_PLATFORM_RETIRED`, `src/lib/event-platform-status.ts`,
+  default true; `NEXT_PUBLIC_EVENT_PLATFORM_RETIRED=0` menampilkannya lagi — E2E menyetel 0 karena memakai platform tiruan):
+  Impor dari platform GIGS (Lineup), Impor RAB + kartu Impor Dashboard Penyelenggara (Keuangan Event), Isi dari angka
+  platform (Transparansi). Route API-nya tetap ada (platform mati = error jujur).

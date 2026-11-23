@@ -353,6 +353,46 @@
     "committed_count": 1,
     "committed_amount": 1000000,
     "contracted_total": 0
+   },
+   "public/lineup": {
+    "slots": [
+     {
+      "id": "f4a96b56-3359-4652-9a93-76f0059673ad",
+      "name": "Official Lineup",
+      "category": "band",
+      "startTime": "",
+      "durationMin": 30,
+      "performer": "DIVISIVE",
+      "logo": "/event/gigs-akhir-tahun-2026/official-assets/lineup/divisive.png"
+     },
+     {
+      "id": "072b419b-1456-49a5-bd11-87db31c2a38d",
+      "name": "Official Lineup",
+      "category": "band",
+      "startTime": "",
+      "durationMin": 30,
+      "performer": "SURAI",
+      "logo": "/event/gigs-akhir-tahun-2026/official-assets/lineup/surau.png"
+     },
+     {
+      "id": "479cf54e-789e-4703-a2ec-f80005fe473d",
+      "name": "Official Lineup",
+      "category": "band",
+      "startTime": "",
+      "durationMin": 30,
+      "performer": "STAND OUT",
+      "logo": "/event/gigs-akhir-tahun-2026/official-assets/lineup/stand-out.jpg"
+     },
+     {
+      "id": "6ee131a6-7a4a-4bf8-a4e6-2ebe4f25ee8a",
+      "name": "Official Lineup",
+      "category": "band",
+      "startTime": "",
+      "durationMin": 30,
+      "performer": "LOST SIDE",
+      "logo": "/event/gigs-akhir-tahun-2026/official-assets/lineup/lost-side.jpg"
+     }
+    ]
    }
   }
  }

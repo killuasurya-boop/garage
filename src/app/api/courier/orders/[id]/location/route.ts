@@ -22,6 +22,6 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     return ok(await updateCourierLocation(id, body.data.lat, body.data.lng, session.data));
   } catch (error) {
     if (error instanceof CourierError) return fail(error.status, "COURIER_LOCATION_FAILED", error.message);
-    return fail(500, "COURIER_LOCATION_FAILED", error instanceof Error ? error.message : "Lokasi gagal dikirim.");
+    return fail(500, "COURIER_LOCATION_FAILED", "Lokasi gagal dikirim.");
   }
 }

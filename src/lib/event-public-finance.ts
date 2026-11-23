@@ -2,6 +2,7 @@
 // Hanya tampilan publik — tidak menulis buku kas. Setiap simpan diaudit (sebelum/sesudah).
 import { eq } from "drizzle-orm";
 
+import { platformJsonSnapshot } from "@/lib/event-platform-snapshot";
 import { getDb } from "@/db";
 import { eventPublicFinance, events } from "@/db/schema";
 import { findEventForPlatform, listMasterEvents } from "@/lib/event-master";
@@ -36,15 +37,23 @@ function assertOwnerHuman(garage: GarageSession) {
   if (garage.profile.agentKey) throw new PublicFinanceError("HUMAN_SESSION_REQUIRED", "Transparansi publik hanya untuk Owner yang login langsung.", 403);
 }
 
-/** GET JSON publik platform (`/event/<slug>/api/<path>`) lewat jaringan internal. Gagal → null. */
+/**
+ * GET JSON publik platform (`/event/<slug>/api/<path>`) lewat jaringan internal. Platform mati / 5xx → salinan publik
+ * Garage OS (`event-platform-snapshot`) bila ada, selain itu null.
+ */
 export async function fetchPlatformJson(slug: string, path: string, timeoutMs = 3000): Promise<{ status: number; body: unknown } | null> {
   const api = process.env.GARAGE_EVENT_API || DEFAULT_API;
   if (!/^[a-z0-9][a-z0-9-]{0,80}$/.test(slug) || !/\/api\/events\/?$/.test(api)) return null;
+  const fallback = () => {
+    const body = platformJsonSnapshot(slug, path);
+    return body === undefined ? null : { status: 200, body };
+  };
   try {
     const res = await fetch(api.replace(/\/api\/events\/?$/, `/${slug}/api/${path}`), { cache: "no-store", signal: AbortSignal.timeout(timeoutMs) });
+    if (res.status >= 500) return fallback() ?? { status: res.status, body: await res.json().catch(() => null) };
     return { status: res.status, body: await res.json().catch(() => null) };
   } catch {
-    return null;
+    return fallback();
   }
 }
 

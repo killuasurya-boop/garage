@@ -2,6 +2,7 @@
 // Sumber tunggal: platform event (stack Docker terpisah "garage-event") lewat jaringan internal.
 // Tidak ada tanggal/teks/lineup yang ditulis di sini. Gagal/timeout -> null -> beranda tampil normal.
 import { officialLineupName, parseLineupKind, type LineupItem } from "@/lib/gigs-lineup";
+import { platformEventsSnapshot } from "@/lib/event-platform-snapshot";
 
 export type GigsPromo = {
   slug: string;
@@ -90,6 +91,27 @@ function parsePlatformLineup(lineup: unknown): LineupItem[] {
     .slice(0, 16);
 }
 
+/**
+ * `{ events }` platform GIGS (jaringan internal). Platform mati / error → salinan publik Garage OS
+ * (`event-platform-snapshot`), supaya beranda & impor tetap jalan setelah platform dimatikan.
+ */
+async function fetchPlatformEvents(timeoutMs: number, useSnapshot = true): Promise<PlatformEvent[]> {
+  const fromSnapshot = () => {
+    const snap = platformEventsSnapshot() as { events?: PlatformEvent[] } | null;
+    return Array.isArray(snap?.events) ? snap.events : [];
+  };
+  const api = process.env.GARAGE_EVENT_API || DEFAULT_API;
+  try {
+    const res = await fetch(api, { cache: "no-store", signal: AbortSignal.timeout(timeoutMs) });
+    if (!res.ok) throw new Error(`Platform GIGS membalas ${res.status}.`);
+    const json = (await res.json()) as { events?: PlatformEvent[] };
+    return Array.isArray(json?.events) ? json.events : [];
+  } catch (error) {
+    if (!useSnapshot) throw error;
+    return fromSnapshot();
+  }
+}
+
 /** Slot panggung mentah satu event dari platform (jaringan internal). Slug/alamat tidak valid atau gagal → Error. */
 export async function fetchRawPlatformSlots(slug: string, timeoutMs = 1500): Promise<unknown[]> {
   const api = process.env.GARAGE_EVENT_API || DEFAULT_API;
@@ -104,12 +126,12 @@ export async function fetchRawPlatformSlots(slug: string, timeoutMs = 1500): Pro
  * Lineup platform GIGS untuk SATU event (cocok slug dulu, lalu nama tanpa peduli huruf), apa pun status/tanggalnya.
  * Dipakai tombol "Impor dari platform" di modul Lineup. Platform tidak terjangkau → Error (pemanggil memberi pesan).
  */
-export async function fetchPlatformLineup(ref: { slug: string | null; name: string }): Promise<{ slug: string; name: string; lineup: LineupItem[] } | null> {
-  const api = process.env.GARAGE_EVENT_API || DEFAULT_API;
-  const res = await fetch(api, { cache: "no-store", signal: AbortSignal.timeout(4000) });
-  if (!res.ok) throw new Error(`Platform GIGS membalas ${res.status}.`);
-  const json = (await res.json()) as { events?: PlatformEvent[] };
-  const events = Array.isArray(json?.events) ? json.events : [];
+export async function fetchPlatformLineup(
+  ref: { slug: string | null; name: string },
+  opts: { useSnapshot?: boolean } = {},
+): Promise<{ slug: string; name: string; lineup: LineupItem[] } | null> {
+  // Tampilan publik boleh memakai salinan bila platform mati; impor oleh Owner memakai `useSnapshot: false`.
+  const events = await fetchPlatformEvents(4000, opts.useSnapshot ?? true);
   const name = ref.name.trim().toLowerCase();
   const match =
     (ref.slug ? events.find((ev) => ev.slug === ref.slug) : undefined) ??
@@ -125,7 +147,7 @@ export type PlatformBudgetLine = { code: string; name: string; budget: number; p
  * transparansinya). Event dicocokkan seperti lineup (slug master dulu, lalu nama). Tidak terjangkau → Error.
  */
 export async function fetchPlatformBudget(ref: { slug: string | null; name: string }): Promise<{ slug: string; name: string; target: number | null; lines: PlatformBudgetLine[] } | null> {
-  const found = await fetchPlatformLineup(ref);
+  const found = await fetchPlatformLineup(ref, { useSnapshot: false });
   if (!found) return null;
   if (!/^[a-z0-9][a-z0-9-]{0,80}$/.test(found.slug)) throw new Error("Slug platform tidak valid.");
   const api = process.env.GARAGE_EVENT_API || DEFAULT_API;
@@ -149,11 +171,7 @@ export async function fetchPlatformBudget(ref: { slug: string | null; name: stri
 }
 
 export async function getGigsPromo(now = Date.now()): Promise<GigsPromo | null> {
-  const api = process.env.GARAGE_EVENT_API || DEFAULT_API;
-  const res = await fetch(api, { cache: "no-store", signal: AbortSignal.timeout(1500) });
-  if (!res.ok) return null;
-  const json = (await res.json()) as { events?: PlatformEvent[] };
-  const events = Array.isArray(json?.events) ? json.events : [];
+  const events = await fetchPlatformEvents(1500);
 
   for (const ev of events) {
     const start = Date.parse(ev.date ?? "");

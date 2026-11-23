@@ -547,7 +547,7 @@ export async function importPlatformLineup(input: z.infer<typeof importPlatformS
   const [master] = ref.eventId ? await db.select({ platformSlug: events.platformSlug }).from(events).where(eq(events.id, ref.eventId)).limit(1) : [];
   let platform: Awaited<ReturnType<typeof fetchPlatformLineup>>;
   try {
-    platform = await fetchPlatformLineup({ slug: master?.platformSlug ?? null, name: ref.eventName });
+    platform = await fetchPlatformLineup({ slug: master?.platformSlug ?? null, name: ref.eventName }, { useSnapshot: false });
   } catch {
     throw new LineupError("PLATFORM_UNREACHABLE", "Platform GIGS tidak bisa dihubungi. Coba lagi beberapa saat.", 502);
   }

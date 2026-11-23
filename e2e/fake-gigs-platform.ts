@@ -35,7 +35,7 @@ export function startFakeGigsPlatform(initial: FakeGigsEvent) {
     }
     if (req.method === "GET" && req.url === `/event/${current.slug}/public/app.js`) {
       // Potongan app.js platform asli (jangkar tambalan Garage OS).
-      const js = "const LINEUPS = [{ name: 'SURAU', role: 'X' }];\nasync function loadPublicLineup() {\n  try {\n      LINEUPS.splice(0, 1, { name: 'NEXT', isCta: true });\n      renderLineups();\n    } catch {}\n}\n";
+      const js = "const LINEUPS = [{ name: 'SURAU', role: 'X' }];\nasync function loadPublicLineup() {\n  try {\n      LINEUPS.splice(0, 1, ...[].map((slot, i) => ({ name: slot.performer, photo: `/event/x/photos/lineup-${(i % 5) + 1}.jpg`, })), { name: 'NEXT', isCta: true });\n      renderLineups();\n    } catch {}\n}\n";
       res.writeHead(200, { "content-type": "application/javascript" }).end(js);
       return;
     }

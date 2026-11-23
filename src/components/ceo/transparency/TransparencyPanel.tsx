@@ -5,6 +5,7 @@ import { Download, ExternalLink, Plus, RefreshCw, Save, Trash2 } from "lucide-re
 
 import { PageHeader } from "@/components/ceo/layout/PageHeader";
 import { EventControlNav, StepHint } from "@/components/ceo/ui/EventControlNav";
+import { OwnerFundRequestsCard } from "@/components/garage/events/fund-requests";
 import { garageApi, GarageApiError } from "@/lib/api-client";
 import { DECISION_LABEL, DECISIONS, EMPTY_CLOSEOUT, EMPTY_DECISION, EMPTY_PUBLIC_FINANCE, PAY_KINDS, PUBLIC_STAGE_LABEL, PUBLIC_STAGES, publicFinanceTotals, type PublicFinance } from "@/lib/event-public-finance-rules";
 
@@ -213,6 +214,8 @@ export function TransparencyPanel({ initialEventId }: { initialEventId: string |
               </div>
             ))}
           </div>
+
+          {eventId && ready ? <OwnerFundRequestsCard eventId={eventId} onDecided={() => load(eventId)} /> : null}
 
           <section className={`${cardClass} space-y-3`} aria-labelledby="tr-target">
             <h2 id="tr-target" className="text-sm font-black uppercase tracking-wide text-zinc-100">

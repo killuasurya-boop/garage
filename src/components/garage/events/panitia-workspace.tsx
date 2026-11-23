@@ -8,6 +8,7 @@ import { garageApi, GarageApiError } from "@/lib/api-client";
 import { TASK_STATUS_LABEL, type TaskStatus } from "@/lib/event-lineup-rules";
 import type { PanitiaWorkspace } from "@/lib/event-panitia-service";
 import { ConsumptionCard, CrewNotesCard } from "@/components/garage/events/crew-notes-consumption";
+import { PanitiaFundRequestCard } from "@/components/garage/events/fund-requests";
 
 // Ruang Panitia (Owner 17 Nov 2026): untuk anggota panitia yang ditautkan Owner ke akun login stafnya.
 // Semua hak dicek di server; layar ini hanya menampilkan & mengirim perubahan.
@@ -241,8 +242,10 @@ function EventSection({ ev, onChanged }: { ev: EventView; onChanged: () => Promi
         {ev.canManageTasks ? <NewTaskForm ev={ev} onSaved={onChanged} /> : null}
       </div>
 
-      {ev.eventId && ev.notes ? <CrewNotesCard key={`${ev.eventId}:${ev.notes.revision}`} eventId={ev.eventId} notes={ev.notes} canEdit={ev.canEditNotes} onSaved={onChanged} /> : null}
+      {ev.eventId && ev.notes ? <CrewNotesCard key={ev.eventId} eventId={ev.eventId} notes={ev.notes} canEdit={ev.canEditNotes} onSaved={onChanged} /> : null}
       {ev.consumption ? <ConsumptionCard data={ev.consumption} fileName={`Rekap-konsumsi-${ev.title.replace(/[^\w-]+/g, "_").slice(0, 40)}.csv`} /> : null}
+
+      {ev.eventId && ev.fundRequests ? <PanitiaFundRequestCard eventId={ev.eventId} data={ev.fundRequests} onChanged={onChanged} /> : null}
 
       {ev.finance ? (
         <div className={`${card} space-y-2`}>

@@ -94,6 +94,8 @@ export const KEEP_TABLES = [
   "event_vendor_contracts",
   // Catatan panitia (rundown, kesiapan, porsi konsumsi tambahan) = persiapan acara, tidak dihapus
   "event_crew_notes",
+  // Pengajuan dana panitia = catatan persiapan (bukan buku kas); yang disahkan sudah tercermin di Transparansi
+  "event_fund_requests",
   // GIGS satu pintu: pendaftar kreator/sponsor/kru & transparansi publik = data persiapan acara, tidak dihapus
   "event_registrations", "event_public_finance",
   // GIGS EO Fase 4: checklist operasional & evaluasi event = data persiapan/catatan (bukan transaksi)

@@ -9,7 +9,8 @@ import type { EventNotes } from "@/lib/event-crew-notes-service";
 
 // Catatan panitia + rekap konsumsi (Owner 22 Nov 2026, pindahan Dashboard Penyelenggara). Dipakai papan Lineup (Owner/
 // Manajer) dan Ruang Panitia. Hak ubah dicek di server; `canEdit` hanya menyembunyikan tombol.
-// Pemakai memberi `key={notes.revision}` agar isian di-reset setelah simpan / data baru.
+// Pemakai memberi `key={eventId}`: isian di-reset saat event berganti; revisi terbaru dari props dipakai saat simpan
+// (simpanan dari layar lain → 409, lalu muat ulang).
 
 const card = "rounded-lg border border-white/10 bg-[var(--garage-bg-2,#17171b)] p-4";
 const area = "min-h-28 w-full rounded-md border border-white/15 bg-black/30 px-3 py-2 text-base text-zinc-50 focus:border-amber-300 focus:outline-none";

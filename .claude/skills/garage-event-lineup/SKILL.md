@@ -213,3 +213,9 @@ description: Aturan WAJIB modul Lineup & Panitia Event (band/stand-up, rundown, 
   dashboard lama HANYA untuk login impor data lama (kartu Impor di Keuangan Event memakai tautan ini). API
   `/event/<slug>/api/organizer/*` tetap diteruskan (dipakai impor). Owner di `/panitia` melihat tautan Kontrol (Lineup,
   Keuangan Event, Transparansi, Hari-H). Mematikan container platform = langkah manual di VPS, butuh ACC Owner.
+- Siap matikan platform (Owner 23 Nov 2026): `src/data/event-platform-snapshot/snapshot.json` = salinan data PUBLIK platform
+  (daftar event + config/changes/participants/readiness/closeout/sponsor-summary GIGS 2026), `event-platform-snapshot.ts`.
+  `fetchPlatformJson` & daftar event (`fetchPlatformEvents`, beranda/promo/publik) memakai salinan bila platform mati/5xx;
+  data Garage OS tetap ditimpakan. Impor oleh Owner (RAB, lineup) memakai `useSnapshot: false` → platform mati = error
+  jujur. Config publik (jadwal, buka/tutup daftar, deadline) TIDAK lagi bisa diubah setelah platform dimatikan — ubah
+  salinan lewat PR bila perlu. `?lama=1`, /event/admin, API penyelenggara, dan pendaftaran lama (ID tak dikenal) → 502.

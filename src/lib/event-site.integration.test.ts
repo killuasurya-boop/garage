@@ -149,6 +149,42 @@ describe("Keputusan GO/NO GO & riwayat perubahan dari Transparansi Garage OS", (
 
     const { GET } = await import("@/app/api/public/gigs/[slug]/changes/route");
     const body = await (await GET(req(`http://x/api/public/gigs/${SLUG}/changes`), slugCtx)).json();
-    expect(body.changes).toEqual([expect.objectContaining({ id: 1, reason: "Harga band naik" })]);
+    // Platform mati → riwayat platform lama dari salinan publik (id 6), riwayat Garage OS menyambung nomornya.
+    expect(body.changes).toEqual([expect.objectContaining({ id: 6, at: "2026-11-17 15:34:53" }), expect.objectContaining({ id: 7, reason: "Harga band naik" })]);
+  });
+});
+
+describe("Platform GIGS dimatikan (Owner 23 Nov 2026): salinan publik menjaga halaman event tetap jalan", () => {
+  it("config, daftar event (beranda), peserta, kesiapan tetap terisi saat platform tidak terjangkau", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("getaddrinfo ENOTFOUND garage-event-platform"); }));
+    const config = await (await import("@/app/api/public/gigs/[slug]/config/route")).GET(req(`http://x/api/public/gigs/${SLUG}/config`), slugCtx);
+    expect(config.status).toBe(200);
+    const body = await config.json();
+    expect(body).toHaveProperty("event");
+    expect(body).toHaveProperty("open");
+    const { getGigsPromo } = await import("@/lib/gigs-promo");
+    const promo = await getGigsPromo(Date.parse("2026-12-01T00:00:00Z"));
+    expect(promo?.slug).toBe(SLUG);
+    const parts = await (await import("@/app/api/public/gigs/[slug]/participants/route")).GET(req(`http://x/api/public/gigs/${SLUG}/participants`), slugCtx);
+    expect(parts.status).toBe(200);
+    const ready = await (await import("@/app/api/public/gigs/[slug]/readiness/route")).GET(req(`http://x/api/public/gigs/${SLUG}/readiness`), slugCtx);
+    expect(ready.status).toBe(200);
+  });
+
+  it("salinan tidak menunjuk API platform (logo/aset sudah disalin ke Garage OS, tetap tampil saat platform mati)", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const raw = fs.readFileSync(path.join(process.cwd(), "src/data/event-platform-snapshot/snapshot.json"), "utf8");
+    expect(raw).not.toMatch(/\/api\/public\/logo\//);
+    for (const asset of raw.match(/\/event\/[a-z0-9-]+\/(official-assets|snapshot-assets)\/[^"?]+/g) ?? []) {
+      expect(fs.existsSync(path.join(process.cwd(), "public", asset)), asset).toBe(true);
+    }
+  });
+
+  it("impor RAB / lineup oleh Owner tetap jujur: platform tidak terjangkau → error, bukan salinan diam-diam", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("ENOTFOUND"); }));
+    const { fetchPlatformLineup, fetchPlatformBudget } = await import("@/lib/gigs-promo");
+    await expect(fetchPlatformLineup({ slug: SLUG, name: "" }, { useSnapshot: false })).rejects.toThrow();
+    await expect(fetchPlatformBudget({ slug: SLUG, name: "" })).rejects.toThrow();
   });
 });

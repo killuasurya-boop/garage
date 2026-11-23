@@ -1,0 +1,359 @@
+{
+ "capturedAt": "2026-11-23T16:00:00Z",
+ "events": {
+  "events": [
+   {
+    "slug": "gigs-akhir-tahun-2026",
+    "name": "GIGS AKHIR TAHUN 2026",
+    "tagline": "Bangkit bersama UMKM lokal & pemuda kreatif Tebing Tinggi",
+    "venue": "Garage Coffee, Tebing Tinggi",
+    "date": "2026-12-31T19:00:00+07:00",
+    "endsAt": "2026-12-31T18:00:00.000Z",
+    "status": "segera",
+    "url": "/event/gigs-akhir-tahun-2026",
+    "poster": "/event/gigs-akhir-tahun-2026/official-assets/gigs-underground-bg.webp",
+    "logo": "/event/gigs-akhir-tahun-2026/official-assets/gigs-2026-transparent.png",
+    "online": true,
+    "readiness": 5,
+    "live": null,
+    "promo": {
+     "headline": "Tutup 2026 dengan *suara paling keras* di Tebing Tinggi.",
+     "pitch": "Satu malam pergantian tahun di Garage Coffee: band lokal, stand-up comedy, live akustik, games, dan bazar UMKM. Digarap anak muda Tebing Tinggi, didanai bersama, dan setiap rupiahnya dicatat terbuka.",
+     "programs": [
+      "Band Lokal",
+      "Stand-Up Comedy",
+      "Live Acoustic",
+      "Games Interaktif",
+      "Merchandise Event",
+      "Kolaborasi UMKM"
+     ],
+     "lineup": [
+      {
+       "name": "LOST SIDE",
+       "logo": "/event/gigs-akhir-tahun-2026/official-assets/lineup/lost-side.jpg"
+      },
+      {
+       "name": "SURAI",
+       "logo": "/event/gigs-akhir-tahun-2026/official-assets/lineup/surau.png"
+      },
+      {
+       "name": "DIVISIVE",
+       "logo": "/event/gigs-akhir-tahun-2026/official-assets/lineup/divisive.png"
+      },
+      {
+       "name": "STAND OUT",
+       "logo": "/event/gigs-akhir-tahun-2026/official-assets/lineup/stand-out.jpg"
+      }
+     ],
+     "instagram": "https://www.instagram.com/garagecoffee/"
+    },
+    "sponsorMin": 300000,
+    "fundTarget": 21300000,
+    "fundPercent": 0,
+    "counts": {
+     "sponsors": 0,
+     "creators": 1
+    },
+    "whatsapp": "6285121552341",
+    "links": {
+     "daftarKreator": "/event/gigs-akhir-tahun-2026/daftar?tipe=kreator",
+     "daftarSponsor": "/event/gigs-akhir-tahun-2026/daftar?tipe=sponsor",
+     "daftar": "/event/gigs-akhir-tahun-2026/daftar",
+     "transparansi": "/event/gigs-akhir-tahun-2026/transparansi",
+     "dashboard": "/event/gigs-akhir-tahun-2026/penyelenggara"
+    }
+   }
+  ]
+ },
+ "bySlug": {
+  "gigs-akhir-tahun-2026": {
+   "public/config": {
+    "open": true,
+    "sponsorMin": 300000,
+    "sponsorMax": 20000000,
+    "sponsorTarget": 21300000,
+    "sponsorCapacity": 0,
+    "sponsorSpotsLeft": null,
+    "event": {
+     "name": "GIGS AKHIR TAHUN 2026",
+     "date": "2026-12-31T19:00:00+07:00",
+     "venue": "Garage Coffee, Tebing Tinggi",
+     "whatsapp": "6285121552341"
+    },
+    "finance": {
+     "target": 21300000,
+     "budgetLines": [
+      {
+       "code": "01",
+       "name": "Band",
+       "budget": 3200000,
+       "purpose": "Honor band lokal yang tampil (kontrak & bukti bayar).",
+       "pic": "Ace",
+       "needsVendor": true
+      },
+      {
+       "code": "02",
+       "name": "Sound (LIGHTING + DRUM + STAGE)",
+       "budget": 10000000,
+       "purpose": "Sewa sound system dari vendor (quotation & serah terima).",
+       "pic": "Rafly",
+       "needsVendor": true
+      },
+      {
+       "code": "03",
+       "name": "Komsumsi",
+       "budget": 1000000,
+       "purpose": "Untuk para panitia dan talent",
+       "pic": "Rafly",
+       "needsVendor": true
+      },
+      {
+       "code": "04",
+       "name": "Stand-up Comedy",
+       "budget": 1200000,
+       "purpose": "Honor komika lokal Tebing Tinggi.",
+       "pic": "Ace",
+       "needsVendor": true
+      },
+      {
+       "code": "05",
+       "name": "Sewa Tempat",
+       "budget": 1200000,
+       "purpose": "Tempat stage dan sound",
+       "pic": "",
+       "needsVendor": true
+      },
+      {
+       "code": "06",
+       "name": "Kembang Api",
+       "budget": 1000000,
+       "purpose": "Hanya dipakai setelah keputusan keselamatan & izin.",
+       "pic": "",
+       "needsVendor": true
+      },
+      {
+       "code": "07",
+       "name": "Dokumentasi",
+       "budget": 1000000,
+       "purpose": "Foto & video acara, hasil diserahkan ke panitia.",
+       "pic": "Aress",
+       "needsVendor": true
+      },
+      {
+       "code": "08",
+       "name": "Save Money",
+       "budget": 1500000,
+       "purpose": "Simpanan cadangan, bukan biaya. Dipakai hanya setelah disetujui.",
+       "pic": "",
+       "needsVendor": false
+      },
+      {
+       "code": "09",
+       "name": "MC (2 orang)",
+       "budget": 1200000,
+       "purpose": "Honor total 2 MC (kontrak & cue sheet).",
+       "pic": "",
+       "needsVendor": true
+      }
+     ],
+     "notes": [
+      "RAB sementara mengikuti keputusan penyelenggara (Blueprint V1.3).",
+      "Selisih target dan total RAB belum dialokasikan dan memerlukan keputusan resmi.",
+      "Kembang Api: pelaksanaan memerlukan verifikasi keamanan dan perizinan."
+     ],
+     "showVendorNames": false
+    },
+    "deadline": null,
+    "locked": false
+   },
+   "public/changes": {
+    "changes": [
+     {
+      "id": 6,
+      "area": "finance",
+      "summary": "Target 17.000.000 → 21.300.000; Pos 02 Sound (LIGHTING + DRUM + STAGE): Rp4.500.000 → Rp10.000.000; Pos 02 berganti nama \"Sound\" → \"Sound (LIGHTING + DRUM + STAGE)\"; Pos 03 berganti nama \"Lighting Acara\" → \"Komsumsi\"; Pos 05 Sewa Tempat: Rp3.000.000 → Rp1.200.000; Pos 05 berganti nama \"Crew Penyelenggara (7 orang)\" → \"Sewa Tempat\"; Pos 07 Dokumentasi: Rp500.000 → Rp1.000.000; Pos 08 Save Money: Rp1.000.000 → Rp1.500.000",
+      "reason": "",
+      "at": "2026-11-17 15:34:53"
+     }
+    ]
+   },
+   "public/participants": {
+    "sponsors": [],
+    "creators": [
+     {
+      "id": "8db7275e-7d25-40ab-9f84-68b419bb6f71",
+      "name": "STANDUP COMEDY TEBING TNGGI",
+      "category": "komika",
+      "description": "stand indo tebing tinggi",
+      "instagram": "standupindo_tebingtinggi",
+      "portfolio": "https://www.instagram.com/standupindo_tebingtinggi/",
+      "address": "",
+      "logo": "/event/gigs-akhir-tahun-2026/snapshot-assets/8db7275e-7d25-40ab-9f84-68b419bb6f71.jpg"
+     }
+    ],
+    "sponsorCounts": {
+     "committed": 1,
+     "nonkas": 0,
+     "verified": 0,
+     "cancelled": 0
+    }
+   },
+   "public/readiness": {
+    "total": 5,
+    "components": [
+     {
+      "key": "dana",
+      "label": "Dana terkumpul",
+      "weight": 30,
+      "available": true,
+      "percent": 0
+     },
+     {
+      "key": "vendor",
+      "label": "Vendor & pos RAB",
+      "weight": 25,
+      "available": true,
+      "percent": 0
+     },
+     {
+      "key": "checklist",
+      "label": "Checklist Gate A/B/C",
+      "weight": 20,
+      "available": true,
+      "percent": 25
+     },
+     {
+      "key": "lineup",
+      "label": "Lineup & slot",
+      "weight": 10,
+      "available": true,
+      "percent": 0
+     },
+     {
+      "key": "sponsor",
+      "label": "Hak sponsor",
+      "weight": 10,
+      "available": true,
+      "percent": 0
+     },
+     {
+      "key": "konten",
+      "label": "Konten",
+      "weight": 5,
+      "available": true,
+      "percent": 0
+     }
+    ],
+    "gates": [
+     {
+      "gate": "A",
+      "done": 1,
+      "total": 4
+     },
+     {
+      "gate": "B",
+      "done": 1,
+      "total": 3
+     },
+     {
+      "gate": "C",
+      "done": 1,
+      "total": 5
+     }
+    ],
+    "decision": null
+   },
+   "public/closeout": {
+    "closeout": null
+   },
+   "sponsor/summary": {
+    "transaction_count": 0,
+    "verified_amount": 0,
+    "verified_expense": 0,
+    "balance": 0,
+    "expenses": [],
+    "history": [],
+    "income_history": [],
+    "expense_history": [],
+    "void_history": [],
+    "budget_status": [
+     {
+      "code": "01",
+      "budget": 3200000,
+      "contracted": 0,
+      "paid": 0,
+      "stage": "belum-dipesan",
+      "vendors": []
+     },
+     {
+      "code": "02",
+      "budget": 10000000,
+      "contracted": 0,
+      "paid": 0,
+      "stage": "belum-dipesan",
+      "vendors": []
+     },
+     {
+      "code": "03",
+      "budget": 1000000,
+      "contracted": 0,
+      "paid": 0,
+      "stage": "belum-dipesan",
+      "vendors": []
+     },
+     {
+      "code": "04",
+      "budget": 1200000,
+      "contracted": 0,
+      "paid": 0,
+      "stage": "belum-dipesan",
+      "vendors": []
+     },
+     {
+      "code": "05",
+      "budget": 1200000,
+      "contracted": 0,
+      "paid": 0,
+      "stage": "belum-dipesan",
+      "vendors": []
+     },
+     {
+      "code": "06",
+      "budget": 1000000,
+      "contracted": 0,
+      "paid": 0,
+      "stage": "belum-dipesan",
+      "vendors": []
+     },
+     {
+      "code": "07",
+      "budget": 1000000,
+      "contracted": 0,
+      "paid": 0,
+      "stage": "belum-dipesan",
+      "vendors": []
+     },
+     {
+      "code": "08",
+      "budget": 1500000,
+      "contracted": 0,
+      "paid": 0,
+      "stage": "tanpa-vendor",
+      "vendors": []
+     },
+     {
+      "code": "09",
+      "budget": 1200000,
+      "contracted": 0,
+      "paid": 0,
+      "stage": "belum-dipesan",
+      "vendors": []
+     }
+    ],
+    "committed_count": 1,
+    "committed_amount": 1000000,
+    "contracted_total": 0
+   }
+  }
+ }
+}

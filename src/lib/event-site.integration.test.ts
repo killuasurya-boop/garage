@@ -171,6 +171,16 @@ describe("Platform GIGS dimatikan (Owner 23 Nov 2026): salinan publik menjaga ha
     expect(ready.status).toBe(200);
   });
 
+  it("salinan tidak menunjuk API platform (logo/aset sudah disalin ke Garage OS, tetap tampil saat platform mati)", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const raw = fs.readFileSync(path.join(process.cwd(), "src/data/event-platform-snapshot/snapshot.json"), "utf8");
+    expect(raw).not.toMatch(/\/api\/public\/logo\//);
+    for (const asset of raw.match(/\/event\/[a-z0-9-]+\/(official-assets|snapshot-assets)\/[^"?]+/g) ?? []) {
+      expect(fs.existsSync(path.join(process.cwd(), "public", asset)), asset).toBe(true);
+    }
+  });
+
   it("impor RAB / lineup oleh Owner tetap jujur: platform tidak terjangkau → error, bukan salinan diam-diam", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("ENOTFOUND"); }));
     const { fetchPlatformLineup, fetchPlatformBudget } = await import("@/lib/gigs-promo");

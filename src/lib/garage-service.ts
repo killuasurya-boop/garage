@@ -1,3 +1,4 @@
+import { deliveryOutletScope, transitionDeliveryInTx } from "@/lib/delivery-workflow";
 import { createHash, randomBytes, randomInt, randomUUID } from "crypto";
 import { parseDigitalMenuMode } from "@/lib/digital-menu-mode";
 
@@ -30,7 +31,6 @@ import {
   buildTrackerSteps,
   DELIVERY_STATUSES,
   deliveryQuote,
-  deliveryStatusPatch,
   distanceKm,
   normalizeFulfillment,
   stationVerb,
@@ -10421,6 +10421,7 @@ async function updateCustomerOrderStatusImpl(
   const outletSettings = await getAppSettings(garage.profile.outlet.id);
   const productionTargets = productionTargetsFrom(outletSettings);
   const db = getDb();
+  let deliveryTransitionChanged = false;
   const result = await db.transaction(async (tx) => {
     // FOR UPDATE: dua kasir/klik ganda "Terima"/"Lunas" diserialkan pada baris
     // order; permintaan kedua membaca status terbaru lalu jatuh ke cabang
@@ -10434,6 +10435,14 @@ async function updateCustomerOrderStatusImpl(
     // Kasir hanya boleh memproses pesanan outlet-nya sendiri.
     if (order.outletId && order.outletId !== garage.profile.outlet.id) {
       return null;
+    }
+
+    // Legacy delivery rows have no outlet ID: use the same default-outlet
+    // boundary as courier operations, before idempotent responses expose data.
+    if (order.fulfillment === "delivery" && !order.outletId) {
+      const [scoped] = await tx.select({ id: orders.id }).from(orders)
+        .where(and(eq(orders.id, order.id), await deliveryOutletScope(garage, tx))).limit(1);
+      if (!scoped) return null;
     }
 
     const itemRows = await tx
@@ -10480,18 +10489,15 @@ async function updateCustomerOrderStatusImpl(
       if (!next || !DELIVERY_STATUSES.includes(next)) {
         throw new Error("Status pengantaran tidak dikenal.");
       }
-      const [updated] = await tx
-        .update(orders)
-        .set(deliveryStatusPatch(next, now))
-        .where(eq(orders.id, order.id))
-        .returning();
+      const { order: updated, changed } = await transitionDeliveryInTx(tx, order, next, garage.user.name);
+      deliveryTransitionChanged = changed;
       const [latestPayment] = await tx
         .select()
         .from(payments)
         .where(eq(payments.orderId, order.id))
         .orderBy(desc(payments.createdAt))
         .limit(1);
-      await tx.insert(auditLogs).values({
+      if (changed) await tx.insert(auditLogs).values({
         time: nowTimeLabel(),
         actor,
         action: `Delivery status ${order.orderNo}`,
@@ -11555,7 +11561,7 @@ async function updateCustomerOrderStatusImpl(
           tag: `order-${result.order.id}`,
         }).catch(() => null);
       }
-      if (input.action === "delivery_status" && (input.deliveryStatus === "on_the_way" || input.deliveryStatus === "delivered")) {
+      if (deliveryTransitionChanged && input.action === "delivery_status" && (input.deliveryStatus === "on_the_way" || input.deliveryStatus === "delivered")) {
         await announceOrderProgress(result.order.id, input.deliveryStatus, { courierName: result.order.courierName });
       }
     } catch {

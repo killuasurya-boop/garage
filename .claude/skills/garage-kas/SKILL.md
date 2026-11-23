@@ -139,3 +139,9 @@ description: Aturan WAJIB uang/kas Garage OS: shift & laci, Kas Keluar/Masuk, bu
   via `recordCashPurchases` (`src/lib/finance-purchases.ts`, `sourceDoc` idempoten) — tidak membuat hutang supplier.
   Hanya expense ber-`sourceDoc` yang jadi biaya bahan; expense/pelunasan kategori belanja lain = cash-out saja.
 - Target profit bersih/bulan (`netProfitTargetMonthly`) = patokan balik modal (`computeCapitalTarget`).
+- HPP Mitra (audit Owner 23 Nov 2026, ENGINE_VERSION 8): biaya setoran mitra yang disetujui (expense `sourceDoc` `PSET:…`,
+  `approvePartnerSettlement`) = biaya bahan SEKALI. `loadDayRaws` memisahkannya ke `DayRaw.partnerCost` (tidak masuk
+  `expenses` per kategori, `purchases`, maupun stok awal `loadOpeningStockPurchases`) → `DayFigure.cogsPartner`, ditambahkan ke
+  `cogs` di mode purchase DAN recipe; arus kas tetap (grup `cogs_purchase`). Dulu terhitung dua kali (opex + belanja). Baris
+  laporan "Setoran mitra (HPP mitra)". Tanggal biaya = 12.00 WIB hari penjualan (`periodFrom` + 12 jam). Hari yang sudah
+  dikunci (snapshot `locked`) tidak dihitung ulang.

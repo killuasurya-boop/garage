@@ -20,6 +20,7 @@ function totals(partial: Partial<DayFigure>) {
     purchaseBar: 0,
     purchaseDapur: 0,
     purchaseUmum: 0,
+    cogsPartner: 0,
     grossProfit: 0,
     payroll: 0,
     operatingExpense: 0,

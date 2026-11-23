@@ -128,3 +128,6 @@ description: Aturan WAJIB Smart Partner Hub (mitra resmi, produk partner, portal
   `partner-product-image.ts` (multipart `image`, JPG/PNG/WebP ≤8 MB → WebP ≤200 KB, `/garage-uploads/menu`) and the single writer
   `setPartnerProductImage` (access checked BEFORE the file is written; event `product_photo`). Display only: price, approval and
   Promo Website pick are unchanged. Portal section "Foto produk" (`partner-portal-photos.tsx`) lists all the partner's products incl. pending.
+- Audit 23 Nov 2026: pisah bill SEBAGIAN untuk item mitra yang barisnya sudah di setoran aktif (`active_line_key`) ditolak
+  (`movePartnerLineOnSplit` → `PartnerOrderError`, pesan menyebut nomor setoran); pindah seluruh qty tetap boleh. Sebelumnya
+  baris pecahan baru (createdAt sama) bisa disetor lagi → mitra dibayar dua kali. HPP Mitra di laba: lihat skill `garage-kas`.

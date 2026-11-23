@@ -8,7 +8,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { eventCrew, eventFundRequests, eventPublicFinance, events, staffProfiles } from "@/db/schema";
@@ -87,9 +87,23 @@ function view(r: typeof eventFundRequests.$inferSelect): FundRequestView {
   };
 }
 
-async function listFor(eventId: string, limit = 100) {
-  const rows = await getDb().select().from(eventFundRequests).where(eq(eventFundRequests.eventId, eventId)).orderBy(desc(eventFundRequests.createdAt)).limit(limit);
-  return rows.map(view);
+/** Semua yang menunggu keputusan (tidak pernah terpotong oleh batas riwayat) + riwayat terbaru. */
+async function listFor(eventId: string, historyLimit = 100) {
+  const db = getDb();
+  const [pending, history] = await Promise.all([
+    db
+      .select()
+      .from(eventFundRequests)
+      .where(and(eq(eventFundRequests.eventId, eventId), eq(eventFundRequests.status, "diajukan")))
+      .orderBy(desc(eventFundRequests.createdAt)),
+    db
+      .select()
+      .from(eventFundRequests)
+      .where(and(eq(eventFundRequests.eventId, eventId), ne(eventFundRequests.status, "diajukan")))
+      .orderBy(desc(eventFundRequests.createdAt))
+      .limit(historyLimit),
+  ]);
+  return [...pending, ...history].map(view);
 }
 
 async function budgetCodesFor(eventId: string) {
@@ -205,7 +219,9 @@ export async function decideFundRequest(id: string, input: { action: "sahkan" | 
       .returning();
     if (!claimed) throw new LineupError("ALREADY_DECIDED", "Pengajuan ini sudah diputuskan.", 409);
     if (input.action === "sahkan") {
-      // Kunci baris Transparansi agar dua pengesahan bersamaan tidak saling menimpa.
+      // Kunci baris Transparansi agar dua pengesahan bersamaan tidak saling menimpa. Baris dibuat dulu bila belum ada
+      // (kosong, belum tampil), supaya selalu ada yang dikunci — pengesahan pertama pun berurutan.
+      await tx.insert(eventPublicFinance).values({ eventId: claimed.eventId, enabled: false, data: EMPTY_PUBLIC_FINANCE, updatedBy: garage.user.id }).onConflictDoNothing();
       const [row] = await tx.select().from(eventPublicFinance).where(eq(eventPublicFinance.eventId, claimed.eventId)).for("update").limit(1);
       const finance = publicFinanceSchema.safeParse(row?.data).data ?? EMPTY_PUBLIC_FINANCE;
       const applied = applyFundRequest(finance, { ...claimed, date: String(claimed.date) });
@@ -214,10 +230,7 @@ export async function decideFundRequest(id: string, input: { action: "sahkan" | 
       if (!parsed.success) throw new LineupError("FINANCE_REJECTED", parsed.error.issues[0]?.message ?? "Data Transparansi tidak valid.", 409);
       const now = new Date();
       // Saklar tampil tidak diubah (baris baru = belum tampil, sama seperti Transparansi).
-      await tx
-        .insert(eventPublicFinance)
-        .values({ eventId: claimed.eventId, enabled: false, data: parsed.data, updatedBy: garage.user.id, updatedAt: now })
-        .onConflictDoUpdate({ target: eventPublicFinance.eventId, set: { data: parsed.data, updatedBy: garage.user.id, updatedAt: now } });
+      await tx.update(eventPublicFinance).set({ data: parsed.data, updatedBy: garage.user.id, updatedAt: now }).where(eq(eventPublicFinance.eventId, claimed.eventId));
     }
     return claimed;
   });

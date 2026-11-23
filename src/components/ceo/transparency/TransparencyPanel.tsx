@@ -215,7 +215,7 @@ export function TransparencyPanel({ initialEventId }: { initialEventId: string |
             ))}
           </div>
 
-          {eventId && ready ? <OwnerFundRequestsCard eventId={eventId} onDecided={() => load(eventId)} /> : null}
+          {eventId && ready ? <OwnerFundRequestsCard key={eventId} eventId={eventId} onDecided={() => load(eventId)} /> : null}
 
           <section className={`${cardClass} space-y-3`} aria-labelledby="tr-target">
             <h2 id="tr-target" className="text-sm font-black uppercase tracking-wide text-zinc-100">

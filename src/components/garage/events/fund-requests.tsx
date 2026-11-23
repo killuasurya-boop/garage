@@ -182,7 +182,9 @@ export function PanitiaFundRequestCard({
 
 /** Owner (Transparansi): pengajuan panitia yang menunggu + riwayat. Sah → baris Transparansi di server. */
 export function OwnerFundRequestsCard({ eventId, onDecided }: { eventId: string; onDecided: () => void | Promise<void> }) {
-  const [items, setItems] = useState<FundRequestView[] | null>(null);
+  // Item selalu dibawa bersama event-nya: data event lain tidak pernah tampil/diputuskan di bawah judul event ini.
+  const [loaded, setLoaded] = useState<{ eventId: string; items: FundRequestView[] } | null>(null);
+  const items = loaded?.eventId === eventId ? loaded.items : null;
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState<{ id: string; note: string } | null>(null);
@@ -193,7 +195,7 @@ export function OwnerFundRequestsCard({ eventId, onDecided }: { eventId: string;
     let alive = true;
     garageApi
       .get<{ items: FundRequestView[] }>(`/api/event-fund-requests?eventId=${eventId}`, { cache: "no-store" })
-      .then((d) => alive && (setItems(d.items), setError(null)))
+      .then((d) => alive && (setLoaded({ eventId, items: d.items }), setError(null)))
       .catch((e) => alive && setError(errText(e)));
     return () => {
       alive = false;

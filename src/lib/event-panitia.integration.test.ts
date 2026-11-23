@@ -134,3 +134,65 @@ describe("Ruang Panitia", () => {
     expect(mine.map((l: any) => l.action)).toEqual(expect.arrayContaining(["Tugas panitia → selesai", "Tambah tugas panitia", "Tugas panitia → proses"]));
   });
 });
+
+describe("Catatan panitia & rekap konsumsi (Owner 22 Nov 2026)", () => {
+  let notes: any;
+  beforeAll(async () => {
+    notes = await import("@/lib/event-crew-notes-service");
+  });
+
+  it("Owner menyimpan catatan; revisi lama ditolak 409; Ketua boleh, anggota & Manajer tidak", async () => {
+    const first = await notes.saveEventNotes({ eventId, rundown: "Soundcheck 16.00", readiness: "Genset siap", extraPortions: 3, revision: 0 }, owner());
+    expect(first).toMatchObject({ rundown: "Soundcheck 16.00", extraPortions: 3, revision: 1 });
+    // Dua layar memakai revisi yang sama → yang kedua tidak menimpa diam-diam.
+    await expect(notes.saveEventNotes({ eventId, rundown: "Layar lain", readiness: "", extraPortions: 0, revision: 0 }, owner())).rejects.toMatchObject({ code: "NOTES_CONFLICT", status: 409 });
+    const byKetua = await notes.saveEventNotes({ eventId, rundown: "Soundcheck 15.30", readiness: "Genset siap", extraPortions: 3, revision: 1 }, session(KETUA, "Waiter" as Role));
+    expect(byKetua).toMatchObject({ revision: 2, updatedByName: "ketua" });
+    await expect(notes.saveEventNotes({ eventId, rundown: "x", readiness: "", extraPortions: 0, revision: 2 }, session(ANGGOTA, "Kasir" as Role))).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(notes.saveEventNotes({ eventId, rundown: "x", readiness: "", extraPortions: 0, revision: 2 }, session(ASING, "Waiter" as Role))).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(notes.saveEventNotes({ eventId, rundown: "x", readiness: "", extraPortions: 0, revision: 2 }, session(OWNER, "Owner" as Role, { agentKey: { id: "k" } }))).rejects.toMatchObject({ code: "HUMAN_SESSION_REQUIRED" });
+    const logs = await t.getDb().select().from(t.schema.auditLogs);
+    expect(logs.filter((l: any) => l.action === "Ubah catatan panitia")).toHaveLength(2);
+  });
+
+  it("rekap konsumsi: panitia aktif + talent konfirmasi (honor dari pos anggaran) + porsi tambahan; isian pendaftaran tertaut dipakai", async () => {
+    const d = t.getDb();
+    const band = await lineup.createPerformer({ eventId, name: "Band Makan", kind: "band", memberCount: 4, status: "konfirmasi" }, owner());
+    await lineup.createPerformer({ eventId, name: "Komika", kind: "standup", status: "konfirmasi" }, owner());
+    await lineup.createPerformer({ eventId, name: "Calon Band", kind: "band", status: "calon" }, owner());
+    await d.insert(t.schema.eventBudgetLines).values({ eventId, category: "honor", title: "Honor Band Makan", plannedAmount: 500_000, performerId: band.id, createdBy: OWNER } as any);
+    const [crewRow] = await d.select().from(t.schema.eventCrew).where((await import("drizzle-orm")).eq(t.schema.eventCrew.userId, KETUA));
+    await d.insert(t.schema.eventRegistrations).values([
+      { eventId, eventName: "GIGS PANITIA", type: "crew", status: "disetujui", codeHash: "h1", name: "Ace", pic: "Ace", whatsapp: "081200000001", members: 2, attendance: "persiapan", diet: "vegetarian", linkedCrewId: crewRow.id },
+      { eventId, eventName: "GIGS PANITIA", type: "crew", status: "diajukan", codeHash: "h2", name: "Kru Baru", pic: "Kru", whatsapp: "081200000002", attendance: "hari-h-penuh" },
+    ] as any);
+
+    const staff = await notes.getEventExtrasForStaff(owner(), eventId);
+    const t2 = staff.consumption.totals;
+    // Panitia aktif: Ace (2 orang dari pendaftaran) + Bendahara (1); Aress sudah nonaktif. Talent: Band Makan 4 (berhonor),
+    // LOST SIDE + Komika 1 + 1 (non-honor). Tambahan 3.
+    expect(t2).toMatchObject({ crew: 3, crewWaiting: 1, fundedTalent: 4, volunteerTalent: 2, extra: 3, portions: 12 });
+    const ace = staff.consumption.rows.find((r: any) => r.name === "Ace");
+    expect(ace).toMatchObject({ members: 2, attendance: "Persiapan (H-1)", diet: "vegetarian" });
+    expect(staff.consumption.rows.some((r: any) => r.name === "Calon Band")).toBe(false);
+    expect(JSON.stringify(staff)).not.toContain("081200000001");
+    expect(staff.canEditNotes).toBe(true);
+    expect((await notes.getEventExtrasForStaff(session(OWNER, "Manajer" as Role), eventId)).canEditNotes).toBe(false);
+    await expect(notes.getEventExtrasForStaff(session(ASING, "Waiter" as Role), eventId)).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("Ruang Panitia: semua panitia melihat catatan; rekap konsumsi hanya Ketua/Sekretaris/Bendahara/Konsumsi", async () => {
+    await lineup.createCrew({ eventId, name: "Dok", role: "dokumentasi", userId: ASING }, owner());
+    const ketua = (await panitia.getPanitiaWorkspace(session(KETUA, "Waiter" as Role))).events[0];
+    expect(ketua.notes.rundown).toBe("Soundcheck 15.30");
+    expect(ketua.consumption.totals.portions).toBe(13);
+    expect(ketua.canEditNotes).toBe(true);
+    const bendahara = (await panitia.getPanitiaWorkspace(session(BENDAHARA, "Waiter" as Role))).events[0];
+    expect(bendahara.consumption).not.toBeNull();
+    expect(bendahara.canEditNotes).toBe(false);
+    const anggota = (await panitia.getPanitiaWorkspace(session(ASING, "Waiter" as Role))).events[0];
+    expect(anggota.notes.readiness).toBe("Genset siap");
+    expect(anggota.consumption).toBeNull();
+    expect(anggota.canEditNotes).toBe(false);
+  });
+});

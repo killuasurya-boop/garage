@@ -6284,3 +6284,19 @@ export const eventPublicFinance = pgTable("event_public_finance", {
   updatedBy: text("updated_by").references(() => user.id, { onDelete: "set null" }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// Catatan panitia per event (Owner 22 Nov 2026, pindahan Dashboard Penyelenggara platform): catatan rundown & kesiapan
+// + porsi konsumsi tambahan (MC, tamu). Satu baris per event master. `revision` = kunci optimis (simpan dari 2 layar
+// tidak saling menimpa diam-diam). Bukan uang.
+export const eventCrewNotes = pgTable("event_crew_notes", {
+  eventId: uuid("event_id")
+    .primaryKey()
+    .references(() => events.id, { onDelete: "cascade" }),
+  rundown: text("rundown").notNull().default(""),
+  readiness: text("readiness").notNull().default(""),
+  extraPortions: integer("extra_portions").notNull().default(0),
+  revision: integer("revision").notNull().default(0),
+  updatedBy: text("updated_by").references(() => user.id, { onDelete: "set null" }),
+  updatedByName: text("updated_by_name"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});

@@ -212,6 +212,7 @@ export const API_ROUTE_CATALOG: ApiRouteEntry[] = [
   {"path":"/api/event-lineup/extras","methods":["GET"],"note":""},
   {"path":"/api/event-lineup/import-platform","methods":["POST"],"note":""},
   {"path":"/api/event-lineup/performers/{id}/logo","methods":["POST","DELETE"],"note":""},
+  {"path":"/api/event-lineup/performers/{id}/photo","methods":["POST","DELETE"],"note":""},
   {"path":"/api/event-lineup/performers/{id}","methods":["PATCH"],"note":""},
   {"path":"/api/event-lineup/reorder","methods":["POST"],"note":""},
   {"path":"/api/event-lineup","methods":["GET","POST"],"note":""},

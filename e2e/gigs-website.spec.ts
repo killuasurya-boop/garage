@@ -80,6 +80,10 @@ test("Lineup & Sponsor: impor platform → kustom talent & sponsor → tampil di
     await dialog.getByLabel("Instagram").fill(`https://www.instagram.com/${ig}/`);
     await dialog.getByLabel(`Pilih logo ${band}`).setInputFiles({ name: "logo.png", mimeType: "image/png", buffer: PNG });
     await expect(dialog.getByRole("button", { name: /Ganti logo/ })).toBeVisible({ timeout: 60_000 });
+    // Foto latar kartu halaman event (Owner 19 Nov 2026).
+    await dialog.getByLabel(`Pilih foto ${band}`).setInputFiles({ name: "foto.png", mimeType: "image/png", buffer: PNG });
+    await expect(dialog.getByRole("button", { name: /Ganti foto/ })).toBeVisible({ timeout: 60_000 });
+    await expect(dialog.getByRole("img", { name: `Foto ${band}` })).toBeVisible();
     await dialog.getByRole("button", { name: "Simpan" }).click();
     await expect(dialog).toBeHidden({ timeout: 60_000 });
     await expect(card).toContainText("Heavy / Metallic Roster");
@@ -88,6 +92,13 @@ test("Lineup & Sponsor: impor platform → kustom talent & sponsor → tampil di
     // Instagram salah ditolak dengan pesan jelas (bukan error mentah).
     const board = (await (await page.request.get(`/api/event-lineup?eventId=${event.id}`)).json()).data;
     const imported = board.performers.find((p: { name: string }) => p.name === band);
+    expect(imported.photoUrl).toMatch(/^\/garage-uploads\/event-lineup\/.+\.webp$/);
+    // Halaman event: slot membawa foto Garage, app.js memakai foto itu (tanpa foto → foto umum platform).
+    const eventSlots = (await (await page.request.get(`/api/public/gigs/gigs-e2e-${tag.toLowerCase()}/lineup`)).json()).slots as Array<{ performer: string; photo?: string }>;
+    expect(eventSlots.find((slot) => slot.performer === band)?.photo).toBe(imported.photoUrl);
+    expect(eventSlots.find((slot) => slot.performer === comic)?.photo).toBeUndefined();
+    // ID penampil tidak valid ditolak (bukan error mentah).
+    expect((await page.request.fetch(`/api/event-lineup/performers/not-a-uuid/photo`, { method: "DELETE" })).status()).toBe(400);
     const badIg = await page.request.patch(`/api/event-lineup/performers/${imported.id}`, { data: { instagram: "akun salah!" } });
     expect(badIg.status()).toBe(400);
     expect((await badIg.json()).error.code).toBe("INVALID_INSTAGRAM");
@@ -176,6 +187,7 @@ test("Beranda HP: kartu lineup & sponsor tidak terpotong / tidak bergeser @mobil
     const js = await appJs.text();
     expect(js).toContain("setupRevealObserver();");
     expect(js).toContain("name: 'SURAI'");
+    expect(js).toContain("...(slot.photo ? { photo: String(slot.photo) } : {})");
     expect(js).not.toContain("SURAU");
     await expect(page.getByTestId("home-gigs-partners").getByText(`Sponsor Dengan Nama Sangat Panjang ${tag}`)).toBeVisible();
     await noHorizontalOverflow(page);

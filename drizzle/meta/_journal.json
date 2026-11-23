@@ -1478,6 +1478,13 @@
       "when": 1795408433653,
       "tag": "0210_event_fund_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 211,
+      "version": "7",
+      "when": 1795464420143,
+      "tag": "0211_event_performer_photo",
+      "breakpoints": true
     }
   ]
 }

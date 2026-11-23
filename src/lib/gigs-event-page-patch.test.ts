@@ -16,7 +16,13 @@ const SAMPLE = [
   "  ];",
   "  async function loadPublicLineup() {",
   "    try {",
-  "      LINEUPS.splice(0, LINEUPS.length, { slot: 'SLOT // OPEN', name: 'NEXT TALENT?', isCta: true });",
+  "      LINEUPS.splice(0, LINEUPS.length,",
+  "        ...filled.map((slot, i) => ({",
+  "          name: slot.performer.toUpperCase(),",
+  "          photo: `/event/gigs-akhir-tahun-2026/photos/lineup-${(i % 5) + 1}.jpg`,",
+  "          logo: slot.logo,",
+  "        })),",
+  "        { slot: 'SLOT // OPEN', name: 'NEXT TALENT?', isCta: true });",
   "      renderLineups();",
   "    } catch {}",
   "  }",
@@ -26,7 +32,7 @@ const SAMPLE = [
 describe("patchGigsAppJs (halaman event platform, Owner 18 Nov 2026)", () => {
   it("memasang ulang animasi muncul setelah lineup dirender dan mengganti semua SURAU → SURAI", () => {
     const { code, applied, skipped } = patchGigsAppJs(SAMPLE);
-    expect(applied).toEqual(["lineup-reveal", "surai-name", "panitia-login"]);
+    expect(applied).toEqual(["lineup-reveal", "surai-name", "lineup-photo", "panitia-login"]);
     expect(code).toContain("/login?next=/panitia");
     expect(skipped).toEqual([]);
     expect(code).toContain("renderLineups();\n      setupRevealObserver();\n      revealActiveScreenImmediate();\n");
@@ -39,7 +45,7 @@ describe("patchGigsAppJs (halaman event platform, Owner 18 Nov 2026)", () => {
     const { code, applied, skipped } = patchGigsAppJs(changed);
     expect(code.startsWith(changed)).toBe(true);
     expect(applied).toEqual(["panitia-login"]);
-    expect(skipped).toEqual(["lineup-reveal", "surai-name"]);
+    expect(skipped).toEqual(["lineup-reveal", "surai-name", "lineup-photo"]);
   });
 
   it("dua kali dipasang tetap aman (tidak menambah panggilan ganda)", () => {
@@ -47,5 +53,19 @@ describe("patchGigsAppJs (halaman event platform, Owner 18 Nov 2026)", () => {
     const twice = patchGigsAppJs(once);
     expect(twice.code.match(/setupRevealObserver\(\);/g)).toHaveLength(1);
     expect(twice.code.match(/__garagePanitiaLogin = true/g)).toHaveLength(1);
+    expect(twice.code.match(/slot\.photo \?/g)).toHaveLength(1);
+  });
+
+  it("foto penampil dari Garage menang; tanpa foto tetap foto umum platform (Owner 19 Nov 2026)", () => {
+    const { code } = patchGigsAppJs(SAMPLE);
+    const start = code.indexOf("...filled.map(");
+    const end = code.indexOf("})),", start) + 3;
+    const mapper = new Function("filled", `return [${code.slice(start, end)}];`) as (slots: unknown[]) => Array<{ photo: string }>;
+    const [withPhoto, without] = mapper([
+      { performer: "surai", photo: "/garage-uploads/event-lineup/x-foto.webp", logo: "" },
+      { performer: "lost side", logo: "" },
+    ]);
+    expect(withPhoto.photo).toBe("/garage-uploads/event-lineup/x-foto.webp");
+    expect(without.photo).toBe("/event/gigs-akhir-tahun-2026/photos/lineup-2.jpg");
   });
 });

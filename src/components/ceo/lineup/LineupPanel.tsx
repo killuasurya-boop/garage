@@ -973,6 +973,21 @@ function PerformerForm({
                   <p className="text-sm font-normal text-zinc-300">Klik Simpan dulu, lalu tombol “Ubah” pada kartu untuk mengunggah logo.</p>
                 )}
               </div>
+              <div className="grid min-w-0 gap-1 text-xs font-semibold text-zinc-300">
+                Foto latar kartu (halaman event GIGS)
+                {row ? (
+                  <LogoUpload
+                    kind="foto"
+                    endpoint={`/api/event-lineup/performers/${row.id}/photo`}
+                    logoUrl={row.photoUrl}
+                    label={row.name}
+                    onChanged={onLogoChanged}
+                    hint="JPG/PNG/WebP, maks 8 MB. Foto panggung/band; tampil gelap di belakang logo. Kosong = foto umum."
+                  />
+                ) : (
+                  <p className="text-sm font-normal text-zinc-300">Klik Simpan dulu, lalu tombol “Ubah” pada kartu untuk mengunggah foto.</p>
+                )}
+              </div>
               <Field label="Tagline (baris kecil di bawah nama)">
                 <input className={inputClass} value={f.tagline} onChange={set("tagline")} maxLength={40} placeholder="mis. Heavy / Metallic Roster" />
               </Field>

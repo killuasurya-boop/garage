@@ -6,6 +6,7 @@ import { Download, ExternalLink, Plus, RefreshCw, Save, Trash2 } from "lucide-re
 import { PageHeader } from "@/components/ceo/layout/PageHeader";
 import { EventControlNav, StepHint } from "@/components/ceo/ui/EventControlNav";
 import { OwnerFundRequestsCard } from "@/components/garage/events/fund-requests";
+import { EVENT_PLATFORM_RETIRED } from "@/lib/event-platform-status";
 import { garageApi, GarageApiError } from "@/lib/api-client";
 import { DECISION_LABEL, DECISIONS, EMPTY_CLOSEOUT, EMPTY_DECISION, EMPTY_PUBLIC_FINANCE, PAY_KINDS, PUBLIC_STAGE_LABEL, PUBLIC_STAGES, publicFinanceTotals, type PublicFinance } from "@/lib/event-public-finance-rules";
 
@@ -171,9 +172,11 @@ export function TransparencyPanel({ initialEventId }: { initialEventId: string |
           </select>
         </Field>
         <div className="flex flex-wrap items-center gap-2">
-          <button type="button" className={ghostBtn} onClick={() => void prefill()} disabled={busy || !ready}>
-            <Download size={16} aria-hidden /> Isi dari angka platform
-          </button>
+          {EVENT_PLATFORM_RETIRED ? null : (
+            <button type="button" className={ghostBtn} onClick={() => void prefill()} disabled={busy || !ready}>
+              <Download size={16} aria-hidden /> Isi dari angka platform
+            </button>
+          )}
           {ready ? (
             <button type="button" className={primaryBtn} onClick={() => void save()} disabled={busy}>
               <Save size={16} aria-hidden /> Simpan

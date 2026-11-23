@@ -3,7 +3,8 @@
 // - Halaman publik (beranda event, /daftar, /transparansi) + asetnya = salinan resmi dari platform GIGS di
 //   public/event/<slug>/ (HTML di _pages/). Data tetap diambil app.js dari API /event/<slug>/api/... yang dilayani
 //   Garage OS (lineup, live, config, peserta, kesiapan, laporan akhir, riwayat perubahan, pendaftaran).
-// - Semua yang belum dipindah (Dashboard Penyelenggara, daftar event /event, /event/admin, API penyelenggara)
+// - Dashboard Penyelenggara (/event/<slug>/penyelenggara) → Ruang Panitia (`organizerPageRedirect`, kecuali ?lama=1).
+// - Semua yang belum dipindah (daftar event /event, /event/admin, API penyelenggara)
 //   diteruskan apa adanya ke platform lewat jaringan internal — perilakunya sama seperti sebelum dipindah.
 
 import { readFile } from "node:fs/promises";
@@ -23,6 +24,17 @@ export async function eventSitePage(segments: string[]): Promise<string | null> 
   const [slug, page = ""] = segments;
   if (!SLUG.test(slug) || !(page in PAGES)) return null;
   return readFile(path.join(eventSiteDir(slug), "_pages", PAGES[page]), "utf8").catch(() => null);
+}
+
+/**
+ * Dashboard Penyelenggara lama → Ruang Panitia Garage OS (Owner 23 Nov 2026, satu pintu tahap akhir).
+ * `/event/<slug>/penyelenggara` dialihkan ke `/panitia`. `?lama=1` masih membuka dashboard lama (hanya untuk login
+ * impor data lama, sampai platform dimatikan). API penyelenggara tidak dialihkan (dipakai impor).
+ */
+export function organizerPageRedirect(segments: string[], search: URLSearchParams): string | null {
+  if (segments.length !== 2 || !SLUG.test(segments[0]) || segments[1] !== "penyelenggara") return null;
+  if (search.get("lama") === "1") return null;
+  return "/panitia";
 }
 
 /** app.js asli dari salinan Garage OS (null bila event ini belum disalin). */

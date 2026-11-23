@@ -1,10 +1,11 @@
-import { eventSitePage, proxyToPlatform } from "@/lib/event-site";
+import { eventSitePage, organizerPageRedirect, proxyToPlatform } from "@/lib/event-site";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // /event/** (Owner 19 Nov 2026, satu pintu): halaman publik event yang sudah disalin ke Garage OS disajikan dari sini;
-// aset statisnya dari public/event/<slug>/; selain itu (Dashboard Penyelenggara, daftar event, admin platform)
+// aset statisnya dari public/event/<slug>/; Dashboard Penyelenggara → /panitia (kecuali ?lama=1); selain itu (daftar
+// event, admin platform, API penyelenggara)
 // diteruskan ke platform GIGS apa adanya.
 type Ctx = { params: Promise<{ path?: string[] }> };
 
@@ -12,6 +13,8 @@ async function handle(request: Request, context: Ctx) {
   const url = new URL(request.url);
   const segments = (await context.params).path ?? [];
   if (request.method === "GET" || request.method === "HEAD") {
+    const target = organizerPageRedirect(segments, url.searchParams);
+    if (target) return new Response(null, { status: 302, headers: { Location: target, "Cache-Control": "no-store" } });
     const html = await eventSitePage(segments);
     if (html !== null) {
       return new Response(request.method === "HEAD" ? null : html, {

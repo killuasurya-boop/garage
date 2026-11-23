@@ -208,3 +208,8 @@ description: Aturan WAJIB modul Lineup & Panitia Event (band/stand-up, rundown, 
   Transparansi dalam tx yang sama (baris Transparansi dikunci FOR UPDATE, kapasitas 300 dijaga), TIDAK PERNAH buku kas.
   Bukti (`GET .../proof`): Owner, pengaju, Ketua/Bendahara event itu; no-store + nosniff. Notifikasi HP Owner
   `event_fund_request`. Reset grand opening: KEEP. Staging: `proof_file` dikosongkan.
+- Dashboard Penyelenggara → Ruang Panitia (Owner 23 Nov 2026): `GET /event/<slug>/penyelenggara` = 302 ke `/panitia`
+  (`organizerPageRedirect`, `src/app/event/[[...path]]/route.ts`), platform tidak dipanggil. `?lama=1` masih membuka
+  dashboard lama HANYA untuk login impor data lama (kartu Impor di Keuangan Event memakai tautan ini). API
+  `/event/<slug>/api/organizer/*` tetap diteruskan (dipakai impor). Owner di `/panitia` melihat tautan Kontrol (Lineup,
+  Keuangan Event, Transparansi, Hari-H). Mematikan container platform = langkah manual di VPS, butuh ACC Owner.

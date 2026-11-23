@@ -1049,7 +1049,7 @@ function PlatformImportCard({ eventId, platformSlug, onDone }: { eventId: string
           <Download size={15} /> Baca data
         </button>
         {loginNeeded && slug ? (
-          <a className={ghostBtn} href={`/event/${slug}/penyelenggara`} target="_blank" rel="noreferrer">
+          <a className={ghostBtn} href={`/event/${slug}/penyelenggara?lama=1`} target="_blank" rel="noreferrer">
             Buka Dashboard Penyelenggara
           </a>
         ) : null}

@@ -80,7 +80,25 @@ export function PanitiaWorkspaceView() {
         </p>
       ) : null}
 
-      {data && !data.events.length ? (
+      {data?.isOwner ? (
+        <nav className={`${card} space-y-2`} aria-label="Kontrol event Owner">
+          <p className="text-sm text-zinc-200">Dashboard Penyelenggara lama sudah pindah ke Garage OS. Sebagai Owner, kelola event dari:</p>
+          <div className="flex flex-wrap gap-2">
+            {[
+              ["/control/lineup", "Lineup & Panitia"],
+              ["/control/event-finance", "Keuangan Event"],
+              ["/control/event-transparency", "Transparansi & pengajuan dana"],
+              ["/event-day", "Hari-H"],
+            ].map(([href, label]) => (
+              <Link key={href} href={href} className="inline-flex min-h-11 items-center rounded-md border border-white/15 px-3 text-sm font-semibold text-zinc-50 hover:bg-white/5">
+                {label}
+              </Link>
+            ))}
+          </div>
+        </nav>
+      ) : null}
+
+      {data && !data.events.length && !data.isOwner ? (
         <div className={`${card} space-y-2`}>
           <p className="flex items-center gap-2 font-bold">
             <Users size={18} className="text-amber-300" /> Akun Anda belum ditautkan ke panitia event mana pun.

@@ -171,7 +171,7 @@ export async function getPanitiaWorkspace(garage: GarageSession, now = new Date(
       fundRequests: await panitiaFundRequests(first.eventId, roles),
     });
   }
-  return { today, name: garage.user.name ?? "Panitia", events: out };
+  return { today, name: garage.user.name ?? "Panitia", isOwner: garage.profile.role === "Owner", events: out };
 }
 
 async function audit(garage: GarageSession, action: string, object: string, metadata: Record<string, unknown>) {

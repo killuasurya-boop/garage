@@ -61,9 +61,10 @@ describe("Halaman publik event dari Garage OS", () => {
     });
     vi.stubGlobal("fetch", fetchSpy);
     const { GET, POST } = await import("@/app/event/[[...path]]/route");
-    const dash = await GET(req(`http://x/event/${SLUG}/penyelenggara?tab=dana`), ctx([SLUG, "penyelenggara"]));
+    // Dashboard lama hanya lewat ?lama=1 (login untuk impor data lama).
+    const dash = await GET(req(`http://x/event/${SLUG}/penyelenggara?lama=1`), ctx([SLUG, "penyelenggara"]));
     expect(dash.status).toBe(201);
-    expect((await dash.json()).url).toBe(`http://garage-event-platform:4400/event/${SLUG}/penyelenggara?tab=dana`);
+    expect((await dash.json()).url).toBe(`http://garage-event-platform:4400/event/${SLUG}/penyelenggara?lama=1`);
     expect(dash.headers.get("set-cookie")).toContain("sid=abc");
 
     const login = await POST(req(`http://x/event/${SLUG}/api/admin/login`, { method: "POST", body: JSON.stringify({ pin: "1" }) }), ctx([SLUG, "api", "admin", "login"]));
@@ -72,10 +73,24 @@ describe("Halaman publik event dari Garage OS", () => {
     expect((await other.json()).url).toBe("http://garage-event-platform:4400/event/event-lain");
   });
 
+  it("Dashboard Penyelenggara → Ruang Panitia (302), tanpa memanggil platform; API penyelenggara tetap diteruskan", async () => {
+    const fetchSpy = vi.fn(async () => new Response("{}", { status: 200 }));
+    vi.stubGlobal("fetch", fetchSpy);
+    const { GET } = await import("@/app/event/[[...path]]/route");
+    for (const url of [`http://x/event/${SLUG}/penyelenggara`, `http://x/event/event-lain/penyelenggara?tab=dana`]) {
+      const res = await GET(req(url), ctx([new URL(url).pathname.split("/")[2], "penyelenggara"]));
+      expect(res.status).toBe(302);
+      expect(res.headers.get("location")).toBe("/panitia");
+    }
+    expect(fetchSpy).not.toHaveBeenCalled();
+    await GET(req(`http://x/event/${SLUG}/api/organizer/ledger`), ctx([SLUG, "api", "organizer", "ledger"]));
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
   it("platform mati → 502 dengan pesan, bukan error mentah", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("ECONNREFUSED 10.0.0.1"); }));
     const { GET } = await import("@/app/event/[[...path]]/route");
-    const res = await GET(req(`http://x/event/${SLUG}/penyelenggara`), ctx([SLUG, "penyelenggara"]));
+    const res = await GET(req(`http://x/event/${SLUG}/penyelenggara?lama=1`), ctx([SLUG, "penyelenggara"]));
     expect(res.status).toBe(502);
     expect(await res.text()).not.toContain("ECONNREFUSED");
   });

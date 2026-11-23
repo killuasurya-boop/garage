@@ -10,6 +10,8 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
+import { platformEventsSnapshot } from "@/lib/event-platform-snapshot";
+
 const DEFAULT_API = "http://garage-event-platform:4400/event/api/events";
 const SLUG = /^[a-z0-9][a-z0-9-]{0,80}$/;
 const PAGES: Record<string, string> = { "": "index.html", daftar: "daftar.html", transparansi: "transparansi.html" };
@@ -35,6 +37,13 @@ export function organizerPageRedirect(segments: string[], search: URLSearchParam
   if (segments.length !== 2 || !SLUG.test(segments[0]) || segments[1] !== "penyelenggara") return null;
   if (search.get("lama") === "1") return null;
   return "/panitia";
+}
+
+/** Halaman event tujuan `/event` saat platform mati: event online pertama di salinan yang halamannya ada di Garage OS. */
+export function eventListFallback(): string | null {
+  const snap = platformEventsSnapshot() as { events?: Array<{ slug?: unknown; online?: unknown }> } | null;
+  const ev = (snap?.events ?? []).find((e) => e.online && typeof e.slug === "string" && SLUG.test(e.slug));
+  return ev ? `/event/${ev.slug}` : null;
 }
 
 /** app.js asli dari salinan Garage OS (null bila event ini belum disalin). */

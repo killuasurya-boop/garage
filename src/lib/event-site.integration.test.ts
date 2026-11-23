@@ -181,6 +181,17 @@ describe("Platform GIGS dimatikan (Owner 23 Nov 2026): salinan publik menjaga ha
     }
   });
 
+  it("lineup halaman event & daftar /event tetap jalan saat platform mati", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("ENOTFOUND"); }));
+    const lineup = await (await import("@/app/api/public/gigs/[slug]/lineup/route")).GET(req(`http://x/api/public/gigs/${SLUG}/lineup`), slugCtx);
+    expect(lineup.status).toBe(200);
+    expect((await lineup.json()).slots.length).toBeGreaterThan(0);
+    const { GET } = await import("@/app/event/[[...path]]/route");
+    const list = await GET(req("http://x/event"), ctx([]));
+    expect(list.status).toBe(302);
+    expect(list.headers.get("location")).toBe(`/event/${SLUG}`);
+  });
+
   it("impor RAB / lineup oleh Owner tetap jujur: platform tidak terjangkau → error, bukan salinan diam-diam", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("ENOTFOUND"); }));
     const { fetchPlatformLineup, fetchPlatformBudget } = await import("@/lib/gigs-promo");

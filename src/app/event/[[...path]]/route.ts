@@ -1,4 +1,4 @@
-import { eventSitePage, organizerPageRedirect, proxyToPlatform } from "@/lib/event-site";
+import { eventListFallback, eventSitePage, organizerPageRedirect, proxyToPlatform } from "@/lib/event-site";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,7 +22,13 @@ async function handle(request: Request, context: Ctx) {
       });
     }
   }
-  return proxyToPlatform(request, url.pathname, url.search);
+  const res = await proxyToPlatform(request, url.pathname, url.search);
+  // Daftar event /event (menu "Event" beranda) saat platform mati → event aktif dari salinan Garage OS.
+  if (res.status === 502 && segments.length === 0 && (request.method === "GET" || request.method === "HEAD")) {
+    const target = eventListFallback();
+    if (target) return new Response(null, { status: 302, headers: { Location: target, "Cache-Control": "no-store" } });
+  }
+  return res;
 }
 
 export const GET = handle;

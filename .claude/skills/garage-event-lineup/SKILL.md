@@ -219,3 +219,7 @@ description: Aturan WAJIB modul Lineup & Panitia Event (band/stand-up, rundown, 
   data Garage OS tetap ditimpakan. Impor oleh Owner (RAB, lineup) memakai `useSnapshot: false` → platform mati = error
   jujur. Config publik (jadwal, buka/tutup daftar, deadline) TIDAK lagi bisa diubah setelah platform dimatikan — ubah
   salinan lewat PR bila perlu. `?lama=1`, /event/admin, API penyelenggara, dan pendaftaran lama (ID tak dikenal) → 502.
+- Platform GIGS DIMATIKAN (Owner 23 Nov 2026, workflow sekali pakai #268 → `docker stop` + restart=no pada container
+  `garage-event-*`; container/image/data tetap ada). Nyalakan lagi di VPS: `docker update --restart=unless-stopped <nama>
+  && docker start <nama>`. Saat mati: lineup halaman event dari salinan `public/lineup`, `/event` → 302 ke event online
+  pertama di salinan (`eventListFallback`); `?lama=1`, `/event/admin`, API penyelenggara = 502.

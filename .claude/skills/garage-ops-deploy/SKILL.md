@@ -34,3 +34,8 @@ description: Aturan WAJIB staging, security guard route API, release-check/deplo
   (`~/.garage-ops/backup-public.asc`, made once by `scripts/setup-backup-key.sh`) and deletes plaintext; opening needs the Owner's
   private key + passphrase (`scripts/restore-from-encrypted.sh --check|--drill|--out`). Never store the private key or passphrase
   in the repo, OneDrive, logs or scripts; never type them for the Owner.
+
+- Deploy VPS me-reload Caddy (23 Nov 2026): `deploy.yml` menjalankan `caddy validate` lalu `caddy reload` setelah
+  `up -d`, karena Caddy yang sudah jalan tidak membaca ulang Caddyfile hasil scp (aturan /event/* #255 sempat tidak
+  aktif). Validasi gagal = deploy berhenti, Caddy tetap aturan lama. Cek kesehatan juga memeriksa
+  `/event/gigs-akhir-tahun-2026/` (peringatan saja, tanpa rollback).

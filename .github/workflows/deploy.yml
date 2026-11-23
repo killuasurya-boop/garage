@@ -63,6 +63,10 @@ jobs:
             docker compose --env-file .env.production up -d --no-build app caddy backup
             # Skrip backup di-mount dari host: restart agar versi terbaru dipakai.
             docker compose --env-file .env.production restart backup
+            # Caddy yang sudah jalan tidak membaca ulang Caddyfile baru (23 Nov 2026: aturan /event/* dari #255 belum
+            # aktif). Validasi dulu (gagal = deploy berhenti, Caddy tetap aturan lama); reload tanpa memutus koneksi.
+            docker compose --env-file .env.production exec -T caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null
+            docker compose --env-file .env.production exec -T caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
             docker image prune -f >/dev/null
           "
 
@@ -71,7 +75,13 @@ jobs:
           SSH="ssh -i ~/.ssh/deploy_key -o BatchMode=yes $VPS_USER@$VPS_HOST"
           for i in $(seq 1 20); do
             code=$(curl -s -o /dev/null -w '%{http_code}' https://garagecoffee.id/api/health || true)
-            [ "$code" = "200" ] && echo "Sehat (HTTP 200)" && exit 0
+            if [ "$code" = "200" ]; then
+              echo "Sehat (HTTP 200)"
+              # Halaman event lewat Garage OS (aturan /event/* Caddy). Gagal = peringatan saja (bukan masalah image app).
+              ev=$(curl -s -o /dev/null -w '%{http_code}' https://garagecoffee.id/event/gigs-akhir-tahun-2026/ || true)
+              [ "$ev" = "200" ] && echo "Halaman event OK" || echo "::warning::Halaman event /event/gigs-akhir-tahun-2026/ HTTP $ev — cek Caddy & platform"
+              exit 0
+            fi
             sleep 6
           done
           echo "Kesehatan gagal — rollback ke versi sebelumnya"

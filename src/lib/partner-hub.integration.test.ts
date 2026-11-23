@@ -1245,6 +1245,35 @@ describe("Smart Partner Hub — A7 settlement harian & pengingat (Owner 15 Nov 2
     expect(overview.settlements.find((row) => row.id === draft.id)).toMatchObject({ pendingAmount: 9_000 });
   });
 
+  it("HPP Mitra masuk laba SEKALI (biaya bahan, bukan opex) di tanggal penjualan — audit Owner 23 Nov 2026", async () => {
+    const { wibDayKey, wibDayStart } = await import("@/lib/partner-hub-rules");
+    const { eq, like } = await import("drizzle-orm");
+    const d = t.getDb();
+    const day = wibDayStart(new Date());
+    const [row] = await svc.listPartnerSettlements(outletId, mitra.id);
+    const [expense] = await d.select().from(t.schema.expenses).where(eq(t.schema.expenses.sourceDoc, `PSET:${row.settlement.settlementNo}`));
+    // Tanggal biaya = 12.00 WIB hari penjualan (bukan 00.00 hari berikutnya).
+    expect(new Date(expense.expenseDate).getTime()).toBe(day.getTime() + 12 * 3_600_000);
+
+    const fc = await import("@/lib/finance-control");
+    const core = await import("@/lib/finance-control-core");
+    const key = wibDayKey(day);
+    const config = { ...(await fc.loadFinanceConfig()), businessStartDate: "2026-01-01" };
+    const raw = (await fc.loadDayRaws(key, key)).get(key)!;
+    const partnerToday = (await d.select().from(t.schema.expenses).where(like(t.schema.expenses.sourceDoc, "PSET:%")))
+      .filter((e: { expenseDate: Date }) => wibDayKey(new Date(e.expenseDate)) === key)
+      .reduce((sum: number, e: { amount: number }) => sum + e.amount, 0);
+    expect(partnerToday).toBeGreaterThanOrEqual(9_000);
+    for (const cogsBasis of ["purchase", "recipe"] as const) {
+      const fig = core.computeDayFigure(raw, { ...config, cogsBasis });
+      expect(fig.cogsPartner).toBe(partnerToday);
+      // Tidak ada baris biaya operasional "HPP Mitra" lagi (dulu terhitung dua kali).
+      expect(fig.costLines["HPP Mitra"]).toBeUndefined();
+      const base = cogsBasis === "purchase" ? fig.purchaseBar + fig.purchaseDapur + fig.purchaseUmum : fig.cogsRecipe + fig.cogsShrinkage;
+      expect(fig.cogs).toBe(base + partnerToday);
+    }
+  });
+
   it("catatan PDF dikirim: siapa & kapan, hanya untuk staf", async () => {
     const [row] = await svc.listPartnerSettlements(outletId, mitra.id);
     await svc.recordSettlementPdfSent(row.settlement.id, "share", kasir());
@@ -1291,5 +1320,63 @@ describe("Smart Partner Hub — kontrol status dari daftar mitra", () => {
     await expect(svc.applyPartnerStatusAction(partnerB.id, "activate", "Masalah sudah selesai", owner())).rejects.toThrow(/Belum bisa diaktifkan/);
     for (const p of active) await svc.setPartnerProductActive(p.linkId, true, owner());
     await svc.applyPartnerStatusAction(partnerB.id, "activate", "Masalah sudah selesai", owner());
+  });
+});
+
+describe("Smart Partner Hub — pisah bill setelah setoran (audit Owner 23 Nov 2026)", () => {
+  it("item mitra yang sudah masuk setoran tidak bisa dipisah sebagian; pindah utuh tidak membuat setoran kedua", async () => {
+    await setHub(true);
+    const { wibDayStart } = await import("@/lib/partner-hub-rules");
+    const { eq } = await import("drizzle-orm");
+    const d = t.getDb();
+    const row = await svc.createPartner({ code: "SPL", name: "Mitra Pisah Bill" }, manager());
+    const mitra = { id: row.id, code: row.code };
+    await svc.updatePartnerProfile(row.id, { phone: "081234500099", terms: "Uji pisah bill." }, manager());
+    const bank = await svc.addPartnerBankAccount(row.id, { bankName: "BNI", accountName: "Pisah", accountNumber: "8888000099" }, manager());
+    await svc.verifyPartnerBankAccount(bank.id, owner());
+    await svc.createPartnerAccount(row.id, { phone: "081277700099", displayName: "Akun Mitra Pisah", pin: "135790" }, manager());
+    const product = await svc.createPartnerProduct(
+      row.id,
+      { code: "SPL-001", name: "Dimsum Pisah", category: "Dimsum", variants: [{ variantId: "reg", label: "Regular", unitCost: 22_000, sellPrice: 25_000 }] },
+      manager(),
+    );
+    await svc.setPartnerProductActive(product.linkId, true, owner());
+    await svc.changePartnerStatus(row.id, "verifikasi", "data lengkap", manager());
+    await svc.changePartnerStatus(row.id, "disetujui", "kontrak oke", owner());
+    await svc.changePartnerStatus(row.id, "aktif", "uji order lulus", owner());
+    await svc.setPartnerOperationalStatus(row.id, "buka", { garage: manager() });
+
+    const created = await garageSvc.createCustomerOrder({
+      outletId,
+      customerMode: "guest",
+      guestName: "Tamu Pisah",
+      orderType: "dine-in",
+      tableLabel: "Meja 09",
+      paymentMethod: "Cash",
+      source: "qr_table",
+      // Bill asal wajib menyisakan satu item: kopi tetap di bill asal.
+      items: [
+        { itemId: "itm-coffee", variantId: "reg", qty: 1 },
+        { itemId: product.menuItemId, variantId: "reg", qty: 2 },
+      ],
+    } as never);
+    const orderId = (created as { order: { id: string } }).order.id;
+    await garageSvc.updateCustomerOrderStatus(orderId, { action: "accept" }, kasir());
+    const ticket = (await svc.listTicketsForPartner(row.id, "active"))[0];
+    for (const action of ["accept", "ready"] as const) await svc.actOnPartnerTicket(partnerSession(mitra), ticket.ticketNo, action);
+
+    const from = wibDayStart(new Date());
+    const to = new Date(from.getTime() + 86_400_000);
+    const settlement = await svc.createPartnerSettlement({ partnerId: row.id, from, to }, kasir());
+    expect(settlement.liabilityTotal).toBe(44_000);
+    await svc.approvePartnerSettlement(settlement.id, owner());
+
+    const item = (await d.select().from(t.schema.orderItems).where(eq(t.schema.orderItems.orderId, orderId))).find((x: { menuItemId: string | null }) => x.menuItemId === product.menuItemId)!;
+    await expect(garageSvc.splitCustomerOrder(orderId, { items: [{ orderItemId: item.id, qty: 1 }] }, owner())).rejects.toThrow(/sudah masuk setoran mitra/);
+    // Pindah utuh tetap boleh: baris mitra yang sama ikut bill baru, tidak ada baris baru yang bisa disetor lagi.
+    await garageSvc.splitCustomerOrder(orderId, { items: [{ orderItemId: item.id, qty: 2 }] }, owner());
+    const lines = await d.select().from(t.schema.partnerOrderLines).where(eq(t.schema.partnerOrderLines.partnerId, row.id));
+    expect(lines).toHaveLength(1);
+    await expect(svc.createPartnerSettlement({ partnerId: row.id, from, to }, kasir())).rejects.toThrow(/Tidak ada transaksi/);
   });
 });

@@ -191,11 +191,13 @@ export async function buildFinanceReport(input: {
                 ["Belanja bahan Bar (gudang)", -pnl.purchaseBar],
                 ["Belanja bahan Dapur (gudang)", -pnl.purchaseDapur],
                 ["Belanja umum (gudang)", -pnl.purchaseUmum],
+                ...(pnl.cogsPartner ? [["Setoran mitra (HPP mitra)", -pnl.cogsPartner]] : []),
                 ["Total belanja bahan", -pnl.cogs],
               ]
             : [
                 ["HPP resep (penjualan)", -pnl.cogsRecipe],
                 ["Susut / waste gudang", -pnl.cogsShrinkage],
+                ...(pnl.cogsPartner ? [["Setoran mitra (HPP mitra)", -pnl.cogsPartner]] : []),
                 ["HPP aktual", -pnl.cogs],
               ]),
           ["Gross profit", pnl.grossProfit],
@@ -426,12 +428,14 @@ export async function buildFinanceReport(input: {
           ? [
               { label: "Belanja Bar", value: money(pnl.purchaseBar) },
               { label: "Belanja Dapur", value: money(pnl.purchaseDapur) },
+              ...(pnl.cogsPartner ? [{ label: "Setoran mitra (HPP mitra)", value: money(pnl.cogsPartner) }] : []),
               { label: "Total belanja bahan (P&L)", value: money(pnl.cogs) },
               { label: "HPP resep (info)", value: money(pnl.cogsRecipe) },
             ]
           : [
               { label: "HPP resep", value: money(pnl.cogsRecipe) },
               { label: "Susut / waste gudang", value: money(pnl.cogsShrinkage) },
+              ...(pnl.cogsPartner ? [{ label: "Setoran mitra (HPP mitra)", value: money(pnl.cogsPartner) }] : []),
               { label: "HPP aktual", value: money(pnl.cogs) },
             ]),
         { label: "Biaya bahan / net sales", value: pct(pnl.hppRatioPct) },

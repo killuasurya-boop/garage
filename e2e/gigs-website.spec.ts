@@ -305,7 +305,8 @@ test("Tempel daftar talent (UI) + Ruang Panitia: akun waiter ditautkan sebagai k
   const ws = wp.getByTestId("panitia-workspace");
   await expect(ws.getByRole("heading", { name: "Ruang Panitia" })).toBeVisible({ timeout: 90_000 });
   const section = ws.getByRole("region", { name: event.title });
-  await expect(section.getByText("Ketua Panitia")).toBeVisible();
+  // Badge jabatan (tabel panitia di bawahnya juga memuat teks jabatan yang sama).
+  await expect(section.getByRole("list", { name: "Jabatan Anda" }).getByText("Ketua Panitia")).toBeVisible();
   await expect(section.getByText(`Tempel Band ${tag}`)).toBeVisible();
   const taskCard = section.locator("li").filter({ hasText: `Konfirmasi sound ${tag}` });
   await taskCard.getByRole("button", { name: "Selesai" }).click();
@@ -352,7 +353,7 @@ test("Peran Panitia: akun hanya bisa membuka Ruang Panitia (kasir, menu, data ka
   await pp.getByRole("button", { name: /^Masuk$/ }).click();
   await expect(pp).toHaveURL(/\/panitia$/, { timeout: 90_000 });
   const ws = pp.getByTestId("panitia-workspace");
-  await expect(ws.getByRole("region", { name: event.title }).getByText("Sekretaris")).toBeVisible({ timeout: 90_000 });
+  await expect(ws.getByRole("region", { name: event.title }).getByRole("list", { name: "Jabatan Anda" }).getByText("Sekretaris")).toBeVisible({ timeout: 90_000 });
   await expect(ws.getByRole("button", { name: "Tambah tugas" })).toBeVisible();
 
   // Aplikasi kafe dialihkan ke Ruang Panitia; API kafe ditolak terpusat.

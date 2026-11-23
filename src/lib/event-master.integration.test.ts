@@ -116,7 +116,7 @@ describe("Master event", () => {
     const lineup = await import("@/lib/event-lineup-service");
     const items = await lineup.publicLineupFor({ slug: "gigs-akhir-tahun", name: "GIGS Akhir Tahun (nama platform beda)" });
     // Data publik saja (#236 menambah logo/tagline/instagram; kosong = null). Tanpa kontak/catatan.
-    expect(items).toEqual([{ name: "Surai", kind: "band", time: "20.00–20.30", live: false, logo: null, tagline: null, instagram: null }]);
+    expect(items).toEqual([{ name: "Surai", kind: "band", time: "20.00–20.30", live: false, logo: null, tagline: null, instagram: null, photo: null }]);
     expect(await lineup.publicLineupFor({ slug: "slug-lain", name: "Tidak Ada" })).toEqual([]);
   });
 

@@ -1371,6 +1371,23 @@ describe("Smart Partner Hub — produk mandiri mitra (pengajuan dari Portal Mitr
     await expect(svc.setPartnerProductActive(draft.linkId, true, owner())).rejects.toThrow(/ditarik/);
     await expect(svc.withdrawPartnerProductSubmission(session, draft.linkId)).rejects.toMatchObject({ status: 404 });
 
+    // Tarik vs setujui bersamaan: hasil akhirnya tidak pernah "ditarik tapi aktif / menu aktif".
+    const raced = await svc.submitPartnerProductByPartner(session, { name: "Hakau Udang", category: "Dimsum", variants: [{ label: "", unitCost: 14_000, sellPrice: 18_000 }] });
+    const outcomes = await Promise.allSettled([svc.withdrawPartnerProductSubmission(session, raced.linkId), svc.setPartnerProductActive(raced.linkId, true, owner())]);
+    expect(outcomes.filter((o) => o.status === "fulfilled")).toHaveLength(1);
+    const d = t.getDb();
+    const { eq } = await import("drizzle-orm");
+    const [racedLink] = await d.select().from(t.schema.partnerProductLinks).where(eq(t.schema.partnerProductLinks.id, raced.linkId));
+    const [racedMenu] = await d.select().from(t.schema.menuItems).where(eq(t.schema.menuItems.id, raced.menuItemId));
+    if (racedLink.submissionStatus === "withdrawn") {
+      expect(racedLink.active).toBe(false);
+      expect(racedMenu.status).toBe("archived");
+    } else {
+      expect(racedLink).toMatchObject({ active: true, submissionStatus: "approved" });
+      // Sudah disetujui: dinonaktifkan lagi agar tidak mengganggu hitungan batas pengajuan di bawah.
+      await svc.setPartnerProductActive(raced.linkId, false, owner());
+    }
+
     const { MAX_OPEN_PARTNER_SUBMISSIONS } = await import("@/lib/partner-product-submission");
     for (let i = 0; i < MAX_OPEN_PARTNER_SUBMISSIONS; i += 1) {
       await svc.submitPartnerProductByPartner(session, { name: `Produk Uji ${i}`, category: "Dimsum", variants: [{ label: "", unitCost: 1_000, sellPrice: 2_000 }] });

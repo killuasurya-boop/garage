@@ -540,25 +540,28 @@ export async function setPartnerProductActive(linkId: string, active: boolean, g
   const [link] = await db.select().from(partnerProductLinks).where(eq(partnerProductLinks.id, linkId)).limit(1);
   if (!link) throw new PartnerHubError("PRODUCT_NOT_FOUND", "Produk mitra tidak ditemukan.", 404);
   await loadPartner(db, link.partnerId, garage.profile.outlet.id);
-  if (active && link.submissionStatus === "withdrawn") {
-    throw new PartnerHubError("SUBMISSION_WITHDRAWN", "Pengajuan produk ini sudah ditarik mitra, tidak bisa disetujui.", 409);
-  }
-  // Pengajuan mitra yang disetujui ditandai "approved" (sekali jalan; produk staf tetap NULL).
-  const approvingSubmission = active && canPartnerEditSubmission(link.submissionStatus);
-  const result = await db.transaction(async (tx) => {
+  const { result, approvingSubmission } = await db.transaction(async (tx) => {
+    // Kunci baris lalu cek ulang status: setuju vs mitra menarik/memperbaiki pengajuan diproses bergantian
+    // (tanpa ini, produk yang baru saja ditarik mitra bisa ikut aktif).
+    const [current] = await tx.select().from(partnerProductLinks).where(eq(partnerProductLinks.id, linkId)).for("update");
+    if (active && current.submissionStatus === "withdrawn") {
+      throw new PartnerHubError("SUBMISSION_WITHDRAWN", "Pengajuan produk ini sudah ditarik mitra, tidak bisa disetujui.", 409);
+    }
+    // Pengajuan mitra yang disetujui ditandai "approved" (sekali jalan; produk staf tetap NULL).
+    const approvingSubmission = active && canPartnerEditSubmission(current.submissionStatus);
     await tx
       .update(partnerProductLinks)
       .set({
         active,
-        approvedBy: active ? garage.user.id : link.approvedBy,
-        approvedAt: active ? new Date() : link.approvedAt,
+        approvedBy: active ? garage.user.id : current.approvedBy,
+        approvedAt: active ? new Date() : current.approvedAt,
         ...(approvingSubmission ? { submissionStatus: "approved", reviewedAt: new Date(), reviewNote: null } : {}),
         updatedAt: new Date(),
       })
       .where(eq(partnerProductLinks.id, linkId));
     await tx.update(menuItems).set({ status: active ? "active" : "archived", updatedAt: new Date() }).where(eq(menuItems.id, link.menuItemId));
     await logEvent(tx, { partnerId: link.partnerId, kind: active ? "product_approved" : "product_deactivated", subjectId: linkId, actor: staffActor(garage) });
-    return { linkId, active };
+    return { result: { linkId, active }, approvingSubmission };
   });
   if (approvingSubmission) {
     const [item] = await db.select({ name: menuItems.name }).from(menuItems).where(eq(menuItems.id, link.menuItemId)).limit(1);
@@ -696,7 +699,9 @@ export async function updatePartnerProductSubmission(session: PartnerSession, li
 export async function withdrawPartnerProductSubmission(session: PartnerSession, linkId: string) {
   const db = getDb();
   return db.transaction(async (tx) => {
-    const link = await loadOwnSubmission(tx, session, linkId);
+    await loadOwnSubmission(tx, session, linkId);
+    // Kunci baris (sama dengan persetujuan Owner) lalu cek ulang status.
+    const [link] = await tx.select().from(partnerProductLinks).where(eq(partnerProductLinks.id, linkId)).for("update");
     if (!canPartnerEditSubmission(link.submissionStatus) || link.active) {
       throw new PartnerHubError("SUBMISSION_LOCKED", "Produk yang sudah disetujui tidak bisa ditarik. Tandai Habis bila tidak dijual.", 409);
     }
@@ -775,6 +780,10 @@ export async function requestPartnerProductRevision(linkId: string, note: string
     throw new PartnerHubError("NOT_A_SUBMISSION", "Hanya pengajuan mitra yang belum disetujui yang bisa dikembalikan.", 409);
   }
   await db.transaction(async (tx) => {
+    const [current] = await tx.select().from(partnerProductLinks).where(eq(partnerProductLinks.id, linkId)).for("update");
+    if (current.active || !canPartnerEditSubmission(current.submissionStatus)) {
+      throw new PartnerHubError("NOT_A_SUBMISSION", "Hanya pengajuan mitra yang belum disetujui yang bisa dikembalikan.", 409);
+    }
     await tx.update(partnerProductLinks).set({ submissionStatus: "revision", reviewNote: reason, reviewedAt: new Date(), updatedAt: new Date() }).where(eq(partnerProductLinks.id, linkId));
     await logEvent(tx, { partnerId: row.link.partnerId, kind: "product_revision_requested", subjectId: linkId, fromStatus: row.link.submissionStatus, toStatus: "revision", reason, actor: staffActor(garage) });
   });

@@ -410,7 +410,8 @@ function stepErrors(step: number, draft: Draft): Errors {
   }
   if (step === 1) {
     const seen = new Set<string>();
-    draft.variants.forEach((v) => {
+    // Validasi hanya varian yang tampil & dikirim (mode "Satu harga saja" = varian pertama saja).
+    (draft.multi ? draft.variants : draft.variants.slice(0, 1)).forEach((v) => {
       const label = v.label.trim();
       if (draft.multi && !label) errors[`${v.key}.label`] = "Isi nama varian, mis. Kecil / Isi 4.";
       if (draft.multi && label && seen.has(label.toLowerCase())) errors[`${v.key}.label`] = "Nama varian dobel.";

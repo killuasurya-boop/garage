@@ -169,7 +169,7 @@ function EventSection({ ev, onChanged }: { ev: EventView; onChanged: () => Promi
           <ListOrdered size={16} className="text-[#ff6b75]" /> Rundown
         </h3>
         {!ev.rundown.length ? <p className="text-sm text-zinc-400">Belum ada penampil terkonfirmasi.</p> : null}
-        <ol className="divide-y divide-white/10">
+        <ol className="divide-y divide-white/10" aria-label="Rundown">
           {ev.rundown.map((r) => (
             <li key={`${r.slot}-${r.name}`} className="flex items-baseline justify-between gap-3 py-2">
               <span className="min-w-0">

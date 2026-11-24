@@ -48,6 +48,18 @@ bagian yang ditunjuk (hemat token). Aturan Garage di bawah selalu menang atas ou
 3. Tulis arah singkat (5–8 baris): tujuan, struktur section, CTA, token yang dipakai, motion, deviasi dari sistem
    (bila ada → sebutkan ke Owner SEBELUM membangun).
 
+## 2b. Anti AI slop — WAJIB untuk homepage & landing publik (`design-taste-frontend`)
+- Muat skill `design-taste-frontend` (Taste Skill, repo GitHub anti-slop berbintang terbanyak, Nov 2026), tapi
+  baca **`GARAGE.md`-nya dulu**: yang diambil = tells AI slop (`references/copy-tells.md`), satu section per layar,
+  micro-interaction; yang diganti = palet/font (tetap Crystal V5), foto stand-in (hanya foto asli), kontak palsu
+  (data nyata). Aturan bagian 0 tetap menang.
+- Struktur *place* (kunjungan di layar 2, foto memimpin) HANYA untuk homepage cafe. Halaman publik lain pilih
+  tipe halaman yang cocok di tabel skill: `/mitra` = service (ajakan kerja sama), `/recruitment` = service
+  (lowongan), `/franchise` = service, `/events` & `/grand-opening` = place/event; jangan pasang blok kunjungan
+  cafe di sana.
+- Jalankan checklist anti-slop di `GARAGE.md` sebelum PR homepage. Skill dipasang tanpa hook/skrip, jadi cek
+  visual tetap lewat `node scripts/ui-check.mjs /` + Playwright.
+
 ## 3. Bangun
 - Server Component default; `"use client"` hanya untuk bagian interaktif. Data lewat `garage-service`/API yang ada.
 - Pakai token & komponen yang ada; jangan duplikasi style. Teks tidak boleh terpotong/overflow; angka uang

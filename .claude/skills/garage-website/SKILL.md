@@ -62,9 +62,11 @@ bagian yang ditunjuk (hemat token). Aturan Garage di bawah selalu menang atas ou
 - Keputusan Owner 24 Nov 2026 (audit anti-slop, PR homepage A): **Lokasi & Jam = section ke-2** tepat di bawah hero,
   di desktop (urutan DOM di `garage-website.tsx`) DAN HP (`section#location { order: 1 }` di blok "Kenyamanan HP",
   ada 2 salinan di `garage-website.css`); hero **maksimal 2 aksi** (Pesan + Cek Meja; Mitra lewat menu); chip GIGS di
-  HP baru muncul setelah layar pertama digulir (tidak menutupi jam/QR/rating). Belum diputuskan (tanya Owner dulu):
-  judul hero baru (gambar "SEKEDAR KOPI" tetap), rating Google ditulis manual di `garage-location.ts`, posisi section
-  SURYA.dev, foto hero.
+  HP baru muncul setelah layar pertama digulir (tidak menutupi jam/QR/rating).
+- Judul hero = **"LEBIH DARI SEKEDAR KOPI."** dengan ejaan "SEKEDAR" (permintaan Owner 5 Nov 2026, ditegaskan lagi
+  24 Nov 2026 walau ejaan KBBI "sekadar"). Gambar `sekedar-kopi-*.webp`, `aria-label` dan teks sr-only ikut "sekedar";
+  jangan "perbaiki" ejaannya tanpa Owner. Section SURYA.dev tetap seperti sekarang (Owner 24 Nov 2026). Foto hero =
+  unggahan Owner di Pengaturan Website → "Upload / Ganti Hero" (slot `landing_hero`), tidak ada foto bawaan.
 
 ## 3. Bangun
 - Server Component default; `"use client"` hanya untuk bagian interaktif. Data lewat `garage-service`/API yang ada.

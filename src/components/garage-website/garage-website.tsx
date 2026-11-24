@@ -1909,13 +1909,13 @@ function Hero({ landingHero }) {
                 <span className="garage-steam garage-steam-2" />
                 <span className="garage-steam garage-steam-3" />
               </div>
-              <h1 className="display hero-image-title" aria-label="Garage Coffee Tebing Tinggi — lebih dari sekadar kopi.">
+              <h1 className="display hero-image-title" aria-label="Garage Coffee Tebing Tinggi — lebih dari sekedar kopi.">
                 <span className="gw-sr-only">Garage Coffee Tebing Tinggi — </span>
                 <span className="hero-title-line hero-title-top">LEBIH DARI</span>
                 {/* Baris kedua = gambar transparan dari font Anton yang sama (perak + "A" merah terpisah agar kilaunya tetap
                     berdenyut). Huruf "S" Anton digambar rusak oleh background-clip:text, jadi tidak dipakai di baris ini. */}
                 <span className="hero-title-line hero-title-bottom hero-title-stack">
-                  <span className="gw-sr-only">SEKADAR KOPI.</span>
+                  <span className="gw-sr-only">SEKEDAR KOPI.</span>
                   <img className="hero-title-img" src="/garage-brand/hero-title/sekedar-kopi-silver.webp" alt="" aria-hidden="true" width={1948} height={332} decoding="async" fetchPriority="high" />
                   <img className="hero-title-img hero-title-img-a" src="/garage-brand/hero-title/sekedar-kopi-a-red.webp" alt="" aria-hidden="true" width={1948} height={332} decoding="async" />
                 </span>
@@ -2272,7 +2272,7 @@ function Hero({ landingHero }) {
             <span className="garage-steam garage-steam-2" />
             <span className="garage-steam garage-steam-3" />
           </div>
-          <Reveal mask delay={400} as="h1" className="display hero-title" aria-label="Garage Coffee Tebing Tinggi — lebih dari sekadar kopi."
+          <Reveal mask delay={400} as="h1" className="display hero-title" aria-label="Garage Coffee Tebing Tinggi — lebih dari sekedar kopi."
           style={{ marginBottom: 8 }}>
             <span className="chrome hero-title-kicker" style={{
               display: "block",

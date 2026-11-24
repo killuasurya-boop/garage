@@ -513,6 +513,24 @@ export async function setPerformerLogo(id: string, logoUrl: string | null, garag
   return row;
 }
 
+/** Foto latar kartu lineup halaman event (Owner 19 Nov 2026). null = kembali ke foto umum platform. */
+export async function setPerformerPhoto(id: string, photoUrl: string | null, garage: GarageSession) {
+  assertOwnerHuman(garage);
+  const before = await findPerformer(id);
+  const [row] = await getDb()
+    .update(eventPerformers)
+    .set({ photoUrl, updatedAt: new Date() })
+    .where(eq(eventPerformers.id, id))
+    .returning();
+  await audit(garage, photoUrl ? "Ganti foto penampil" : "Hapus foto penampil", row.name, {
+    eventName: row.eventName,
+    performerId: id,
+    before: { photoUrl: before.photoUrl },
+    after: { photoUrl: row.photoUrl },
+  });
+  return row;
+}
+
 /** Urutan slot baru sesuai urutan id yang dikirim (penampil lain event ini tidak disentuh). */
 export async function reorderPerformers(input: z.infer<typeof reorderSchema>, garage: GarageSession) {
   assertOwnerHuman(garage);
@@ -820,6 +838,7 @@ export type PublicLineupItem = {
   time: string | null;
   live: boolean;
   logo: string | null;
+  photo: string | null;
   tagline: string | null;
   instagram: string | null;
 };
@@ -841,6 +860,7 @@ export async function publicLineupFor(platform: string | { slug: string; name: s
       name: eventPerformers.name,
       kind: eventPerformers.kind,
       logoUrl: eventPerformers.logoUrl,
+      photoUrl: eventPerformers.photoUrl,
       tagline: eventPerformers.tagline,
       instagram: eventPerformers.instagram,
       status: eventPerformers.status,
@@ -874,6 +894,7 @@ export async function publicLineupFor(platform: string | { slug: string; name: s
     time: publicSetTime(r),
     live: live.has(r.id),
     logo: extra.get(r.id)?.logoUrl ?? null,
+    photo: extra.get(r.id)?.photoUrl ?? null,
     tagline: extra.get(r.id)?.tagline ?? null,
     instagram: extra.get(r.id)?.instagram ?? null,
   }));

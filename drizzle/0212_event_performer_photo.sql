@@ -1,0 +1,1 @@
+ALTER TABLE "event_performers" ADD COLUMN "photo_url" text;

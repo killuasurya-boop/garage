@@ -4,10 +4,10 @@
 import { useRef, useState } from "react";
 import { ImageUp, Trash2 } from "lucide-react";
 
-// Unggah/hapus logo (penampil lineup, sponsor event). Server mengompres ke webp ≤200 KB.
-// Logo tampil dengan object-contain di plat gelap, sama seperti kartu website.
+// Unggah/hapus logo (penampil lineup, sponsor event) atau foto penampil (`kind="foto"`). Server mengompres ke webp ≤200 KB.
+// Logo tampil dengan object-contain di plat gelap, sama seperti kartu website; foto memenuhi kotak (object-cover).
 
-async function send(path: string, method: "POST" | "DELETE", file?: File) {
+async function send(path: string, method: "POST" | "DELETE", noun: string, file?: File) {
   const init: RequestInit = { method, credentials: "same-origin" };
   if (file) {
     const body = new FormData();
@@ -16,7 +16,7 @@ async function send(path: string, method: "POST" | "DELETE", file?: File) {
   }
   const res = await fetch(path, init);
   const json = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
-  if (!res.ok || json?.error) throw new Error(json?.error?.message ?? "Logo gagal disimpan.");
+  if (!res.ok || json?.error) throw new Error(json?.error?.message ?? `${noun} gagal disimpan.`);
 }
 
 export function LogoUpload({
@@ -24,12 +24,18 @@ export function LogoUpload({
   logoUrl,
   label,
   onChanged,
+  kind = "logo",
+  hint,
 }: {
   endpoint: string;
   logoUrl: string | null;
   label: string;
   onChanged: () => void | Promise<void>;
+  kind?: "logo" | "foto";
+  hint?: string;
 }) {
+  const noun = kind === "foto" ? "Foto" : "Logo";
+  const lower = noun.toLowerCase();
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,10 +44,10 @@ export function LogoUpload({
     setBusy(true);
     setError(null);
     try {
-      await send(endpoint, method, file);
+      await send(endpoint, method, noun, file);
       await onChanged();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Logo gagal disimpan.");
+      setError(e instanceof Error ? e.message : `${noun} gagal disimpan.`);
     } finally {
       setBusy(false);
       if (input.current) input.current.value = "";
@@ -50,8 +56,12 @@ export function LogoUpload({
 
   return (
     <div className="flex flex-wrap items-center gap-3">
-      <div className="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-md border border-white/15 bg-black">
-        {logoUrl ? <img src={logoUrl} alt={`Logo ${label}`} className="size-full object-contain p-1" /> : <span className="px-1 text-center text-xs text-zinc-400">Belum ada logo</span>}
+      <div className={`flex h-20 shrink-0 items-center justify-center overflow-hidden rounded-md border border-white/15 bg-black ${kind === "foto" ? "w-28" : "w-20"}`}>
+        {logoUrl ? (
+          <img src={logoUrl} alt={`${noun} ${label}`} className={kind === "foto" ? "size-full object-cover" : "size-full object-contain p-1"} />
+        ) : (
+          <span className="px-1 text-center text-xs text-zinc-400">Belum ada {lower}</span>
+        )}
       </div>
       <div className="flex min-w-0 flex-col gap-1.5">
         <div className="flex flex-wrap gap-1.5">
@@ -61,7 +71,7 @@ export function LogoUpload({
             onClick={() => input.current?.click()}
             className="inline-flex h-9 items-center gap-1.5 rounded-md border border-white/15 bg-white/5 px-3 text-sm font-semibold text-zinc-100 hover:bg-white/10 disabled:opacity-60"
           >
-            <ImageUp size={15} /> {busy ? "Menyimpan…" : logoUrl ? "Ganti logo" : "Unggah logo"}
+            <ImageUp size={15} aria-hidden /> {busy ? "Menyimpan…" : logoUrl ? `Ganti ${lower}` : `Unggah ${lower}`}
           </button>
           {logoUrl ? (
             <button
@@ -70,11 +80,11 @@ export function LogoUpload({
               onClick={() => act("DELETE")}
               className="inline-flex h-9 items-center gap-1.5 rounded-md border border-white/15 px-3 text-sm text-zinc-200 hover:bg-white/10 disabled:opacity-60"
             >
-              <Trash2 size={15} /> Hapus
+              <Trash2 size={15} aria-hidden /> Hapus
             </button>
           ) : null}
         </div>
-        <p className="text-xs text-zinc-400">JPG/PNG/WebP, maks 8 MB. PNG transparan paling rapi.</p>
+        <p className="text-xs text-zinc-400">{hint ?? "JPG/PNG/WebP, maks 8 MB. PNG transparan paling rapi."}</p>
         {error ? <p role="alert" className="text-xs text-red-300">{error}</p> : null}
       </div>
       <input
@@ -82,7 +92,7 @@ export function LogoUpload({
         type="file"
         accept="image/jpeg,image/png,image/webp"
         className="sr-only"
-        aria-label={`Pilih logo ${label}`}
+        aria-label={`Pilih ${lower} ${label}`}
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (file) void act("POST", file);

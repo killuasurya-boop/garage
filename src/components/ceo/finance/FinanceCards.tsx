@@ -442,11 +442,13 @@ export function ProfitLossCard({ data }: { data: FinanceControlDashboard }) {
           { label: "Belanja bahan Bar (gudang)", value: -pnl.purchaseBar, minus: true },
           { label: "Belanja bahan Dapur (gudang)", value: -pnl.purchaseDapur, minus: true },
           ...(pnl.purchaseUmum ? [{ label: "Belanja umum (gudang)", value: -pnl.purchaseUmum, minus: true }] : []),
+          ...(pnl.cogsPartner ? [{ label: "Setoran mitra (HPP mitra)", value: -pnl.cogsPartner, minus: true }] : []),
           { label: "Total belanja bahan", value: -pnl.cogs, minus: true, note: pnl.hppRatioPct !== null ? percent(pnl.hppRatioPct) : undefined },
         ]
       : [
           { label: "HPP resep (penjualan)", value: -pnl.cogsRecipe, minus: true },
           { label: "Susut / waste gudang", value: -pnl.cogsShrinkage, minus: true },
+          ...(pnl.cogsPartner ? [{ label: "Setoran mitra (HPP mitra)", value: -pnl.cogsPartner, minus: true }] : []),
           { label: "HPP aktual", value: -pnl.cogs, minus: true, note: pnl.hppRatioPct !== null ? percent(pnl.hppRatioPct) : undefined },
         ]),
     { label: "Gross profit", value: pnl.grossProfit, strong: true, note: pnl.grossMarginPct !== null ? percent(pnl.grossMarginPct) : undefined },

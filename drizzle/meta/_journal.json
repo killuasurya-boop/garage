@@ -1485,6 +1485,13 @@
       "when": 1795464540212,
       "tag": "0211_partner_product_submissions",
       "breakpoints": true
+    },
+    {
+      "idx": 212,
+      "version": "7",
+      "when": 1795538064600,
+      "tag": "0212_event_performer_photo",
+      "breakpoints": true
     }
   ]
 }

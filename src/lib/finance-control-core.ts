@@ -140,6 +140,8 @@ export type DayRaw = {
   expenses: Record<string, number>;
   /** Belanja bahan dari penerimaan gudang (cash lunas) per area. */
   purchases: { bar: number; dapur: number; umum: number };
+  /** HPP Mitra: setoran mitra yang disetujui Owner (expense `sourceDoc` PSET:…) — biaya bahan, dihitung sekali. */
+  partnerCost?: number;
   payments: Record<string, number>;
   settlementFees: number;
   capitalIn: number;
@@ -171,6 +173,8 @@ export type DayFigure = {
   purchaseBar: number;
   purchaseDapur: number;
   purchaseUmum: number;
+  /** Setoran mitra (HPP produk mitra, Owner 23 Nov 2026) — bagian dari `cogs` di kedua mode, bukan biaya operasional. */
+  cogsPartner: number;
   grossProfit: number;
   payroll: number;
   operatingExpense: number;
@@ -214,6 +218,7 @@ const NUMERIC_KEYS = [
   "purchaseBar",
   "purchaseDapur",
   "purchaseUmum",
+  "cogsPartner",
   "grossProfit",
   "payroll",
   "operatingExpense",
@@ -509,6 +514,14 @@ export function computeDayFigure(raw: DayRaw, config: FinanceConfig): DayFigure 
     }
   }
 
+  // HPP Mitra (audit Owner 23 Nov 2026): dulu ikut biaya operasional (kategori tak terdaftar) DAN belanja bahan
+  // (punya sourceDoc) → laba turun dua kali. Sekarang hanya biaya bahan; uang keluarnya tetap di arus kas (grup belanja).
+  const cogsPartner = raw.partnerCost ?? 0;
+  if (cogsPartner) {
+    expenseCashOut += cogsPartner;
+    add(cashOutByGroup, "cogs_purchase", cogsPartner);
+  }
+
   let opexAccrued = 0;
   for (const item of accrueItems) {
     opexAccrued += item.dailyAmount;
@@ -537,7 +550,7 @@ export function computeDayFigure(raw: DayRaw, config: FinanceConfig): DayFigure 
   const purchaseMode = config.cogsBasis === "purchase";
   const purchases = raw.purchases ?? { bar: 0, dapur: 0, umum: 0 };
   const purchaseTotal = active ? purchases.bar + purchases.dapur + purchases.umum : 0;
-  const cogs = purchaseMode ? purchaseTotal : raw.cogs + raw.shrinkage;
+  const cogs = (purchaseMode ? purchaseTotal : raw.cogs + raw.shrinkage) + cogsPartner;
   const grossProfit = raw.netSales - cogs;
   const operatingProfit = grossProfit - payroll - operatingExpense;
   const channels = { ...raw.payments };
@@ -561,6 +574,7 @@ export function computeDayFigure(raw: DayRaw, config: FinanceConfig): DayFigure 
     purchaseBar: active ? purchases.bar : 0,
     purchaseDapur: active ? purchases.dapur : 0,
     purchaseUmum: active ? purchases.umum : 0,
+    cogsPartner,
     grossProfit,
     payroll,
     operatingExpense,
@@ -574,7 +588,7 @@ export function computeDayFigure(raw: DayRaw, config: FinanceConfig): DayFigure 
     fixedCost: active ? opexAccrued + payrollBudgetDaily(config) : 0,
     // Contribution margin: mode recipe memakai HPP resep saja (susut tidak
     // proporsional ke penjualan); mode purchase memakai belanja bahan.
-    variableCost: (purchaseMode ? purchaseTotal : raw.cogs) + raw.settlementFees + variableOpex,
+    variableCost: (purchaseMode ? purchaseTotal : raw.cogs) + cogsPartner + raw.settlementFees + variableOpex,
     lineSales: raw.lineSales,
     coveredLineSales: raw.coveredLineSales,
     costLines,

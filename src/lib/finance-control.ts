@@ -386,6 +386,7 @@ export function emptyRaw(date: string): DayRaw {
     payrollFee: 0,
     expenses: {},
     purchases: { bar: 0, dapur: 0, umum: 0 },
+    partnerCost: 0,
     payments: {},
     settlementFees: 0,
     capitalIn: 0,
@@ -525,6 +526,8 @@ export async function loadDayRaws(fromKey: string, toKey: string, policy?: Busin
         category: expenses.category,
         // Belanja dari penerimaan gudang (cash lunas) = biaya "Belanja bahan".
         purchase: sql<boolean>`(${expenses.sourceDoc} is not null)`,
+        // HPP Mitra dari settlement disetujui (PSET:…): biaya bahan tersendiri, bukan belanja gudang / opex.
+        partner: sql<boolean>`(coalesce(${expenses.sourceDoc}, '') like 'PSET:%')`,
         amount: sql<string>`coalesce(sum(${expenses.amount}), 0)::bigint`,
       })
       .from(expenses)
@@ -535,7 +538,7 @@ export async function loadDayRaws(fromKey: string, toKey: string, policy?: Busin
           lt(expenses.expenseDate, end),
         ),
       )
-      .groupBy(expenseDay, expenses.category, sql`(${expenses.sourceDoc} is not null)`),
+      .groupBy(expenseDay, expenses.category, sql`(${expenses.sourceDoc} is not null)`, sql`(coalesce(${expenses.sourceDoc}, '') like 'PSET:%')`),
     db
       .select({ day: settlementDay, fee: sql<string>`coalesce(sum(${paymentSettlements.feeAmount}), 0)::bigint` })
       .from(paymentSettlements)
@@ -624,6 +627,10 @@ export async function loadDayRaws(fromKey: string, toKey: string, policy?: Busin
   for (const row of feeRows) at(row.day).payrollFee = Number(row.amount);
   for (const row of expenseRows) {
     const raw = at(row.day);
+    if (row.partner === true || String(row.partner) === "true") {
+      raw.partnerCost = (raw.partnerCost ?? 0) + Number(row.amount);
+      continue;
+    }
     raw.expenses[row.category] = (raw.expenses[row.category] ?? 0) + Number(row.amount);
     if (row.purchase === true || String(row.purchase) === "true") {
       const area = purchaseAreaForCategory(row.category) ?? "umum";
@@ -696,7 +703,7 @@ const LIVE_WINDOW_DAYS = 7;
  * snapshot "locked" (Daily Closing) tidak pernah diubah.
  * v2: HPP aktual = resep + susut gudang (PRD §11).
  */
-const ENGINE_VERSION = 7; // v3: ongkir dipisah; v4: upah harian masuk P&L; v5: biaya bahan = belanja gudang; v6: pendapatan lain (sponsor); v7: biaya event
+const ENGINE_VERSION = 8; // v3: ongkir dipisah; v4: upah harian masuk P&L; v5: biaya bahan = belanja gudang; v6: pendapatan lain (sponsor); v8: HPP Mitra sekali (biaya bahan); v7: biaya event
 
 type SnapshotRow = typeof financialSnapshots.$inferSelect;
 
@@ -720,6 +727,7 @@ function figureFromSnapshot(row: SnapshotRow): DayFigure {
     purchaseBar: Number(breakdown.purchaseBar ?? 0),
     purchaseDapur: Number(breakdown.purchaseDapur ?? 0),
     purchaseUmum: Number(breakdown.purchaseUmum ?? 0),
+    cogsPartner: Number(breakdown.cogsPartner ?? 0),
     grossProfit: Number(row.grossProfit),
     payroll: Number(row.payroll),
     operatingExpense: Number(row.operatingExpense),
@@ -787,6 +795,7 @@ export function snapshotFromFigure(figure: DayFigure) {
       purchaseBar: figure.purchaseBar,
       purchaseDapur: figure.purchaseDapur,
       purchaseUmum: figure.purchaseUmum,
+      cogsPartner: figure.cogsPartner,
       deliveryFees: figure.deliveryFees,
       otherIncome: figure.otherIncome,
       engineVersion: ENGINE_VERSION,
@@ -887,6 +896,8 @@ export async function loadOpeningStockPurchases(startKey: string, policy?: Busin
     .where(
       and(
         isNotNull(expenses.sourceDoc),
+        // HPP Mitra bukan stok awal gudang.
+        sql`${expenses.sourceDoc} not like 'PSET:%'`,
         inArray(expenses.status, PNL_EXPENSE_STATUSES),
         lt(expenses.expenseDate, jakartaDayStart(startKey, policy)),
       ),
@@ -1303,6 +1314,7 @@ export async function getFinanceControlDashboard(input: {
       purchaseBar: totals.purchaseBar,
       purchaseDapur: totals.purchaseDapur,
       purchaseUmum: totals.purchaseUmum,
+      cogsPartner: totals.cogsPartner,
       grossProfit: totals.grossProfit,
       grossMarginPct: ratioPct(totals.grossProfit, totals.netSales),
       payroll: totals.payroll,

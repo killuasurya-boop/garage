@@ -177,10 +177,11 @@ export function enrichSlotsForEventPage(slots: unknown, logoByKey: ReadonlyMap<s
 /**
  * SATU pintu (Owner 18 Nov 2026): lineup terkonfirmasi di Garage OS (Kontrol → Lineup) → bentuk slot platform untuk
  * halaman `/event/<slug>`. `performer` = nama, baris kecil = tagline (atau "Official Lineup"), jam = rentang rundown,
- * logo = Garage OS lalu logo platform bernama sama. Durasi 0 → kartu tidak menulis "n menit".
+ * logo = Garage OS lalu logo platform bernama sama; foto = unggahan Garage (tanpa foto → foto umum platform).
+ * Durasi 0 → kartu tidak menulis "n menit".
  */
 export function garageLineupAsEventSlots(
-  items: ReadonlyArray<{ name: string; kind: LineupKind | null; time?: string | null; logo?: string | null; tagline?: string | null }>,
+  items: ReadonlyArray<{ name: string; kind: LineupKind | null; time?: string | null; logo?: string | null; photo?: string | null; tagline?: string | null }>,
   logoByKey: ReadonlyMap<string, string>,
 ): Array<Record<string, unknown>> {
   return items.map((item, index) => {
@@ -193,6 +194,8 @@ export function garageLineupAsEventSlots(
       durationMin: 0,
       performer,
       logo: item.logo || logoByKey.get(lineupKey(performer)) || "",
+      // Foto unggahan Garage; kosong → app.js memakai foto umum platform.
+      ...(item.photo ? { photo: item.photo } : {}),
     };
   });
 }

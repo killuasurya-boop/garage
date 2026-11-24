@@ -20,6 +20,13 @@ export const GIGS_APP_JS_PATCHES: readonly AppJsPatch[] = [
     replace: "name: 'SURAI',",
     all: true,
   },
+  {
+    // Foto penampil dari Garage OS (Owner 19 Nov 2026): slot lineup boleh membawa `photo` (unggahan Kontrol → Lineup).
+    // Spread setelah foto bawaan → foto Garage menang; tanpa foto tetap foto umum platform.
+    id: "lineup-photo",
+    find: "/photos/lineup-${(i % 5) + 1}.jpg`,",
+    replace: "/photos/lineup-${(i % 5) + 1}.jpg`, ...(slot.photo ? { photo: String(slot.photo) } : {}),",
+  },
 ];
 
 /**

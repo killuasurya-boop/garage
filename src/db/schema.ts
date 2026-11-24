@@ -5924,6 +5924,8 @@ export const eventPerformers = pgTable(
     genre: text("genre"),
     // Kartu lineup website (owner 17 Nov 2026): logo unggahan + baris kecil di bawah nama.
     logoUrl: text("logo_url"),
+    // Foto latar kartu lineup halaman event GIGS (Owner 19 Nov 2026); kosong = foto umum platform.
+    photoUrl: text("photo_url"),
     tagline: text("tagline"),
     // Nama talent di platform GIGS saat diimpor: tetap dikenali walau Owner mengganti nama (mis. SURAU → SURAI).
     platformName: text("platform_name"),

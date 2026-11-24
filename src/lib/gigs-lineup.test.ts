@@ -119,13 +119,13 @@ describe("enrichSlotsForEventPage (halaman event platform, Owner 18 Nov 2026)", 
     const out = garageLineupAsEventSlots(
       [
         { name: "LOST SIDE", kind: "band", time: "20.00–20.30", logo: null, tagline: "Heavy / Metallic Roster" },
-        { name: "SURAU", kind: "band", time: null, logo: "/garage-uploads/event-lineup/surai.webp", tagline: null },
+        { name: "SURAU", kind: "band", time: null, logo: "/garage-uploads/event-lineup/surai.webp", photo: "/garage-uploads/event-lineup/surai-foto.webp", tagline: null },
       ],
       logos,
     );
     expect(out).toEqual([
       { id: "garage-1", name: "Heavy / Metallic Roster", category: "band", startTime: "20.00–20.30", durationMin: 0, performer: "LOST SIDE", logo: "/event/x/lost-side.jpg" },
-      { id: "garage-2", name: "Official Lineup", category: "band", startTime: "", durationMin: 0, performer: "SURAI", logo: "/garage-uploads/event-lineup/surai.webp" },
+      { id: "garage-2", name: "Official Lineup", category: "band", startTime: "", durationMin: 0, performer: "SURAI", logo: "/garage-uploads/event-lineup/surai.webp", photo: "/garage-uploads/event-lineup/surai-foto.webp" },
     ]);
   });
 });

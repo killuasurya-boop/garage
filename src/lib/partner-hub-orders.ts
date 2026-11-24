@@ -9,7 +9,7 @@
 
 import { randomBytes } from "node:crypto";
 
-import { and, desc, eq, inArray, lte } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, lte } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
@@ -20,6 +20,8 @@ import {
   partnerPriceHistory,
   partnerProductLinks,
   partners,
+  partnerSettlementLines,
+  partnerSettlements,
   productionTicketItems,
 } from "@/db/schema";
 import { PARTNER_STATION, effectiveOperationalStatus, partnerOrderBlockReason, type PartnerServiceHours } from "@/lib/partner-hub-rules";
@@ -378,6 +380,8 @@ export function schedulePartnerCancelNotice(ticketNos: string[]) {
  * Pisah bill: baris mitra mengikuti item-nya ke bill pisahan.
  * - Seluruh qty pindah → baris mitra pindah order (order_id / order_no).
  * - Sebagian qty pindah → baris mitra dibagi dua (snapshot harga/HPP & tiket sama; qty siap/batal ikut terbagi).
+ *   Baris yang SUDAH masuk setoran aktif ditolak (audit Owner 23 Nov 2026): baris pecahan baru belum tersetor dan
+ *   akan disetor lagi → mitra dibayar dua kali. Pindah seluruh qty tetap boleh (baris yang sama, tanpa baris baru).
  * Bukan produk mitra → tidak melakukan apa-apa.
  */
 export async function movePartnerLineOnSplit(
@@ -390,6 +394,17 @@ export async function movePartnerLineOnSplit(
   if (input.movedQty === undefined || !input.newOrderItemId || input.movedQty >= line.qty) {
     await db.update(partnerOrderLines).set({ orderId: input.child.id, orderNo: input.child.orderNo, updatedAt: now }).where(eq(partnerOrderLines.id, line.id));
     return;
+  }
+  const [settled] = await db
+    .select({ settlementNo: partnerSettlements.settlementNo })
+    .from(partnerSettlementLines)
+    .innerJoin(partnerSettlements, eq(partnerSettlementLines.settlementId, partnerSettlements.id))
+    .where(and(eq(partnerSettlementLines.orderLineId, line.id), isNotNull(partnerSettlementLines.activeLineKey)))
+    .limit(1);
+  if (settled) {
+    throw new PartnerOrderError(
+      `${line.itemName} sudah masuk setoran mitra ${settled.settlementNo}, jadi tidak bisa dipisah sebagian. Pindahkan seluruh ${line.qty} porsi ke bill baru, atau pisahkan item lain.`,
+    );
   }
   const moved = input.movedQty;
   const keep = line.qty - moved;

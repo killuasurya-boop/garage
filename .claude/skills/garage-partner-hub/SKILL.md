@@ -128,6 +128,9 @@ description: Aturan WAJIB Smart Partner Hub (mitra resmi, produk partner, portal
   `partner-product-image.ts` (multipart `image`, JPG/PNG/WebP ≤8 MB → WebP ≤200 KB, `/garage-uploads/menu`) and the single writer
   `setPartnerProductImage` (access checked BEFORE the file is written; event `product_photo`). Display only: price, approval and
   Promo Website pick are unchanged. Portal section "Foto produk" (`partner-portal-photos.tsx`) lists all the partner's products incl. pending.
+- Audit 23 Nov 2026: pisah bill SEBAGIAN untuk item mitra yang barisnya sudah di setoran aktif (`active_line_key`) ditolak
+  (`movePartnerLineOnSplit` → `PartnerOrderError`, pesan menyebut nomor setoran); pindah seluruh qty tetap boleh. Sebelumnya
+  baris pecahan baru (createdAt sama) bisa disetor lagi → mitra dibayar dua kali. HPP Mitra di laba: lihat skill `garage-kas`.
 - Produk mandiri mitra (Owner 23 Nov 2026, migration 0211): mitra mengajukan produk sendiri dari Portal Mitra tab "Produk"
   (`partner-portal-products.tsx`, formulir 3 langkah Info → Harga → Foto & kirim). Pure rules `partner-product-submission.ts`
   (validasi bahasa awam, kode `<KODE>-Mnn`, ID varian, `partnerProductView`), body Zod `partner-product-submission-schema.ts`.

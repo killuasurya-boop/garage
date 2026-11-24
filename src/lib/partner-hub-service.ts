@@ -2510,7 +2510,9 @@ export async function approvePartnerSettlement(id: string, garage: GarageSession
           amount: locked.liabilityTotal,
           paymentMethod: "Transfer",
           status: "recorded",
-          expenseDate: locked.periodTo,
+          // Tanggal penjualannya (12.00 WIB hari itu), bukan 00.00 hari berikutnya (audit Owner 23 Nov 2026):
+          // laba harian memasangkan penjualan & HPP mitra di hari yang sama, dengan atau tanpa jam tutup buku.
+          expenseDate: new Date(locked.periodFrom.getTime() + 12 * 3_600_000),
           notes: `Settlement ${locked.settlementNo}`,
           sourceDoc: `PSET:${locked.settlementNo}`,
           createdBy: garage.user.id,

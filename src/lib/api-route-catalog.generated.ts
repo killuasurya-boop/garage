@@ -304,6 +304,7 @@ export const API_ROUTE_CATALOG: ApiRouteEntry[] = [
   {"path":"/api/finance/profit-loss","methods":["GET"],"note":""},
   {"path":"/api/finance/recipes/margin","methods":["GET"],"note":""},
   {"path":"/api/finance/recipes","methods":["POST"],"note":""},
+  {"path":"/api/finance/reports/daily-bank","methods":["GET"],"note":""},
   {"path":"/api/finance/reports/export","methods":["POST"],"note":""},
   {"path":"/api/finance/reports","methods":["GET"],"note":""},
   {"path":"/api/finance/scenario/{id}","methods":["DELETE"],"note":""},

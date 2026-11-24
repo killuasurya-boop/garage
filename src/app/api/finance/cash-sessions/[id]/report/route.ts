@@ -5,6 +5,8 @@ import {
 } from "@/lib/garage-service";
 import { generateShiftReportPdf } from "@/lib/garage-shift-report-pdf";
 import { partnerSalesForCashSession } from "@/lib/partner-hub-service";
+import { salesHppForCashSession } from "@/lib/sales-hpp-report";
+import { canSeeProductHpp } from "@/lib/sales-hpp-summary";
 import { canUseApi } from "@/lib/role-access";
 import { requireAnyPermission } from "@/lib/server-auth";
 
@@ -46,7 +48,11 @@ export async function GET(
 
   // Penjualan mitra (Partner Hub). Gagal dimuat = PDF tetap jadi tanpa seksi mitra.
   const partners = await partnerSalesForCashSession(id, session.data, { allowAll }).catch(() => null);
-  const pdf = await generateShiftReportPdf(summary, transactions, partners);
+  // Ringkasan cup/porsi per kategori & produk (order yang pembayaran terakhirnya masuk shift ini); HPP/laba hanya Owner &
+  // Manajer. Gagal dimuat = PDF tetap jadi.
+  const salesSummary = await salesHppForCashSession(id).catch(() => null);
+  const sales = salesSummary ? { summary: salesSummary, showHpp: canSeeProductHpp(session.data.profile.role) } : null;
+  const pdf = await generateShiftReportPdf(summary, transactions, partners, sales);
   const filename = `shift-${summary.session.code}.pdf`;
 
   return new Response(new Uint8Array(pdf), {

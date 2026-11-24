@@ -136,6 +136,13 @@ describe("Daily closing", () => {
       .from(t.schema.financialSnapshots)
       .where((await import("drizzle-orm")).eq(t.schema.financialSnapshots.date, yesterday()));
     expect(snapshot.status).toBe("locked");
+    // Laporan Harian Rekening Bersama: ringkasan HPP produk ikut dibekukan di angka closing.
+    const [dayClosing] = await t
+      .getDb()
+      .select()
+      .from(t.schema.financeDailyClosings)
+      .where((await import("drizzle-orm")).eq(t.schema.financeDailyClosings.date, yesterday()));
+    expect((dayClosing.figures as { productSales?: { totals?: unknown } }).productSales?.totals).toBeTruthy();
 
     await expect(
       svc.createExpense(

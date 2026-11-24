@@ -59,6 +59,12 @@ bagian yang ditunjuk (hemat token). Aturan Garage di bawah selalu menang atas ou
   cafe di sana.
 - Jalankan checklist anti-slop di `GARAGE.md` sebelum PR homepage. Skill dipasang tanpa hook/skrip, jadi cek
   visual tetap lewat `node scripts/ui-check.mjs /` + Playwright.
+- Keputusan Owner 24 Nov 2026 (audit anti-slop, PR homepage A): **Lokasi & Jam = section ke-2** tepat di bawah hero,
+  di desktop (urutan DOM di `garage-website.tsx`) DAN HP (`section#location { order: 1 }` di blok "Kenyamanan HP",
+  ada 2 salinan di `garage-website.css`); hero **maksimal 2 aksi** (Pesan + Cek Meja; Mitra lewat menu); chip GIGS di
+  HP baru muncul setelah layar pertama digulir (tidak menutupi jam/QR/rating). Belum diputuskan (tanya Owner dulu):
+  judul hero baru (gambar "SEKEDAR KOPI" tetap), rating Google ditulis manual di `garage-location.ts`, posisi section
+  SURYA.dev, foto hero.
 
 ## 3. Bangun
 - Server Component default; `"use client"` hanya untuk bagian interaktif. Data lewat `garage-service`/API yang ada.

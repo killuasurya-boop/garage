@@ -5,6 +5,7 @@ import {
   canSeeProductHpp,
   categoryQtyText,
   dailyBankReportText,
+  dailyBankStatusLabel,
   salesUnitFor,
   summarizeSalesHpp,
   type SalesLine,
@@ -94,7 +95,13 @@ describe("Laporan Harian Rekening Bersama", () => {
       { method: "QRIS", amount: 150_000 },
       { method: "Cash", amount: 100_000 },
     ]);
-    expect(buildDailyBankReport({ ...figure, netSales: 0, source: "locked" }, sales)).toMatchObject({ netMarginPct: null, locked: true });
+    expect(buildDailyBankReport({ ...figure, netSales: 0, source: "locked" }, sales)).toMatchObject({ netMarginPct: null, locked: true, hppLocked: false });
+    expect(buildDailyBankReport({ ...figure, source: "locked" }, sales, { hppFrozen: true }).hppLocked).toBe(true);
+    // HPP beku hanya berarti bila hari memang dikunci.
+    expect(buildDailyBankReport(figure, sales, { hppFrozen: true }).hppLocked).toBe(false);
+    expect(dailyBankStatusLabel({ locked: false, hppLocked: false })).toBe("Sementara");
+    expect(dailyBankStatusLabel({ locked: true, hppLocked: true })).toBe("Dikunci");
+    expect(dailyBankStatusLabel({ locked: true, hppLocked: false })).toBe("Dikunci, HPP dihitung ulang");
   });
 
   it("teks ringkasan untuk grup keuangan memuat omzet, cup/porsi, HPP, laba bersih, uang masuk", () => {

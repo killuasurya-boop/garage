@@ -69,7 +69,16 @@ function page(doc: Doc, r: DailyBankReport, outletName: string) {
     .font("Helvetica-Bold")
     .fontSize(9)
     .fillColor(r.locked ? "#15803d" : "#b45309")
-    .text(r.locked ? "ANGKA DIKUNCI (DAILY CLOSING)" : "ANGKA SEMENTARA — HARI BELUM DI-CLOSING", M + 150, doc.y + 2, { width: W - 150, align: "right" });
+    .text(
+      !r.locked
+        ? "ANGKA SEMENTARA — HARI BELUM DI-CLOSING"
+        : r.hppLocked
+          ? "ANGKA DIKUNCI (DAILY CLOSING)"
+          : "DIKUNCI · HPP PRODUK DIHITUNG ULANG DARI HPP SAAT INI",
+      M + 150,
+      doc.y + 2,
+      { width: W - 150, align: "right" },
+    );
   doc.y = Math.max(doc.y, 84);
   doc.strokeColor(RED).lineWidth(2).moveTo(M, doc.y).lineTo(M + W, doc.y).stroke();
   doc.moveDown(0.6);

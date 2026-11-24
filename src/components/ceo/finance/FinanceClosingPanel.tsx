@@ -272,7 +272,7 @@ function DailyClosing({ overview, onChanged }: { overview: ClosingOverview; onCh
             </FinanceCard>
           </div>
 
-          <DailyBankReportCard date={date} />
+          <DailyBankReportCard date={date} refreshKey={`${data.status}:${data.closing?.closedAt ?? ""}:${data.closing?.reopenReason ?? ""}`} />
 
           <CashReconciliation data={data} onApproved={() => setNonce((n) => n + 1)} />
 

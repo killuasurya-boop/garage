@@ -1,14 +1,14 @@
 // Loader DB untuk ringkasan penjualan + HPP produk (Owner 24 Nov 2026).
 // Aturan & hitungan murni ada di `sales-hpp-summary.ts`.
 
-import { and, eq, gte, inArray, lt } from "drizzle-orm";
+import { and, eq, gte, inArray, lt, lte } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { menuItems, menuVariants, orderItems, orders } from "@/db/schema";
+import { financeDailyClosings, menuItems, menuVariants, orderItems, orders, payments } from "@/db/schema";
 import { loadBusinessDayPolicy } from "@/lib/business-date-policy";
 import { addDays, eachDay, jakartaDateKey, jakartaDayStart } from "@/lib/finance-control-core";
 import { getDayFigures, loadFinanceConfig } from "@/lib/finance-control";
-import { buildDailyBankReport, summarizeSalesHpp, type DailyBankReport, type SalesLine } from "@/lib/sales-hpp-summary";
+import { buildDailyBankReport, summarizeSalesHpp, type DailyBankReport, type SalesHppSummary, type SalesLine } from "@/lib/sales-hpp-summary";
 
 type Where = ReturnType<typeof and>;
 
@@ -51,6 +51,32 @@ export async function salesHppForOrders(orderIds: string[]) {
   return summarizeSalesHpp(await loadLines(and(inArray(orders.id, orderIds), eq(orders.status, "paid"))));
 }
 
+/**
+ * Penjualan satu shift kasir: order LUNAS yang pembayaran captured TERAKHIRNYA masuk sesi kas ini. Bill yang dibuat di
+ * shift A tapi dibayar di shift B hanya dihitung di shift B (tidak dobel antar shift).
+ */
+export async function salesHppForCashSession(sessionId: string) {
+  const db = getDb();
+  const touched = await db
+    .selectDistinct({ orderId: payments.orderId })
+    .from(payments)
+    .where(and(eq(payments.cashSessionId, sessionId), eq(payments.status, "captured")));
+  const candidateIds = touched.map((row) => row.orderId).filter((id): id is string => Boolean(id));
+  if (!candidateIds.length) return summarizeSalesHpp([]);
+  const captured = await db
+    .select({ orderId: payments.orderId, cashSessionId: payments.cashSessionId, createdAt: payments.createdAt })
+    .from(payments)
+    .where(and(inArray(payments.orderId, candidateIds), eq(payments.status, "captured")));
+  const latest = new Map<string, { sessionId: string | null; at: number }>();
+  for (const row of captured) {
+    if (!row.orderId) continue;
+    const at = row.createdAt.getTime();
+    const prev = latest.get(row.orderId);
+    if (!prev || at >= prev.at) latest.set(row.orderId, { sessionId: row.cashSessionId, at });
+  }
+  return salesHppForOrders(candidateIds.filter((id) => latest.get(id)?.sessionId === sessionId));
+}
+
 /** Penjualan LUNAS satu hari bisnis (batas hari sama dengan Finance). */
 export async function salesHppForDay(dateKey: string) {
   const policy = await loadBusinessDayPolicy();
@@ -84,9 +110,20 @@ export async function getDailyBankReports(fromKey: string, toKey: string): Promi
   if (fromKey > todayKey) throw new DailyBankReportError("FUTURE_DATE", "Tanggal belum terjadi.");
   const lastKey = toKey > todayKey ? todayKey : toKey;
   const figures = await getDayFigures(fromKey, lastKey, config, todayKey);
+  // Hari yang di-Daily Closing memakai ringkasan HPP produk yang dibekukan saat closing (HPP bahan bisa berubah sesudahnya).
+  const closings = await getDb()
+    .select({ date: financeDailyClosings.date, status: financeDailyClosings.status, figures: financeDailyClosings.figures })
+    .from(financeDailyClosings)
+    .where(and(gte(financeDailyClosings.date, fromKey), lte(financeDailyClosings.date, lastKey)));
+  const frozenSales = new Map<string, SalesHppSummary>();
+  for (const row of closings) {
+    const productSales = (row.figures as { productSales?: SalesHppSummary } | null)?.productSales;
+    if (row.status === "closed" && productSales?.totals) frozenSales.set(String(row.date), productSales);
+  }
   const reports: DailyBankReport[] = [];
   for (const figure of figures) {
-    reports.push(buildDailyBankReport(figure, await salesHppForDay(figure.date)));
+    const frozen = frozenSales.get(figure.date);
+    reports.push(buildDailyBankReport(figure, frozen ?? (await salesHppForDay(figure.date)), { hppFrozen: Boolean(frozen) }));
   }
   return reports;
 }

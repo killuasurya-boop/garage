@@ -87,4 +87,38 @@ describe("Ringkasan penjualan + HPP produk", () => {
     await expect(getDailyBankReports(today, "2000-01-01")).rejects.toBeInstanceOf(DailyBankReportError);
     await expect(getDailyBankReports("2026-01-01", "2026-06-01")).rejects.toMatchObject({ code: "RANGE_TOO_LONG" });
   });
+
+  it("bill dibuat di shift A lalu dibayar di shift B hanya terhitung di shift B", async () => {
+    const { eq } = await import("drizzle-orm");
+    const d = t.getDb();
+    const [shiftA] = await d.select().from(t.schema.cashSessions).where(eq(t.schema.cashSessions.openedBy, KASIR));
+    await d.insert(t.schema.user).values({ id: "user-shpp-kasir-b", name: "Kasir B", email: "user-shpp-kasir-b@garage.id" });
+    const [shiftB] = await d.insert(t.schema.cashSessions).values({ code: "CS-SHPP-B", openingCash: 0, expectedCash: 0, outletId, openedBy: "user-shpp-kasir-b", status: "open" }).returning();
+    const [lastOrder] = await d.select().from(t.schema.orders).where(eq(t.schema.orders.total, 30_000));
+    // Pembayaran captured terakhir order nasi masuk shift B (mis. Final Bayar bill di shift berikutnya).
+    await d.insert(t.schema.payments).values({ orderId: lastOrder.id, method: "QRIS", amount: 30_000, status: "captured", cashSessionId: shiftB.id, createdAt: new Date(Date.now() + 60_000) });
+    const { salesHppForCashSession } = await import("@/lib/sales-hpp-report");
+    const a = await salesHppForCashSession(shiftA.id);
+    const b = await salesHppForCashSession(shiftB.id);
+    expect(a.categories.map((c) => c.name)).toEqual(["Coffee"]);
+    expect(b.categories.map((c) => [c.name, c.qty, c.hpp])).toEqual([["Makanan", 1, 12_000]]);
+  });
+
+  it("hari yang dikunci memakai HPP produk yang dibekukan saat closing, bukan HPP produk terbaru", async () => {
+    const { loadFinanceConfig } = await import("@/lib/finance-control");
+    const { jakartaDateKey } = await import("@/lib/finance-control-core");
+    const { salesHppForDay, getDailyBankReports } = await import("@/lib/sales-hpp-report");
+    const today = jakartaDateKey(new Date(), (await loadFinanceConfig()).businessDay);
+    const { eq } = await import("drizzle-orm");
+    const d = t.getDb();
+    const frozen = await salesHppForDay(today);
+    await d.insert(t.schema.financeDailyClosings).values({ date: today, status: "closed", checklist: [], figures: { productSales: frozen } });
+    await d.update(t.schema.menuVariants).set({ baseCost: 9_000 }).where(eq(t.schema.menuVariants.itemId, "itm-coffee"));
+    const [report] = await getDailyBankReports(today, today);
+    expect(report.hppProducts).toBe(frozen.totals.hpp);
+    expect(report.hppProducts).toBe(22_000);
+    await d.delete(t.schema.financeDailyClosings).where(eq(t.schema.financeDailyClosings.date, today));
+    const [live] = await getDailyBankReports(today, today);
+    expect(live.hppProducts).toBe(2 * 9_000 + 12_000);
+  });
 });

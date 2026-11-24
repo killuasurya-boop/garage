@@ -140,7 +140,10 @@ export type DailyFinanceFigure = {
 
 export type DailyBankReport = {
   date: string;
+  /** Omzet, upah & biaya dari angka Daily Closing (dikunci). */
   locked: boolean;
+  /** HPP produk juga dibekukan saat closing. false pada hari dikunci = HPP dihitung ulang dari HPP produk saat ini. */
+  hppLocked: boolean;
   orderCount: number;
   grossSales: number;
   discount: number;
@@ -165,7 +168,7 @@ export type DailyBankReport = {
  * Laba kotor = omzet bersih − HPP produk; biaya operasional harian = upah + biaya tetap & operasional;
  * laba bersih = laba operasional − biaya non-operasional + pendapatan lain.
  */
-export function buildDailyBankReport(figure: DailyFinanceFigure, sales: SalesHppSummary): DailyBankReport {
+export function buildDailyBankReport(figure: DailyFinanceFigure, sales: SalesHppSummary, options: { hppFrozen?: boolean } = {}): DailyBankReport {
   const hppProducts = sales.totals.hpp;
   const grossProfit = figure.netSales - hppProducts;
   const operatingCost = figure.payroll + figure.operatingExpense;
@@ -178,6 +181,7 @@ export function buildDailyBankReport(figure: DailyFinanceFigure, sales: SalesHpp
   return {
     date: figure.date,
     locked: figure.source === "locked",
+    hppLocked: figure.source === "locked" && Boolean(options.hppFrozen),
     orderCount: figure.orderCount,
     grossSales: figure.grossSales,
     discount: figure.discount,
@@ -204,7 +208,7 @@ export function dailyBankReportText(r: DailyBankReport, outletName: string) {
   const date = new Intl.DateTimeFormat("id-ID", { timeZone: "UTC", weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date(`${r.date}T00:00:00Z`));
   const lines = [
     `*Laporan Harian ${outletName}*`,
-    date + (r.locked ? " (dikunci)" : " (sementara)"),
+    date + ` (${dailyBankStatusLabel(r).toLowerCase()})`,
     "",
     `Omzet kotor: ${rp(r.grossSales)} (${r.orderCount} order)`,
     `Diskon/refund: -${rp(r.discount + r.refund)}`,
@@ -224,4 +228,10 @@ export function dailyBankReportText(r: DailyBankReport, outletName: string) {
   }
   if (r.sales.totals.missingHppProducts) lines.push("", `Catatan: ${r.sales.totals.missingHppProducts} produk belum punya HPP (dihitung Rp0).`);
   return lines.join("\n");
+}
+
+/** Label status angka: Dikunci / Dikunci, HPP dihitung ulang / Sementara. */
+export function dailyBankStatusLabel(r: Pick<DailyBankReport, "locked" | "hppLocked">) {
+  if (!r.locked) return "Sementara";
+  return r.hppLocked ? "Dikunci" : "Dikunci, HPP dihitung ulang";
 }

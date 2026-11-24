@@ -1,6 +1,6 @@
 import ExcelJS from "exceljs";
 
-import { categoryQtyText, type DailyBankReport } from "@/lib/sales-hpp-summary";
+import { categoryQtyText, dailyBankStatusLabel, type DailyBankReport } from "@/lib/sales-hpp-summary";
 
 // Excel "Laporan Harian Rekening Bersama" (Owner 24 Nov 2026): satu baris per tanggal di sheet Ringkasan (siap disalin
 // ke rekap rekening bersama), plus rincian per kategori dan per produk. Nilai uang = angka, bukan teks.
@@ -37,7 +37,7 @@ export async function dailyBankReportWorkbook(reports: DailyBankReport[], meta: 
 
   const summary = sheetWithHeader(wb, "Ringkasan", stamp, [
     { header: "Tanggal", width: 12 },
-    { header: "Status", width: 12 },
+    { header: "Status", width: 26 },
     { header: "Order", width: 8 },
     { header: "Omzet kotor", width: 15, money: true },
     { header: "Diskon", width: 13, money: true },
@@ -60,7 +60,7 @@ export async function dailyBankReportWorkbook(reports: DailyBankReport[], meta: 
     const channel = new Map(r.channels.map((c) => [c.method, c.amount]));
     summary.addRow([
       r.date,
-      r.locked ? "Dikunci" : "Sementara",
+      dailyBankStatusLabel(r),
       r.orderCount,
       r.grossSales,
       r.discount,
@@ -141,7 +141,8 @@ export async function dailyBankReportWorkbook(reports: DailyBankReport[], meta: 
   [
     "HPP produk = HPP per produk (resep / harga modal / harga setor mitra) × qty terjual dari order lunas — bukan belanja gudang.",
     "Upah & biaya operasional = angka Finance (biaya tetap harian + pengeluaran tercatat).",
-    "Status Sementara = hari belum di-Daily Closing; angka bisa berubah. Dikunci = angka Daily Closing.",
+    "Status Sementara = hari belum di-Daily Closing; angka bisa berubah. Dikunci = angka Daily Closing (HPP produk ikut dibekukan).",
+    "Dikunci, HPP dihitung ulang = hari dikunci sebelum HPP produk ikut dibekukan; HPP memakai HPP produk saat ini.",
     "Omzet item = harga item sebelum diskon level order; omzet bersih sudah dikurangi diskon & refund.",
   ].forEach((line) => notes.addRow([line]));
   notes.getColumn(1).width = 120;

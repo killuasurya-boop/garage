@@ -8,7 +8,7 @@ import { Copy, FileSpreadsheet, FileText } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import { categoryQtyText, dailyBankReportText, type DailyBankReport } from "@/lib/sales-hpp-summary";
+import { categoryQtyText, dailyBankReportText, dailyBankStatusLabel, type DailyBankReport } from "@/lib/sales-hpp-summary";
 import { FinanceCard } from "./FinanceCards";
 import { rupiah } from "./finance-format";
 
@@ -31,8 +31,9 @@ function Row({ label, value, strong, minus, indent }: { label: string; value: nu
   );
 }
 
-export function DailyBankReportCard({ date }: { date: string }) {
-  const [state, setState] = useState<{ date: string; report: DailyBankReport | null; outletName: string; error: string | null } | null>(null);
+/** `refreshKey` berubah saat hari ditutup / dibuka ulang → angka & status dimuat ulang (Salin ringkasan tidak basi). */
+export function DailyBankReportCard({ date, refreshKey = "" }: { date: string; refreshKey?: string }) {
+  const [state, setState] = useState<{ key: string; date: string; report: DailyBankReport | null; outletName: string; error: string | null } | null>(null);
   const [from, setFrom] = useState(() => `${date.slice(0, 8)}01`);
   const [to, setTo] = useState(date);
 
@@ -42,18 +43,19 @@ export function DailyBankReportCard({ date }: { date: string }) {
       .then(async (res) => {
         const json = (await res.json().catch(() => null)) as { data?: { reports: DailyBankReport[]; outletName: string }; error?: { message?: string } } | null;
         if (!res.ok) throw new Error(json?.error?.message ?? "Laporan gagal dimuat.");
-        if (!cancelled) setState({ date, report: json?.data?.reports[0] ?? null, outletName: json?.data?.outletName ?? "Garage Coffee", error: null });
+        if (!cancelled) setState({ key: refreshKey, date, report: json?.data?.reports[0] ?? null, outletName: json?.data?.outletName ?? "Garage Coffee", error: null });
       })
       .catch((error: Error) => {
-        if (!cancelled) setState({ date, report: null, outletName: "", error: error.message });
+        if (!cancelled) setState({ key: refreshKey, date, report: null, outletName: "", error: error.message });
       });
     return () => {
       cancelled = true;
     };
-  }, [date]);
+  }, [date, refreshKey]);
 
-  const r = state?.date === date ? state.report : null;
-  const loading = state?.date !== date;
+  const fresh = state?.date === date && state.key === refreshKey;
+  const r = fresh ? state.report : null;
+  const loading = !fresh;
   const periodValid = from && to && from <= to;
 
   return (
@@ -93,7 +95,13 @@ export function DailyBankReportCard({ date }: { date: string }) {
                 <p className="mt-1 text-sm text-zinc-400">Tidak ada uang masuk tercatat.</p>
               )}
             </div>
-            <p className={`text-xs font-bold ${r.locked ? "text-[#86efac]" : "text-[#ffd8a8]"}`}>{r.locked ? "Angka dikunci Daily Closing." : "Angka sementara — tutup hari (Close day) agar angka terkunci."}</p>
+            <p className={`text-xs font-bold ${r.hppLocked ? "text-[#86efac]" : "text-[#ffd8a8]"}`}>
+              {!r.locked
+                ? "Angka sementara — tutup hari (Close day) agar angka terkunci."
+                : r.hppLocked
+                  ? "Angka dikunci Daily Closing (HPP produk ikut dikunci)."
+                  : `${dailyBankStatusLabel(r)}: hari ini dikunci sebelum HPP produk ikut dibekukan.`}
+            </p>
           </div>
         </div>
       ) : null}

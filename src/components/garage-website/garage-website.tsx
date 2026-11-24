@@ -35,7 +35,6 @@ import {
   TrainFront,
   Trees,
   UtensilsCrossed,
-  Handshake,
 } from "lucide-react";
 import { PartnerShowcase } from "@/components/garage-website/partner-showcase";
 
@@ -1910,13 +1909,13 @@ function Hero({ landingHero }) {
                 <span className="garage-steam garage-steam-2" />
                 <span className="garage-steam garage-steam-3" />
               </div>
-              <h1 className="display hero-image-title" aria-label="Garage Coffee Tebing Tinggi — lebih dari sekedar kopi.">
+              <h1 className="display hero-image-title" aria-label="Garage Coffee Tebing Tinggi — lebih dari sekadar kopi.">
                 <span className="gw-sr-only">Garage Coffee Tebing Tinggi — </span>
                 <span className="hero-title-line hero-title-top">LEBIH DARI</span>
                 {/* Baris kedua = gambar transparan dari font Anton yang sama (perak + "A" merah terpisah agar kilaunya tetap
                     berdenyut). Huruf "S" Anton digambar rusak oleh background-clip:text, jadi tidak dipakai di baris ini. */}
                 <span className="hero-title-line hero-title-bottom hero-title-stack">
-                  <span className="gw-sr-only">SEKEDAR KOPI.</span>
+                  <span className="gw-sr-only">SEKADAR KOPI.</span>
                   <img className="hero-title-img" src="/garage-brand/hero-title/sekedar-kopi-silver.webp" alt="" aria-hidden="true" width={1948} height={332} decoding="async" fetchPriority="high" />
                   <img className="hero-title-img hero-title-img-a" src="/garage-brand/hero-title/sekedar-kopi-a-red.webp" alt="" aria-hidden="true" width={1948} height={332} decoding="async" />
                 </span>
@@ -1927,7 +1926,6 @@ function Hero({ landingHero }) {
               <div className="hero-image-actions">
                 <Link href={DIGITAL_MENU_URL} className="btn btn-primary"><span>Pesan Sekarang</span><ArrowRight /></Link>
                 <button type="button" onClick={requestTablePanelOpen} className="btn"><span>Cek Meja Kosong</span><ArrowRight /></button>
-                <a href="#mitra" className="btn hero-partner-tab"><Handshake aria-hidden /><span>Mitra</span></a>
               </div>
             </Reveal>
           </div>
@@ -2274,7 +2272,7 @@ function Hero({ landingHero }) {
             <span className="garage-steam garage-steam-2" />
             <span className="garage-steam garage-steam-3" />
           </div>
-          <Reveal mask delay={400} as="h1" className="display hero-title" aria-label="Garage Coffee Tebing Tinggi — lebih dari sekedar kopi."
+          <Reveal mask delay={400} as="h1" className="display hero-title" aria-label="Garage Coffee Tebing Tinggi — lebih dari sekadar kopi."
           style={{ marginBottom: 8 }}>
             <span className="chrome hero-title-kicker" style={{
               display: "block",
@@ -2321,7 +2319,6 @@ function Hero({ landingHero }) {
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
               <Link href={DIGITAL_MENU_URL} className="btn btn-primary"><span>Pesan Sekarang</span><ArrowRight /></Link>
               <button type="button" onClick={requestTablePanelOpen} className="btn"><span>Cek Meja Kosong</span><ArrowRight /></button>
-              <a href="#mitra" className="btn hero-partner-tab"><Handshake aria-hidden /><span>Mitra</span></a>
             </div>
           </Reveal>
 
@@ -2903,9 +2900,8 @@ function LiveVisitBoard() {
         .live-metrics strong {
           display: block;
           margin-top: 8px;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
+          /* Teks status (mis. "Cek langsung", "18+ menit") boleh turun baris, tidak pernah terpotong. */
+          overflow-wrap: break-word;
           color: var(--fg);
           font-family: var(--font-display);
           font-size: 30px;
@@ -3354,7 +3350,15 @@ function GigsMobileChip({ promo }) {
       setHidden(false);
     }
   }, []);
-  if (!promo || !label || hidden) return null;
+  // Muncul setelah layar pertama digulir: di layar pertama chip menutupi angka hero (jam, QR, rating) di HP.
+  const [pastHero, setPastHero] = useState(false);
+  useEffect(() => {
+    const check = () => setPastHero(window.scrollY > window.innerHeight * 0.85);
+    check();
+    window.addEventListener("scroll", check, { passive: true });
+    return () => window.removeEventListener("scroll", check);
+  }, []);
+  if (!promo || !label || hidden || !pastHero) return null;
   const close = () => {
     setHidden(true);
     try {
@@ -6283,6 +6287,9 @@ function GarageWebsiteRoot({
       <PromoBar gigsPromo={gigsPromo} />
       <Nav />
       <Hero landingHero={landingHero} />
+      {/* Layar ke-2 = kunjungan (Owner 24 Nov 2026, audit anti-slop design-taste-frontend): alamat, jam buka, rute
+          langsung di bawah hero. Menggantikan posisi Lokasi lama di bagian 6 (urutan identitas 16 Nov tetap sesudahnya). */}
+      <LocationMvp />
       {gigsPromo ? <GigsPromoBanner promo={gigsPromo} /> : featuredEvent ? <GrandOpeningBanner event={featuredEvent} /> : null}
       {/* Urutan identitas dulu (owner 16 Nov 2026): siapa Garage → suasana → live → menu ringkas → komunitas. */}
       {/* 1. Identitas */}
@@ -6302,8 +6309,7 @@ function GarageWebsiteRoot({
       <MembershipMasterPro />
       <LiveTestimonials />
       <PartnerShowcase limit={4} />
-      {/* 6. Lokasi & sosmed, lalu pengembang di balik Garage (SURYA.dev) + showcase Garage OS di bawah */}
-      <LocationMvp />
+      {/* 6. Sosmed, lalu pengembang di balik Garage (SURYA.dev) + showcase Garage OS di bawah (Lokasi kini layar ke-2) */}
       <SocialPortfolio />
       <BuiltBySurya />
       <SuryaShowcase />

@@ -465,7 +465,7 @@ html { scroll-behavior: smooth; }
 
 /* =============================================================================
    Kenyamanan HP (QA website 2026-09-28)
-   1. Urutan fokus penjualan: Hero → Menu → Cara Pesan → Cek Meja → Lokasi & Jam → Promo …
+   1. Urutan fokus penjualan: Hero → Lokasi & Jam (Owner 24 Nov 2026) → Menu → Cara Pesan → Cek Meja → Promo …
       (dulu alamat & jam buka baru muncul di ±21.000px / 25× geser layar).
    2. Teks minimum 11px (dulu 159 label 10px & 13 label 9px di HP).
    3. Target sentuh minimum 44px (standar Apple/Google) untuk tombol kecil.
@@ -482,8 +482,9 @@ html { scroll-behavior: smooth; }
   main.garage-website > section#unggulan { order: 4; }
   main.garage-website > section#cara-pesan { order: 5; }
   main.garage-website > section#live-status { order: 6; }
-  /* Alamat & jam tetap dekat atas di HP (fokus kunjungan). */
-  main.garage-website > section#location { order: 7; }
+  /* Alamat & jam = layar ke-2, tepat di bawah hero (Owner 24 Nov 2026, audit anti-slop); sama-sama order 1,
+     urutan DOM: hero → lokasi → banner GIGS/Grand Opening. */
+  main.garage-website > section#location { order: 1; }
   main.garage-website > section#membership { order: 8; }
   main.garage-website > section#events { order: 9; }
   main.garage-website > section#about { order: 10; }
@@ -1065,7 +1066,7 @@ html { scroll-behavior: smooth; }
 
 /* =============================================================================
    Kenyamanan HP (QA website 2026-09-28)
-   1. Urutan fokus penjualan: Hero → Menu → Cara Pesan → Cek Meja → Lokasi & Jam → Promo …
+   1. Urutan fokus penjualan: Hero → Lokasi & Jam (Owner 24 Nov 2026) → Menu → Cara Pesan → Cek Meja → Promo …
       (dulu alamat & jam buka baru muncul di ±21.000px / 25× geser layar).
    2. Teks minimum 11px (dulu 159 label 10px & 13 label 9px di HP).
    3. Target sentuh minimum 44px (standar Apple/Google) untuk tombol kecil.
@@ -1082,8 +1083,9 @@ html { scroll-behavior: smooth; }
   main.garage-website > section#unggulan { order: 4; }
   main.garage-website > section#cara-pesan { order: 5; }
   main.garage-website > section#live-status { order: 6; }
-  /* Alamat & jam tetap dekat atas di HP (fokus kunjungan). */
-  main.garage-website > section#location { order: 7; }
+  /* Alamat & jam = layar ke-2, tepat di bawah hero (Owner 24 Nov 2026, audit anti-slop); sama-sama order 1,
+     urutan DOM: hero → lokasi → banner GIGS/Grand Opening. */
+  main.garage-website > section#location { order: 1; }
   main.garage-website > section#membership { order: 8; }
   main.garage-website > section#events { order: 9; }
   main.garage-website > section#about { order: 10; }
@@ -1334,8 +1336,6 @@ html { scroll-behavior: smooth; }
 .gw-partner-rules li { display: flex; gap: 8px; align-items: flex-start; color: var(--fg-dim, #d4d4d8); font-size: 14px; line-height: 1.45; }
 .gw-partner-rules li svg { flex: none; margin-top: 2px; color: #86efac; }
 /* Tab "Mitra" di hero */
-.hero-partner-tab { display: inline-flex; align-items: center; gap: 8px; }
-.hero-partner-tab svg { width: 18px; height: 18px; }
 @media (prefers-reduced-motion: reduce) {
   .gw-partner-card, .gw-partner-skeleton { transition: none; animation: none; }
   .gw-partner-card:hover { transform: none; }
@@ -1374,7 +1374,7 @@ html { scroll-behavior: smooth; }
     position: fixed; right: 12px; bottom: calc(86px + env(safe-area-inset-bottom)); z-index: 47;
     display: inline-flex; align-items: center; border-radius: 999px; overflow: hidden;
     background: var(--red); color: #fff; box-shadow: 0 10px 28px rgba(209, 26, 42, 0.45);
-    animation: gigs-chip-in 0.5s var(--ease-out, ease) both 1.2s;
+    animation: gigs-chip-in 0.35s var(--ease-out, ease) both;
   }
   .garage-website .gigs-chip__link {
     display: inline-flex; align-items: center; gap: 8px; padding: 10px 6px 10px 14px; color: #fff; text-decoration: none;

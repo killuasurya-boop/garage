@@ -50,9 +50,13 @@ bagian yang ditunjuk (hemat token). Aturan Garage di bawah selalu menang atas ou
 
 ## 2b. Anti AI slop — WAJIB untuk homepage & landing publik (`design-taste-frontend`)
 - Muat skill `design-taste-frontend` (Taste Skill, repo GitHub anti-slop berbintang terbanyak, Nov 2026), tapi
-  baca **`GARAGE.md`-nya dulu**: yang diambil = tells AI slop (`references/copy-tells.md`), struktur halaman
-  *place*, satu section per layar, foto memimpin, micro-interaction; yang diganti = palet/font (tetap Crystal V5),
-  foto stand-in (hanya foto asli), kontak palsu (data nyata). Aturan bagian 0 tetap menang.
+  baca **`GARAGE.md`-nya dulu**: yang diambil = tells AI slop (`references/copy-tells.md`), satu section per layar,
+  micro-interaction; yang diganti = palet/font (tetap Crystal V5), foto stand-in (hanya foto asli), kontak palsu
+  (data nyata). Aturan bagian 0 tetap menang.
+- Struktur *place* (kunjungan di layar 2, foto memimpin) HANYA untuk homepage cafe. Halaman publik lain pilih
+  tipe halaman yang cocok di tabel skill: `/mitra` = service (ajakan kerja sama), `/recruitment` = service
+  (lowongan), `/franchise` = service, `/events` & `/grand-opening` = place/event; jangan pasang blok kunjungan
+  cafe di sana.
 - Jalankan checklist anti-slop di `GARAGE.md` sebelum PR homepage. Skill dipasang tanpa hook/skrip, jadi cek
   visual tetap lewat `node scripts/ui-check.mjs /` + Playwright.
 

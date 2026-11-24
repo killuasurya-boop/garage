@@ -1,7 +1,8 @@
 # design-taste-frontend untuk garagecoffee.id (homepage / landing)
 
 Skill anti-slop ini dipakai di homepage `src/app/page.tsx` → `src/components/garage-website/` dan halaman publik
-lain lewat skill `garage-website` (langkah 2b). Jenis halaman menurut tabel skill ini: **place** (cafe/bar).
+lain lewat skill `garage-website` (langkah 2b). Jenis halaman: homepage = **place** (cafe/bar); halaman publik lain
+pilih tipe yang cocok (`/mitra`, `/recruitment`, `/franchise` = service). Struktur place di bawah hanya untuk homepage.
 
 ## Yang DIAMBIL dari skill ini
 - Tells AI slop (`references/copy-tells.md`, `references/copy.md`, `copy-voice.md`): kalimat basa-basi, tiga
@@ -28,7 +29,8 @@ lain lewat skill `garage-website` (langkah 2b). Jenis halaman menurut tabel skil
 ## Checklist anti-slop sebelum PR homepage
 1. Tidak ada kalimat yang bisa dipakai cafe mana pun ("tempat nongkrong terbaik", "pengalaman tak terlupakan").
 2. Tidak ada angka/rating/testimoni/badge yang tidak berasal dari data.
-3. Hero: nama + apa yang dijual + satu CTA (Pesan / Lihat Menu), foto asli, satu animasi masuk.
+3. Hero: nama + apa yang dijual + satu CTA (Pesan / Lihat Menu), foto asli Garage bila ada yang cocok
+   (tanpa foto yang cocok: placeholder gelap ber-emblem / tipografi besar, tidak pernah foto AI), satu animasi masuk.
 4. Layar kedua: alamat, jam buka hari ini, tombol arah/WhatsApp.
 5. Tidak ada tiga kartu ikon generik berjajar; tiap section komposisi berbeda.
 6. Teks body ≥ 16px di mobile, kontras AA, tidak ada teks terpotong di 390.

@@ -83,8 +83,16 @@ const useBiz = () => {
     instagram: ctx?.instagram || "",
     mapsUrl: ctx?.mapsUrl || "",
     aboutText: ctx?.aboutText || "",
+    // Rating Google dari Pengaturan Website; null = disembunyikan (Owner 24 Nov 2026).
+    googleRating: ctx?.googleRating ?? null,
+    googleReviewCount: ctx?.googleReviewCount ?? null,
   };
 };
+/** Rating Google siap tampil, atau null bila Owner mengosongkannya di Pengaturan. */
+const googleRatingOf = (biz) =>
+  biz.googleRating != null && biz.googleReviewCount
+    ? { value: Number(biz.googleRating), count: Number(biz.googleReviewCount), label: Number(biz.googleRating).toFixed(1).replace(".", ",") }
+    : null;
 const bizWaUrl = (phone, message) =>
   `https://wa.me/${phone}?text=${encodeURIComponent(message || WHATSAPP_DEFAULT_MESSAGE)}`;
 const DIGITAL_MENU_URL = {
@@ -1933,7 +1941,7 @@ function Hero({ landingHero }) {
           <Reveal delay={760} className="hero-image-stats">
             <Stat n={hoursLabel} l="Buka setiap hari" />
             <Stat n="QR" l="Pesan dari meja" />
-            <Stat n={GARAGE_LOCATION.rating.toFixed(1)} l={`Google · ${GARAGE_LOCATION.reviewCount} ulasan`} />
+            {googleRatingOf(biz) ? <Stat n={googleRatingOf(biz).value.toFixed(1)} l={`Google · ${googleRatingOf(biz).count} ulasan`} /> : null}
           </Reveal>
         </div>
 
@@ -2327,7 +2335,7 @@ function Hero({ landingHero }) {
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 24, flexWrap: "wrap" }}>
               <Stat n={hoursLabel} l="Buka setiap hari" />
               <Stat n="QR" l="Pesan dari meja" />
-              <Stat n={GARAGE_LOCATION.rating.toFixed(1)} l={`Google · ${GARAGE_LOCATION.reviewCount} ulasan`} />
+              {googleRatingOf(biz) ? <Stat n={googleRatingOf(biz).value.toFixed(1)} l={`Google · ${googleRatingOf(biz).count} ulasan`} /> : null}
             </div>
           </Reveal>
         </div>
@@ -5474,11 +5482,13 @@ function LocationMvp() {
               <a className="btn" href={bizWaUrl(biz.whatsapp, reservationMessage)} target="_blank" rel="noopener noreferrer"><span>Reservasi via WhatsApp</span><ArrowRight /></a>
             </Reveal>
             <Reveal delay={420} as="div" className="location-mvp-rating">
-              <a href={MAPS_URL} target="_blank" rel="noopener noreferrer" className="location-mvp-rating-link">
-                <span className="location-mvp-stars" aria-hidden="true">★★★★★</span>
-                <strong>{GARAGE_LOCATION.rating.toFixed(1).replace(".", ",")}</strong>
-                <span>· {GARAGE_LOCATION.reviewCount} ulasan Google</span>
-              </a>
+              {googleRatingOf(biz) ? (
+                <a href={MAPS_URL} target="_blank" rel="noopener noreferrer" className="location-mvp-rating-link">
+                  <span className="location-mvp-stars" aria-hidden="true">★★★★★</span>
+                  <strong>{googleRatingOf(biz).label}</strong>
+                  <span>· {googleRatingOf(biz).count} ulasan Google</span>
+                </a>
+              ) : null}
               <a href={MAPS_URL} target="_blank" rel="noopener noreferrer" className="location-mvp-review-cta">Lihat profil Google →</a>
               <a href={GARAGE_LOCATION.reviewUrl} target="_blank" rel="noopener noreferrer" className="location-mvp-review-cta">Tulis ulasan →</a>
             </Reveal>
@@ -5698,7 +5708,7 @@ function FooterMvp() {
                 <ArrowRight size={12} />
               </a>
               <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="footer-mvp-cta">
-                <span>Profil Google ★ {GARAGE_LOCATION.rating.toFixed(1).replace(".", ",")}</span>
+                <span>{googleRatingOf(biz) ? `Profil Google ★ ${googleRatingOf(biz).label}` : "Profil Google"}</span>
                 <ArrowRight size={12} />
               </a>
             </div>
@@ -6227,7 +6237,10 @@ function GarageWebsiteRoot({
     mapsUrl: businessInfo?.mapsUrl || "",
     tagline: businessInfo?.tagline || "Ngopi, makan, nongkrong, dan kumpul komunitas di GARAGE.",
     aboutText: businessInfo?.aboutText || "",
+    googleRating: businessInfo?.googleRating ?? null,
+    googleReviewCount: businessInfo?.googleReviewCount ?? null,
   };
+  const rating = googleRatingOf(biz);
 
   const localBusinessJsonLd = {
     "@context": "https://schema.org",
@@ -6249,12 +6262,9 @@ function GarageWebsiteRoot({
       latitude: GARAGE_LOCATION.lat,
       longitude: GARAGE_LOCATION.lng,
     },
-    aggregateRating: {
-      "@type": "AggregateRating",
-      ratingValue: GARAGE_LOCATION.rating,
-      reviewCount: GARAGE_LOCATION.reviewCount,
-      bestRating: 5,
-    },
+    ...(rating
+      ? { aggregateRating: { "@type": "AggregateRating", ratingValue: rating.value, reviewCount: rating.count, bestRating: 5 } }
+      : {}),
     address: {
       "@type": "PostalAddress",
       streetAddress: biz.address,

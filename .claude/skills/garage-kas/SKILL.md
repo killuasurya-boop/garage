@@ -139,3 +139,18 @@ description: Aturan WAJIB uang/kas Garage OS: shift & laci, Kas Keluar/Masuk, bu
   via `recordCashPurchases` (`src/lib/finance-purchases.ts`, `sourceDoc` idempoten) — tidak membuat hutang supplier.
   Hanya expense ber-`sourceDoc` yang jadi biaya bahan; expense/pelunasan kategori belanja lain = cash-out saja.
 - Target profit bersih/bulan (`netProfitTargetMonthly`) = patokan balik modal (`computeCapitalTarget`).
+
+## Laporan penjualan + HPP produk (Owner 24 Nov 2026, tanpa migrasi)
+- Satu sumber: `src/lib/sales-hpp-summary.ts` (murni) + `src/lib/sales-hpp-report.ts` (loader). HPP = **HPP per produk**
+  (`menu_variants.base_cost`: resep / harga modal retail / harga setor mitra) × qty dari order `paid` — BUKAN belanja gudang,
+  bukan persen. Varian HPP 0 = dihitung Rp0 + ditandai "HPP belum diisi". Satuan: Bar = cup, Dapur & mitra = porsi, lainnya pcs.
+- PDF tutup shift (`cash-sessions/[id]/report`): bagian "Penjualan per Kategori & Produk" (qty & omzet item untuk semua);
+  HPP, laba kotor, "laba setelah biaya shift" (laba kotor − kas keluar laci kelompok `operational`) HANYA bila
+  `canSeeProductHpp(role)` = Owner/Manajer. Kasir tidak pernah melihat HPP/laba produk sendiri (beda dengan mitra A3).
+- Laporan Harian Rekening Bersama: `GET /api/finance/reports/daily-bank?from&to&format=json|pdf|xlsx` (`finance:read`, maks
+  62 hari). Angka Finance (`getDayFigures`: omzet, diskon, refund, upah, biaya tetap & operasional, non-op, pendapatan lain,
+  uang masuk per metode tanpa "Modal"; Daily Closing = "Dikunci") + HPP produk. Laba bersih = omzet bersih − HPP produk −
+  upah − biaya operasional − non-op + pendapatan lain (`buildDailyBankReport`). Ini laporan baca saja; P&L Finance tetap
+  memakai `cogsBasis` di pengaturan. PDF 1 halaman/tanggal (`daily-bank-report-pdf.ts`), Excel 1 baris/tanggal
+  (`daily-bank-report-xlsx.ts`, teks aman rumus), "Salin ringkasan" WA (`dailyBankReportText`). UI: kartu di Closing Keuangan
+  (`DailyBankReportCard`).

@@ -14,8 +14,15 @@ type Transactions = NonNullable<
 >;
 
 import { hasPartnerReport, partnerProductLabel, partnerReportNotes, type PartnerShiftSales } from "./partner-cashier-rules";
+import { type SalesHppSummary } from "./sales-hpp-summary";
 
 /** Penjualan mitra shift ini (opsional; hub mati / tidak ada penjualan = seksi tidak dicetak). */
+/**
+ * Ringkasan penjualan shift (Owner 24 Nov 2026): qty cup/porsi per kategori & produk untuk semua yang membuka laporan;
+ * HPP produk, laba kotor dan laba setelah biaya shift HANYA bila `showHpp` (Owner/Manajer).
+ */
+export type ShiftReportSales = { summary: SalesHppSummary; showHpp: boolean };
+
 export type ShiftReportPartners = Pick<PartnerShiftSales, "partners" | "totals"> & { payoutNote?: string | null };
 
 const fmtRp = (n: number) => `Rp ${new Intl.NumberFormat("id-ID").format(n)}`;
@@ -50,6 +57,7 @@ export async function generateShiftReportPdf(
   summary: Summary,
   transactions: Transactions,
   partners: ShiftReportPartners | null = null,
+  sales: ShiftReportSales | null = null,
 ): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     try {
@@ -306,6 +314,111 @@ export async function generateShiftReportPdf(
         doc.strokeColor("#ddd").lineWidth(0.5).moveTo(48, doc.y).lineTo(547, doc.y).stroke();
         doc.moveDown(0.25);
       };
+
+      // ─── Ringkasan penjualan (cup/porsi) + HPP produk (Owner/Manajer) ─────
+      if (sales) {
+        const { summary: s, showHpp } = sales;
+        const fmtQty = (qty: number, unit: string) => `${new Intl.NumberFormat("id-ID").format(qty)} ${unit}`;
+        sectionTitle("Penjualan per Kategori & Produk");
+        doc
+          .font("Helvetica")
+          .fontSize(8.5)
+          .fillColor("#666")
+          .text(
+            showHpp
+              ? "Order lunas di shift ini. Omzet item = harga item sebelum diskon order. HPP = HPP produk (resep / harga modal / harga setor mitra) × qty."
+              : "Order lunas di shift ini. Omzet item = harga item sebelum diskon order.",
+            48,
+            doc.y,
+            { width: 499 },
+          );
+        doc.moveDown(0.4);
+        const cols = showHpp
+          ? [
+              { label: "", x: 48, w: 175, align: "left" as const },
+              { label: "QTY", x: 223, w: 62, align: "right" as const },
+              { label: "OMZET ITEM", x: 285, w: 85, align: "right" as const },
+              { label: "HPP", x: 370, w: 85, align: "right" as const },
+              { label: "LABA KOTOR", x: 455, w: 92, align: "right" as const },
+            ]
+          : [
+              { label: "", x: 48, w: 260, align: "left" as const },
+              { label: "QTY", x: 308, w: 100, align: "right" as const },
+              { label: "OMZET ITEM", x: 408, w: 139, align: "right" as const },
+            ];
+        const salesRow = (values: string[], opts: { bold?: boolean; color?: string; size?: number } = {}) => {
+          doc.font(opts.bold ? "Helvetica-Bold" : "Helvetica").fontSize(opts.size ?? 9);
+          const rowHeight = Math.max(...values.map((value, i) => doc.heightOfString(value || " ", { width: cols[i].w })));
+          if (doc.y + rowHeight > 790) doc.addPage();
+          const ry = doc.y;
+          let bottom = ry;
+          values.forEach((value, i) => {
+            const c = cols[i];
+            doc
+              .font(opts.bold ? "Helvetica-Bold" : "Helvetica")
+              .fontSize(opts.size ?? 9)
+              .fillColor(opts.color ?? "#111")
+              .text(value, c.x, ry, { width: c.w, align: c.align });
+            bottom = Math.max(bottom, doc.y);
+          });
+          doc.y = bottom;
+          doc.moveDown(0.25);
+        };
+        const rowValues = (name: string, qty: string, revenue: number, hpp: number, profit: number) =>
+          showHpp ? [name, qty, fmtRp(revenue), fmtRp(hpp), fmtRp(profit)] : [name, qty, fmtRp(revenue)];
+
+        if (!s.categories.length) {
+          doc.font("Helvetica-Oblique").fontSize(10).fillColor("#666").text("Belum ada penjualan lunas di shift ini.", 48, doc.y);
+          doc.moveDown(0.8);
+        } else {
+          salesRow(["PER KATEGORI", ...cols.slice(1).map((c) => c.label)], { bold: true, color: "#666", size: 8 });
+          rule();
+          for (const cat of s.categories) salesRow(rowValues(cat.name, fmtQty(cat.qty, cat.unit), cat.revenue, cat.hpp, cat.grossProfit));
+          rule();
+          salesRow(rowValues("TOTAL", new Intl.NumberFormat("id-ID").format(s.totals.qty), s.totals.revenue, s.totals.hpp, s.totals.grossProfit), { bold: true });
+          doc.moveDown(0.4);
+
+          salesRow(["PER PRODUK", ...cols.slice(1).map((c) => c.label)], { bold: true, color: "#666", size: 8 });
+          rule();
+          let lastCategory = "";
+          for (const product of s.products) {
+            if (product.category !== lastCategory) {
+              lastCategory = product.category;
+              salesRow([product.category.toUpperCase(), ...cols.slice(1).map(() => "")], { bold: true, color: "#d11a2a", size: 8 });
+            }
+            const hppCell = product.unitHpp === null ? "HPP belum diisi" : fmtRp(product.hpp);
+            salesRow(
+              showHpp
+                ? [product.name, fmtQty(product.qty, product.unit), fmtRp(product.revenue), hppCell, fmtRp(product.grossProfit)]
+                : [product.name, fmtQty(product.qty, product.unit), fmtRp(product.revenue)],
+              { color: product.unitHpp === null && showHpp ? "#b45309" : "#111" },
+            );
+          }
+          rule();
+
+          if (showHpp) {
+            const operationalOut = summary.cashMovements.byGroup.filter((g) => g.group === "operational").reduce((sum, g) => sum + g.cashOut, 0);
+            doc.moveDown(0.2);
+            pairRow("Omzet item (sebelum diskon order)", fmtRp(s.totals.revenue));
+            pairRow("HPP produk terjual", `- ${fmtRp(s.totals.hpp)}`);
+            pairRow("Laba kotor", fmtRp(s.totals.grossProfit), { bold: true });
+            pairRow("Biaya operasional shift (kas keluar laci operasional)", `- ${fmtRp(operationalOut)}`);
+            pairRow("Laba setelah biaya shift", fmtRp(s.totals.grossProfit - operationalOut), { bold: true, color: s.totals.grossProfit - operationalOut < 0 ? "#b91c1c" : "#111" });
+            doc
+              .font("Helvetica")
+              .fontSize(8.5)
+              .fillColor("#666")
+              .text(
+                "Laba bersih harian (setelah upah & biaya tetap) ada di Laporan Harian Rekening Bersama (Finance)." +
+                  (s.totals.missingHppProducts ? ` ${s.totals.missingHppProducts} produk HPP-nya belum diisi (dihitung Rp0) — lengkapi di Produk.` : ""),
+                48,
+                doc.y,
+                { width: 499 },
+              );
+          }
+          doc.moveDown(0.8);
+        }
+      }
 
       // ─── Penjualan mitra (Partner Hub) ──────────────────
       // Per mitra → produk (qty, harga, penjualan, modal mitra = wajib bayar, profit Garage). Bukan uang laci.

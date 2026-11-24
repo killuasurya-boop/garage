@@ -29,7 +29,7 @@ test("Draf keranjang pulih setelah halaman dimuat ulang", async ({ page }, info)
 
   await page.reload();
   await expect(surface).toBeVisible({ timeout: 90_000 });
-  await expect(page.getByText(/Keranjang sebelumnya dipulihkan \(2 item\)/)).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("pos-notice")).toContainText("Keranjang sebelumnya dipulihkan (2 item)", { timeout: 30_000 });
   await expect(page.locator(".pos-v6-bill-tab").first()).toContainText("Pesanan (2)");
   if (process.env.E2E_SHOTS_DIR) {
     await page.screenshot({ path: `${process.env.E2E_SHOTS_DIR}/pos-cart-draft-desktop.png` });
@@ -42,6 +42,7 @@ test("Draf keranjang pulih setelah halaman dimuat ulang", async ({ page }, info)
   await expect(page.locator(".pos-v6-bill-tab").first()).toContainText("Pesanan (0)");
   await page.reload();
   await expect(surface).toBeVisible({ timeout: 90_000 });
-  await expect(page.getByText(/Keranjang sebelumnya dipulihkan/)).toHaveCount(0);
+  await expect(page.locator(".pos-v6-bill-tab").first()).toContainText("Pesanan (0)");
+  await expect(page.getByTestId("pos-notice")).toHaveCount(0);
   assertNoErrors();
 });

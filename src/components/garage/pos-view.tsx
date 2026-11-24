@@ -728,6 +728,12 @@ export function PosView({
   const [shiftPending, setShiftPending] = useState(false);
   const [shiftError, setShiftError] = useState<string | null>(null);
   const [posNotice, setPosNotice] = useState<string | null>(null);
+  // Pemberitahuan hilang sendiri setelah 8 detik (pesan baru me-reset hitungan).
+  useEffect(() => {
+    if (!posNotice) return;
+    const timeoutId = window.setTimeout(() => setPosNotice(null), 8_000);
+    return () => window.clearTimeout(timeoutId);
+  }, [posNotice]);
   // Smart Partner Hub: badge + pemberitahuan sekali saat jumlah pesanan mitra yang perlu perhatian bertambah.
   const partnerAttention = usePartnerAttention(settings.partnerHubEnabled, settings.partnerSlaAcceptWarnMinutes, settings.partnerReadyWaitWarnMinutes);
   const [partnerAttentionSeen, setPartnerAttentionSeen] = useState(0);
@@ -4466,6 +4472,28 @@ export function PosView({
         isCashierKiosk ? `pos-v6-main-shift ${cashierPosSettings.sidebarMode === "compact" ? "xl:pl-[92px]" : "xl:pl-[260px]"}` : ""
       }`}
     >
+      {posNotice ? (
+        // Pemberitahuan kasir V6 (audit POS Nov 2026): dulu hanya dirender di header lama yang
+        // disembunyikan, jadi pesan POS (HABIS, keranjang pulih, dll.) tidak pernah terlihat.
+        // pointer-events-none: sentuhan tembus ke tombol di bawahnya; hanya tombol tutup yang aktif.
+        <div
+          role="status"
+          aria-live="polite"
+          data-testid="pos-notice"
+          className="pointer-events-none fixed bottom-4 left-1/2 z-50 flex w-[min(92vw,520px)] -translate-x-1/2 items-start gap-2 rounded-lg border border-[#f5a742]/45 bg-[#1d1609] px-3 py-2.5 text-sm text-[#ffe0ad] shadow-lg shadow-black/40"
+        >
+          <Info className="mt-0.5 size-4 shrink-0 text-[#f5a742]" aria-hidden />
+          <p className="min-w-0 flex-1 break-words leading-snug">{posNotice}</p>
+          <button
+            type="button"
+            onClick={() => setPosNotice(null)}
+            aria-label="Tutup pemberitahuan"
+            className="garage-press pointer-events-auto -my-1 -mr-1 grid size-8 shrink-0 place-items-center rounded-md text-[#ffe0ad] hover:bg-white/10"
+          >
+            <X className="size-4" aria-hidden />
+          </button>
+        </div>
+      ) : null}
       <PosChatInbox
         open={chatOpen}
         onOpenChange={setChatOpen}

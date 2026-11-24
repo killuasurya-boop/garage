@@ -29,7 +29,8 @@ export const GARAGE_LOCATION = {
   reviewUrl: `https://search.google.com/local/writereview?placeid=${PLACE_ID}`,
   /** Embed peta dengan kartu bisnis (nama, rating, tombol rute). Gratis, tanpa API key. */
   embedUrl: `https://maps.google.com/maps?cid=${CID}&output=embed`,
-  // Angka rating statis dari Google Maps (per 2026-09-28) — update manual bila berubah.
+  // Rating Google Maps per 2026-09-28 = nilai AWAL saja. Website memakai rating dari Pengaturan Website
+  // (businessInfo.googleRating/googleReviewCount, Owner 24 Nov 2026); ubah di sana, bukan di sini.
   rating: 5.0,
   reviewCount: 14,
 } as const;

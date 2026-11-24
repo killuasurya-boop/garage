@@ -1566,6 +1566,8 @@ function WebsiteSettingsView({ me }: { me: GarageMe }) {
     hoursClose: string;
     mapsUrl: string;
     aboutText: string;
+    googleRating: number | null;
+    googleReviewCount: number | null;
   };
   const [bizInfo, setBizInfo] = useState<BusinessInfoForm | null>(null);
   const [bizSaving, setBizSaving] = useState(false);
@@ -2116,6 +2118,36 @@ function WebsiteSettingsView({ me }: { me: GarageMe }) {
                   placeholder="Otomatis: profil Google resmi (Place ID)"
                 />
               </label>
+              <label className="grid gap-1">
+                <span className="text-xs font-semibold text-[#d4d4d8]">Rating Google (1–5)</span>
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  min={1}
+                  max={5}
+                  step={0.1}
+                  value={bizInfo.googleRating ?? ""}
+                  onChange={(e) => setBizInfo({ ...bizInfo, googleRating: e.target.value === "" ? null : Number(e.target.value) })}
+                  className="border-[#34343c] bg-white/[0.06] font-mono"
+                  placeholder="mis. 4.9"
+                />
+              </label>
+              <label className="grid gap-1">
+                <span className="text-xs font-semibold text-[#d4d4d8]">Jumlah ulasan Google</span>
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  step={1}
+                  value={bizInfo.googleReviewCount ?? ""}
+                  onChange={(e) => setBizInfo({ ...bizInfo, googleReviewCount: e.target.value === "" ? null : Number(e.target.value) })}
+                  className="border-[#34343c] bg-white/[0.06] font-mono"
+                  placeholder="mis. 14"
+                />
+              </label>
+              <p className="sm:col-span-2 -mt-1 text-xs text-[#a1a1aa]">
+                Salin dari profil Google Maps Garage. Kosongkan keduanya untuk menyembunyikan rating di website.
+              </p>
               <label className="grid gap-1 sm:col-span-2">
                 <span className="text-xs font-semibold text-[#d4d4d8]">About / Story (landing)</span>
                 <textarea

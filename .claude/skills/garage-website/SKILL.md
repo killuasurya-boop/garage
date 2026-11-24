@@ -67,6 +67,10 @@ bagian yang ditunjuk (hemat token). Aturan Garage di bawah selalu menang atas ou
   24 Nov 2026 walau ejaan KBBI "sekadar"). Gambar `sekedar-kopi-*.webp`, `aria-label` dan teks sr-only ikut "sekedar";
   jangan "perbaiki" ejaannya tanpa Owner. Section SURYA.dev tetap seperti sekarang (Owner 24 Nov 2026). Foto hero =
   unggahan Owner di Pengaturan Website → "Upload / Ganti Hero" (slot `landing_hero`), tidak ada foto bawaan.
+- Rating Google (Owner 24 Nov 2026) = `businessInfo.googleRating` + `googleReviewCount` (app_settings `site.businessInfo`,
+  form Pengaturan Website, `PUT /api/site/business-info`), BUKAN `GARAGE_LOCATION.rating` (itu hanya nilai awal). Keduanya
+  berpasangan; kosong = rating disembunyikan di hero, blok Lokasi, footer, dan JSON-LD `aggregateRating` (helper
+  `googleRatingOf(biz)` di `garage-website.tsx`). Tidak ada API Google; Owner menyalin angka dari profil Google Maps.
 
 ## 3. Bangun
 - Server Component default; `"use client"` hanya untuk bagian interaktif. Data lewat `garage-service`/API yang ada.

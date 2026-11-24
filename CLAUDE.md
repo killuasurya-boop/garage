@@ -121,7 +121,7 @@ adanya, Nov 2026, agar tiap sesi hemat ±20 ribu token). Aturan di skill sama me
 | Lineup & panitia event (band/stand-up, rundown, tugas), lineup GIGS di beranda | `garage-event-lineup` |
 | Route API baru, staging, deploy, CI/E2E, backup | `garage-ops-deploy` |
 | UI/desain, Crystal V5, MCP UI | `garage-ui-tooling` + `design-system/MASTER.md` |
-| Website/halaman web baru atau dirombak (homepage, landing, halaman publik, section) | `garage-website` (memandu `ui-ux-pro-max` + `frontend-design` utama, `web-design-guidelines` + `vercel-react-best-practices` wajib) |
+| Website/halaman web baru atau dirombak (homepage, landing, halaman publik, section) | `garage-website` (memandu `ui-ux-pro-max` + `frontend-design` utama, `web-design-guidelines` + `vercel-react-best-practices` wajib, anti-slop `design-taste-frontend` untuk homepage/landing) |
 | Animasi/motion apa pun (CSS, Framer, GSAP, SVG, transisi) | `garage-motion` |
 
 Invarian lintas modul (ringkas; detail di skill):

@@ -951,9 +951,13 @@ export const memberTransactions = pgTable(
     levelAfter: text("level_after").notNull(),
     upgradeNotification: text("upgrade_notification"),
     expiresAt: timestamp("expires_at", { withTimezone: true }),
+    // Kunci anti-dobel sinkron terminal POS ("pos-sync:<terminal>:<X-Idempotency-Key>").
+    // Unik di DB: kirim ulang setelah restart/beda instance tidak menambah poin dua kali.
+    requestKey: text("request_key"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
+    requestKeyIdx: uniqueIndex("member_transactions_request_key_idx").on(table.requestKey),
     customerIdx: index("member_transactions_customer_id_idx").on(table.customerId),
     sourceIdx: index("member_transactions_source_idx").on(table.source),
     createdIdx: index("member_transactions_created_at_idx").on(table.createdAt),

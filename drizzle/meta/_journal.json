@@ -1485,6 +1485,13 @@
       "when": 1795464540212,
       "tag": "0211_partner_product_submissions",
       "breakpoints": true
+    },
+    {
+      "idx": 212,
+      "version": "7",
+      "when": 1795528605316,
+      "tag": "0212_member_transactions_request_key",
+      "breakpoints": true
     }
   ]
 }

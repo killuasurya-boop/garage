@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { fail, ok, readJson } from "@/lib/api-response";
 import { updateCustomerOrderStatus } from "@/lib/garage-service";
+import { POS_PAYMENT_METHOD_MESSAGE, isPosPaymentMethod } from "@/lib/pos-payment-method";
 import { requireCashierSession } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
@@ -19,7 +20,12 @@ const decisionSchema = z.object({
   ]),
   deliveryStatus: z.enum(["preparing", "on_the_way", "delivered"]).optional(),
   reason: z.string().trim().max(240).optional(),
-  paymentMethod: z.string().trim().max(40).optional(),
+  paymentMethod: z
+    .string()
+    .trim()
+    .max(40)
+    .refine(isPosPaymentMethod, { message: POS_PAYMENT_METHOD_MESSAGE })
+    .optional(),
   paymentProvider: z.string().trim().max(60).optional(),
   paymentReference: z.string().trim().max(80).optional(),
   cashReceived: z.number().int().nonnegative().optional(),

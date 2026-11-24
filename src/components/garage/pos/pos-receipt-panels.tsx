@@ -246,7 +246,7 @@ export function PaymentCompletePanel({
             </p>
           </div>
           {waSentTo && !waEditing && (
-            <span className="garage-mono text-[10px] uppercase tracking-wide text-[#4ade80]">
+            <span className="garage-mono text-[11px] uppercase tracking-wide text-[#4ade80]">
               ✓ Terkirim
             </span>
           )}
@@ -256,7 +256,7 @@ export function PaymentCompletePanel({
         {!waEditing && waPhone ? (
           <div className="mb-2 flex items-center justify-between gap-2 rounded-md border border-[#34343c] bg-black/30 px-3 py-2">
             <div className="min-w-0">
-              <p className="text-[10px] uppercase tracking-wide text-[#8f8f99]">Nomor tujuan</p>
+              <p className="text-[11px] uppercase tracking-wide text-[#8f8f99]">Nomor tujuan</p>
               <p className="garage-mono truncate text-sm font-semibold text-white">
                 {formatWaDisplay(waPhone)}
               </p>
@@ -271,7 +271,7 @@ export function PaymentCompletePanel({
           </div>
         ) : (
           <div className="mb-2">
-            <p className="text-[10px] uppercase tracking-wide text-[#8f8f99]">
+            <p className="text-[11px] uppercase tracking-wide text-[#8f8f99]">
               No. WhatsApp customer
             </p>
             <Input
@@ -284,7 +284,7 @@ export function PaymentCompletePanel({
               placeholder="08xx xxxx xxxx"
               className="mt-1 h-10 border-[#34343c] bg-white/[0.06] font-mono"
             />
-            <p className="mt-1 text-[10px] text-[#8f8f99]">
+            <p className="mt-1 text-[11px] text-[#8f8f99]">
               Kosongkan untuk pilih kontak manual di WhatsApp.
             </p>
           </div>

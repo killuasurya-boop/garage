@@ -56,7 +56,17 @@ type EarnPointsInput = {
   amount: number;
   source: MemberTransactionSource;
   lastOrder?: string;
+  /** Kunci anti-dobel durable (unik di `member_transactions.request_key`). */
+  requestKey?: string;
 };
+
+export const SYNC_KEY_CONFLICT_ERROR = "Kunci transaksi ini sudah dipakai untuk member lain.";
+
+function isUniqueViolation(error: unknown) {
+  const code =
+    (error as { code?: string })?.code ?? (error as { cause?: { code?: string } })?.cause?.code;
+  return code === "23505";
+}
 
 type RedeemPointsInput = {
   customerId: string;
@@ -463,8 +473,54 @@ export async function getMemberWallet(customerId: string) {
   };
 }
 
+/**
+ * Kirim ulang dengan `requestKey` yang sama → kembalikan hasil transaksi poin
+ * yang sudah tercatat, tanpa menambah poin lagi.
+ */
+async function findEarnReplay(customerId: string, requestKey: string) {
+  const db = getDb();
+  const [transaction] = await db
+    .select()
+    .from(memberTransactions)
+    .where(eq(memberTransactions.requestKey, requestKey))
+    .limit(1);
+  if (!transaction) return null;
+  if (transaction.customerId !== customerId) {
+    return { data: null, error: SYNC_KEY_CONFLICT_ERROR } as const;
+  }
+  const [customer] = await db
+    .select()
+    .from(customers)
+    .where(eq(customers.id, customerId))
+    .limit(1);
+  if (!customer) return { data: null, error: "Member tidak ditemukan." } as const;
+  const { basePoints, multiplier } = calculateEarnedPoints(
+    transaction.amount,
+    normalizeMemberLevel(transaction.levelBefore),
+  );
+  return {
+    data: {
+      memberName: customer.name,
+      level: normalizeMemberLevel(transaction.levelAfter),
+      pointsEarned: transaction.pointsEarned,
+      totalPoints: customer.points,
+      basePoints,
+      multiplier,
+      upgradeNotification: transaction.upgradeNotification,
+      transaction,
+      member: memberResponseData(customer),
+      replayed: true,
+    },
+    error: null,
+  } as const;
+}
+
 export async function earnMemberPoints(input: EarnPointsInput) {
   const db = getDb();
+  if (input.requestKey) {
+    const replay = await findEarnReplay(input.customerId, input.requestKey);
+    if (replay) return replay;
+  }
   const [customer] = await db
     .select()
     .from(customers)
@@ -477,7 +533,6 @@ export async function earnMemberPoints(input: EarnPointsInput) {
 
   const beforeCardTier = normalizeMemberLevel(customer.cardTier ?? customer.tier);
   const { basePoints, multiplier, pointsEarned } = calculateEarnedPoints(input.amount, beforeCardTier);
-  const totalPoints = customer.points + pointsEarned;
   const annualSpend = (await getCustomerAnnualSpend(customer.id, db)) + input.amount;
   const earnedLevel = memberLevelForAnnualSpend(annualSpend);
   const afterLevel =
@@ -488,33 +543,53 @@ export async function earnMemberPoints(input: EarnPointsInput) {
         : beforeCardTier;
   const notification = upgradeMessage(beforeCardTier, afterLevel);
 
-  const [updatedCustomer] = await db
-    .update(customers)
-    .set({
-      points: totalPoints,
-      tier: afterLevel,
-      cardTier: afterLevel,
-      visits: customer.visits + 1,
-      lastOrder: input.lastOrder ?? (input.source === "POS" ? "POS purchase" : "Website order"),
-      flag: notification ?? customer.flag,
-      updatedAt: new Date(),
-    })
-    .where(eq(customers.id, customer.id))
-    .returning();
-
-  const [transaction] = await db
-    .insert(memberTransactions)
-    .values({
-      customerId: customer.id,
-      source: input.source,
-      amount: input.amount,
-      pointsEarned,
-      levelBefore: beforeCardTier,
-      levelAfter: afterLevel,
-      upgradeNotification: notification,
-      expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
-    })
-    .returning();
+  // Catat transaksi poin + tambah saldo poin dalam satu DB transaction:
+  // kunci unik request_key menolak kiriman ganda sebelum saldo berubah, dan
+  // penambahan atomik (points + n) tidak menimpa sinkron lain yang berjalan bersamaan.
+  let committed: {
+    transaction: typeof memberTransactions.$inferSelect;
+    updatedCustomer: typeof customers.$inferSelect;
+  };
+  try {
+    committed = await db.transaction(async (tx) => {
+      const [transaction] = await tx
+        .insert(memberTransactions)
+        .values({
+          customerId: customer.id,
+          source: input.source,
+          amount: input.amount,
+          pointsEarned,
+          levelBefore: beforeCardTier,
+          levelAfter: afterLevel,
+          upgradeNotification: notification,
+          expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+          requestKey: input.requestKey ?? null,
+        })
+        .returning();
+      const [updatedCustomer] = await tx
+        .update(customers)
+        .set({
+          points: sql`${customers.points} + ${pointsEarned}`,
+          tier: afterLevel,
+          cardTier: afterLevel,
+          visits: sql`${customers.visits} + 1`,
+          lastOrder: input.lastOrder ?? (input.source === "POS" ? "POS purchase" : "Website order"),
+          flag: notification ?? customer.flag,
+          updatedAt: new Date(),
+        })
+        .where(eq(customers.id, customer.id))
+        .returning();
+      return { transaction, updatedCustomer };
+    });
+  } catch (error) {
+    // Dua kiriman dengan kunci sama berbarengan: yang kalah membaca hasil pemenang.
+    if (input.requestKey && isUniqueViolation(error)) {
+      const replay = await findEarnReplay(customer.id, input.requestKey);
+      if (replay) return replay;
+    }
+    throw error;
+  }
+  const { transaction, updatedCustomer } = committed;
 
   if (customer.referredByCode) {
     const [existingReferralReward] = await db
@@ -577,12 +652,13 @@ export async function earnMemberPoints(input: EarnPointsInput) {
       memberName: updatedCustomer.name,
       level: afterLevel,
       pointsEarned,
-      totalPoints,
+      totalPoints: updatedCustomer.points,
       basePoints,
       multiplier,
       upgradeNotification: notification,
       transaction,
       member: memberResponseData(updatedCustomer),
+      replayed: false,
     },
     error: null,
   };
@@ -830,6 +906,8 @@ export async function lookupMemberByPhone(phoneInput: string) {
 export async function syncPosTransaction(input: {
   memberPhone: string;
   totalAmount: number;
+  /** Kunci anti-dobel durable; route mewajibkannya (`pos-sync:<terminal>:<key>`). */
+  requestKey?: string;
 }) {
   const lookup = await lookupMemberByPhone(input.memberPhone);
   if (!lookup.data) {
@@ -841,10 +919,11 @@ export async function syncPosTransaction(input: {
     amount: input.totalAmount,
     source: "POS",
     lastOrder: "POS purchase",
+    requestKey: input.requestKey,
   });
 
   if (!result.data) {
-    return result;
+    return { data: null, error: result.error };
   }
 
   return {
@@ -854,6 +933,7 @@ export async function syncPosTransaction(input: {
       pointsEarned: result.data.pointsEarned,
       totalPoints: result.data.totalPoints,
       upgradeNotification: result.data.upgradeNotification,
+      replayed: result.data.replayed,
     },
     error: null,
   };

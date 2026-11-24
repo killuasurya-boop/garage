@@ -233,7 +233,7 @@
   }
   .pos-v6-sidebar[data-mode="compact"] .pos-v6-nav-item { justify-content: center; padding: 0; }
   .pos-v6-sidebar[data-mode="compact"] :is(.pos-v6-nav-label, .pos-v6-nav-kbd, .pos-v6-nav-group-label, .pos-v6-nav-dot) { display: none; }
-  .pos-v6-sidebar[data-mode="compact"] .pos-v6-nav-count { position: absolute; top: 2px; right: 6px; min-width: 18px; height: 18px; line-height: 18px; font-size: 10px; }
+  .pos-v6-sidebar[data-mode="compact"] .pos-v6-nav-count { position: absolute; top: 2px; right: 6px; min-width: 18px; height: 18px; line-height: 18px; font-size: 11px; }
   .pos-v6-sidebar-foot { padding: 10px; border-top: 1px solid var(--pos-chrome-line); }
   .pos-v6-mode {
     padding: 10px;
@@ -559,7 +559,7 @@
     border-radius: 6px;
     background: var(--pos-accent-soft, rgba(212, 58, 58, 0.15));
     color: var(--pos-accent, #d43a3a);
-    font-size: 10.5px;
+    font-size: 11px;
     font-weight: 800;
   }
   .pos-v6-studio .pos-v6-studio-h { font-size: 15px; font-weight: 800; color: var(--pos-text); }
@@ -971,7 +971,7 @@
   .garage-shell .cashier-pos-surface .pos-v6-actions { flex-wrap: nowrap; gap: 6px; }
   .garage-shell .cashier-pos-surface .pos-v6-tb-btn { min-height: 40px; min-width: 40px; padding: 0 9px; justify-content: center; }
   .garage-shell .cashier-pos-surface .pos-v6-tb-btn > span:not(.pos-v6-tb-count) { display: none; }
-  .garage-shell .cashier-pos-surface .pos-v6-tb-btn .pos-v6-tb-count { position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; line-height: 18px; font-size: 10px; }
+  .garage-shell .cashier-pos-surface .pos-v6-tb-btn .pos-v6-tb-count { position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; line-height: 18px; font-size: 11px; }
   .garage-shell .cashier-pos-surface .pos-v6-profile { padding: 2px; min-height: 40px; }
   .garage-shell .cashier-pos-surface .pos-v6-profile .pos-v6-avatar { width: 34px; height: 34px; }
 }

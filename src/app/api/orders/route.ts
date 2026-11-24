@@ -4,6 +4,12 @@ import { fail, ok, readJson } from "@/lib/api-response";
 import { createOrder, getOrderData } from "@/lib/garage-service";
 import { checkIdempotency, readIdempotencyKey } from "@/lib/idempotency";
 import { TABLE_NUMBER_RANGE_MESSAGE, parseTableNumber } from "@/lib/garage-tables";
+import {
+  POS_MAX_LINE_QTY,
+  POS_MAX_ORDER_LINES,
+  POS_PAYMENT_METHOD_MESSAGE,
+  isPosPaymentMethod,
+} from "@/lib/pos-payment-method";
 import { rateLimit } from "@/lib/rate-limit";
 import { requireCashierSession, requirePermission } from "@/lib/server-auth";
 
@@ -21,7 +27,12 @@ const orderSchema = z.object({
     .refine((value) => parseTableNumber(value) !== null, { message: TABLE_NUMBER_RANGE_MESSAGE })
     .optional(),
   tableLabel: z.string().min(1).optional(),
-  paymentMethod: z.string().min(1).optional(),
+  paymentMethod: z
+    .string()
+    .trim()
+    .min(1)
+    .refine(isPosPaymentMethod, { message: POS_PAYMENT_METHOD_MESSAGE })
+    .optional(),
   paymentProvider: z.string().min(1).optional(),
   paymentReference: z.string().trim().max(80).optional(),
   cashReceived: z.number().int().nonnegative().optional(),
@@ -46,7 +57,7 @@ const orderSchema = z.object({
   splits: z
     .array(
       z.object({
-        method: z.string().trim().min(1).max(40),
+        method: z.string().trim().min(1).max(40).refine(isPosPaymentMethod, { message: POS_PAYMENT_METHOD_MESSAGE }),
         amount: z.number().int().positive(),
         provider: z.string().trim().max(60).optional(),
         reference: z.string().trim().max(80).optional(),
@@ -60,11 +71,12 @@ const orderSchema = z.object({
       z.object({
         itemId: z.string().min(1),
         variantId: z.string().min(1),
-        qty: z.number().int().positive(),
+        qty: z.number().int().positive().max(POS_MAX_LINE_QTY, `Qty per item maksimal ${POS_MAX_LINE_QTY}.`),
         note: z.string().trim().max(120).optional(),
       }),
     )
-    .min(1),
+    .min(1)
+    .max(POS_MAX_ORDER_LINES, `Maksimal ${POS_MAX_ORDER_LINES} baris item per order.`),
 });
 
 export async function GET(request: Request) {

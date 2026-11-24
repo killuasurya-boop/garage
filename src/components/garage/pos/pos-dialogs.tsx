@@ -100,13 +100,13 @@ export function PosParkBillDialog({
         </DialogHeader>
         <div className="space-y-3">
           <div className="rounded-md border border-[#34343c] bg-[#17171c] p-3">
-            <p className="garage-mono text-[10px] uppercase tracking-wide text-[#8f8f99]">
+            <p className="garage-mono text-[11px] uppercase tracking-wide text-[#8f8f99]">
               Bill yang akan di-park
             </p>
             <p className="mt-1 text-sm font-semibold text-white">
               {cartLines.length} item · {currency.format(estimateCartTotal(cart))}
             </p>
-            <p className="mt-0.5 text-[10px] text-[#8f8f99]">
+            <p className="mt-0.5 text-[11px] text-[#8f8f99]">
               {orderType === "dine-in" && selectedTableNumber
                 ? `Meja ${selectedTableNumber}`
                 : orderType === "takeaway"
@@ -115,7 +115,7 @@ export function PosParkBillDialog({
             </p>
           </div>
           <div>
-            <p className="text-[10px] uppercase tracking-wide text-[#8f8f99]">
+            <p className="text-[11px] uppercase tracking-wide text-[#8f8f99]">
               Label (opsional)
             </p>
             <Input
@@ -126,7 +126,7 @@ export function PosParkBillDialog({
               className="mt-1 h-10 border-[#34343c] bg-white/[0.06]"
               autoFocus
             />
-            <p className="mt-1 text-[10px] text-[#8f8f99]">
+            <p className="mt-1 text-[11px] text-[#8f8f99]">
               Kosongkan untuk auto-label berdasarkan meja/order type.
             </p>
           </div>
@@ -207,12 +207,12 @@ export function PosParkedBillsDialog({
                       <p className="truncate text-sm font-bold text-white">
                         {parked.label}
                       </p>
-                      <p className="mt-0.5 font-mono text-[10px] text-[#8f8f99]">
+                      <p className="mt-0.5 font-mono text-[11px] text-[#8f8f99]">
                         {parked.itemCount} item ·{" "}
                         {currency.format(parked.estimatedTotal)} ·{" "}
                         {ageMinutes === 0 ? "baru saja" : `${ageMinutes}m lalu`}
                       </p>
-                      <p className="mt-0.5 text-[10px] text-[#8f8f99]">
+                      <p className="mt-0.5 text-[11px] text-[#8f8f99]">
                         {parked.orderType === "dine-in" &&
                         parked.selectedTableNumber
                           ? `Meja ${parked.selectedTableNumber}`
@@ -261,7 +261,7 @@ export function PosParkedBillsDialog({
           </div>
         )}
         <div className="flex justify-end border-t border-[#34343c] pt-3">
-          <p className="text-[10px] text-[#8f8f99]">
+          <p className="text-[11px] text-[#8f8f99]">
             Auto-hapus saat browser cache clear · max 20 bill
           </p>
         </div>
@@ -297,7 +297,7 @@ export function PosSplitBillDialog({
         </DialogHeader>
         <div className="space-y-3">
           <div className="rounded-md border border-[#34343c] bg-[#17171c] p-3">
-            <p className="garage-mono text-[10px] uppercase tracking-wide text-[#8f8f99]">
+            <p className="garage-mono text-[11px] uppercase tracking-wide text-[#8f8f99]">
               Total Bill
             </p>
             <p className="mt-1 garage-display text-2xl font-bold text-[#ffd79a]">
@@ -305,7 +305,7 @@ export function PosSplitBillDialog({
             </p>
           </div>
           <div>
-            <p className="text-[10px] uppercase tracking-wide text-[#8f8f99]">
+            <p className="text-[11px] uppercase tracking-wide text-[#8f8f99]">
               Bagi jadi berapa orang?
             </p>
             <Input
@@ -347,26 +347,26 @@ export function PosSplitBillDialog({
             return (
               <div className="space-y-2">
                 <div className="rounded-md border border-[#f5a742]/45 bg-[#f5a742]/10 p-4 text-center">
-                  <p className="garage-mono text-[10px] uppercase tracking-wide text-[#ffd79a]">
+                  <p className="garage-mono text-[11px] uppercase tracking-wide text-[#ffd79a]">
                     Per Orang (rounded ke Rp 1.000)
                   </p>
                   <p className="mt-1 garage-display text-3xl font-bold text-white">
                     {currency.format(roundedPerPerson)}
                   </p>
-                  <p className="mt-1 text-[10px] text-[#ffd79a]/80">
+                  <p className="mt-1 text-[11px] text-[#ffd79a]/80">
                     × {count} orang = {currency.format(totalRounded)}
                     {extraOverpay > 0 && ` (lebih ${currency.format(extraOverpay)})`}
                   </p>
                 </div>
                 <div className="rounded-md border border-[#34343c] bg-[#17171c] p-3 text-center">
-                  <p className="garage-mono text-[10px] uppercase tracking-wide text-[#8f8f99]">
+                  <p className="garage-mono text-[11px] uppercase tracking-wide text-[#8f8f99]">
                     Exact (tanpa pembulatan)
                   </p>
                   <p className="mt-1 font-mono text-sm font-semibold text-[#d6d6dc]">
                     {currency.format(Math.round(exactPerPerson))} per orang
                   </p>
                 </div>
-                <p className="text-center text-[10px] text-[#8f8f99]">
+                <p className="text-center text-[11px] text-[#8f8f99]">
                   Kasir tetap input total ({currency.format(totalDue)}) di kasir.
                   Customer urus bagi-bagi sendiri.
                 </p>
@@ -599,16 +599,16 @@ export function PosSoldOutDialog({
                       </p>
                     </div>
                     {isPending ? (
-                      <Badge className="border-[#f5a742]/55 bg-[#f5a742]/14 px-2 text-[10px] text-[#ffd08a]">
+                      <Badge className="border-[#f5a742]/55 bg-[#f5a742]/14 px-2 text-[11px] text-[#ffd08a]">
                         Sync...
                       </Badge>
                     ) : isSoldOut ? (
-                      <Badge className="border-[#d11a2a]/55 bg-[#d11a2a]/22 px-2 text-[10px] font-extrabold text-[#ffe1e5]">
+                      <Badge className="border-[#d11a2a]/55 bg-[#d11a2a]/22 px-2 text-[11px] font-extrabold text-[#ffe1e5]">
                         <Ban className="mr-1 size-3" />
                         HABIS
                       </Badge>
                     ) : (
-                      <Badge className="border-[#4a4a54] bg-white/[0.08] px-2 text-[10px] text-[#d6d6dc]">
+                      <Badge className="border-[#4a4a54] bg-white/[0.08] px-2 text-[11px] text-[#d6d6dc]">
                         Tersedia
                       </Badge>
                     )}
@@ -956,7 +956,7 @@ export function PosMemberCreateDialog({
         </DialogHeader>
         <form onSubmit={(event) => void createPosMember(event)} className="space-y-3">
           <div className="space-y-1.5">
-            <label className="garage-mono text-[10px] text-[#b8b8bf]">Nama</label>
+            <label className="garage-mono text-[11px] text-[#b8b8bf]">Nama</label>
             <Input
               value={memberCreateName}
               onChange={(event) => setMemberCreateName(event.target.value)}
@@ -966,7 +966,7 @@ export function PosMemberCreateDialog({
             />
           </div>
           <div className="space-y-1.5">
-            <label className="garage-mono text-[10px] text-[#b8b8bf]">No HP</label>
+            <label className="garage-mono text-[11px] text-[#b8b8bf]">No HP</label>
             <Input
               value={memberCreatePhone}
               onChange={(event) => setMemberCreatePhone(event.target.value)}
@@ -976,7 +976,7 @@ export function PosMemberCreateDialog({
             />
           </div>
           <div className="space-y-1.5">
-            <label className="garage-mono text-[10px] text-[#b8b8bf]">Email opsional</label>
+            <label className="garage-mono text-[11px] text-[#b8b8bf]">Email opsional</label>
             <Input
               type="email"
               value={memberCreateEmail}
@@ -988,7 +988,7 @@ export function PosMemberCreateDialog({
           </div>
           <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
             <div className="space-y-1.5">
-              <label className="garage-mono text-[10px] text-[#b8b8bf]">PIN sementara</label>
+              <label className="garage-mono text-[11px] text-[#b8b8bf]">PIN sementara</label>
               <Input
                 value={memberCreatePin}
                 onChange={(event) => setMemberCreatePin(event.target.value)}
@@ -1174,7 +1174,7 @@ export function PosReceiptHistoryDialog({
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="garage-mono text-[10px] uppercase tracking-wide text-[#b8b8bf]">
+                      <p className="garage-mono text-[11px] uppercase tracking-wide text-[#b8b8bf]">
                         {receipt.invoiceNo}
                       </p>
                       <p className="truncate text-sm font-semibold text-white">
@@ -1189,7 +1189,7 @@ export function PosReceiptHistoryDialog({
                       <p className="garage-mono text-sm font-extrabold text-[#ffd08a]">
                         {currency.format(receipt.total)}
                       </p>
-                      <p className="text-[10px] text-[#8f8f99]">
+                      <p className="text-[11px] text-[#8f8f99]">
                         {receipt.items.reduce((sum, it) => sum + it.qty, 0)} item
                       </p>
                     </div>
@@ -1357,7 +1357,7 @@ export function PosManualDiscountDialog({
             </Button>
           </div>
           <div>
-            <p className="garage-mono mb-1 text-[10px] text-[#b8b8bf]">
+            <p className="garage-mono mb-1 text-[11px] text-[#b8b8bf]">
               {manualDiscountTypeInput === "percent"
                 ? "Persen diskon (1–100)"
                 : "Nominal diskon (Rp)"}
@@ -1377,7 +1377,7 @@ export function PosManualDiscountDialog({
             />
           </div>
           <div>
-            <p className="garage-mono mb-1 text-[10px] text-[#b8b8bf]">
+            <p className="garage-mono mb-1 text-[11px] text-[#b8b8bf]">
               Alasan / approval (wajib)
             </p>
             <Input
@@ -1500,7 +1500,7 @@ export function PosTablePrintDialog({
 
           {tablePrintMode === "single" ? (
             <div className="space-y-2">
-              <label className="garage-mono text-[10px] text-[#b8b8bf]">
+              <label className="garage-mono text-[11px] text-[#b8b8bf]">
                 Nomor meja
               </label>
               <Select value={tablePrintSingle} onValueChange={setTablePrintSingle}>
@@ -1538,7 +1538,7 @@ export function PosTablePrintDialog({
           {tablePrintMode === "range" ? (
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-2">
-                <label className="garage-mono text-[10px] text-[#b8b8bf]">
+                <label className="garage-mono text-[11px] text-[#b8b8bf]">
                   Dari meja
                 </label>
                 <Select value={tablePrintStart} onValueChange={setTablePrintStart}>
@@ -1555,7 +1555,7 @@ export function PosTablePrintDialog({
                 </Select>
               </div>
               <div className="space-y-2">
-                <label className="garage-mono text-[10px] text-[#b8b8bf]">
+                <label className="garage-mono text-[11px] text-[#b8b8bf]">
                   Sampai meja
                 </label>
                 <Select value={tablePrintEnd} onValueChange={setTablePrintEnd}>

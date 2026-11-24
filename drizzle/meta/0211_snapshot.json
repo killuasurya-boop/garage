@@ -1,5 +1,5 @@
 {
-  "id": "28ce0f2a-6565-46dd-91bb-257c7f6e691c",
+  "id": "bd17e012-0f41-454a-b7d0-88623a2259e8",
   "prevId": "de6dfe54-def3-4c2c-b0ed-458831eb8bc5",
   "version": "7",
   "dialect": "postgresql",
@@ -10318,12 +10318,6 @@
         },
         "logo_url": {
           "name": "logo_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "photo_url": {
-          "name": "photo_url",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -21161,6 +21155,36 @@
           "primaryKey": false,
           "notNull": false
         },
+        "submission_status": {
+          "name": "submission_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "submission_note": {
+          "name": "submission_note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "review_note": {
+          "name": "review_note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "submitted_at": {
+          "name": "submitted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reviewed_at": {
+          "name": "reviewed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -21267,7 +21291,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "partner_product_links_submission_status_check": {
+          "name": "partner_product_links_submission_status_check",
+          "value": "\"partner_product_links\".\"submission_status\" is null or \"partner_product_links\".\"submission_status\" in ('pending','revision','approved','withdrawn')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.partner_push_subscriptions": {

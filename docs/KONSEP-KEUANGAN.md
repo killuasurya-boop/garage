@@ -21,6 +21,10 @@ Profit bersih    = Omzet bersih − Belanja bahan − Biaya tetap − Biaya lain
   yang dipakai (tidak dobel).
 - **Save Money** Rp100.000/hari adalah cadangan, bukan biaya.
 - Dasar biaya bisa diganti di Finance → Pengaturan → "Biaya bahan baku dihitung dari" (Belanja gudang / Resep).
+- **Laporan Harian Rekening Bersama** (Finance → Closing Keuangan, Nov 2026) memakai **HPP produk × qty terjual**
+  (HPP resep / harga modal / harga setor mitra) supaya tim keuangan membaca laba per hari dari menu yang terjual:
+  omzet bersih − HPP produk = laba kotor − upah − biaya tetap & operasional = laba bersih. Laporan ini baca saja dan
+  tidak mengubah P&L Finance (yang tetap mengikuti pengaturan dasar biaya di atas). PDF 1 halaman/tanggal, Excel per periode.
 
 ## Alur belanja harian (siap operasional)
 

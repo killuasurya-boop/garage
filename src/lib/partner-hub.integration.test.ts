@@ -1323,6 +1323,110 @@ describe("Smart Partner Hub — kontrol status dari daftar mitra", () => {
   });
 });
 
+describe("Smart Partner Hub — produk mandiri mitra (pengajuan dari Portal Mitra)", () => {
+  it("mitra mengajukan → nonaktif & tersembunyi; minta perbaikan → ajukan ulang → Owner setujui → dijual", async () => {
+    const session = partnerSession(partnerB, "Dimsum Test");
+    const created = await svc.submitPartnerProductByPartner(session, {
+      name: "Siomay Udang",
+      category: "Dimsum",
+      description: "4 pcs siomay udang kukus",
+      note: "Bisa 30 porsi per malam",
+      variants: [{ label: "", unitCost: 18_000, sellPrice: 23_000 }],
+    });
+    expect(created.code).toBe("DSM-M01");
+    const d = t.getDb();
+    const { eq } = await import("drizzle-orm");
+    const [menu] = await d.select().from(t.schema.menuItems).where(eq(t.schema.menuItems.id, created.menuItemId));
+    // Belum disetujui: menu diarsipkan (tidak tampil di kasir/menu digital), tipe partner tanpa stasiun Bar/Dapur.
+    expect(menu).toMatchObject({ status: "archived", productType: "partner", station: "none", sku: "DSM-M01" });
+    const own = (await svc.listPartnerProducts(partnerB.id, { outletId, showCost: true })).find((p) => p.linkId === created.linkId)!;
+    expect(own).toMatchObject({ active: false, submissionStatus: "pending", submissionNote: "Bisa 30 porsi per malam" });
+    expect(own.variants).toEqual([{ variantId: "regular", label: "Regular", sellPrice: 23_000, unitCost: 18_000 }]);
+
+    // Antrean Owner (Dashboard & Kelola Mitra): menunggu terhitung, Kasir tidak boleh melihat.
+    const queue = await svc.listPartnerProductSubmissions(manager());
+    expect(queue).toMatchObject({ pending: 1, revision: 0, overdue: 0 });
+    expect(queue.items[0]).toMatchObject({ linkId: created.linkId, partnerName: "Mitra Dimsum", name: "Siomay Udang", sellPrice: 23_000, unitCost: 18_000, status: "pending" });
+    expect((await svc.listPartners(owner())).find((p) => p.id === partnerB.id)?.pendingSubmissions).toBe(1);
+    await expect(svc.listPartnerProductSubmissions(kasir())).rejects.toThrow(/Owner\/Manajer/);
+
+    // Isian tidak sah ditolak server (harga jual di bawah setor); kode berikutnya tidak bentrok.
+    await expect(svc.submitPartnerProductByPartner(session, { name: "X Produk", category: "Dimsum", variants: [{ label: "", unitCost: 10_000, sellPrice: 9_000 }] })).rejects.toThrow(/di bawah harga setor/);
+
+    // Mitra lain tidak bisa mengubah / menarik pengajuan ini; Kasir tidak bisa minta perbaikan.
+    await expect(svc.updatePartnerProductSubmission(partnerSession(partnerA), created.linkId, { name: "Hack", category: "Dimsum", variants: [{ label: "", unitCost: 1, sellPrice: 2 }] })).rejects.toMatchObject({ status: 404 });
+    await expect(svc.withdrawPartnerProductSubmission(partnerSession(partnerA), created.linkId)).rejects.toMatchObject({ status: 404 });
+    await expect(svc.requestPartnerProductRevision(created.linkId, "Foto kurang jelas", kasir())).rejects.toThrow(/Owner\/Manajer/);
+    await expect(svc.requestPartnerProductRevision(created.linkId, "x", manager())).rejects.toThrow(/perlu diperbaiki/);
+
+    await svc.requestPartnerProductRevision(created.linkId, "Harga jual terlalu tinggi", manager());
+    expect(await svc.listPartnerProductSubmissions(owner())).toMatchObject({ pending: 0, revision: 1 });
+    let row = (await svc.listPartnerProducts(partnerB.id, { outletId, showCost: true })).find((p) => p.linkId === created.linkId)!;
+    expect(row).toMatchObject({ submissionStatus: "revision", reviewNote: "Harga jual terlalu tinggi", active: false });
+
+    await svc.updatePartnerProductSubmission(session, created.linkId, {
+      name: "Siomay Udang Premium",
+      category: "Dimsum",
+      variants: [
+        { label: "Isi 4", unitCost: 18_000, sellPrice: 21_000 },
+        { label: "Isi 8", unitCost: 34_000, sellPrice: 40_000 },
+      ],
+    });
+    row = (await svc.listPartnerProducts(partnerB.id, { outletId, showCost: true })).find((p) => p.linkId === created.linkId)!;
+    expect(row.name).toBe("Siomay Udang Premium");
+    expect(row.submissionStatus).toBe("pending");
+    expect(row.variants.map((v) => `${v.variantId}:${v.unitCost}/${v.sellPrice}`)).toEqual(["isi-4:18000/21000", "isi-8:34000/40000"]);
+
+    // Hanya Owner menyetujui; setelah disetujui menu aktif dan mitra tidak bisa mengubah/menarik lagi.
+    await expect(svc.setPartnerProductActive(created.linkId, true, manager())).rejects.toThrow(/Owner/);
+    await svc.setPartnerProductActive(created.linkId, true, owner());
+    const [approvedMenu] = await d.select().from(t.schema.menuItems).where(eq(t.schema.menuItems.id, created.menuItemId));
+    expect(approvedMenu.status).toBe("active");
+    row = (await svc.listPartnerProducts(partnerB.id, { outletId, showCost: true })).find((p) => p.linkId === created.linkId)!;
+    expect(row).toMatchObject({ active: true, submissionStatus: "approved" });
+    expect((await svc.listPartnerProductSubmissions(owner())).items.some((i) => i.linkId === created.linkId)).toBe(false);
+    await expect(svc.updatePartnerProductSubmission(session, created.linkId, { name: "Ubah", category: "Dimsum", variants: [{ label: "", unitCost: 1, sellPrice: 2 }] })).rejects.toMatchObject({ status: 409 });
+    await expect(svc.withdrawPartnerProductSubmission(session, created.linkId)).rejects.toMatchObject({ status: 409 });
+    const events = await svc.listPartnerEvents(partnerB.id, owner());
+    expect(events.map((e) => e.kind)).toEqual(expect.arrayContaining(["product_submitted", "product_revision_requested", "product_resubmitted", "product_approved"]));
+  });
+
+  it("tarik pengajuan: hilang dari daftar, tidak bisa disetujui; batas pengajuan terbuka per mitra", async () => {
+    const session = partnerSession(partnerB, "Dimsum Test");
+    const draft = await svc.submitPartnerProductByPartner(session, { name: "Lumpia Kulit Tahu", category: "Dimsum", variants: [{ label: "", unitCost: 12_000, sellPrice: 15_000 }] });
+    expect(draft.code).toBe("DSM-M02");
+    await svc.withdrawPartnerProductSubmission(session, draft.linkId);
+    expect((await svc.listPartnerProducts(partnerB.id, { outletId, showCost: true })).some((p) => p.linkId === draft.linkId)).toBe(false);
+    await expect(svc.setPartnerProductActive(draft.linkId, true, owner())).rejects.toThrow(/ditarik/);
+    await expect(svc.withdrawPartnerProductSubmission(session, draft.linkId)).rejects.toMatchObject({ status: 404 });
+
+    // Tarik vs setujui bersamaan: hasil akhirnya tidak pernah "ditarik tapi aktif / menu aktif".
+    const raced = await svc.submitPartnerProductByPartner(session, { name: "Hakau Udang", category: "Dimsum", variants: [{ label: "", unitCost: 14_000, sellPrice: 18_000 }] });
+    const outcomes = await Promise.allSettled([svc.withdrawPartnerProductSubmission(session, raced.linkId), svc.setPartnerProductActive(raced.linkId, true, owner())]);
+    expect(outcomes.filter((o) => o.status === "fulfilled")).toHaveLength(1);
+    const d = t.getDb();
+    const { eq } = await import("drizzle-orm");
+    const [racedLink] = await d.select().from(t.schema.partnerProductLinks).where(eq(t.schema.partnerProductLinks.id, raced.linkId));
+    const [racedMenu] = await d.select().from(t.schema.menuItems).where(eq(t.schema.menuItems.id, raced.menuItemId));
+    if (racedLink.submissionStatus === "withdrawn") {
+      expect(racedLink.active).toBe(false);
+      expect(racedMenu.status).toBe("archived");
+    } else {
+      expect(racedLink).toMatchObject({ active: true, submissionStatus: "approved" });
+      // Sudah disetujui: dinonaktifkan lagi agar tidak mengganggu hitungan batas pengajuan di bawah.
+      await svc.setPartnerProductActive(raced.linkId, false, owner());
+    }
+
+    const { MAX_OPEN_PARTNER_SUBMISSIONS } = await import("@/lib/partner-product-submission");
+    for (let i = 0; i < MAX_OPEN_PARTNER_SUBMISSIONS; i += 1) {
+      await svc.submitPartnerProductByPartner(session, { name: `Produk Uji ${i}`, category: "Dimsum", variants: [{ label: "", unitCost: 1_000, sellPrice: 2_000 }] });
+    }
+    await expect(svc.submitPartnerProductByPartner(session, { name: "Satu lagi", category: "Dimsum", variants: [{ label: "", unitCost: 1_000, sellPrice: 2_000 }] })).rejects.toMatchObject({ status: 409 });
+    // Mitra nonaktif tidak bisa mengajukan.
+    await expect(svc.submitPartnerProductByPartner({ ...session, partner: { ...session.partner, status: "nonaktif" } }, { name: "Produk", category: "Dimsum", variants: [{ label: "", unitCost: 1, sellPrice: 2 }] })).rejects.toMatchObject({ status: 403 });
+  });
+});
+
 describe("Smart Partner Hub — pisah bill setelah setoran (audit Owner 23 Nov 2026)", () => {
   it("item mitra yang sudah masuk setoran tidak bisa dipisah sebagian; pindah utuh tidak membuat setoran kedua", async () => {
     await setHub(true);

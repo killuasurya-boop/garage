@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 import type { ClosingOverview, DailyClosingReview, MonthlyClosingReview } from "@/lib/finance-closing";
 import { BEP_STATUS_LABEL, shortDayLabel, type BepStatus } from "@/lib/finance-control-core";
+import { DailyBankReportCard } from "./DailyBankReportCard";
 import { EmptyNote, FinanceCard } from "./FinanceCards";
 import { percent, rupiah } from "./finance-format";
 
@@ -270,6 +271,8 @@ function DailyClosing({ overview, onChanged }: { overview: ClosingOverview; onCh
               </p>
             </FinanceCard>
           </div>
+
+          <DailyBankReportCard date={date} refreshKey={`${data.status}:${data.closing?.closedAt ?? ""}:${data.closing?.reopenReason ?? ""}`} />
 
           <CashReconciliation data={data} onApproved={() => setNonce((n) => n + 1)} />
 

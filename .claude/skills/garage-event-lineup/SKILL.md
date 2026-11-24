@@ -219,7 +219,7 @@ description: Aturan WAJIB modul Lineup & Panitia Event (band/stand-up, rundown, 
   data Garage OS tetap ditimpakan. Impor oleh Owner (RAB, lineup) memakai `useSnapshot: false` → platform mati = error
   jujur. Config publik (jadwal, buka/tutup daftar, deadline) TIDAK lagi bisa diubah setelah platform dimatikan — ubah
   salinan lewat PR bila perlu. `?lama=1`, /event/admin, API penyelenggara, dan pendaftaran lama (ID tak dikenal) → 502.
-- Foto penampil (Owner 19 Nov 2026, migrasi 0211 `event_performers.photo_url`): latar kartu lineup halaman event GIGS.
+- Foto penampil (Owner 19 Nov 2026, migrasi 0212 `event_performers.photo_url`): latar kartu lineup halaman event GIGS.
   Owner manusia saja: `POST/DELETE /api/event-lineup/performers/[id]/photo` (`setPerformerPhoto`, webp ≤200 KB lebar ≤800 px
   di `/garage-uploads/event-lineup/<id>-foto-*`, diaudit), form "Ubah" penampil bagian "Tampil di website" (`LogoUpload
   kind="foto"`). `publicLineupFor` mengirim `photo`; `garageLineupAsEventSlots` menambah `photo` hanya bila ada; tambalan app.js

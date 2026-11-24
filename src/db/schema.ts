@@ -5496,10 +5496,20 @@ export const partnerProductLinks = pgTable(
     approvedAt: timestamp("approved_at", { withTimezone: true }),
     availabilityUpdatedAt: timestamp("availability_updated_at", { withTimezone: true }),
     availabilityUpdatedBy: text("availability_updated_by"),
+    // Produk mandiri mitra (Nov 2026): NULL = didaftarkan staf; pending | revision | approved | withdrawn = diajukan mitra.
+    submissionStatus: text("submission_status"),
+    submissionNote: text("submission_note"),
+    reviewNote: text("review_note"),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
+    submissionStatusCheck: check(
+      "partner_product_links_submission_status_check",
+      sql`${table.submissionStatus} is null or ${table.submissionStatus} in ('pending','revision','approved','withdrawn')`,
+    ),
     menuItemIdx: uniqueIndex("partner_product_links_menu_item_idx").on(table.menuItemId),
     partnerIdx: index("partner_product_links_partner_idx").on(table.partnerId),
     codeIdx: uniqueIndex("partner_product_links_code_idx").on(table.code),

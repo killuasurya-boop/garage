@@ -1,5 +1,5 @@
 import { getAppSettings } from "@/lib/garage-service";
-import { partnerDashboardSummary } from "@/lib/partner-hub-service";
+import { listPartnerProductSubmissions, partnerDashboardSummary } from "@/lib/partner-hub-service";
 import { partnerRoute } from "@/lib/partner-hub-route";
 import { requireOwnerOrManager } from "@/lib/server-auth";
 
@@ -12,7 +12,9 @@ export async function GET() {
   if (session.response) return session.response;
   return partnerRoute(async () => {
     const settings = await getAppSettings(session.data.profile.outlet.id);
-    if (!settings.partnerHubEnabled) return { enabled: false as const };
-    return { enabled: true as const, ...(await partnerDashboardSummary(session.data)) };
+    // Pengajuan produk mitra tetap tampil walau Partner Hub mati, supaya Owner tidak melewatkannya.
+    const submissions = await listPartnerProductSubmissions(session.data, { limit: 4 });
+    if (!settings.partnerHubEnabled) return { enabled: false as const, submissions };
+    return { enabled: true as const, submissions, ...(await partnerDashboardSummary(session.data)) };
   });
 }

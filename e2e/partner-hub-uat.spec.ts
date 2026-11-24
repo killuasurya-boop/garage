@@ -206,8 +206,9 @@ test("UAT-C: Portal Mitra terima → proses → siap; 2 waiter klaim bersamaan, 
     await button.click();
     await expect(page.getByRole("status").or(page.getByText(/diterima|diproses|waiter diberi tahu/i)).first()).toBeVisible({ timeout: 30_000 });
   }
-  // Mitra mengunggah foto produknya sendiri dari Portal Mitra (Owner 18 Nov 2026).
-  const photos = page.getByRole("region", { name: "Foto produk" });
+  // Mitra mengunggah foto produknya sendiri dari Portal Mitra (Owner 18 Nov 2026) — tab "Produk".
+  await page.getByRole("tab", { name: /Produk/ }).click();
+  const photos = page.getByRole("region", { name: "Produk saya" });
   await photos.scrollIntoViewIfNeeded();
   const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAGUlEQVQokWM4ISdHEmIY1SA3GkonhmvSAADkYgQQjClmVwAAAABJRU5ErkJggg==", "base64");
   await photos.locator('input[type="file"]').first().setInputFiles({ name: "produk.png", mimeType: "image/png", buffer: png });
@@ -221,6 +222,41 @@ test("UAT-C: Portal Mitra terima → proses → siap; 2 waiter klaim bersamaan, 
   expect(served.headers()["content-type"]).toMatch(/^image\//);
   // Produk mitra lain tidak bisa diubah dari sesi ini.
   expect((await page.request.post("/api/partner/products/link-bukan-milik/image", { multipart: { image: { name: "x.png", mimeType: "image/png", buffer: png } } })).status()).toBe(404);
+
+  // Produk mandiri (Nov 2026): mitra mengajukan produk baru lewat formulir 3 langkah → menunggu persetujuan Owner.
+  await photos.getByRole("button", { name: /Tambah produk/ }).click();
+  const form = page.getByRole("dialog");
+  await form.getByLabel("Nama produk").fill("Es Krim Uji E2E");
+  await form.getByRole("button", { name: "Dessert", exact: true }).click();
+  await form.getByRole("button", { name: /Lanjut/ }).click();
+  await form.getByLabel("Harga setor").fill("15000");
+  await form.getByLabel("Harga jual").fill("20000");
+  await expect(form.getByText(/Bagian Garage/)).toContainText("5.000");
+  await form.getByRole("button", { name: /Lanjut/ }).click();
+  // Langkah Foto: contoh foto tampil; foto kecil diberi saran (tetap boleh dikirim).
+  await expect(form.getByRole("region", { name: "Contoh foto yang baik" })).toBeVisible();
+  await form.locator('input[type="file"]').setInputFiles({ name: "kecil.png", mimeType: "image/png", buffer: png });
+  await expect(form.getByRole("status").filter({ hasText: "Saran foto" })).toContainText(/Resolusi kecil \(16×16\)/);
+  await expect(form.getByText("Lihat contoh foto yang baik")).toBeVisible();
+  await form.getByRole("button", { name: /Kirim ke Garage/ }).click();
+  await expect(form.getByText("Pengajuan terkirim")).toBeVisible({ timeout: 30_000 });
+  await form.getByRole("button", { name: "Selesai" }).click();
+  const submitted = photos.getByRole("listitem").filter({ hasText: "Es Krim Uji E2E" });
+  await expect(submitted.getByText("Menunggu persetujuan")).toBeVisible({ timeout: 30_000 });
+
+  // Owner melihat pengajuan di Dashboard → "Periksa" membuka Kelola Mitra dengan produk itu disorot.
+  const owner = await as(browser, "owner@garage.id");
+  const ownerErrors = failOnPageErrors(owner.page);
+  await owner.page.goto("/os?module=dashboard");
+  const queue = owner.page.getByRole("region", { name: /Pengajuan produk mitra/ });
+  await expect(queue).toBeVisible({ timeout: 60_000 });
+  await expect(queue).toContainText("1 menunggu");
+  await queue.getByRole("link", { name: /Periksa Es Krim Uji E2E/ }).click();
+  await expect(owner.page).toHaveURL(/tab=manage&partner=.+&product=/);
+  const focused = owner.page.locator('li[id^="partner-product-"]').filter({ hasText: "Es Krim Uji E2E" });
+  await expect(focused.getByText("Diajukan mitra")).toBeVisible({ timeout: 60_000 });
+  await expect(focused).toHaveClass(/ring-2/);
+  ownerErrors();
 
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(1);

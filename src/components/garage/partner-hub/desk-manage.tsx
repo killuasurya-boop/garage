@@ -3,11 +3,12 @@
 // Kelola Mitra (Owner/Manajer, papan 05): registrasi, status siklus hidup, rekening, akun login, produk & harga.
 // Aksi Owner-only (setujui/aktifkan, verifikasi rekening, setujui produk, ubah harga) dicek ulang di server.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Download, Plus, ShieldCheck, UserPlus } from "lucide-react";
 
 import { PartnerHealthBoard, PartnerPerformanceStaff, PriceProposalQueue } from "./desk-growth";
 import { api, Btn, Card, Chip, Field, inputCls, Notice, rp } from "./desk-shared";
+import { SubmissionQueue, type SubmissionQueue as SubmissionQueueData, type SubmissionItem } from "./partner-submission-queue";
 import { matchesPartnerFilter, PartnerStatusControl, PartnerStatusFilter, type PartnerFilter } from "./partner-status-control";
 
 type Partner = {
@@ -25,6 +26,8 @@ type Partner = {
   payoutSchedule: string | null;
   lastOrderByDay: Record<string, string | null>;
   productCount: number;
+  /** Produk yang diajukan mitra dan menunggu keputusan Owner. */
+  pendingSubmissions?: number;
   availableCount: number;
   soldOutCount: number;
   bank: Array<{ id: string; bankName: string; accountName: string; accountMasked: string; status: string; accountNumber?: string }>;
@@ -44,6 +47,10 @@ type Product = {
   promotedOnWebsite?: boolean;
   active: boolean;
   available: boolean;
+  /** Produk mandiri mitra: pending | revision | approved (NULL = didaftarkan staf). */
+  submissionStatus?: string | null;
+  submissionNote?: string | null;
+  reviewNote?: string | null;
   variants: Array<{ variantId: string; label: string; sellPrice: number; unitCost?: number }>;
 };
 
@@ -65,11 +72,16 @@ export function DeskManage({ role }: { role: string }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [healthKey, setHealthKey] = useState(0);
   const [filter, setFilter] = useState<PartnerFilter>("all");
+  const [submissions, setSubmissions] = useState<SubmissionQueueData | null>(null);
+  // Produk yang disorot setelah "Periksa" (dari Dashboard / antrean pengajuan).
+  const [focusProduct, setFocusProduct] = useState<string | null>(null);
   const isOwner = role === "Owner";
 
   const load = useCallback(async () => {
     try {
-      setPartners(await api<Partner[]>("/api/partners"));
+      const [list, queue] = await Promise.all([api<Partner[]>("/api/partners"), api<SubmissionQueueData>("/api/partners/product-submissions").catch(() => null)]);
+      setPartners(list);
+      setSubmissions(queue);
     } catch (error) {
       setMessage({ tone: "error", text: (error as Error).message });
       setPartners([]);
@@ -79,7 +91,20 @@ export function DeskManage({ role }: { role: string }) {
     // Ambil data saat tampil (pola repo: fetch-on-mount).
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
+    // Tautan dari Dashboard: ?partner=<id>&product=<linkId> → buka mitra & sorot produknya.
+    const params = new URLSearchParams(window.location.search);
+    const partnerParam = params.get("partner");
+    if (partnerParam) {
+      setOpenId(partnerParam);
+      setFilter("all");
+      setFocusProduct(params.get("product"));
+    }
   }, [load]);
+  const review = (item: SubmissionItem) => {
+    setFilter("all");
+    setOpenId(item.partnerId);
+    setFocusProduct(item.linkId);
+  };
 
   async function run(key: string, fn: () => Promise<unknown>, ok: string) {
     setBusy(key);
@@ -98,6 +123,7 @@ export function DeskManage({ role }: { role: string }) {
   return (
     <div className="grid gap-4">
       <Notice message={message} />
+      {submissions && (submissions.pending || submissions.revision) ? <SubmissionQueue queue={submissions} variant="desk" onReview={review} /> : null}
       <PartnerHealthBoard refreshKey={healthKey} />
       <PriceProposalQueue isOwner={isOwner} onDecided={() => setHealthKey((k) => k + 1)} />
       {isOwner ? <ImportCatalogCard busy={busy === "import"} onImport={() => void run("import", () => api("/api/partners/import-catalog", { method: "POST" }), "Katalog awal diimpor: mitra Draft + produk nonaktif. Lengkapi data & setujui produk satu per satu.")} /> : null}
@@ -129,6 +155,7 @@ export function DeskManage({ role }: { role: string }) {
                   {partner.productKind ?? "-"} · {partner.phone ?? "tanpa WA"}
                 </p>
                 <p className="mt-1.5 flex flex-wrap gap-1.5" aria-label="Kesiapan mitra">
+                  {partner.pendingSubmissions ? <Chip tone="amber">{partner.pendingSubmissions} pengajuan produk menunggu</Chip> : null}
                   <Chip tone={partner.productCount ? "default" : "amber"}>
                     {partner.productCount ? `${partner.productCount} produk · ${partner.availableCount} tersedia · ${partner.soldOutCount} habis` : "Belum ada produk"}
                   </Chip>
@@ -151,7 +178,7 @@ export function DeskManage({ role }: { role: string }) {
                 <Btn onClick={() => setOpenId(openId === partner.id ? null : partner.id)}>{openId === partner.id ? "Tutup" : "Kelola"}</Btn>
               </div>
             </div>
-            {openId === partner.id ? <PartnerDetail partner={partner} allPartners={partners} isOwner={isOwner} busy={busy} run={run} /> : null}
+            {openId === partner.id ? <PartnerDetail partner={partner} allPartners={partners} isOwner={isOwner} busy={busy} run={run} focusProduct={focusProduct} /> : null}
           </Card>
         ))}
         </>
@@ -216,14 +243,17 @@ function PartnerDetail({
   isOwner,
   busy,
   run,
+  focusProduct,
 }: {
   partner: Partner;
   allPartners: Partner[];
   isOwner: boolean;
   busy: string | null;
   run: (key: string, fn: () => Promise<unknown>, ok: string) => Promise<void>;
+  focusProduct?: string | null;
 }) {
   const [products, setProducts] = useState<Product[] | null>(null);
+  const focused = useRef<string | null>(null);
   const [terms, setTerms] = useState(partner.terms ?? "");
   const [profile, setProfile] = useState({
     name: partner.name,
@@ -237,6 +267,7 @@ function PartnerDetail({
   const [account, setAccount] = useState({ phone: partner.phone ?? "", displayName: partner.picName ?? "", pin: "" });
   const [product, setProduct] = useState({ code: "", name: "", category: partner.productKind ?? "", unitCost: "", sellPrice: "" });
   const [editing, setEditing] = useState<string | null>(null);
+  const [revising, setRevising] = useState<string | null>(null);
   const [pinReset, setPinReset] = useState<{ id: string; pin: string } | null>(null);
   const [hideInactive, setHideInactive] = useState(false);
   const [statusTarget, setStatusTarget] = useState<{ to: string; label: string } | null>(null);
@@ -253,6 +284,16 @@ function PartnerDetail({
     await run(key, fn, ok);
     await loadProducts();
   };
+  useEffect(() => {
+    // Gulir ke produk yang diminta (sekali per tautan) setelah daftar produk termuat.
+    if (!products || !focusProduct || focused.current === focusProduct) return;
+    const el = document.getElementById(`partner-product-${focusProduct}`);
+    if (!el) return;
+    focused.current = focusProduct;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "center" });
+    el.focus({ preventScroll: true });
+  }, [products, focusProduct]);
   const query = productQuery.trim().toLowerCase();
   const shownProducts = (products ?? []).filter((p) => (!hideInactive || p.active) && (!query || `${p.code} ${p.name}`.toLowerCase().includes(query)));
   const moveTargets = allPartners.filter((x) => x.id !== partner.id && x.status !== "nonaktif");
@@ -475,16 +516,33 @@ function PartnerDetail({
           <ul className="grid gap-2">
             {shownProducts.length === 0 ? <li className="text-sm text-[#b8b8bf]">Tidak ada produk yang cocok dengan pencarian.</li> : null}
             {shownProducts.map((p) => (
-              <li key={p.linkId} className="rounded-lg border border-[#2a2a30] p-3 text-sm">
+              <li
+                key={p.linkId}
+                id={`partner-product-${p.linkId}`}
+                tabIndex={-1}
+                className={`scroll-mt-24 rounded-lg border p-3 text-sm outline-none ${focusProduct === p.linkId ? "border-[#f5a742] bg-[#f5a742]/[0.06] ring-2 ring-[#f5a742]/50" : "border-[#2a2a30]"}`}
+              >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="font-semibold text-white">
                     {p.code} · {p.name}
                   </span>
                   <span className="flex flex-wrap gap-2">
+                    {!p.active && p.submissionStatus === "pending" ? <Chip tone="amber">Diajukan mitra</Chip> : null}
+                    {!p.active && p.submissionStatus === "revision" ? <Chip tone="red">Dikembalikan ke mitra</Chip> : null}
                     <Chip tone={p.active ? "green" : "amber"}>{p.active ? "Disetujui" : "Menunggu Owner"}</Chip>
                     <Chip tone={p.available ? "green" : "red"}>{p.available ? "Tersedia" : "Habis"}</Chip>
                   </span>
                 </div>
+                {!p.active && (p.submissionStatus === "pending" || p.submissionStatus === "revision") ? (
+                  <div className="mt-2 grid gap-1 rounded-lg border border-[#ffd08a]/30 bg-[#2a1d0a]/50 px-3 py-2 text-xs text-[#ffe2b0]">
+                    <p>
+                      Diajukan sendiri oleh mitra dari Portal Mitra. Periksa nama, harga, dan foto. Harga jual masih usulan — ubah lewat Pengaturan sebelum menyetujui bila perlu.
+                    </p>
+                    {p.description ? <p className="text-[#f4f4f5]">Deskripsi: {p.description}</p> : null}
+                    {p.submissionNote ? <p className="text-[#f4f4f5]">Catatan mitra: {p.submissionNote}</p> : null}
+                    {p.submissionStatus === "revision" && p.reviewNote ? <p className="text-[#ffd0d4]">Diminta perbaikan: {p.reviewNote} — menunggu mitra mengirim ulang.</p> : null}
+                  </div>
+                ) : null}
                 <div className="mt-2 overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead className="text-[#b8b8bf]">
@@ -520,7 +578,21 @@ function PartnerDetail({
                     Tandai {p.available ? "Habis" : "Tersedia"}
                   </Btn>
                   <Btn onClick={() => setEditing(editing === p.linkId ? null : p.linkId)}>{editing === p.linkId ? "Tutup pengaturan" : "Pengaturan"}</Btn>
+                  {!p.active && p.submissionStatus === "pending" ? (
+                    <Btn tone="danger" onClick={() => setRevising(revising === p.linkId ? null : p.linkId)}>
+                      {revising === p.linkId ? "Batal" : "Minta perbaikan"}
+                    </Btn>
+                  ) : null}
                 </div>
+                {revising === p.linkId ? (
+                  <RevisionRequest
+                    product={p}
+                    busy={busy === `prev-${p.linkId}`}
+                    onSend={(note) =>
+                      void runP(`prev-${p.linkId}`, () => api(`/api/partners/products/${p.linkId}/revision`, { method: "POST", body: JSON.stringify({ note }) }), "Pengajuan dikembalikan ke mitra untuk diperbaiki.").then(() => setRevising(null))
+                    }
+                  />
+                ) : null}
                 {editing === p.linkId ? (
                   // key ikut harga terkini: setelah aturan harga/perubahan lain, form dibuat ulang dari data server
                   // (tidak menyimpan harga lama sebagai "perubahan" yang bisa membatalkan aturan).
@@ -1329,6 +1401,31 @@ function ActivationChecklist({
           </Btn>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/** Owner/Manajer mengembalikan pengajuan produk mitra dengan catatan (tampil di Portal Mitra + push ke HP mitra). */
+function RevisionRequest({ product, busy, onSend }: { product: Product; busy: boolean; onSend: (note: string) => void }) {
+  const [note, setNote] = useState("");
+  const quick = ["Foto kurang jelas", "Harga perlu disesuaikan", "Deskripsi kurang lengkap", "Nama produk perlu diganti"];
+  return (
+    <div className="mt-2 grid gap-2 rounded-lg border border-[#ff5a66]/40 bg-black/30 p-3">
+      <Field label={`Apa yang perlu diperbaiki di ${product.name}?`}>
+        <textarea value={note} onChange={(e) => setNote(e.target.value.slice(0, 300))} rows={2} className="min-h-16 w-full rounded-lg border border-[#3a3a42] bg-black/30 px-3 py-2 text-sm text-white outline-none focus-visible:border-[#ff5a66] focus-visible:ring-2 focus-visible:ring-[#ff5a66]/40" placeholder="Contoh: Foto kurang terang, harga jual Rp 25.000 terlalu tinggi." />
+      </Field>
+      <div className="flex flex-wrap gap-1.5">
+        {quick.map((text) => (
+          <button key={text} type="button" onClick={() => setNote((n) => (n.trim() ? `${n.trim()}. ${text}` : text))} className="min-h-9 rounded-full border border-[#3a3a42] px-3 text-xs font-semibold text-[#e4e4e8] hover:bg-white/10">
+            + {text}
+          </button>
+        ))}
+      </div>
+      <div>
+        <Btn tone="danger" busy={busy} disabled={note.trim().length < 5} onClick={() => onSend(note.trim())}>
+          Kirim ke mitra
+        </Btn>
+      </div>
     </div>
   );
 }

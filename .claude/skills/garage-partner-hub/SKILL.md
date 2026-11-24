@@ -131,3 +131,28 @@ description: Aturan WAJIB Smart Partner Hub (mitra resmi, produk partner, portal
 - Audit 23 Nov 2026: pisah bill SEBAGIAN untuk item mitra yang barisnya sudah di setoran aktif (`active_line_key`) ditolak
   (`movePartnerLineOnSplit` → `PartnerOrderError`, pesan menyebut nomor setoran); pindah seluruh qty tetap boleh. Sebelumnya
   baris pecahan baru (createdAt sama) bisa disetor lagi → mitra dibayar dua kali. HPP Mitra di laba: lihat skill `garage-kas`.
+- Produk mandiri mitra (Owner 23 Nov 2026, migration 0211): mitra mengajukan produk sendiri dari Portal Mitra tab "Produk"
+  (`partner-portal-products.tsx`, formulir 3 langkah Info → Harga → Foto & kirim). Pure rules `partner-product-submission.ts`
+  (validasi bahasa awam, kode `<KODE>-Mnn`, ID varian, `partnerProductView`), body Zod `partner-product-submission-schema.ts`.
+  `partner_product_links.submission_status`: NULL = didaftarkan staf (alur lama); `pending` | `revision` | `approved` | `withdrawn`
+  + `submission_note` (catatan mitra), `review_note` (catatan Garage). Server: `submitPartnerProductByPartner`
+  (`POST /api/partner/products`; partner_id dari sesi, mitra nonaktif ditolak, maks `MAX_OPEN_PARTNER_SUBMISSIONS` terbuka,
+  baris mitra dikunci FOR UPDATE) → produk link NONAKTIF + `menu_items.status 'archived'` (tidak tampil/tidak bisa dipesan) +
+  riwayat harga "Usulan awal dari mitra" + notif management. Mitra boleh ubah/tarik HANYA pending/revision
+  (`PATCH`/`DELETE /api/partner/products/[linkId]`; mitra lain = 404; tarik = soft `withdrawn`, disembunyikan dari
+  `listPartnerProducts`, pengajuan harga pending dibatalkan). Owner/Manajer "Minta perbaikan" (`POST /api/partners/products/[linkId]/revision`,
+  catatan ≥5 huruf, push ke mitra). Persetujuan tetap HANYA Owner lewat `setPartnerProductActive` (menandai `approved`, push mitra;
+  `withdrawn` tidak bisa disetujui). Harga jual dari mitra = usulan; Owner ubah lewat Pengaturan/harga sebelum menyetujui.
+  Setelah disetujui, perubahan harga lewat Pengajuan harga (alur lama). Portal Mitra kini bertab: Pesanan · Produk · Keuangan · Akun
+  (tab terakhir diingat di sessionStorage). Foto produk ada di kartu "Produk saya" (komponen lama `partner-portal-photos.tsx` dihapus).
+  Antrean pengajuan (Owner 23 Nov 2026, no migration): `listPartnerProductSubmissions` (Owner/Manajer, baca saja; pending tertua dulu
+  lalu revision) → `GET /api/partners/product-submissions` + ikut di `GET /api/partners/dashboard` (`submissions`, juga saat hub OFF).
+  UI `partner-submission-queue.tsx`: Dashboard (di atas kartu Partner Hub, maks 4, hanya bila ada yang menunggu) & Kelola Mitra
+  (kartu atas, "dikembalikan ke mitra" dilipat). Target periksa `SUBMISSION_REVIEW_TARGET_HOURS` = 24 jam (lewat = merah).
+  "Periksa" → `/partners?tab=manage&partner=<id>&product=<linkId>`: DeskManage membuka mitra, menggulir & menyorot produk.
+  `listPartners` memberi `pendingSubmissions` (chip per mitra). Semua waktu ditampilkan WIB (`submissionTimeWib`).
+  Panduan foto (Owner 24 Nov 2026, no migration): langkah "Foto & kirim" menampilkan `PhotoGuide` (`partner-photo-guide.tsx`):
+  1 contoh bagus + 3 "hindari" (gelap/buram/terlalu jauh) dari SATU foto menu asli + efek CSS (tanpa aset baru), 3 tips; dilipat
+  setelah ada foto. `PhotoQualityNotice` membaca foto terpilih di browser (32×32 canvas) → `photoQualityHints` (pure): gelap =
+  p90 kecerahan < 75 (foto menu Garage yang bergaya gelap tetap lolos; jangan ganti ke rata-rata), pucat = rata-rata > 215,
+  resolusi < 500 px, rasio > 1.35. Hanya saran, tidak pernah memblokir kirim/unggah.

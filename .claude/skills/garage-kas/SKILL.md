@@ -145,3 +145,22 @@ description: Aturan WAJIB uang/kas Garage OS: shift & laci, Kas Keluar/Masuk, bu
   `cogs` di mode purchase DAN recipe; arus kas tetap (grup `cogs_purchase`). Dulu terhitung dua kali (opex + belanja). Baris
   laporan "Setoran mitra (HPP mitra)". Tanggal biaya = 12.00 WIB hari penjualan (`periodFrom` + 12 jam). Hari yang sudah
   dikunci (snapshot `locked`) tidak dihitung ulang.
+
+## Laporan penjualan + HPP produk (Owner 24 Nov 2026, tanpa migrasi)
+- Satu sumber: `src/lib/sales-hpp-summary.ts` (murni) + `src/lib/sales-hpp-report.ts` (loader). HPP = **HPP per produk**
+  (`menu_variants.base_cost`: resep / harga modal retail / harga setor mitra) × qty dari order `paid` — BUKAN belanja gudang,
+  bukan persen. Varian HPP 0 = dihitung Rp0 + ditandai "HPP belum diisi". Satuan: Bar = cup, Dapur & mitra = porsi, lainnya pcs.
+- PDF tutup shift (`cash-sessions/[id]/report`, loader `salesHppForCashSession`: order lunas yang pembayaran captured
+  TERAKHIRNYA masuk sesi itu → bill shift A yang dibayar di shift B hanya terhitung di B): bagian "Penjualan per Kategori &
+  Produk" (qty & omzet item untuk semua);
+  HPP, laba kotor, "laba setelah biaya shift" (laba kotor − kas keluar laci kelompok `operational`) HANYA bila
+  `canSeeProductHpp(role)` = Owner/Manajer. Kasir tidak pernah melihat HPP/laba produk sendiri (beda dengan mitra A3).
+- Laporan Harian Rekening Bersama: `GET /api/finance/reports/daily-bank?from&to&format=json|pdf|xlsx` (`finance:read`, maks
+  62 hari). Angka Finance (`getDayFigures`: omzet, diskon, refund, upah, biaya tetap & operasional, non-op, pendapatan lain,
+  uang masuk per metode tanpa "Modal"; Daily Closing = "Dikunci") + HPP produk. `closeFinanceDay` membekukan ringkasan HPP
+  produk di `finance_daily_closings.figures.productSales` (tanpa migrasi); hari dikunci tanpa itu (sebelum fitur) = label
+  "Dikunci, HPP dihitung ulang" (`dailyBankStatusLabel`), tidak pernah disebut beku. Laba bersih = omzet bersih − HPP produk −
+  upah − biaya operasional − non-op + pendapatan lain (`buildDailyBankReport`). Ini laporan baca saja; P&L Finance tetap
+  memakai `cogsBasis` di pengaturan. PDF 1 halaman/tanggal (`daily-bank-report-pdf.ts`), Excel 1 baris/tanggal
+  (`daily-bank-report-xlsx.ts`, teks aman rumus), "Salin ringkasan" WA (`dailyBankReportText`). UI: kartu di Closing Keuangan
+  (`DailyBankReportCard`).

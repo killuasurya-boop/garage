@@ -337,6 +337,10 @@ export async function closeFinanceDay(
 
   const { figure } = await liveFigure(input.date);
   const summary = figureSummary(figure);
+  // Laporan Harian Rekening Bersama (Owner 24 Nov 2026): HPP produk × qty dibekukan bersama angka closing, supaya
+  // perubahan HPP bahan sesudahnya tidak mengubah laba hari yang sudah dikunci. Hanya disimpan di figures (tanpa migrasi).
+  const { salesHppForDay } = await import("@/lib/sales-hpp-report");
+  const lockedFigures = { ...summary, productSales: await salesHppForDay(input.date) };
   const now = new Date();
   const db = getDb();
 
@@ -352,7 +356,7 @@ export async function closeFinanceDay(
         date: input.date,
         status: "closed",
         checklist: review.checks,
-        figures: summary,
+        figures: lockedFigures,
         notes: input.notes?.trim() || null,
         closedBy: garage.user.id,
         closedByName: garage.user.name,
@@ -364,7 +368,7 @@ export async function closeFinanceDay(
         set: {
           status: "closed",
           checklist: review.checks,
-          figures: summary,
+          figures: lockedFigures,
           notes: input.notes?.trim() || null,
           closedBy: garage.user.id,
           closedByName: garage.user.name,

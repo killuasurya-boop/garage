@@ -35,7 +35,6 @@ import {
   TrainFront,
   Trees,
   UtensilsCrossed,
-  Handshake,
 } from "lucide-react";
 import { PartnerShowcase } from "@/components/garage-website/partner-showcase";
 
@@ -1927,7 +1926,6 @@ function Hero({ landingHero }) {
               <div className="hero-image-actions">
                 <Link href={DIGITAL_MENU_URL} className="btn btn-primary"><span>Pesan Sekarang</span><ArrowRight /></Link>
                 <button type="button" onClick={requestTablePanelOpen} className="btn"><span>Cek Meja Kosong</span><ArrowRight /></button>
-                <a href="#mitra" className="btn hero-partner-tab"><Handshake aria-hidden /><span>Mitra</span></a>
               </div>
             </Reveal>
           </div>
@@ -2321,7 +2319,6 @@ function Hero({ landingHero }) {
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
               <Link href={DIGITAL_MENU_URL} className="btn btn-primary"><span>Pesan Sekarang</span><ArrowRight /></Link>
               <button type="button" onClick={requestTablePanelOpen} className="btn"><span>Cek Meja Kosong</span><ArrowRight /></button>
-              <a href="#mitra" className="btn hero-partner-tab"><Handshake aria-hidden /><span>Mitra</span></a>
             </div>
           </Reveal>
 
@@ -2903,9 +2900,8 @@ function LiveVisitBoard() {
         .live-metrics strong {
           display: block;
           margin-top: 8px;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
+          /* Teks status (mis. "Cek langsung", "18+ menit") boleh turun baris, tidak pernah terpotong. */
+          overflow-wrap: break-word;
           color: var(--fg);
           font-family: var(--font-display);
           font-size: 30px;
@@ -3354,7 +3350,15 @@ function GigsMobileChip({ promo }) {
       setHidden(false);
     }
   }, []);
-  if (!promo || !label || hidden) return null;
+  // Muncul setelah layar pertama digulir: di layar pertama chip menutupi angka hero (jam, QR, rating) di HP.
+  const [pastHero, setPastHero] = useState(false);
+  useEffect(() => {
+    const check = () => setPastHero(window.scrollY > window.innerHeight * 0.85);
+    check();
+    window.addEventListener("scroll", check, { passive: true });
+    return () => window.removeEventListener("scroll", check);
+  }, []);
+  if (!promo || !label || hidden || !pastHero) return null;
   const close = () => {
     setHidden(true);
     try {
@@ -6283,6 +6287,9 @@ function GarageWebsiteRoot({
       <PromoBar gigsPromo={gigsPromo} />
       <Nav />
       <Hero landingHero={landingHero} />
+      {/* Layar ke-2 = kunjungan (Owner 24 Nov 2026, audit anti-slop design-taste-frontend): alamat, jam buka, rute
+          langsung di bawah hero. Menggantikan posisi Lokasi lama di bagian 6 (urutan identitas 16 Nov tetap sesudahnya). */}
+      <LocationMvp />
       {gigsPromo ? <GigsPromoBanner promo={gigsPromo} /> : featuredEvent ? <GrandOpeningBanner event={featuredEvent} /> : null}
       {/* Urutan identitas dulu (owner 16 Nov 2026): siapa Garage → suasana → live → menu ringkas → komunitas. */}
       {/* 1. Identitas */}
@@ -6302,8 +6309,7 @@ function GarageWebsiteRoot({
       <MembershipMasterPro />
       <LiveTestimonials />
       <PartnerShowcase limit={4} />
-      {/* 6. Lokasi & sosmed, lalu pengembang di balik Garage (SURYA.dev) + showcase Garage OS di bawah */}
-      <LocationMvp />
+      {/* 6. Sosmed, lalu pengembang di balik Garage (SURYA.dev) + showcase Garage OS di bawah (Lokasi kini layar ke-2) */}
       <SocialPortfolio />
       <BuiltBySurya />
       <SuryaShowcase />

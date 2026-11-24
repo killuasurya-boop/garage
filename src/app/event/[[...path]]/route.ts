@@ -1,4 +1,5 @@
-import { eventSitePage, organizerPageRedirect, proxyToPlatform } from "@/lib/event-site";
+import { platformEventsSnapshot } from "@/lib/event-platform-snapshot";
+import { eventListFallback, eventSitePage, organizerPageRedirect, proxyToPlatform } from "@/lib/event-site";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,7 +23,21 @@ async function handle(request: Request, context: Ctx) {
       });
     }
   }
-  return proxyToPlatform(request, url.pathname, url.search);
+  const res = await proxyToPlatform(request, url.pathname, url.search);
+  if (res.status === 502 && (request.method === "GET" || request.method === "HEAD")) {
+    // Daftar event /event (menu "Event" beranda) saat platform mati → event aktif dari salinan Garage OS.
+    if (segments.length === 0) {
+      const target = eventListFallback();
+      if (target) return new Response(null, { status: 302, headers: { Location: target, "Cache-Control": "no-store" } });
+    }
+    // /event/api/events (lencana GIGS di menu beranda) → daftar event dari salinan publik.
+    if (segments.join("/") === "api/events") {
+      return new Response(request.method === "HEAD" ? null : JSON.stringify(platformEventsSnapshot()), {
+        headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
+      });
+    }
+  }
+  return res;
 }
 
 export const GET = handle;

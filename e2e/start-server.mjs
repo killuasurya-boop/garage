@@ -38,6 +38,8 @@ const env = {
   BETTER_AUTH_URL: `http://127.0.0.1:${port}`,
   NEXT_PUBLIC_GARAGE_PUBLIC_BASE_URL: `http://127.0.0.1:${port}`,
   BETTER_AUTH_SECRET: process.env.E2E_AUTH_SECRET,
+  // Platform GIGS tiruan di E2E: tombol impor platform tetap tampil supaya fitur impor teruji (produksi: platform mati).
+  NEXT_PUBLIC_EVENT_PLATFORM_RETIRED: "0",
   GARAGE_MEMBER_SEED_PASSWORD: process.env.GARAGE_SEED_PASSWORD,
   GARAGE_POS_API_KEY: `e2e-${process.env.E2E_AUTH_SECRET?.slice(0, 12)}`,
   NEXT_TELEMETRY_DISABLED: "1",

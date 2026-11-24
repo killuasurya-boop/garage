@@ -26,6 +26,7 @@ import { denominationMismatches, isValidDenominationKey, sumDenominations } from
 import { canTransitionKitchenStatus } from "@/lib/garage-kitchen-status";
 import { notifyStaff, resolveStaffNotifications } from "@/lib/staff-notifications";
 import { paymentNoticeLabel } from "@/lib/payment-notice";
+import { POS_PAYMENT_METHOD_MESSAGE, isPosPaymentMethod } from "@/lib/pos-payment-method";
 import { sendOrderPush } from "@/lib/web-push-sender";
 import {
   buildTrackerSteps,
@@ -12035,6 +12036,11 @@ async function createOrderOnce(
   // sudah diterima fisik & harga bisa berubah selama offline) → kekurangan
   // dicatat sebagai cashShortfall supaya kelihatan saat tutup shift.
   const splits = input.splits && input.splits.length > 0 ? input.splits : null;
+  // Audit POS Nov 2026: metode bayar wajib salah satu kelompok resmi supaya laporan per metode
+  // tidak salah golong ("Gopay"/"Kartu" dulu lolos sebagai teks bebas).
+  if (!isPosPaymentMethod(paymentMethod) || (splits ?? []).some((split) => !isPosPaymentMethod(split.method))) {
+    throw new Error(POS_PAYMENT_METHOD_MESSAGE);
+  }
   const tender = planTender({
     method: paymentMethod,
     total,

@@ -237,6 +237,7 @@ import { PosInvoiceDeleteDialog, type InvoiceDeleteTarget } from "@/components/g
 import { PAYMENT_STATUS_LABEL, paymentStatusOf, type PaymentStatus } from "@/lib/payment-status";
 import { quickCashOptions } from "@/lib/pos-cash";
 import { normalizePaymentReference } from "@/lib/tender-guard";
+import { loadCartDraft, restorableCartLines, saveCartDraft } from "@/lib/pos-cart-draft";
 import { finalPayLabel } from "@/lib/pos-final-pay-label";
 import { menuShortcodes, shortcodeMatchRank } from "@/lib/menu-shortcode";
 import { buildCashMovementSlipContent } from "@/lib/management-slips";
@@ -370,7 +371,7 @@ function PosHeaderClock() {
       <Clock className="size-3.5 text-[#f5a742]" />
       <div className="leading-none">
         <p className="garage-mono font-semibold text-white">{timeLabel}</p>
-        <p className="mt-0.5 text-[10px] text-[#b8b8bf]">{dateLabel}</p>
+        <p className="mt-0.5 text-[11px] text-[#b8b8bf]">{dateLabel}</p>
       </div>
     </div>
   );
@@ -581,7 +582,7 @@ export function PosView({
   const [manualDiscountValueInput, setManualDiscountValueInput] = useState("");
   const [manualDiscountReasonInput, setManualDiscountReasonInput] = useState("");
   const [manualDiscountError, setManualDiscountError] = useState<string | null>(null);
-  // Sold-out flag per item (frontend-only). Persist ke localStorage.
+  // Tanda HABIS per item. Sumber kebenaran = DB (`menu.stock`), disinkron di efek "Sold-out menu digital".
   const [soldOutIds, setSoldOutIds] = useState<Set<string>>(new Set());
   const [soldOutDialogOpen, setSoldOutDialogOpen] = useState(false);
   // Kasir daftarkan member (selalu Silver)
@@ -727,6 +728,12 @@ export function PosView({
   const [shiftPending, setShiftPending] = useState(false);
   const [shiftError, setShiftError] = useState<string | null>(null);
   const [posNotice, setPosNotice] = useState<string | null>(null);
+  // Pemberitahuan hilang sendiri setelah 8 detik (pesan baru me-reset hitungan).
+  useEffect(() => {
+    if (!posNotice) return;
+    const timeoutId = window.setTimeout(() => setPosNotice(null), 8_000);
+    return () => window.clearTimeout(timeoutId);
+  }, [posNotice]);
   // Smart Partner Hub: badge + pemberitahuan sekali saat jumlah pesanan mitra yang perlu perhatian bertambah.
   const partnerAttention = usePartnerAttention(settings.partnerHubEnabled, settings.partnerSlaAcceptWarnMinutes, settings.partnerReadyWaitWarnMinutes);
   const [partnerAttentionSeen, setPartnerAttentionSeen] = useState(0);
@@ -2820,6 +2827,37 @@ export function PosView({
     persistParkedOrders(parkedOrders);
   }, [parkedOrders]);
 
+  // Draf keranjang per perangkat (audit POS Nov 2026): Absen/Opname/refresh tidak lagi
+  // menghapus keranjang. Dipulihkan sekali setelah menu termuat; disimpan tiap berubah.
+  const cartDraftRestoredRef = useRef(false);
+  // true selama setCart(draf) belum ter-render: simpanan kosong pada render itu tidak boleh menghapus draf.
+  const cartDraftRestorePendingRef = useRef(false);
+  useEffect(() => {
+    if (cartDraftRestoredRef.current || menuItemsById.size === 0) return;
+    cartDraftRestoredRef.current = true;
+    if (cart.length) return;
+    const draft = loadCartDraft();
+    if (!draft) return;
+    const lines = restorableCartLines(draft.cart, menuItemsById);
+    if (!lines.length) return;
+    cartDraftRestorePendingRef.current = true;
+    const qty = lines.reduce((sum, line) => sum + line.qty, 0);
+    /* eslint-disable react-hooks/set-state-in-effect -- pulihkan draf localStorage sekali setelah menu termuat */
+    setCart(lines);
+    setOrderType(draft.orderType);
+    setSelectedTableNumber(draft.tableNumber);
+    setPosNotice(`Keranjang sebelumnya dipulihkan (${qty} item). Hapus keranjang bila tidak dipakai.`);
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [cart.length, menuItemsById]);
+  useEffect(() => {
+    if (!cartDraftRestoredRef.current) return;
+    if (cartDraftRestorePendingRef.current) {
+      if (!cart.length) return;
+      cartDraftRestorePendingRef.current = false;
+    }
+    saveCartDraft({ cart, orderType, tableNumber: selectedTableNumber });
+  }, [cart, orderType, selectedTableNumber]);
+
   // Sold-out menu digital: DB is the source of truth so QR customer and POS stay synced.
   const soldOutInitializedRef = useRef(false);
   useEffect(() => {
@@ -3127,18 +3165,25 @@ export function PosView({
     setSoldOutPendingIds(new Set(ids));
     setSoldOutIds((current) => new Set([...current].filter((id) => !ids.includes(id))));
     try {
-      await Promise.all(
+      // allSettled: bila sebagian gagal, hanya yang gagal dikembalikan ke HABIS. Dulu semua
+      // dikembalikan, padahal sebagian sudah "tersedia" di DB (layar ≠ menu pelanggan).
+      const results = await Promise.allSettled(
         ids.map((id) =>
           garageApi.patch(`/api/menu/${encodeURIComponent(id)}`, { stock: "ready" }),
         ),
       );
-      setPosNotice("Semua tanda HABIS menu digital dihapus.");
-      void onOrderCreated();
-    } catch (error) {
-      setSoldOutIds((current) => new Set([...current, ...ids]));
-      setCustomerOrderError(
-        error instanceof Error ? error.message : "Gagal reset stok habis menu digital.",
-      );
+      const failedIds = ids.filter((_, index) => results[index].status === "rejected");
+      if (failedIds.length) {
+        setSoldOutIds((current) => new Set([...current, ...failedIds]));
+        const firstError = results.find((result) => result.status === "rejected") as PromiseRejectedResult | undefined;
+        const reason = firstError?.reason instanceof Error ? ` (${firstError.reason.message})` : "";
+        setCustomerOrderError(
+          `${failedIds.length} dari ${ids.length} menu gagal dibuka kembali dan tetap HABIS${reason}. Coba lagi.`,
+        );
+      } else {
+        setPosNotice("Semua tanda HABIS menu digital dihapus.");
+      }
+      if (failedIds.length < ids.length) void onOrderCreated();
     } finally {
       setSoldOutPendingIds(new Set());
     }
@@ -4427,6 +4472,28 @@ export function PosView({
         isCashierKiosk ? `pos-v6-main-shift ${cashierPosSettings.sidebarMode === "compact" ? "xl:pl-[92px]" : "xl:pl-[260px]"}` : ""
       }`}
     >
+      {posNotice ? (
+        // Pemberitahuan kasir V6 (audit POS Nov 2026): dulu hanya dirender di header lama yang
+        // disembunyikan, jadi pesan POS (HABIS, keranjang pulih, dll.) tidak pernah terlihat.
+        // pointer-events-none: sentuhan tembus ke tombol di bawahnya; hanya tombol tutup yang aktif.
+        <div
+          role="status"
+          aria-live="polite"
+          data-testid="pos-notice"
+          className="pointer-events-none fixed bottom-4 left-1/2 z-50 flex w-[min(92vw,520px)] -translate-x-1/2 items-start gap-2 rounded-lg border border-[#f5a742]/45 bg-[#1d1609] px-3 py-2.5 text-sm text-[#ffe0ad] shadow-lg shadow-black/40"
+        >
+          <Info className="mt-0.5 size-4 shrink-0 text-[#f5a742]" aria-hidden />
+          <p className="min-w-0 flex-1 break-words leading-snug">{posNotice}</p>
+          <button
+            type="button"
+            onClick={() => setPosNotice(null)}
+            aria-label="Tutup pemberitahuan"
+            className="garage-press pointer-events-auto -my-1 -mr-1 grid size-8 shrink-0 place-items-center rounded-md text-[#ffe0ad] hover:bg-white/10"
+          >
+            <X className="size-4" aria-hidden />
+          </button>
+        </div>
+      ) : null}
       <PosChatInbox
         open={chatOpen}
         onOpenChange={setChatOpen}
@@ -4473,7 +4540,7 @@ export function PosView({
                 (NAV_ACTION_AUDIT §1.4). */}
             {onNavigateModule && navModules.length > 0 && (
               <div className="rounded-md border border-[#34343c] bg-white/[0.03] p-2">
-                <p className="garage-mono px-1 pb-1.5 pt-1 text-[10px] uppercase tracking-[0.14em] text-[#8a8a92]">
+                <p className="garage-mono px-1 pb-1.5 pt-1 text-[11px] uppercase tracking-[0.14em] text-[#8a8a92]">
                   Navigasi Modul
                 </p>
                 <div className="grid grid-cols-2 gap-1.5">
@@ -4552,7 +4619,7 @@ export function PosView({
                   <Bell className="size-4" />
                   QR Order
                 </span>
-                <Badge className={`${waitingCustomerOrderCount ? statusClass.pending_cashier : statusClass.info} px-2 text-[10px]`}>
+                <Badge className={`${waitingCustomerOrderCount ? statusClass.pending_cashier : statusClass.info} px-2 text-[11px]`}>
                   {waitingCustomerOrderCount}
                 </Badge>
               </Button>
@@ -4617,7 +4684,7 @@ export function PosView({
                   <History className="size-4" />
                   Riwayat Struk Shift
                 </span>
-                <Badge className="border-[#4a4a54] bg-white/[0.08] px-2 text-[10px]">
+                <Badge className="border-[#4a4a54] bg-white/[0.08] px-2 text-[11px]">
                   {receiptHistory.length}
                 </Badge>
               </Button>
@@ -4639,7 +4706,7 @@ export function PosView({
                   Atur Stok Habis
                 </span>
                 <Badge
-                  className={`px-2 text-[10px] ${
+                  className={`px-2 text-[11px] ${
                     soldOutIds.size > 0
                       ? "border-[#d11a2a]/55 bg-[#d11a2a]/22 text-[#ffe1e5]"
                       : "border-[#4a4a54] bg-white/[0.08]"
@@ -5135,7 +5202,7 @@ export function PosView({
                   ],
                 ].map(([label, value]) => (
                   <div key={label} className="rounded-md border border-[#34343c] bg-white/[0.04] p-3">
-                    <p className="garage-mono text-[10px] uppercase tracking-wide text-[#8f8f99]">
+                    <p className="garage-mono text-[11px] uppercase tracking-wide text-[#8f8f99]">
                       {label}
                     </p>
                     <p className="mt-1 text-base font-bold text-white">{value}</p>
@@ -5145,7 +5212,7 @@ export function PosView({
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="rounded-md border border-[#34343c] bg-white/[0.04] p-3">
-                  <p className="garage-mono text-[10px] uppercase tracking-wide text-[#8f8f99]">
+                  <p className="garage-mono text-[11px] uppercase tracking-wide text-[#8f8f99]">
                     Order shift
                   </p>
                   <div className="mt-2 grid grid-cols-3 gap-2 text-center">
@@ -5153,24 +5220,24 @@ export function PosView({
                       <p className="text-lg font-black text-white">
                         {shiftReportSummary?.counts.total ?? 0}
                       </p>
-                      <p className="text-[10px] text-[#b8b8bf]">Total</p>
+                      <p className="text-[11px] text-[#b8b8bf]">Total</p>
                     </div>
                     <div className="rounded border border-[#22c55e]/35 bg-[#22c55e]/10 p-2">
                       <p className="text-lg font-black text-[#dcfce7]">
                         {shiftReportSummary?.counts.paid ?? 0}
                       </p>
-                      <p className="text-[10px] text-[#b8b8bf]">Lunas</p>
+                      <p className="text-[11px] text-[#b8b8bf]">Lunas</p>
                     </div>
                     <div className="rounded border border-[#f5a742]/35 bg-[#f5a742]/10 p-2">
                       <p className="text-lg font-black text-[#ffd08a]">
                         {waitingCustomerOrderCount}
                       </p>
-                      <p className="text-[10px] text-[#b8b8bf]">QR pending</p>
+                      <p className="text-[11px] text-[#b8b8bf]">QR pending</p>
                     </div>
                   </div>
                 </div>
                 <div className="rounded-md border border-[#34343c] bg-white/[0.04] p-3">
-                  <p className="garage-mono text-[10px] uppercase tracking-wide text-[#8f8f99]">
+                  <p className="garage-mono text-[11px] uppercase tracking-wide text-[#8f8f99]">
                     Payment breakdown
                   </p>
                   <div className="mt-2 space-y-2">
@@ -5197,10 +5264,10 @@ export function PosView({
 
               <div className="rounded-md border border-[#34343c] bg-white/[0.04] p-3">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="garage-mono text-[10px] uppercase tracking-wide text-[#8f8f99]">
+                  <p className="garage-mono text-[11px] uppercase tracking-wide text-[#8f8f99]">
                     Riwayat shift saya
                   </p>
-                  <Badge className="border-[#4a4a54] bg-white/[0.08] px-2 text-[10px]">
+                  <Badge className="border-[#4a4a54] bg-white/[0.08] px-2 text-[11px]">
                     {shiftReportHistory?.total ?? 0}
                   </Badge>
                 </div>
@@ -5225,7 +5292,7 @@ export function PosView({
                       </div>
                       <div className="text-right">
                         <Badge
-                          className={`px-2 text-[10px] ${
+                          className={`px-2 text-[11px] ${
                             session.status === "open"
                               ? "border-[#22c55e]/35 bg-[#22c55e]/12 text-[#dcfce7]"
                               : "border-[#4a4a54] bg-white/[0.08] text-[#d6d6dc]"
@@ -5334,7 +5401,7 @@ export function PosView({
                     >
                       <Ban className="mr-2 size-4" />
                       Atur Stok Habis
-                      <Badge className="ml-auto border-[#d11a2a]/55 bg-[#d11a2a]/14 px-2 text-[10px] text-[#ffc2c8]">
+                      <Badge className="ml-auto border-[#d11a2a]/55 bg-[#d11a2a]/14 px-2 text-[11px] text-[#ffc2c8]">
                         {soldOutIds.size}
                       </Badge>
                     </Button>
@@ -5358,7 +5425,7 @@ export function PosView({
                     >
                       <Bell className="mr-2 size-4" />
                       Kontrol QR Order
-                      <Badge className={`${waitingCustomerOrderCount ? statusClass.pending_cashier : statusClass.info} ml-auto px-2 text-[10px]`}>
+                      <Badge className={`${waitingCustomerOrderCount ? statusClass.pending_cashier : statusClass.info} ml-auto px-2 text-[11px]`}>
                         {waitingCustomerOrderCount}
                       </Badge>
                     </Button>
@@ -5870,7 +5937,7 @@ export function PosView({
             <Bell className="size-3.5" />
             <span className="hidden sm:inline">QR / Operasional</span>
             <span className="sm:hidden">QR</span>
-            <Badge className={`${waitingCustomerOrderCount ? statusClass.pending_cashier : statusClass.info} px-1.5 text-[10px]`}>
+            <Badge className={`${waitingCustomerOrderCount ? statusClass.pending_cashier : statusClass.info} px-1.5 text-[11px]`}>
               {waitingCustomerOrderCount}
             </Badge>
           </Button>
@@ -5891,7 +5958,7 @@ export function PosView({
             <UtensilsCrossed className="size-3.5" />
             <span className="hidden sm:inline">Bar &amp; Dapur</span>
             <span className="sm:hidden">Siap</span>
-            <Badge className="border-[#4a4a54] bg-black/30 px-1.5 text-[10px]">
+            <Badge className="border-[#4a4a54] bg-black/30 px-1.5 text-[11px]">
               {kitchenTickets.length}
             </Badge>
           </Button>
@@ -5906,7 +5973,7 @@ export function PosView({
           </Button>
           {posNotice ? (
             <Badge
-              className="hidden h-9 max-w-[260px] rounded-md border border-[#f5a742]/35 bg-[#f5a742]/12 px-2 text-[10px] text-[#ffe0ad] min-[1200px]:inline-flex"
+              className="hidden h-9 max-w-[260px] rounded-md border border-[#f5a742]/35 bg-[#f5a742]/12 px-2 text-[11px] text-[#ffe0ad] min-[1200px]:inline-flex"
               title={posNotice}
             >
               <Info className="mr-1.5 size-3" />
@@ -5935,7 +6002,7 @@ export function PosView({
             >
               <ReceiptText className="mr-2 size-3.5" />
               Keranjang
-              <span className="garage-mono ml-2 rounded-full border border-[#f5a742]/35 bg-black/25 px-1.5 text-[10px]">
+              <span className="garage-mono ml-2 rounded-full border border-[#f5a742]/35 bg-black/25 px-1.5 text-[11px]">
                 {cartItemCount}
               </span>
             </Button>
@@ -6260,7 +6327,7 @@ export function PosView({
           >
             <span className="relative grid size-10 shrink-0 place-items-center rounded-lg bg-[#f5a742]/15 text-[#ffd08a] ring-1 ring-[#f5a742]/35">
               <ShoppingCart className="size-5" />
-              <span className="garage-mono absolute -right-1.5 -top-1.5 min-w-[18px] rounded-full border border-[#15151b] bg-[#d11a2a] px-1 text-center text-[10px] font-bold leading-4 text-white">
+              <span className="garage-mono absolute -right-1.5 -top-1.5 min-w-[18px] rounded-full border border-[#15151b] bg-[#d11a2a] px-1 text-center text-[11px] font-bold leading-4 text-white">
                 {cartItemCount}
               </span>
             </span>
@@ -6296,7 +6363,7 @@ export function PosView({
               <div className="flex flex-wrap items-center gap-2">
                 <Bell className="size-3.5 text-[#f5a742]" />
                 <p className="garage-mono text-[11px] text-[#b8b8bf]">Antrean QR kasir</p>
-                <Badge className={`${waitingCustomerOrderCount ? statusClass.pending_cashier : statusClass.info} px-2 text-[10px]`}>
+                <Badge className={`${waitingCustomerOrderCount ? statusClass.pending_cashier : statusClass.info} px-2 text-[11px]`}>
                   {waitingCustomerOrderCount ? `${waitingCustomerOrderCount} baru` : "Kosong"}
                 </Badge>
                 <span className="hidden text-xs text-[#d6d6dc] md:inline">
@@ -6340,7 +6407,7 @@ export function PosView({
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="text-sm font-bold text-white">Cetak semua QR meja</p>
-                        <Badge className="border-[#22c55e]/45 bg-[#22c55e]/12 px-2 text-[10px] text-[#dcfce7]">
+                        <Badge className="border-[#22c55e]/45 bg-[#22c55e]/12 px-2 text-[11px] text-[#dcfce7]">
                           QR Tetap
                         </Badge>
                       </div>
@@ -6418,7 +6485,7 @@ export function PosView({
                         </div>
                         <div className="mx-3 grid grid-cols-[minmax(0,1fr)_auto] items-end bg-[#111116] px-3 py-2 text-left text-white">
                           <div>
-                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#b8b8bf]">Meja</p>
+                            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[#b8b8bf]">Meja</p>
                             <p className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#f5a742]">
                               Scan untuk order
                             </p>
@@ -6447,7 +6514,7 @@ export function PosView({
                           </div>
                         )}
                         </div>
-                        <p className="mx-3 mt-3 break-all text-center text-[10px] font-bold leading-4 text-[#5f554b]">
+                        <p className="mx-3 mt-3 break-all text-center text-[11px] font-bold leading-4 text-[#5f554b]">
                           {selectedQrOrderDisplayUrl}
                         </p>
                         <div className="mx-3 mt-3 flex items-center justify-between border-t border-[#d8d0c4] py-3">
@@ -6529,7 +6596,7 @@ export function PosView({
               <div className="grid gap-2 2xl:grid-cols-[auto_minmax(360px,1fr)_minmax(320px,0.9fr)] 2xl:items-center">
                 <div className="flex min-w-0 items-center gap-2">
                   <div className="min-w-0">
-                    <p className="garage-mono text-[10px] uppercase tracking-[0.14em] text-[#b8b8bf]">
+                    <p className="garage-mono text-[11px] uppercase tracking-[0.14em] text-[#b8b8bf]">
                       QR control hari ini
                     </p>
                     <h3 className="truncate text-sm font-black text-white">
@@ -6647,7 +6714,7 @@ export function PosView({
               <summary className="cursor-pointer list-none">
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="garage-mono text-[10px] uppercase tracking-[0.14em] text-[#b8b8bf]">
+                    <p className="garage-mono text-[11px] uppercase tracking-[0.14em] text-[#b8b8bf]">
                       Laporan shift
                     </p>
                     <p className="truncate text-xs font-semibold text-white">
@@ -6655,7 +6722,7 @@ export function PosView({
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2 text-[#f5a742]">
-                    <span className="text-[10px] font-semibold text-[#ffd08a]">Detail</span>
+                    <span className="text-[11px] font-semibold text-[#ffd08a]">Detail</span>
                     <FileText className="size-4" />
                   </div>
                 </div>
@@ -6737,34 +6804,34 @@ export function PosView({
                           <h3 className="truncate text-base font-black text-white">
                             {order.tableLabel}
                           </h3>
-                          <Badge className={`${statusClass[order.orderSource] ?? statusClass.info} shrink-0 px-2 text-[10px]`}>
+                          <Badge className={`${statusClass[order.orderSource] ?? statusClass.info} shrink-0 px-2 text-[11px]`}>
                             {order.customerMode}
                           </Badge>
                         </div>
-                        <p className="garage-mono mt-0.5 truncate text-[10px] text-[#8f8f98]">
+                        <p className="garage-mono mt-0.5 truncate text-[11px] text-[#8f8f98]">
                           {order.orderNo}
                         </p>
                         <p className="mt-0.5 truncate text-xs text-[#d0d0d6]">
                           {order.customerName ?? "Pelanggan"} - {order.customerPhone ?? "Tanpa WA"}
                         </p>
                         <div className="mt-1 flex flex-wrap gap-1.5">
-                          <Badge className={`${statusClass[order.status] ?? statusClass.warning} px-2 text-[10px]`}>
+                          <Badge className={`${statusClass[order.status] ?? statusClass.warning} px-2 text-[11px]`}>
                             {customerOrderPaymentStatusLabel(order)}
                           </Badge>
-                          <Badge className="border-[#f5a742]/40 bg-[#f5a742]/12 px-2 text-[10px] text-[#ffd08a]">
+                          <Badge className="border-[#f5a742]/40 bg-[#f5a742]/12 px-2 text-[11px] text-[#ffd08a]">
                             {customerOrderPaymentLabel(order)}
                           </Badge>
                           {order.paymentProvider ? (
-                            <Badge className="garage-mono border-[#4a4a54] bg-[#202027] px-2 text-[10px] text-[#d6d6dc]">
+                            <Badge className="garage-mono border-[#4a4a54] bg-[#202027] px-2 text-[11px] text-[#d6d6dc]">
                               {order.paymentProvider}
                             </Badge>
                           ) : null}
                           {order.paymentReference ? (
-                            <Badge className="garage-mono border-[#4a4a54] bg-[#202027] px-2 text-[10px] text-[#d6d6dc]">
+                            <Badge className="garage-mono border-[#4a4a54] bg-[#202027] px-2 text-[11px] text-[#d6d6dc]">
                               Ref {order.paymentReference}
                             </Badge>
                           ) : null}
-                          <Badge className="garage-mono border-[#22c55e]/35 bg-[#22c55e]/10 px-2 text-[10px] text-[#dcfce7]">
+                          <Badge className="garage-mono border-[#22c55e]/35 bg-[#22c55e]/10 px-2 text-[11px] text-[#dcfce7]">
                             {customerOrderInvoiceNo(order)}
                           </Badge>
                         </div>
@@ -6961,10 +7028,10 @@ export function PosView({
                             <h3 className="truncate text-sm font-black text-white">
                               {order.orderNo} - {order.tableLabel}
                             </h3>
-                            <Badge className={`${statusClass[order.status] ?? statusClass.info} px-2 text-[10px]`}>
+                            <Badge className={`${statusClass[order.status] ?? statusClass.info} px-2 text-[11px]`}>
                               {order.status}
                             </Badge>
-                            <Badge className="border-[#f5a742]/40 bg-[#f5a742]/12 px-2 text-[10px] text-[#ffd08a]">
+                            <Badge className="border-[#f5a742]/40 bg-[#f5a742]/12 px-2 text-[11px] text-[#ffd08a]">
                               {customerOrderPaymentLabel(order)}
                             </Badge>
                           </div>
@@ -6977,7 +7044,7 @@ export function PosView({
                         </div>
                         <div className="text-left sm:text-right">
                           <p className="text-base font-black text-white">{currency.format(order.total)}</p>
-                          <p className="garage-mono mt-1 text-[10px] text-[#8f8f98]">
+                          <p className="garage-mono mt-1 text-[11px] text-[#8f8f98]">
                             {customerOrderInvoiceNo(order)}
                           </p>
                         </div>
@@ -7068,7 +7135,7 @@ export function PosView({
                     {tableMapRows.length} meja outlet
                   </h3>
                   {tableLiveUpdatedAt ? (
-                    <p className="mt-0.5 text-[10px] text-[#8f8f98]">
+                    <p className="mt-0.5 text-[11px] text-[#8f8f98]">
                       Terakhir update{" "}
                       {(() => {
                         const secs = Math.max(
@@ -7243,7 +7310,7 @@ export function PosView({
                         </p>
                       ) : null}
                       {table.idleWarning && !table.staleFromPreviousDay ? (
-                        <span className="mt-1 inline-block rounded-sm bg-[#facc15] px-1 py-0.5 text-[10px] font-bold leading-none text-[#1a1400]">
+                        <span className="mt-1 inline-block rounded-sm bg-[#facc15] px-1 py-0.5 text-[11px] font-bold leading-none text-[#1a1400]">
                           Cek meja · {formatTableDuration(table.idleMinutes ?? 0)} diam
                         </span>
                       ) : null}
@@ -7275,7 +7342,7 @@ export function PosView({
                   </span>
                 ))}
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="garage-mono rounded-sm bg-[#d11a2a] px-1 text-[10px] font-bold text-white">1j</span>
+                  <span className="garage-mono rounded-sm bg-[#d11a2a] px-1 text-[11px] font-bold text-white">1j</span>
                   Belum bayar &gt; 60 menit
                 </span>
                 <span className="ml-auto hidden sm:inline">Tap meja untuk detail &amp; aksi</span>
@@ -7304,7 +7371,7 @@ export function PosView({
               <div className="rounded-md border border-[#34343c] bg-[#15151b]/84 p-2.5">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm font-semibold text-white">Meja dan kendala QR</p>
-                  <Badge className="garage-mono border-[#4a4a54] bg-white/[0.06] px-2 text-[10px] text-[#d4d4d8]">
+                  <Badge className="garage-mono border-[#4a4a54] bg-white/[0.06] px-2 text-[11px] text-[#d4d4d8]">
                     {qrInsights.rangeLabel}
                   </Badge>
                 </div>
@@ -7318,7 +7385,7 @@ export function PosView({
                         >
                           <div className="min-w-0">
                             <p className="truncate text-sm font-bold text-white">{table.tableLabel}</p>
-                            <p className="garage-mono mt-0.5 text-[10px] text-[#8f8f98]">
+                            <p className="garage-mono mt-0.5 text-[11px] text-[#8f8f98]">
                               {table.total} order - {table.paid} paid - {table.rejected} reject
                             </p>
                           </div>
@@ -7341,7 +7408,7 @@ export function PosView({
                           className="flex items-center justify-between gap-3 rounded-md border border-[#303038] bg-black/12 p-2"
                         >
                           <p className="line-clamp-2 text-xs leading-5 text-[#d6d6dc]">{item.reason}</p>
-                          <Badge className={`${statusClass.rejected} shrink-0 px-2 text-[10px]`}>
+                          <Badge className={`${statusClass.rejected} shrink-0 px-2 text-[11px]`}>
                             {item.count}
                           </Badge>
                         </div>
@@ -7363,7 +7430,7 @@ export function PosView({
                       <p className="text-sm font-semibold text-white">Pelanggan kembali</p>
                       <p className="mt-0.5 text-xs text-[#b8b8bf]">Follow-up WhatsApp manual</p>
                     </div>
-                    <Badge className={`${statusClass[qrInsights.summary.repeatGuests ? "warning" : "info"]} px-2 text-[10px]`}>
+                    <Badge className={`${statusClass[qrInsights.summary.repeatGuests ? "warning" : "info"]} px-2 text-[11px]`}>
                       {qrInsights.summary.repeatGuests} tamu kembali
                     </Badge>
                   </div>
@@ -7377,11 +7444,11 @@ export function PosView({
                           <div className="flex min-w-0 items-start justify-between gap-2">
                             <div className="min-w-0">
                               <p className="truncate text-sm font-bold text-white">{customer.name}</p>
-                              <p className="garage-mono mt-0.5 truncate text-[10px] text-[#8f8f98]">
+                              <p className="garage-mono mt-0.5 truncate text-[11px] text-[#8f8f98]">
                                 {customer.phone} - {customer.totalOrders} order - {customer.favoriteItem}
                               </p>
                             </div>
-                            <Badge className={`${customer.isMember ? statusClass.paid : statusClass.warning} shrink-0 px-2 text-[10px]`}>
+                            <Badge className={`${customer.isMember ? statusClass.paid : statusClass.warning} shrink-0 px-2 text-[11px]`}>
                               {customer.label}
                             </Badge>
                           </div>
@@ -7500,7 +7567,7 @@ export function PosView({
                       Order customer dari scan meja/menu digital. Proses cepat tanpa memenuhi layar POS.
                     </DialogDescription>
                   </div>
-                  <Badge className={`${waitingCustomerOrderCount ? statusClass.pending_cashier : statusClass.info} shrink-0 px-2 text-[10px]`}>
+                  <Badge className={`${waitingCustomerOrderCount ? statusClass.pending_cashier : statusClass.info} shrink-0 px-2 text-[11px]`}>
                     {waitingCustomerOrderCount ? `${waitingCustomerOrderCount} menunggu` : "Kosong"}
                   </Badge>
                 </div>
@@ -7689,7 +7756,7 @@ export function PosView({
                                   {order.deliveryStatus === "on_the_way" ? "Selesai antar" : "Mulai antar"}
                                 </Button>
                               ) : (
-                                <span className="inline-flex h-9 items-center justify-center rounded-md border border-[#34343c] px-1 text-center text-[10px] font-bold leading-tight text-[#b8b8c2]">
+                                <span className="inline-flex h-9 items-center justify-center rounded-md border border-[#34343c] px-1 text-center text-[11px] font-bold leading-tight text-[#b8b8c2]">
                                   Bayar dulu
                                 </span>
                               )}
@@ -7707,7 +7774,7 @@ export function PosView({
                                   Terima Bayar
                                 </Button>
                               ) : (
-                                <span className="inline-flex h-9 items-center justify-center rounded-md border border-[#34343c] px-1 text-[10px] font-bold text-[#d4d4d8]">
+                                <span className="inline-flex h-9 items-center justify-center rounded-md border border-[#34343c] px-1 text-[11px] font-bold text-[#d4d4d8]">
                                   Lunas
                                 </span>
                               )}
@@ -7907,7 +7974,7 @@ export function PosView({
 
               <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_180px]">
                 <div className="rounded-md border border-[#34343c] bg-[#1a1a21]/86 p-3">
-                  <p className="garage-mono text-[10px] uppercase tracking-[0.18em] text-[#b8b8bf]">
+                  <p className="garage-mono text-[11px] uppercase tracking-[0.18em] text-[#b8b8bf]">
                     Meja / channel
                   </p>
                   <div className="mt-2 flex items-center gap-3">
@@ -7925,7 +7992,7 @@ export function PosView({
                   </div>
                 </div>
                 <div className="rounded-md border border-[#f5a742]/35 bg-[#f5a742]/10 p-3">
-                  <p className="garage-mono text-[10px] uppercase tracking-[0.18em] text-[#ffd08a]">
+                  <p className="garage-mono text-[11px] uppercase tracking-[0.18em] text-[#ffd08a]">
                     Total tagihan
                   </p>
                   <p className="mt-2 text-2xl font-black text-white">
@@ -7971,7 +8038,7 @@ export function PosView({
                     key={label}
                     className="rounded-md border border-[#34343c] bg-white/[0.04] px-3 py-2"
                   >
-                    <p className="garage-mono text-[10px] uppercase tracking-[0.14em] text-[#8f8f98]">
+                    <p className="garage-mono text-[11px] uppercase tracking-[0.14em] text-[#8f8f98]">
                       {label}
                     </p>
                     <p className="mt-1 truncate text-sm font-semibold text-white">{value}</p>
@@ -7982,7 +8049,7 @@ export function PosView({
               <div className="rounded-md border border-[#34343c] bg-[#15151b]/84 p-3">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-sm font-semibold text-white">Item order</p>
-                  <Badge className="garage-mono border-[#4a4a54] bg-white/[0.06] px-2 text-[10px] text-[#d4d4d8]">
+                  <Badge className="garage-mono border-[#4a4a54] bg-white/[0.06] px-2 text-[11px] text-[#d4d4d8]">
                     {selectedCustomerOrder.items.length} item
                   </Badge>
                 </div>
@@ -8037,7 +8104,7 @@ export function PosView({
                         key={guide.label}
                         className="rounded-md border border-[#34343c] bg-black/12 p-2"
                       >
-                        <Badge className={`${guide.tone} px-2 text-[10px]`}>
+                        <Badge className={`${guide.tone} px-2 text-[11px]`}>
                           {guide.label}
                         </Badge>
                         <p className="mt-2 text-xs leading-5 text-[#d6d6dc]">
@@ -8072,7 +8139,7 @@ export function PosView({
                         Invoice final hanya terbit setelah kasir konfirmasi setoran.
                       </p>
                     </div>
-                    <Badge className={`${statusClass[selectedCustomerOrder.cashFlowStatus ?? "warning"] ?? statusClass.warning} px-2 text-[10px]`}>
+                    <Badge className={`${statusClass[selectedCustomerOrder.cashFlowStatus ?? "warning"] ?? statusClass.warning} px-2 text-[11px]`}>
                       {customerOrderPaymentStatusLabel(selectedCustomerOrder)}
                     </Badge>
                   </div>
@@ -8368,7 +8435,7 @@ export function PosView({
                 </div>
                 {favoriteItems.length && !normalizedMenuQuery && menuCategory === "All" && !bestsellerOnly ? (
                   <div className="garage-scroll-x flex gap-1.5 pb-0.5" data-testid="pos-favorites">
-                    <span className="flex shrink-0 items-center gap-1 self-center font-mono text-[10px] font-bold uppercase tracking-wider text-[#ffd08a]">
+                    <span className="flex shrink-0 items-center gap-1 self-center font-mono text-[11px] font-bold uppercase tracking-wider text-[#ffd08a]">
                       <Star aria-hidden className="size-3.5 fill-[#f5a742] text-[#f5a742]" />
                       Favorit
                     </span>
@@ -8523,14 +8590,14 @@ export function PosView({
                 {/* ADD-ON indicator — selalu visible saat kasir lagi
                     tambah order ke meja yang sudah aktif. */}
                 {orderType === "dine-in" && selectedTableLiveRow?.currentOrderId ? (
-                  <span className="garage-mono mt-1 inline-flex items-center gap-1 rounded-md border border-[#f5a742]/55 bg-[#f5a742]/14 px-2 py-0.5 text-[10px] font-bold uppercase text-[#ffd79a]">
+                  <span className="garage-mono mt-1 inline-flex items-center gap-1 rounded-md border border-[#f5a742]/55 bg-[#f5a742]/14 px-2 py-0.5 text-[11px] font-bold uppercase text-[#ffd79a]">
                     <Plus className="size-3" />
                     Sesi Tambah Order
                   </span>
                 ) : null}
               </div>
               <div className="flex shrink-0 items-center justify-between gap-2">
-                <Badge className="garage-mono h-6 border-[#d11a2a]/45 bg-[#d11a2a]/14 px-2 text-[10px] text-white">
+                <Badge className="garage-mono h-6 border-[#d11a2a]/45 bg-[#d11a2a]/14 px-2 text-[11px] text-white">
                   {orderType}
                 </Badge>
                 <div className="pos-v6-bill-tools flex items-center gap-1 rounded-lg p-1">
@@ -8550,7 +8617,7 @@ export function PosView({
                   >
                     <Archive className="size-3.5" />
                     {parkedOrders.length > 0 && (
-                      <span className="absolute -right-0.5 -top-0.5 flex min-w-3.5 items-center justify-center rounded-full bg-[#f5a742] px-1 text-[8px] font-bold text-black">
+                      <span className="absolute -right-0.5 -top-0.5 flex min-w-4 items-center justify-center rounded-full bg-[#f5a742] px-1 text-[10px] font-bold text-black">
                         {parkedOrders.length}
                       </span>
                     )}
@@ -8883,7 +8950,7 @@ export function PosView({
                             {/* Voucher + Diskon Kasir + Split bill — dipindah dari
                                 keranjang ke sini supaya keranjang fokus ke item. */}
                             <div className="pos-voucher-box rounded-md border border-[#34343c] bg-[#15151b] p-3">
-                              <p className="garage-mono mb-2 text-[10px] uppercase tracking-wide text-[#b8b8bf]">
+                              <p className="garage-mono mb-2 text-[11px] uppercase tracking-wide text-[#b8b8bf]">
                                 Kode voucher
                               </p>
                               <div className="flex gap-2">
@@ -8927,7 +8994,7 @@ export function PosView({
                               }`}
                             >
                               <div className="min-w-0 flex-1">
-                                <p className="garage-mono text-[10px] uppercase tracking-wide text-[#b8b8bf]">
+                                <p className="garage-mono text-[11px] uppercase tracking-wide text-[#b8b8bf]">
                                   Diskon Kasir
                                 </p>
                                 {manualDiscount ? (
@@ -8936,7 +9003,7 @@ export function PosView({
                                       ? `-${manualDiscount.rawValue}%`
                                       : `-${currency.format(manualDiscount.amount)}`}
                                     {manualDiscountAwaitingApproval ? (
-                                      <span className="ml-1 text-[10px] font-normal text-[#ffd79a]">
+                                      <span className="ml-1 text-[11px] font-normal text-[#ffd79a]">
                                         (menunggu approval)
                                       </span>
                                     ) : null}

@@ -75,6 +75,15 @@ description: Aturan WAJIB modul POS Garage OS: kasir, keranjang, order/invoice a
   totals are shown, never drawer cash. Nav "Belum Bayar" (F6), sidebar collapse `[`, always-on red edge line (off with reduced
   motion), POS links/`window.open` to internal pages open in `PosV6ModuleSheet` (no new tab; PDFs via `?inline=1`).
 
+- Audit POS (Nov 2026):
+  - Payment method on order create / Final Bayar must map to a known group (`src/lib/pos-payment-method.ts`: cash,
+    qris, transfer, ewallet; old spellings "Tunai"/"Transfer"/"E-wallet" OK). Checked in the routes AND in
+    `createOrderOnce`. Qty ≤ 99 per line, ≤ 100 lines per order (same as Penjualan Langsung).
+  - Cart draft per device (`src/lib/pos-cart-draft.ts`, localStorage `garage:pos:cart-draft:v1`, 8 h): only
+    items + order type + table, never customer name/phone/member/voucher. Restored once after the menu loads,
+    removed when the cart empties (order saved, parked, cleared).
+  - `POST /api/pos/sync-transaction` requires `X-Idempotency-Key`; the key is stored durably in
+    `member_transactions.request_key` (unique, migration 0212) so a resend never adds points twice. Max Rp 50 juta.
 - Browser-dialog printing uses `browserColumns` (huruf Besar → 24 col on 58 mm) with tall
   TOTAL/Kembali lines; cashier can print Bar/Dapur chits manually (`printKitchenChits`).
 

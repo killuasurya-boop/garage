@@ -134,7 +134,7 @@ export function PosTableDetailDialog({
                     {tableDetail.kitchenStatus ? (
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-[#b8b8bf]">Status dapur</span>
-                        <Badge className={`${statusClass[tableDetail.kitchenStatus] ?? statusClass.info} px-2 text-[10px]`}>
+                        <Badge className={`${statusClass[tableDetail.kitchenStatus] ?? statusClass.info} px-2 text-[11px]`}>
                           {({
                             queue: "Antre",
                             cooking: "Dimasak",
@@ -188,14 +188,14 @@ export function PosTableDetailDialog({
                       (tableDetail.paidBillCount ?? 0) >
                       0 || (tableOrderBills?.length ?? 0) > 0 ? (
                       <div className="flex flex-wrap items-center gap-1.5 border-t border-[#34343c] pt-2">
-                        <Badge className="border-[#f5a742]/45 bg-[#f5a742]/12 px-2 text-[10px] text-[#ffd08a]">
+                        <Badge className="border-[#f5a742]/45 bg-[#f5a742]/12 px-2 text-[11px] text-[#ffd08a]">
                           {tableDetail.openBillCount ?? 0} bill terbuka
                         </Badge>
-                        <Badge className="border-[#22c55e]/45 bg-[#22c55e]/12 px-2 text-[10px] text-[#dcfce7]">
+                        <Badge className="border-[#22c55e]/45 bg-[#22c55e]/12 px-2 text-[11px] text-[#dcfce7]">
                           {tableDetail.paidBillCount ?? 0} lunas
                         </Badge>
                         {tableOrderBills ? (
-                          <Badge className="garage-mono border-[#4a4a54] bg-white/[0.06] px-2 text-[10px] text-[#d6d6dc]">
+                          <Badge className="garage-mono border-[#4a4a54] bg-white/[0.06] px-2 text-[11px] text-[#d6d6dc]">
                             {tableOrderBills.reduce(
                               (sum, bill) =>
                                 sum +
@@ -208,7 +208,7 @@ export function PosTableDetailDialog({
                       </div>
                     ) : null}
                     <div className="border-t border-[#34343c] pt-2">
-                      <p className="mb-1.5 text-[10px] uppercase tracking-wide text-[#8f8f98]">
+                      <p className="mb-1.5 text-[11px] uppercase tracking-wide text-[#8f8f98]">
                         Rincian pesanan
                       </p>
                       {tableItemsLoading ? (
@@ -231,7 +231,7 @@ export function PosTableDetailDialog({
                                 <span className="garage-mono truncate text-xs font-semibold text-[#d6d6dc]">
                                   {bill.orderNo}
                                 </span>
-                                <Badge className={`${statusClass[bill.status] ?? statusClass.info} shrink-0 px-2 text-[10px]`}>
+                                <Badge className={`${statusClass[bill.status] ?? statusClass.info} shrink-0 px-2 text-[11px]`}>
                                   {billStatusLabel(bill.status)}
                                 </Badge>
                               </div>
@@ -264,7 +264,7 @@ export function PosTableDetailDialog({
                                     return (
                                       <span
                                         key={station}
-                                        className={`rounded border px-1.5 py-0.5 text-[10px] font-semibold ${kitchenStatusTone(status)}`}
+                                        className={`rounded border px-1.5 py-0.5 text-[11px] font-semibold ${kitchenStatusTone(status)}`}
                                       >
                                         {station} {qty} · {kitchenStatusLabel(status)}
                                       </span>
@@ -295,9 +295,9 @@ export function PosTableDetailDialog({
                                         </span>
                                       </div>
                                       <div className="mt-0.5 flex items-center gap-1 pl-4">
-                                        <span className="text-[10px] text-[#8f8f98]">{item.station}</span>
+                                        <span className="text-[11px] text-[#8f8f98]">{item.station}</span>
                                         <span
-                                          className={`rounded border px-1 text-[10px] font-semibold ${kitchenStatusTone(itemStatus)}`}
+                                          className={`rounded border px-1 text-[11px] font-semibold ${kitchenStatusTone(itemStatus)}`}
                                         >
                                           {kitchenStatusLabel(itemStatus)}
                                         </span>

@@ -123,13 +123,13 @@ export function CheckoutSummaryCard({
     <div className="rounded-md border border-[#34343c] bg-[#18181f] p-3">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="garage-mono text-[10px] uppercase tracking-[0.14em] text-[#b8b8bf]">
+          <p className="garage-mono text-[11px] uppercase tracking-[0.14em] text-[#b8b8bf]">
             Ringkasan order
           </p>
           <h3 className="mt-1 text-xl font-black text-white">{cartItemCount} item</h3>
         </div>
         <div className="text-right">
-          <p className="garage-mono text-[10px] text-[#b8b8bf]">Total bayar</p>
+          <p className="garage-mono text-[11px] text-[#b8b8bf]">Total bayar</p>
           <p className="text-xl font-black text-[#ffd08a]">{currency.format(totalDue)}</p>
         </div>
       </div>
@@ -206,7 +206,7 @@ export function CheckoutOrderStep({
   return (
     <div className="space-y-3">
       <div className="rounded-md border border-[#34343c] bg-[#18181f] p-3">
-        <p className="garage-mono text-[10px] uppercase tracking-[0.14em] text-[#b8b8bf]">
+        <p className="garage-mono text-[11px] uppercase tracking-[0.14em] text-[#b8b8bf]">
           Tipe order
         </p>
         <Tabs
@@ -232,7 +232,7 @@ export function CheckoutOrderStep({
         <div className="rounded-md border border-[#34343c] bg-[#18181f] p-3">
           <div className="grid gap-2 sm:grid-cols-[180px_minmax(0,1fr)] sm:items-end">
             <div>
-              <p className="garage-mono mb-1 text-[10px] text-[#b8b8bf]">No meja</p>
+              <p className="garage-mono mb-1 text-[11px] text-[#b8b8bf]">No meja</p>
               <Select value={selectedTableNumber} onValueChange={onTableChange} disabled={paymentPending}>
                 <SelectTrigger className="h-11 w-full border-[#34343c] bg-white/[0.06]">
                   <SelectValue placeholder="Pilih meja" />
@@ -249,7 +249,7 @@ export function CheckoutOrderStep({
                             aria-hidden="true"
                           />
                           <span>Meja {table.tableNumber}</span>
-                          <span className="garage-mono ml-auto text-[10px] opacity-80">
+                          <span className="garage-mono ml-auto text-[11px] opacity-80">
                             {tableAvailabilityLabel(availability)}
                           </span>
                         </span>
@@ -441,40 +441,40 @@ export function TableSessionInfoCard({
 
         {/* Info order sebelumnya */}
         <div className="mt-3 rounded-md border border-[#34343c] bg-black/30 p-3">
-          <p className="garage-mono text-[10px] uppercase tracking-wide text-[#8f8f99]">
+          <p className="garage-mono text-[11px] uppercase tracking-wide text-[#8f8f99]">
             Order Aktif di {tableLabel}
           </p>
           <div className="mt-2 grid gap-2 sm:grid-cols-2">
             <div>
-              <p className="text-[10px] text-[#8f8f99]">No. Order</p>
+              <p className="text-[11px] text-[#8f8f99]">No. Order</p>
               <p className="garage-mono text-sm font-semibold text-white">
                 {row.orderNo ?? "-"}
               </p>
             </div>
             <div>
-              <p className="text-[10px] text-[#8f8f99]">Pelanggan</p>
+              <p className="text-[11px] text-[#8f8f99]">Pelanggan</p>
               <p className="text-sm font-semibold text-white">{customerName}</p>
               {customerPhone && (
-                <p className="font-mono text-[10px] text-[#8f8f99]">{customerPhone}</p>
+                <p className="font-mono text-[11px] text-[#8f8f99]">{customerPhone}</p>
               )}
             </div>
             <div>
-              <p className="text-[10px] text-[#8f8f99]">Total Saat Ini</p>
+              <p className="text-[11px] text-[#8f8f99]">Total Saat Ini</p>
               <p className="garage-mono text-sm font-bold text-[#ffd79a]">{totalLabel}</p>
             </div>
             <div>
-              <p className="text-[10px] text-[#8f8f99]">Status</p>
+              <p className="text-[11px] text-[#8f8f99]">Status</p>
               <p className="text-sm font-semibold capitalize text-white">
                 {kitchenStatus || tableLiveStatusLabel(row)}
               </p>
-              <p className="font-mono text-[10px] text-[#8f8f99]">
+              <p className="font-mono text-[11px] text-[#8f8f99]">
                 Dibuat {minutesLabel}
               </p>
             </div>
           </div>
         </div>
 
-        <p className="mt-2 text-[10px] leading-relaxed text-[#b8b8bf]">
+        <p className="mt-2 text-[11px] leading-relaxed text-[#b8b8bf]">
           Mau order untuk customer berbeda? Pilih meja lain yang masih kosong (warna
           hijau di picker atas).
         </p>
@@ -605,12 +605,12 @@ export function CheckoutCustomerStep({
 
       {mode === "guest" ? (
         <div className="rounded-md border border-[#34343c] bg-[#18181f] p-3">
-          <p className="garage-mono text-[10px] uppercase tracking-[0.14em] text-[#b8b8bf]">
+          <p className="garage-mono text-[11px] uppercase tracking-[0.14em] text-[#b8b8bf]">
             Tamu (non-member)
           </p>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <div>
-              <p className="garage-mono mb-1 text-[10px] text-[#b8b8bf]">
+              <p className="garage-mono mb-1 text-[11px] text-[#b8b8bf]">
                 Nama (tampil di tiket produksi & antar)
               </p>
               <Input
@@ -621,7 +621,7 @@ export function CheckoutCustomerStep({
               />
             </div>
             <div>
-              <p className="garage-mono mb-1 text-[10px] text-[#b8b8bf]">No WA opsional</p>
+              <p className="garage-mono mb-1 text-[11px] text-[#b8b8bf]">No WA opsional</p>
               <Input
                 value={guestPhone}
                 onChange={(event) => onGuestPhoneChange(event.target.value)}
@@ -638,10 +638,10 @@ export function CheckoutCustomerStep({
       ) : (
         <div className="rounded-md border border-[#34343c] bg-[#18181f] p-3">
           <div className="flex items-center justify-between gap-3">
-            <p className="garage-mono text-[10px] uppercase tracking-[0.14em] text-[#b8b8bf]">
+            <p className="garage-mono text-[11px] uppercase tracking-[0.14em] text-[#b8b8bf]">
               Member customer
             </p>
-            <Badge className="garage-mono border-[#4a4a54] bg-white/[0.06] px-2 text-[10px] text-[#d4d4d8]">
+            <Badge className="garage-mono border-[#4a4a54] bg-white/[0.06] px-2 text-[11px] text-[#d4d4d8]">
               {selectedMember ? selectedMember.member.level : "Cari member"}
             </Badge>
           </div>
@@ -705,7 +705,7 @@ export function CheckoutCustomerStep({
           ) : (
             <div className="mt-3 space-y-2">
               <div>
-                <p className="garage-mono mb-1 text-[10px] text-[#b8b8bf]">
+                <p className="garage-mono mb-1 text-[11px] text-[#b8b8bf]">
                   Pilih otomatis dari database
                 </p>
                 <Input
@@ -727,12 +727,12 @@ export function CheckoutCustomerStep({
                           <span className="block truncate text-sm font-semibold text-white">
                             {customer.name}
                           </span>
-                          <span className="garage-mono mt-0.5 block truncate text-[10px] text-[#b8b8bf]">
+                          <span className="garage-mono mt-0.5 block truncate text-[11px] text-[#b8b8bf]">
                             {customer.phone}
                             {customer.memberCode ? ` - ${customer.memberCode}` : ""}
                           </span>
                         </span>
-                        <Badge className="garage-mono border-[#4a4a54] bg-black/30 px-2 text-[10px] text-[#ffd08a]">
+                        <Badge className="garage-mono border-[#4a4a54] bg-black/30 px-2 text-[11px] text-[#ffd08a]">
                           {customer.cardTier ?? customer.tier}
                         </Badge>
                       </button>
@@ -823,7 +823,7 @@ export function CartLineNoteRow({
       <button
         type="button"
         onClick={() => setExpanded(true)}
-        className="mt-2 flex items-center gap-1 text-[10px] font-mono text-[#8f8f99] hover:text-[#ffd79a]"
+        className="mt-2 flex items-center gap-1 text-[11px] font-mono text-[#8f8f99] hover:text-[#ffd79a]"
       >
         <Plus className="size-3" />
         Tambah catatan untuk dapur
@@ -834,7 +834,7 @@ export function CartLineNoteRow({
   return (
     <div className="mt-2 rounded-md border border-[#f5a742]/30 bg-[#f5a742]/6 p-2">
       <div className="flex items-center justify-between gap-2">
-        <p className="garage-mono text-[10px] uppercase tracking-wide text-[#ffd79a]">
+        <p className="garage-mono text-[11px] uppercase tracking-wide text-[#ffd79a]">
           📝 Catatan untuk dapur
         </p>
         {!draft && (
@@ -844,7 +844,7 @@ export function CartLineNoteRow({
               setExpanded(false);
               onChange("");
             }}
-            className="text-[10px] text-[#8f8f99] underline hover:text-[#d6d6dc]"
+            className="text-[11px] text-[#8f8f99] underline hover:text-[#d6d6dc]"
           >
             Batal
           </button>

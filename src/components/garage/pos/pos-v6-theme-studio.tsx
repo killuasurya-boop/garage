@@ -18,18 +18,11 @@ import {
   readThemeCustomServer,
   sanitizeThemeCustom,
   subscribeThemeCustom,
-  themeCustomCss,
   writeThemeCustom,
   type PosThemeCustom,
 } from "./pos-v6-theme-custom";
 
 /** <style> global berisi override warna lanjutan (berlaku juga di dialog/lembar yang di-portal). */
-export function PosV6ThemeCustomStyle() {
-  const custom = useSyncExternalStore(subscribeThemeCustom, readThemeCustom, readThemeCustomServer);
-  const css = themeCustomCss(custom);
-  return css ? <style data-pos-theme-custom>{css}</style> : null;
-}
-
 const COLOR_FIELDS: Array<{ key: "primary" | "background" | "surface" | "border"; label: string; fallback: string }> = [
   { key: "primary", label: "Warna utama", fallback: "#b5121b" },
   { key: "background", label: "Latar", fallback: "#f8f6f4" },

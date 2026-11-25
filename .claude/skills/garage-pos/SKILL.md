@@ -114,6 +114,13 @@ description: Aturan WAJIB modul POS Garage OS: kasir, keranjang, order/invoice a
   (`weekdayHours`, `src/lib/sales-insights.ts`, WIB day × hour) and average ticket per cashier. No cashier-speed or
   sold-out-frequency metric until that data is actually recorded.
 
+- Lazy panels (Fase 3 tahap C, 25 Nov 2026): rarely opened POS panels/dialogs are `next/dynamic` via `POS_LAZY_LOADERS`
+  in `pos-view.tsx` (Theme Studio, table detail, module sheet, close shift, printer, sales report/shift summary,
+  partner shift card, invoice delete, cash drawer, delivery, member QR, cart split); dialogs mount after first open
+  (`useMountAfterFirstOpen`) and ALL lazy chunks are preloaded on idle so a POS left open across a deploy still opens
+  them. Hot cashier path (catalog, cart, checkout/payment, Final Bayar/Belum Bayar, chat inbox with unread polling)
+  stays static. Helpers needed at startup live in light files (`pos-v6-module-view.ts`, `pos-v6-theme-custom-style.tsx`).
+
 - Browser-dialog printing uses `browserColumns` (huruf Besar → 24 col on 58 mm) with tall
   TOTAL/Kembali lines; cashier can print Bar/Dapur chits manually (`printKitchenChits`).
 

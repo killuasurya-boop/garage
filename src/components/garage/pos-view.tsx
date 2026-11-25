@@ -2,7 +2,6 @@
 
 import { usePartnerAttention } from "@/components/garage/partner-hub/use-partner-attention";
 import { statusClass, type QrWorkTab } from "@/components/garage/pos/pos-status";
-import { PosTableDetailDialog } from "@/components/garage/pos/pos-table-detail-dialog";
 import {
   PosV6Brand,
   PosV6CategoryTile,
@@ -20,7 +19,7 @@ import {
   type PosV6CardBadge,
 } from "@/components/garage/pos/pos-v6";
 import { isSignature, isUnggulan } from "@/components/garage/order/v5/menu-v5-model";
-import { PosV6ThemeCustomStyle, PosV6ThemeStudio } from "@/components/garage/pos/pos-v6-theme-studio";
+import { PosV6ThemeCustomStyle } from "@/components/garage/pos/pos-v6-theme-custom-style";
 import { PosV6ConnectionChip, PosV6QcPanel } from "@/components/garage/pos/pos-v6-qc";
 import {
 AlertTriangle,
@@ -163,9 +162,7 @@ SettingsChoiceGroup,
 type CashierThemeMode
 } from "@/components/garage/garage-app-pickers";
 import { ShiftStartStatus } from "@/components/garage/pos-shift-start-status";
-import { CloseShiftForm, type CloseShiftPayload } from "@/components/garage/pos-close-shift-form";
-import { DevicePrinterPanel } from "@/components/garage/device-printer-panel";
-import { SalesReport } from "@/components/garage/sales-report";
+import type { CloseShiftPayload } from "@/components/garage/pos-close-shift-form";
 import { printShiftSlip } from "@/lib/management-slip-print";
 import { TablePlate } from "@/components/garage/table-plate";
 import { Alert,AlertDescription,AlertTitle } from "@/components/ui/alert";
@@ -233,16 +230,14 @@ import { menuFilterMatches, menuGroupForCategory, menuSubCategoriesFrom } from "
 import { printDocument, printKitchenChit, printKitchenChits, printThermal } from "@/lib/print-client";
 import { PosProductionPanel, ticketToChit } from "@/components/garage/pos-production-panel";
 import { denominationTotals, OpeningDenominationCount } from "@/components/garage/cash-denomination-grid";
-import { PosShiftSalesSummary } from "@/components/garage/pos-shift-sales-summary";
-import { PartnerShiftSalesCard } from "@/components/garage/partner-hub/partner-shift-sales";
-import { PosInvoiceDeleteDialog, type InvoiceDeleteTarget } from "@/components/garage/pos-invoice-delete-dialog";
+import type { InvoiceDeleteTarget } from "@/components/garage/pos-invoice-delete-dialog";
 import { PAYMENT_STATUS_LABEL, paymentStatusOf, type PaymentStatus } from "@/lib/payment-status";
 import { quickCashOptions } from "@/lib/pos-cash";
 import { normalizePaymentReference } from "@/lib/tender-guard";
 import { finalPayLabel } from "@/lib/pos-final-pay-label";
 import { menuShortcodes } from "@/lib/menu-shortcode";
 import { buildCashMovementSlipContent } from "@/lib/management-slips";
-import { CashDrawerDialog, type CashMovementRecorded } from "@/components/garage/cash-drawer-dialog";
+import type { CashMovementRecorded } from "@/components/garage/cash-drawer-dialog";
 import { claimReprint } from "@/lib/reprint-guard";
 import { isDirectHandoverMenu, productionStationFor } from "@/lib/garage-production-rules";
 import type { KitchenChitItem } from "@/lib/thermal-receipt";
@@ -258,17 +253,15 @@ import { formatTableDuration } from "@/lib/garage-tables";
 import { voice } from "@/lib/garage-voice";
 import { PosChatInbox } from "@/components/garage/pos-chat-inbox";
 import { StaffNotificationCenter } from "@/components/garage/staff-notification-center";
-import { DeliveryOrderPanel } from "@/components/garage/delivery-order-panel";
 import { ManagerPinPanel } from "@/components/garage/manager-pin-panel";
-import { MemberQrScanDialog } from "@/components/garage/member-qr-scan-dialog";
 import {
   PosOrderCancelDialog,
   type OrderCancelTarget,
 } from "@/components/garage/pos-order-cancel-dialog";
-import { PosCartSplitDialog, type CartSplitLine } from "@/components/garage/pos-cart-split-dialog";
+import type { CartSplitLine } from "@/components/garage/pos-cart-split-dialog";
 import { PosEventBundles, type PosBundleSaved } from "@/components/garage/pos/pos-event-bundles";
 import { PosQuickRetail } from "@/components/garage/pos/pos-quick-retail";
-import { moduleViewForPath, PosV6ModuleSheet, type PosModuleView } from "@/components/garage/pos/pos-v6-module-sheet";
+import { moduleViewForPath, type PosModuleView } from "@/components/garage/pos/pos-v6-module-view";
 import { PosV6FinalizeDialog, PosV6PendingBillDetail, PosV6PendingBills } from "@/components/garage/pos/pos-v6-pending";
 import { PosV6Pairing } from "@/components/garage/pos/pos-v6-pairing";
 import { pendingBillsView, type PendingBill } from "@/lib/pos-pending-bills";
@@ -288,6 +281,7 @@ import { calculateBillingTotals, capVoucherDiscountBySettings } from "@/lib/gara
 import { isBarcodeLike, parseQuantityQuery, searchMenuEntries } from "@/lib/pos-search";
 import { isPosGlobalShortcut, POS_SHORTCUTS } from "@/lib/pos-shortcuts";
 import { keepIfEqual } from "@/lib/stable-state";
+import { useMountAfterFirstOpen } from "@/lib/use-mount-after-open";
 import type { BestsellerRow } from "@/lib/pos-insights";
 import { enqueueOrder } from "@/lib/pos-offline-queue";
 import { makeOfflineNo, OFFLINE_RECEIPT_NOTE, offlineSaleBlockReason } from "@/lib/pos-offline-rules";
@@ -328,6 +322,51 @@ const VoiceStatusBadge = dynamic(
   () => import("@/components/garage/voice-settings-dialog").then((m) => m.VoiceStatusBadge),
   { loading: PosModuleFallback },
 );
+
+// Panel & dialog yang jarang dibuka dimuat terpisah (Fase 3 tahap C): file awal POS lebih kecil, layar kasir
+// siap lebih cepat. Semuanya dipramuat saat browser senggang (`preloadPosLazyPanels`) supaya dialog tetap
+// langsung terbuka — juga saat halaman POS dibiarkan terbuka melewati deploy baru (file lama sudah diganti).
+const POS_LAZY_LOADERS = {
+  themeStudio: () => import("@/components/garage/pos/pos-v6-theme-studio"),
+  tableDetail: () => import("@/components/garage/pos/pos-table-detail-dialog"),
+  moduleSheet: () => import("@/components/garage/pos/pos-v6-module-sheet"),
+  closeShift: () => import("@/components/garage/pos-close-shift-form"),
+  printer: () => import("@/components/garage/device-printer-panel"),
+  salesReport: () => import("@/components/garage/sales-report"),
+  shiftSummary: () => import("@/components/garage/pos-shift-sales-summary"),
+  partnerShift: () => import("@/components/garage/partner-hub/partner-shift-sales"),
+  invoiceDelete: () => import("@/components/garage/pos-invoice-delete-dialog"),
+  cashDrawer: () => import("@/components/garage/cash-drawer-dialog"),
+  delivery: () => import("@/components/garage/delivery-order-panel"),
+  memberQr: () => import("@/components/garage/member-qr-scan-dialog"),
+  cartSplit: () => import("@/components/garage/pos-cart-split-dialog"),
+} as const;
+
+let posLazyPreloaded = false;
+function preloadPosLazyPanels() {
+  if (posLazyPreloaded) return;
+  posLazyPreloaded = true;
+  for (const load of Object.values(POS_LAZY_LOADERS)) void load().catch(() => undefined);
+}
+
+const PosLazyLoading = () => (
+  <p role="status" className="px-3 py-4 text-sm text-[#c4c4cc]">
+    Memuat…
+  </p>
+);
+const PosV6ThemeStudio = dynamic(() => POS_LAZY_LOADERS.themeStudio().then((m) => m.PosV6ThemeStudio), { ssr: false });
+const PosTableDetailDialog = dynamic(() => POS_LAZY_LOADERS.tableDetail().then((m) => m.PosTableDetailDialog), { ssr: false });
+const PosV6ModuleSheet = dynamic(() => POS_LAZY_LOADERS.moduleSheet().then((m) => m.PosV6ModuleSheet), { ssr: false });
+const CloseShiftForm = dynamic(() => POS_LAZY_LOADERS.closeShift().then((m) => m.CloseShiftForm), { ssr: false, loading: PosLazyLoading });
+const DevicePrinterPanel = dynamic(() => POS_LAZY_LOADERS.printer().then((m) => m.DevicePrinterPanel), { ssr: false, loading: PosLazyLoading });
+const SalesReport = dynamic(() => POS_LAZY_LOADERS.salesReport().then((m) => m.SalesReport), { ssr: false, loading: PosLazyLoading });
+const PosShiftSalesSummary = dynamic(() => POS_LAZY_LOADERS.shiftSummary().then((m) => m.PosShiftSalesSummary), { ssr: false, loading: PosLazyLoading });
+const PartnerShiftSalesCard = dynamic(() => POS_LAZY_LOADERS.partnerShift().then((m) => m.PartnerShiftSalesCard), { ssr: false, loading: PosLazyLoading });
+const PosInvoiceDeleteDialog = dynamic(() => POS_LAZY_LOADERS.invoiceDelete().then((m) => m.PosInvoiceDeleteDialog), { ssr: false });
+const CashDrawerDialog = dynamic(() => POS_LAZY_LOADERS.cashDrawer().then((m) => m.CashDrawerDialog), { ssr: false });
+const DeliveryOrderPanel = dynamic(() => POS_LAZY_LOADERS.delivery().then((m) => m.DeliveryOrderPanel), { ssr: false, loading: PosLazyLoading });
+const MemberQrScanDialog = dynamic(() => POS_LAZY_LOADERS.memberQr().then((m) => m.MemberQrScanDialog), { ssr: false });
+const PosCartSplitDialog = dynamic(() => POS_LAZY_LOADERS.cartSplit().then((m) => m.PosCartSplitDialog), { ssr: false });
 
 const GARAGE_BRAND_LOGO_SRC = "/garage-brand/garage-coffee-logo.png";
 const GARAGE_BRAND_LOGO_WIDTH = 1200;
@@ -1040,6 +1079,24 @@ export function PosView({
   // Hapus invoice belum lunas: Owner/Manajer saja (server juga menolak role lain).
   const canDeleteInvoice = me.role === "Owner" || me.role === "Manajer";
   const [invoiceDeleteTarget, setInvoiceDeleteTarget] = useState<InvoiceDeleteTarget | null>(null);
+  // Dialog lazy (Fase 3 tahap C): dirender setelah dibuka pertama kali, lalu tetap terpasang.
+  const mountThemeStudio = useMountAfterFirstOpen(themeStudioOpen);
+  const mountTableDetail = useMountAfterFirstOpen(tableDetail !== null);
+  const mountModuleSheet = useMountAfterFirstOpen(moduleView !== null);
+  const mountInvoiceDelete = useMountAfterFirstOpen(invoiceDeleteTarget !== null);
+  const mountCashDrawer = useMountAfterFirstOpen(expenseDialogOpen);
+  const mountMemberQr = useMountAfterFirstOpen(memberQrOpen);
+  const mountCartSplit = useMountAfterFirstOpen(cartSplitOpen);
+  useEffect(() => {
+    // Pramuat panel lazy saat browser senggang (lihat POS_LAZY_LOADERS).
+    const idle = (window as Window & { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback;
+    if (idle) {
+      const id = idle(() => preloadPosLazyPanels(), { timeout: 8_000 });
+      return () => (window as Window & { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback?.(id);
+    }
+    const timer = window.setTimeout(preloadPosLazyPanels, 4_000);
+    return () => window.clearTimeout(timer);
+  }, []);
   const canResetAllTablesOnClose = ["Owner", "Manajer"].includes(
     me.role,
   );
@@ -5324,15 +5381,17 @@ export function PosView({
         }}
         onReload={() => void refreshCashierData()}
       />
-      <PosV6ThemeStudio
-        canCustomize={canManagePosSettings}
-        open={themeStudioOpen}
-        onOpenChange={setThemeStudioOpen}
-        theme={cashierTheme}
-        onThemeChange={onCashierThemeChange}
-        settings={cashierPosSettings}
-        onSettingsChange={updateCashierPosSettings}
-      />
+      {mountThemeStudio ? (
+        <PosV6ThemeStudio
+          canCustomize={canManagePosSettings}
+          open={themeStudioOpen}
+          onOpenChange={setThemeStudioOpen}
+          theme={cashierTheme}
+          onThemeChange={onCashierThemeChange}
+          settings={cashierPosSettings}
+          onSettingsChange={updateCashierPosSettings}
+        />
+      ) : null}
 
       <Dialog
         open={activeCashierToolOpen !== null}
@@ -5924,32 +5983,34 @@ export function PosView({
       />
 
       {/* Cek Meja: detail + aksi cepat saat tap kartu meja */}
-      <PosTableDetailDialog
-        tableDetail={tableDetail}
-        setTableDetail={setTableDetail}
-        tableOrderBills={tableOrderBills}
-        setTableOrderBills={setTableOrderBills}
-        tableItemsLoading={tableItemsLoading}
-        setTableItemsLoading={setTableItemsLoading}
-        tableItemsError={tableItemsError}
-        setTableItemsError={setTableItemsError}
-        tableActionBusy={tableActionBusy}
-        provisionalBillBusyId={provisionalBillBusyId}
-        canDeleteInvoice={canDeleteInvoice}
-        setInvoiceDeleteTarget={setInvoiceDeleteTarget}
-        setOrderType={setOrderType}
-        setSelectedTableNumber={setSelectedTableNumber}
-        setQrOperationsOpen={setQrOperationsOpen}
-        setQrInsightFilters={setQrInsightFilters}
-        setQrWorkTab={setQrWorkTab}
-        setResetTableDialogOpen={setResetTableDialogOpen}
-        setSelectedTableToReset={setSelectedTableToReset}
-        setTableSplitBill={setTableSplitBill}
-        payTableBill={payTableBill}
-        printProvisionalBill={printProvisionalBill}
-        reprintTableBillChit={reprintTableBillChit}
-        requestTableBill={requestTableBill}
-      />
+      {mountTableDetail ? (
+        <PosTableDetailDialog
+          tableDetail={tableDetail}
+          setTableDetail={setTableDetail}
+          tableOrderBills={tableOrderBills}
+          setTableOrderBills={setTableOrderBills}
+          tableItemsLoading={tableItemsLoading}
+          setTableItemsLoading={setTableItemsLoading}
+          tableItemsError={tableItemsError}
+          setTableItemsError={setTableItemsError}
+          tableActionBusy={tableActionBusy}
+          provisionalBillBusyId={provisionalBillBusyId}
+          canDeleteInvoice={canDeleteInvoice}
+          setInvoiceDeleteTarget={setInvoiceDeleteTarget}
+          setOrderType={setOrderType}
+          setSelectedTableNumber={setSelectedTableNumber}
+          setQrOperationsOpen={setQrOperationsOpen}
+          setQrInsightFilters={setQrInsightFilters}
+          setQrWorkTab={setQrWorkTab}
+          setResetTableDialogOpen={setResetTableDialogOpen}
+          setSelectedTableToReset={setSelectedTableToReset}
+          setTableSplitBill={setTableSplitBill}
+          payTableBill={payTableBill}
+          printProvisionalBill={printProvisionalBill}
+          reprintTableBillChit={reprintTableBillChit}
+          requestTableBill={requestTableBill}
+        />
+      ) : null}
 
       {/* Konfirmasi + alasan Reject order QR (aksi susah-dibalik). */}
       <PosRejectOrderDialog
@@ -5986,17 +6047,19 @@ export function PosView({
         cashAllowed={shiftOpen}
       />
 
-      <PosV6ModuleSheet
-        view={moduleView}
-        onClose={() => setModuleView(null)}
-        role={me.role}
-        partner={{
-          userId: me.user.id,
-          canHandleMoney: canHandleMoney({ role: me.role, workstation: me.workstation ?? null }),
-          slaAccept: settings.partnerSlaAcceptWarnMinutes,
-          slaReady: settings.partnerReadyWaitWarnMinutes,
-        }}
-      />
+      {mountModuleSheet ? (
+        <PosV6ModuleSheet
+          view={moduleView}
+          onClose={() => setModuleView(null)}
+          role={me.role}
+          partner={{
+            userId: me.user.id,
+            canHandleMoney: canHandleMoney({ role: me.role, workstation: me.workstation ?? null }),
+            slaAccept: settings.partnerSlaAcceptWarnMinutes,
+            slaReady: settings.partnerReadyWaitWarnMinutes,
+          }}
+        />
+      ) : null}
 
       {/* Tagihan Belum Bayar: daftar + popup detail (Owner, Nov 2026). */}
       <PosV6PendingBills
@@ -9474,13 +9537,15 @@ export function PosView({
                             }}
                           />
                         ) : null}
-                        <MemberQrScanDialog
-                          open={memberQrOpen}
-                          busy={memberQrBusy}
-                          error={memberQrError}
-                          onDetect={(payload) => void verifyMemberQr(payload)}
-                          onOpenChange={setMemberQrOpen}
-                        />
+                        {mountMemberQr ? (
+                          <MemberQrScanDialog
+                            open={memberQrOpen}
+                            busy={memberQrBusy}
+                            error={memberQrError}
+                            onDetect={(payload) => void verifyMemberQr(payload)}
+                            onOpenChange={setMemberQrOpen}
+                          />
+                        ) : null}
                         {paymentStep === "customer" ? (
                           <CheckoutCustomerStep
                             mode={posCustomerMode}
@@ -10026,38 +10091,42 @@ export function PosView({
         cashierTheme={cashierTheme}
       />
 
-      <PosInvoiceDeleteDialog
-        target={invoiceDeleteTarget}
-        onClose={() => setInvoiceDeleteTarget(null)}
-        onDeleted={(message) => {
-          setInvoiceDeleteTarget(null);
-          setSelectedCustomerOrderId(null);
-          setPosNotice(message);
-          void loadCustomerOrders({ silent: true });
-          void loadTableLiveData({ silent: true });
-          void loadKitchenTickets();
-          invalidateGarageCache([GARAGE_TAGS.orders, GARAGE_TAGS.finance, GARAGE_TAGS.kitchen, GARAGE_TAGS.dashboard]);
-        }}
-      />
+      {mountInvoiceDelete ? (
+        <PosInvoiceDeleteDialog
+          target={invoiceDeleteTarget}
+          onClose={() => setInvoiceDeleteTarget(null)}
+          onDeleted={(message) => {
+            setInvoiceDeleteTarget(null);
+            setSelectedCustomerOrderId(null);
+            setPosNotice(message);
+            void loadCustomerOrders({ silent: true });
+            void loadTableLiveData({ silent: true });
+            void loadKitchenTickets();
+            invalidateGarageCache([GARAGE_TAGS.orders, GARAGE_TAGS.finance, GARAGE_TAGS.kitchen, GARAGE_TAGS.dashboard]);
+          }}
+        />
+      ) : null}
       <PosOrderCancelDialog
         target={cancelTarget}
         onClose={() => setCancelTarget(null)}
         onFinished={handleCancelFinished}
       />
 
-      <PosCartSplitDialog
-        open={cartSplitOpen}
-        lines={cartSplitLines}
-        orderType={orderType}
-        tableNumber={selectedTableNumber || undefined}
-        tableLabel={tableLabel}
-        settings={settings}
-        qrisReady={qrisImageReady}
-        blockedReason={cartSplitBlockedReason}
-        onGuestPaid={handleSplitGuestPaid}
-        onClose={(paid, assignment) => void handleSplitClose(paid, assignment)}
-        onPrintReceipt={(receipt) => void reprintReceipt(receipt)}
-      />
+      {mountCartSplit ? (
+        <PosCartSplitDialog
+          open={cartSplitOpen}
+          lines={cartSplitLines}
+          orderType={orderType}
+          tableNumber={selectedTableNumber || undefined}
+          tableLabel={tableLabel}
+          settings={settings}
+          qrisReady={qrisImageReady}
+          blockedReason={cartSplitBlockedReason}
+          onGuestPaid={handleSplitGuestPaid}
+          onClose={(paid, assignment) => void handleSplitClose(paid, assignment)}
+          onPrintReceipt={(receipt) => void reprintReceipt(receipt)}
+        />
+      ) : null}
 
       <PosTableBillSplitDialog
         bill={tableSplitBill}
@@ -10068,15 +10137,17 @@ export function PosView({
       />
 
       {/* Dialog: Kas Keluar / Masuk Laci */}
-      <CashDrawerDialog
-        open={expenseDialogOpen}
-        onOpenChange={setExpenseDialogOpen}
-        role={me.role}
-        threshold={settings.cashMovementPinThreshold}
-        shiftOpen={shiftOpen}
-        themeScope={isCashierKiosk ? cashierTheme : undefined}
-        onRecorded={handleCashMovementRecorded}
-      />
+      {mountCashDrawer ? (
+        <CashDrawerDialog
+          open={expenseDialogOpen}
+          onOpenChange={setExpenseDialogOpen}
+          role={me.role}
+          threshold={settings.cashMovementPinThreshold}
+          shiftOpen={shiftOpen}
+          themeScope={isCashierKiosk ? cashierTheme : undefined}
+          onRecorded={handleCashMovementRecorded}
+        />
+      ) : null}
 
     </section>
   );

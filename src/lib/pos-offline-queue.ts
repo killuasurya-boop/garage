@@ -13,16 +13,23 @@ const DB_NAME = "garage-pos-offline";
 const DB_VERSION = 1;
 const STORE = "orderQueue";
 
-/** Batas keras untuk cegah memory blow up & user confusion */
+/** Batas keras = batas Owner (Fase 4): maks 50 penjualan offline tertunda. */
 export const QUEUE_MAX_SIZE = 50;
+
+/** Jenis kiriman: penjualan tunai (POST /api/orders) atau QRIS statis offline (POST /api/orders/open-bill). */
+export type QueuedOrderKind = "order" | "open-bill";
 
 export type QueuedOrderStatus = "pending" | "syncing" | "synced" | "failed";
 
 export type QueuedOrder = {
   /** Idempotency key (UUID) — sama yg dikirim ke /api/orders */
   id: string;
-  /** Payload mentah untuk POST /api/orders */
+  /** Payload mentah untuk endpoint sesuai `kind` */
   payload: unknown;
+  /** Default "order" (data lama tanpa field ini). */
+  kind?: QueuedOrderKind;
+  /** Nomor sementara di struk (OFF-…). */
+  offlineNo?: string;
   /** Status sync. "synced" segera hapus dari queue. */
   status: QueuedOrderStatus;
   /** Pesan error terakhir kalau status=failed. */
@@ -91,29 +98,52 @@ function req<T>(r: IDBRequest<T>): Promise<T> {
   });
 }
 
-/** Tambah order ke queue. Throws kalau queue penuh (≥ QUEUE_MAX_SIZE). */
+/**
+ * Tambah order ke queue. Throws kalau queue penuh (≥ QUEUE_MAX_SIZE).
+ * Cek ukuran + tulis dalam SATU transaksi (dulu terpisah → dua klik cepat bisa melewati batas).
+ * Kunci yang sama ditulis ulang (bukan item baru), sehingga retry tidak pernah menggandakan.
+ */
 export async function enqueueOrder(
   id: string,
   payload: unknown,
   summary?: QueuedOrder["summary"],
+  options: { kind?: QueuedOrderKind; offlineNo?: string } = {},
 ): Promise<void> {
-  const list = await listQueue();
-  if (list.length >= QUEUE_MAX_SIZE) {
-    throw new Error(
-      `Antrian offline penuh (${QUEUE_MAX_SIZE} order). Sync dulu sebelum tambah.`,
-    );
-  }
   const now = Date.now();
-  const item: QueuedOrder = {
-    id,
-    payload,
-    status: "pending",
-    summary,
-    createdAt: now,
-    updatedAt: now,
-    attempts: 0,
-  };
-  await tx("readwrite", (store) => req(store.put(item)));
+  await tx("readwrite", async (store) => {
+    const existing = (await req(store.get(id))) as QueuedOrder | undefined;
+    if (!existing) {
+      const size = await req(store.count());
+      if (size >= QUEUE_MAX_SIZE) {
+        throw new Error(`Antrean offline penuh (${QUEUE_MAX_SIZE} penjualan). Tunggu koneksi kembali dan sinkron dulu.`);
+      }
+    }
+    const item: QueuedOrder = {
+      id,
+      payload,
+      kind: options.kind ?? "order",
+      offlineNo: options.offlineNo,
+      status: "pending",
+      summary,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+      attempts: existing?.attempts ?? 0,
+    };
+    await req(store.put(item));
+  });
+}
+
+/** Setelah reload/crash saat sinkron: item "syncing" yatim dikembalikan ke "pending" (dulu tertahan selamanya). */
+export async function resetStuckSyncing(): Promise<void> {
+  await tx("readwrite", async (store) => {
+    const rows = (await req(store.getAll())) as QueuedOrder[];
+    for (const row of rows) {
+      if (row.status !== "syncing") continue;
+      row.status = "pending";
+      row.updatedAt = Date.now();
+      await req(store.put(row));
+    }
+  });
 }
 
 /** Semua order di queue (urut createdAt asc). */
@@ -123,10 +153,16 @@ export async function listQueue(): Promise<QueuedOrder[]> {
   );
 }
 
-/** Hitung saja (untuk badge). */
+/** Hitung saja (untuk badge). Termasuk yang ditolak permanen (masih perlu ditinjau). */
 export async function countPending(): Promise<number> {
   const list = await listQueue();
   return list.filter((q) => q.status !== "synced").length;
+}
+
+/** Penjualan offline yang ditolak server permanen — tampil di "Perlu ditinjau", tidak pernah dibuang otomatis. */
+export async function listNeedsReview(): Promise<QueuedOrder[]> {
+  const list = await listQueue();
+  return list.filter((q) => q.status === "failed" && q.permanent);
 }
 
 /** Ambil 1 order tertua yang belum sync. */

@@ -182,10 +182,14 @@ export function PaymentCompletePanel({
           <Check className="size-5 text-[#4ade80]" />
         </div>
         <div className="min-w-0">
-          <p className="font-mono text-[11px] uppercase tracking-wider text-[#4ade80]">Selesai</p>
+          <p className="font-mono text-[11px] uppercase tracking-wider text-[#4ade80]">
+            {receipt.invoiceStatus === "offline" ? "Tersimpan offline" : "Selesai"}
+          </p>
           <p className="font-black text-white">{receipt.orderNo}</p>
           <p className="mt-0.5 text-sm text-[#b8b8bf]">
             {currency.format(receipt.total)}
+            {/* Fase 4: penjualan saat offline — dikirim otomatis saat koneksi kembali. */}
+            {receipt.invoiceStatus === "offline" ? " · terkirim otomatis saat online" : null}
           </p>
         </div>
       </div>

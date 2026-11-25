@@ -9,11 +9,13 @@
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 
-import { countPending } from "@/lib/pos-offline-queue";
+import { listQueue, type QueuedOrder } from "@/lib/pos-offline-queue";
 
 export type PosOfflineStatus = {
   online: boolean;
   pendingCount: number;
+  /** Isi antrean (untuk batas 50 penjualan / 8 jam & daftar "Perlu ditinjau"). */
+  queue: QueuedOrder[];
   refresh: () => void;
 };
 
@@ -39,15 +41,24 @@ export function usePosOfflineStatus(): PosOfflineStatus {
   // tidak memicu lint set-state-in-effect.
   const online = useSyncExternalStore(subscribeOnline, getOnlineSnapshot, getServerSnapshot);
 
-  const [pendingCount, setPendingCount] = useState<number>(0);
+  const [queue, setQueue] = useState<QueuedOrder[]>([]);
 
   const refresh = useCallback(() => {
-    countPending()
-      .then((n) => setPendingCount(n))
+    listQueue()
+      .then((rows) =>
+        // Referensi lama dipertahankan bila isinya sama (polling 5 dtk tidak me-render ulang POS).
+        setQueue((previous) =>
+          previous.length === rows.length &&
+          previous.every((row, index) => row.id === rows[index].id && row.status === rows[index].status && row.updatedAt === rows[index].updatedAt)
+            ? previous
+            : rows,
+        ),
+      )
       .catch(() => {
         /* IDB belum siap atau bukan browser — abaikan */
       });
   }, []);
+  const pendingCount = queue.filter((row) => row.status !== "synced").length;
 
   useEffect(() => {
     // Tick polling pertama via setInterval (bukan setState langsung)
@@ -56,5 +67,5 @@ export function usePosOfflineStatus(): PosOfflineStatus {
     return () => clearInterval(id);
   }, [refresh]);
 
-  return { online, pendingCount, refresh };
+  return { online, pendingCount, queue, refresh };
 }

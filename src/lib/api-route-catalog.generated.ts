@@ -553,6 +553,7 @@ export const API_ROUTE_CATALOG: ApiRouteEntry[] = [
   {"path":"/api/pos/chat/{threadId}","methods":["GET","POST"],"note":""},
   {"path":"/api/pos/chat","methods":["GET"],"note":""},
   {"path":"/api/pos/event-menu","methods":["GET"],"note":""},
+  {"path":"/api/pos/insights","methods":["GET"],"note":""},
   {"path":"/api/pos/member/{phone}","methods":["GET"],"note":""},
   {"path":"/api/pos/member/claim-code","methods":["POST"],"note":""},
   {"path":"/api/pos/member/register","methods":["POST"],"note":""},

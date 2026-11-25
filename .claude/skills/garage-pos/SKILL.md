@@ -75,6 +75,52 @@ description: Aturan WAJIB modul POS Garage OS: kasir, keranjang, order/invoice a
   totals are shown, never drawer cash. Nav "Belum Bayar" (F6), sidebar collapse `[`, always-on red edge line (off with reduced
   motion), POS links/`window.open` to internal pages open in `PosV6ModuleSheet` (no new tab; PDFs via `?inline=1`).
 
+- POS Fase 1–2 (owner, 25 Nov 2026, `docs/pos-v6/AUDIT-BUG-KONSEP-2026-11-24.md`):
+  - Idempotency = key + content fingerprint: POS orders `posOrderFingerprint` (stored in `orders.client_request_fingerprint`),
+    Bayar nanti/event checkout `eventCheckoutFingerprint` (`open-bill:<userId>:<key>` for staff open bills). Same key + different
+    content = `IDEMPOTENCY_MISMATCH` (409); the client keeps the old key and shows the server message (`submitErrorMessage`).
+  - Final Bayar captures EVERY pending payment row (split tender after revert); cash received < amount due is refused.
+    The dialog stays open until saved. Owner without shift is never offered Tunai; QRIS needs the official QRIS image.
+  - Bayar nanti in member mode links the member (`memberCustomerId`, points at Final Bayar); an active voucher/discount/points
+    blocks Bayar nanti with a message (never dropped silently). Waiter cash amounts are required (empty ≠ uang pas).
+  - Route errors go through `serviceErrorResponse` (`src/lib/api-response.ts`): no SQL/internal text to the client.
+  - Keyboard (laptop/PC): existing F-keys never change (F1 cari, F2 Pesanan QR, F3 Meja, F4 Riwayat, F6 Belum Bayar,
+    F9 Bayar, `[` sidebar); added F8 Bayar nanti and `?` shortcut sheet. One list = `POS_SHORTCUTS` (`src/lib/pos-shortcuts.ts`).
+    Search Enter uses the typed text (`searchMenuEntries`, `src/lib/pos-search.ts`), `3*cl` = qty 3, unknown ≥8-digit code =
+    message (never the top result), Esc clears, focus returns after the variant dialog. Action messages = `pos-toast`
+    (`role="status"`). Favorit order is frozen while the cart has items. Riwayat Struk is searchable (`filterReceipts`).
+
+- Mode jual offline (Fase 4, owner 25 Nov 2026): when the POS is offline (or a CASH payment hits `NETWORK_ERROR`) the sale is
+  stored in IndexedDB (`pos-offline-queue.ts`) and synced by `pos-offline-sync.ts` with the same idempotency key (never double).
+  Only Tunai + QRIS statis; member/voucher/points/discount/Transfer/E-Wallet/Bayar nanti/delivery need a connection.
+  Owner limits = `pos-offline-rules.ts`: max 50 pending sales and 8 hours since the oldest. Temporary receipt number
+  `OFF-<device>-<seq>` + "STRUK SEMENTARA" footer; Bar/Dapur chits print locally.
+  - Cash: `POST /api/orders` with `offline { offlineNo, soldAt, cashSessionId }` — the sale's shift MUST still be the open shift
+    (`OfflineShiftClosedError` / `OFFLINE_SHIFT_CLOSED` otherwise: never posted to a closed or another drawer → "Perlu ditinjau").
+  - QRIS statis: `POST /api/orders/open-bill` with `offlinePayment: "QRIS"` → unpaid bill, payment pending QRIS,
+    `qrisVerification: "needs_mutation_check"`; Belum Bayar shows "Cek mutasi QRIS offline"; Owner/Manajer settle via Final Bayar /
+    `confirmOrderPayment` (accepts `paymentReference`). Never treated as paid automatically.
+  - Production tickets of offline sales are closed at sync (`closeOfflineProductionTickets`) — chits were printed offline.
+  - Rejected-for-good items stay on the device ("Perlu ditinjau" in `PosOfflineBanner`), never auto-deleted. Closing the shift is
+    blocked on the device while its queue is not empty (the close-check panel itself stays info-only).
+
+- Insight dari data nyata (Fase 5, owner 25 Nov 2026): labels/numbers come from paid sales only, never typed tags or guesses;
+  no data = not shown. `src/lib/pos-insights.ts`: Terlaris = top 8 by qty, paid orders of the staff outlet, last 7 days, min qty 3,
+  Paket Event component lines excluded (`GET /api/pos/insights`); POS tile "Terlaris 7 hari" + Favorit fallback use it, the manual
+  `bestseller` tag is only the fallback while there is no data (tile label "Best Seller"). "Sering dibeli bersama"
+  (`GET /api/pos/upsell`, `pos/pos-v6-pairing.tsx`) = pairs in paid orders of the outlet, 30 days, min 3 shared orders, max 3
+  buttons under the cart (not in cart, not sold out, hidden offline). Cashier shift summary adds items sold / average ticket /
+  voids / Belum Bayar count / top 5 of the shift — still no drawer balance. Owner sales report adds "Jam sibuk"
+  (`weekdayHours`, `src/lib/sales-insights.ts`, WIB day × hour) and average ticket per cashier. No cashier-speed or
+  sold-out-frequency metric until that data is actually recorded.
+
+- Lazy panels (Fase 3 tahap C, 25 Nov 2026): rarely opened POS panels/dialogs are `next/dynamic` via `POS_LAZY_LOADERS`
+  in `pos-view.tsx` (Theme Studio, table detail, module sheet, close shift, printer, sales report/shift summary,
+  partner shift card, invoice delete, cash drawer, delivery, member QR, cart split); dialogs mount after first open
+  (`useMountAfterFirstOpen`) and ALL lazy chunks are preloaded on idle so a POS left open across a deploy still opens
+  them. Hot cashier path (catalog, cart, checkout/payment, Final Bayar/Belum Bayar, chat inbox with unread polling)
+  stays static. Helpers needed at startup live in light files (`pos-v6-module-view.ts`, `pos-v6-theme-custom-style.tsx`).
+
 - Browser-dialog printing uses `browserColumns` (huruf Besar → 24 col on 58 mm) with tall
   TOTAL/Kembali lines; cashier can print Bar/Dapur chits manually (`printKitchenChits`).
 

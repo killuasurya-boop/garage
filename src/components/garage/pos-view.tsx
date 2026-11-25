@@ -2,7 +2,6 @@
 
 import { usePartnerAttention } from "@/components/garage/partner-hub/use-partner-attention";
 import { statusClass, type QrWorkTab } from "@/components/garage/pos/pos-status";
-import { PosTableDetailDialog } from "@/components/garage/pos/pos-table-detail-dialog";
 import {
   PosV6Brand,
   PosV6CategoryTile,
@@ -20,7 +19,7 @@ import {
   type PosV6CardBadge,
 } from "@/components/garage/pos/pos-v6";
 import { isSignature, isUnggulan } from "@/components/garage/order/v5/menu-v5-model";
-import { PosV6ThemeCustomStyle, PosV6ThemeStudio } from "@/components/garage/pos/pos-v6-theme-studio";
+import { PosV6ThemeCustomStyle } from "@/components/garage/pos/pos-v6-theme-custom-style";
 import { PosV6ConnectionChip, PosV6QcPanel } from "@/components/garage/pos/pos-v6-qc";
 import {
 AlertTriangle,
@@ -88,6 +87,7 @@ Maximize2,
 Minimize2,
 X,
 Handshake,
+Keyboard,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
@@ -96,6 +96,7 @@ import {
 ChangeEvent,
 ComponentType,
 FormEvent,
+Fragment,
 useCallback,
 useDeferredValue,
 useEffect,
@@ -161,9 +162,7 @@ SettingsChoiceGroup,
 type CashierThemeMode
 } from "@/components/garage/garage-app-pickers";
 import { ShiftStartStatus } from "@/components/garage/pos-shift-start-status";
-import { CloseShiftForm, type CloseShiftPayload } from "@/components/garage/pos-close-shift-form";
-import { DevicePrinterPanel } from "@/components/garage/device-printer-panel";
-import { SalesReport } from "@/components/garage/sales-report";
+import type { CloseShiftPayload } from "@/components/garage/pos-close-shift-form";
 import { printShiftSlip } from "@/lib/management-slip-print";
 import { TablePlate } from "@/components/garage/table-plate";
 import { Alert,AlertDescription,AlertTitle } from "@/components/ui/alert";
@@ -231,16 +230,14 @@ import { menuFilterMatches, menuGroupForCategory, menuSubCategoriesFrom } from "
 import { printDocument, printKitchenChit, printKitchenChits, printThermal } from "@/lib/print-client";
 import { PosProductionPanel, ticketToChit } from "@/components/garage/pos-production-panel";
 import { denominationTotals, OpeningDenominationCount } from "@/components/garage/cash-denomination-grid";
-import { PosShiftSalesSummary } from "@/components/garage/pos-shift-sales-summary";
-import { PartnerShiftSalesCard } from "@/components/garage/partner-hub/partner-shift-sales";
-import { PosInvoiceDeleteDialog, type InvoiceDeleteTarget } from "@/components/garage/pos-invoice-delete-dialog";
+import type { InvoiceDeleteTarget } from "@/components/garage/pos-invoice-delete-dialog";
 import { PAYMENT_STATUS_LABEL, paymentStatusOf, type PaymentStatus } from "@/lib/payment-status";
 import { quickCashOptions } from "@/lib/pos-cash";
 import { normalizePaymentReference } from "@/lib/tender-guard";
 import { finalPayLabel } from "@/lib/pos-final-pay-label";
-import { menuShortcodes, shortcodeMatchRank } from "@/lib/menu-shortcode";
+import { menuShortcodes } from "@/lib/menu-shortcode";
 import { buildCashMovementSlipContent } from "@/lib/management-slips";
-import { CashDrawerDialog, type CashMovementRecorded } from "@/components/garage/cash-drawer-dialog";
+import type { CashMovementRecorded } from "@/components/garage/cash-drawer-dialog";
 import { claimReprint } from "@/lib/reprint-guard";
 import { isDirectHandoverMenu, productionStationFor } from "@/lib/garage-production-rules";
 import type { KitchenChitItem } from "@/lib/thermal-receipt";
@@ -256,25 +253,23 @@ import { formatTableDuration } from "@/lib/garage-tables";
 import { voice } from "@/lib/garage-voice";
 import { PosChatInbox } from "@/components/garage/pos-chat-inbox";
 import { StaffNotificationCenter } from "@/components/garage/staff-notification-center";
-import { DeliveryOrderPanel } from "@/components/garage/delivery-order-panel";
 import { ManagerPinPanel } from "@/components/garage/manager-pin-panel";
-import { MemberQrScanDialog } from "@/components/garage/member-qr-scan-dialog";
 import {
   PosOrderCancelDialog,
   type OrderCancelTarget,
 } from "@/components/garage/pos-order-cancel-dialog";
-import { PosCartSplitDialog, type CartSplitLine } from "@/components/garage/pos-cart-split-dialog";
+import type { CartSplitLine } from "@/components/garage/pos-cart-split-dialog";
 import { PosEventBundles, type PosBundleSaved } from "@/components/garage/pos/pos-event-bundles";
 import { PosQuickRetail } from "@/components/garage/pos/pos-quick-retail";
-import { moduleViewForPath, PosV6ModuleSheet, type PosModuleView } from "@/components/garage/pos/pos-v6-module-sheet";
+import { moduleViewForPath, type PosModuleView } from "@/components/garage/pos/pos-v6-module-view";
 import { PosV6FinalizeDialog, PosV6PendingBillDetail, PosV6PendingBills } from "@/components/garage/pos/pos-v6-pending";
+import { PosV6Pairing } from "@/components/garage/pos/pos-v6-pairing";
 import { pendingBillsView, type PendingBill } from "@/lib/pos-pending-bills";
 import { componentLabel, groupOrderLines } from "@/lib/order-package-lines";
 import {
   idempotencyAttemptFor,
-  isUncertainSubmitError,
+  submitErrorMessage,
   markAttemptAfterError,
-  UNCERTAIN_SUBMIT_MESSAGE,
   type IdempotencyAttempt,
 } from "@/lib/idempotency-client";
 import {
@@ -282,7 +277,17 @@ import {
   type TableBillSplitResult,
 } from "@/components/garage/pos-table-bill-split-dialog";
 import { remainingCart, type SplitAssignment } from "@/lib/split-bill";
-import { calculateBillingTotals } from "@/lib/garage-billing";
+import { calculateBillingTotals, capVoucherDiscountBySettings } from "@/lib/garage-billing";
+import { isBarcodeLike, parseQuantityQuery, searchMenuEntries } from "@/lib/pos-search";
+import { isPosGlobalShortcut, POS_SHORTCUTS } from "@/lib/pos-shortcuts";
+import { keepIfEqual } from "@/lib/stable-state";
+import { useMountAfterFirstOpen } from "@/lib/use-mount-after-open";
+import type { BestsellerRow } from "@/lib/pos-insights";
+import { enqueueOrder } from "@/lib/pos-offline-queue";
+import { makeOfflineNo, OFFLINE_RECEIPT_NOTE, offlineSaleBlockReason } from "@/lib/pos-offline-rules";
+import { usePosOfflineStatus } from "@/lib/pos-offline-status";
+import { setPosSyncListener, startSyncWorker, stopSyncWorker } from "@/lib/pos-offline-sync";
+import { PosOfflineBanner } from "@/components/garage/pos-offline-banner";
 import { maxRedeemablePoints, normalizePhone } from "@/lib/member-types";
 import { PosMemberWaVerify } from "@/components/garage/pos-member-wa-verify";
 import { BillRow, chitStationFor, formatReceiptDate, PaymentStep, OpenBillSaved } from "@/components/garage/pos/pos-ui-shared";
@@ -302,7 +307,7 @@ import {
   PosTablePrintDialog,
   PosVariantPickerDialog,
 } from "@/components/garage/pos/pos-dialogs";
-import { CashPaymentPanel, QrisPaymentPanel, BankTransferPaymentPanel, EWalletPaymentPanel, PaymentWizardProgress, CheckoutSummaryCard, CheckoutOrderStep, CheckoutCustomerStep, CartLineNoteRow, OpenBillSavedPanel } from "@/components/garage/pos/pos-checkout-panels";
+import { CashPaymentPanel, QrisPaymentPanel, BankTransferPaymentPanel, EWalletPaymentPanel, PaymentWizardProgress, CheckoutSummaryCard, CheckoutOrderStep, CheckoutCustomerStep, CartLineNoteEditor, CartLineNoteTrigger, OpenBillSavedPanel } from "@/components/garage/pos/pos-checkout-panels";
 import { PaymentCompletePanel, PrintableReceipt } from "@/components/garage/pos/pos-receipt-panels";
 import { OPENING_CASH_DEFAULT_MAX, OPENING_CASH_STEP, openingCashError } from "@/lib/opening-cash";
 
@@ -318,6 +323,51 @@ const VoiceStatusBadge = dynamic(
   { loading: PosModuleFallback },
 );
 
+// Panel & dialog yang jarang dibuka dimuat terpisah (Fase 3 tahap C): file awal POS lebih kecil, layar kasir
+// siap lebih cepat. Semuanya dipramuat saat browser senggang (`preloadPosLazyPanels`) supaya dialog tetap
+// langsung terbuka — juga saat halaman POS dibiarkan terbuka melewati deploy baru (file lama sudah diganti).
+const POS_LAZY_LOADERS = {
+  themeStudio: () => import("@/components/garage/pos/pos-v6-theme-studio"),
+  tableDetail: () => import("@/components/garage/pos/pos-table-detail-dialog"),
+  moduleSheet: () => import("@/components/garage/pos/pos-v6-module-sheet"),
+  closeShift: () => import("@/components/garage/pos-close-shift-form"),
+  printer: () => import("@/components/garage/device-printer-panel"),
+  salesReport: () => import("@/components/garage/sales-report"),
+  shiftSummary: () => import("@/components/garage/pos-shift-sales-summary"),
+  partnerShift: () => import("@/components/garage/partner-hub/partner-shift-sales"),
+  invoiceDelete: () => import("@/components/garage/pos-invoice-delete-dialog"),
+  cashDrawer: () => import("@/components/garage/cash-drawer-dialog"),
+  delivery: () => import("@/components/garage/delivery-order-panel"),
+  memberQr: () => import("@/components/garage/member-qr-scan-dialog"),
+  cartSplit: () => import("@/components/garage/pos-cart-split-dialog"),
+} as const;
+
+let posLazyPreloaded = false;
+function preloadPosLazyPanels() {
+  if (posLazyPreloaded) return;
+  posLazyPreloaded = true;
+  for (const load of Object.values(POS_LAZY_LOADERS)) void load().catch(() => undefined);
+}
+
+const PosLazyLoading = () => (
+  <p role="status" className="px-3 py-4 text-sm text-[#c4c4cc]">
+    Memuat…
+  </p>
+);
+const PosV6ThemeStudio = dynamic(() => POS_LAZY_LOADERS.themeStudio().then((m) => m.PosV6ThemeStudio), { ssr: false });
+const PosTableDetailDialog = dynamic(() => POS_LAZY_LOADERS.tableDetail().then((m) => m.PosTableDetailDialog), { ssr: false });
+const PosV6ModuleSheet = dynamic(() => POS_LAZY_LOADERS.moduleSheet().then((m) => m.PosV6ModuleSheet), { ssr: false });
+const CloseShiftForm = dynamic(() => POS_LAZY_LOADERS.closeShift().then((m) => m.CloseShiftForm), { ssr: false, loading: PosLazyLoading });
+const DevicePrinterPanel = dynamic(() => POS_LAZY_LOADERS.printer().then((m) => m.DevicePrinterPanel), { ssr: false, loading: PosLazyLoading });
+const SalesReport = dynamic(() => POS_LAZY_LOADERS.salesReport().then((m) => m.SalesReport), { ssr: false, loading: PosLazyLoading });
+const PosShiftSalesSummary = dynamic(() => POS_LAZY_LOADERS.shiftSummary().then((m) => m.PosShiftSalesSummary), { ssr: false, loading: PosLazyLoading });
+const PartnerShiftSalesCard = dynamic(() => POS_LAZY_LOADERS.partnerShift().then((m) => m.PartnerShiftSalesCard), { ssr: false, loading: PosLazyLoading });
+const PosInvoiceDeleteDialog = dynamic(() => POS_LAZY_LOADERS.invoiceDelete().then((m) => m.PosInvoiceDeleteDialog), { ssr: false });
+const CashDrawerDialog = dynamic(() => POS_LAZY_LOADERS.cashDrawer().then((m) => m.CashDrawerDialog), { ssr: false });
+const DeliveryOrderPanel = dynamic(() => POS_LAZY_LOADERS.delivery().then((m) => m.DeliveryOrderPanel), { ssr: false, loading: PosLazyLoading });
+const MemberQrScanDialog = dynamic(() => POS_LAZY_LOADERS.memberQr().then((m) => m.MemberQrScanDialog), { ssr: false });
+const PosCartSplitDialog = dynamic(() => POS_LAZY_LOADERS.cartSplit().then((m) => m.PosCartSplitDialog), { ssr: false });
+
 const GARAGE_BRAND_LOGO_SRC = "/garage-brand/garage-coffee-logo.png";
 const GARAGE_BRAND_LOGO_WIDTH = 1200;
 const GARAGE_BRAND_LOGO_HEIGHT = 282;
@@ -332,6 +382,33 @@ type ManualDiscount = {
   approvalId?: string;
   approvalStatus?: "pending" | "approved" | "rejected";
 };
+
+/** Jam sekarang (ms) — dipanggil dari handler event (bukan saat render). */
+function currentTimeMs() {
+  return Date.now();
+}
+
+/** "Terakhir update Ns lalu" peta meja — berdetak sendiri (render ulang hanya komponen ini). */
+function UpdatedAgo({ atRef }: { atRef: { current: number | null } }) {
+  // Ref dibaca di timer (bukan saat render), hasilnya disimpan di state komponen kecil ini.
+  const [view, setView] = useState<{ now: number; at: number | null }>({ now: 0, at: null });
+  useEffect(() => {
+    const tick = () => setView({ now: Date.now(), at: atRef.current });
+    const first = window.setTimeout(tick, 0);
+    const id = window.setInterval(tick, 10_000);
+    return () => {
+      window.clearTimeout(first);
+      window.clearInterval(id);
+    };
+  }, [atRef]);
+  if (!view.at) return null;
+  const secs = Math.max(0, Math.round((view.now - view.at) / 1000));
+  return (
+    <p className="mt-0.5 text-[10px] text-[#8f8f98]">
+      Terakhir update {secs < 60 ? `${secs}s lalu` : `${Math.floor(secs / 60)}m lalu`}
+    </p>
+  );
+}
 
 function PosHeaderClock() {
   const [now, setNow] = useState(() => new Date());
@@ -657,6 +734,10 @@ export function PosView({
     return () => window.clearInterval(id);
   }, [parkedListOpen]);
   const [variantItem, setVariantItem] = useState<MenuItem | null>(null);
+  const pendingVariantQtyRef = useRef(1);
+  const [shortcutSheetOpen, setShortcutSheetOpen] = useState(false);
+  // Baris keranjang yang catatan dapurnya sedang diedit (satu saja).
+  const [noteEditKey, setNoteEditKey] = useState<string | null>(null);
   const [clearCartOpen, setClearCartOpen] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [paymentStep, setPaymentStep] = useState<PaymentStep>("summary");
@@ -685,6 +766,12 @@ export function PosView({
   const [paymentReference, setPaymentReference] = useState("");
   const [cashReceived, setCashReceived] = useState("");
   const [paymentPending, setPaymentPending] = useState(false);
+  // ── Fase 4: mode jual offline (owner 25 Nov 2026) ──
+  // Tunai & QRIS statis tetap bisa dijual saat internet/server mati; disimpan di perangkat (IndexedDB) lalu dikirim
+  // otomatis saat online (kunci anti-dobel). Batas Owner: 50 penjualan / 8 jam. QRIS offline = tagihan cek mutasi.
+  const offlineStatus = usePosOfflineStatus();
+  const posOffline = !offlineStatus.online;
+  const offlineSyncedRef = useRef<(count: number) => void>(() => undefined);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [paymentResult, setPaymentResult] = useState<string | null>(null);
   const [completedReceipt, setCompletedReceipt] = useState<OrderReceipt | null>(null);
@@ -727,6 +814,14 @@ export function PosView({
   const [shiftPending, setShiftPending] = useState(false);
   const [shiftError, setShiftError] = useState<string | null>(null);
   const [posNotice, setPosNotice] = useState<string | null>(null);
+  // Toast = posNotice terbaru, disembunyikan sendiri setelah 5 dtk (badge header tetap memakai posNotice).
+  const [expiredToast, setExpiredToast] = useState<string | null>(null);
+  useEffect(() => {
+    if (!posNotice) return;
+    const timer = window.setTimeout(() => setExpiredToast(posNotice), 5000);
+    return () => window.clearTimeout(timer);
+  }, [posNotice]);
+  const toastNotice = posNotice && posNotice !== expiredToast ? posNotice : null;
   // Smart Partner Hub: badge + pemberitahuan sekali saat jumlah pesanan mitra yang perlu perhatian bertambah.
   const partnerAttention = usePartnerAttention(settings.partnerHubEnabled, settings.partnerSlaAcceptWarnMinutes, settings.partnerReadyWaitWarnMinutes);
   const [partnerAttentionSeen, setPartnerAttentionSeen] = useState(0);
@@ -830,9 +925,11 @@ export function PosView({
   const [tableLiveLoading, setTableLiveLoading] = useState(false);
   const [tableLiveError, setTableLiveError] = useState<string | null>(null);
   // Timestamp sinkron terakhir peta meja (untuk indikator "terakhir update").
-  const [tableLiveUpdatedAt, setTableLiveUpdatedAt] = useState<number | null>(null);
+  // Ref (bukan state): jam "terakhir update" dibaca komponen kecil `UpdatedAgo` yang berdetak
+  // sendiri, jadi seluruh POS tidak di-render ulang tiap polling/10 dtk (U3).
+  const tableLiveUpdatedAtRef = useRef<number | null>(null);
   // Ticker ringan supaya label "Xs lalu" berjalan walau tidak ada re-render lain.
-  const [nowTick, setNowTick] = useState(() => Date.now());
+
   const [shiftHandoverPending, setShiftHandoverPending] = useState(false);
   const [dismissedQrNoticeKey, setDismissedQrNoticeKey] = useState<string | null>(null);
   const [qrNoticePulseKey, setQrNoticePulseKey] = useState<string | null>(null);
@@ -861,6 +958,8 @@ export function PosView({
   const [finalizeOrderTarget, setFinalizeOrderTarget] = useState<CustomerOrder | null>(null);
   // Final Bayar: kasir boleh ganti metode (tiap tamu bill pisahan bisa beda).
   const [finalizeMethod, setFinalizeMethod] = useState<PaymentMethod>("Cash");
+  const [finalizePending, setFinalizePending] = useState(false);
+  const [finalizeError, setFinalizeError] = useState<string | null>(null);
   const [finalizeCash, setFinalizeCash] = useState("");
   const [finalizeReference, setFinalizeReference] = useState("");
   // Split bill per produk: bill meja (pisah) & keranjang kasir (bayar per tamu).
@@ -967,7 +1066,7 @@ export function PosView({
     setPendingError(null);
     try {
       const rows = await garageApi.get<CustomerOrder[]>("/api/customer/orders?scope=unpaid", { cache: "no-store" });
-      setPendingOrders(rows);
+      setPendingOrders((previous) => keepIfEqual(previous, rows));
       setPendingDetail((current) => (current ? rows.find((row) => row.id === current.id) ?? null : null));
     } catch (error) {
       setPendingError(error instanceof Error ? error.message : "Tagihan belum bayar gagal dimuat.");
@@ -979,6 +1078,24 @@ export function PosView({
   // Hapus invoice belum lunas: Owner/Manajer saja (server juga menolak role lain).
   const canDeleteInvoice = me.role === "Owner" || me.role === "Manajer";
   const [invoiceDeleteTarget, setInvoiceDeleteTarget] = useState<InvoiceDeleteTarget | null>(null);
+  // Dialog lazy (Fase 3 tahap C): dirender setelah dibuka pertama kali, lalu tetap terpasang.
+  const mountThemeStudio = useMountAfterFirstOpen(themeStudioOpen);
+  const mountTableDetail = useMountAfterFirstOpen(tableDetail !== null);
+  const mountModuleSheet = useMountAfterFirstOpen(moduleView !== null);
+  const mountInvoiceDelete = useMountAfterFirstOpen(invoiceDeleteTarget !== null);
+  const mountCashDrawer = useMountAfterFirstOpen(expenseDialogOpen);
+  const mountMemberQr = useMountAfterFirstOpen(memberQrOpen);
+  const mountCartSplit = useMountAfterFirstOpen(cartSplitOpen);
+  useEffect(() => {
+    // Pramuat panel lazy saat browser senggang (lihat POS_LAZY_LOADERS).
+    const idle = (window as Window & { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback;
+    if (idle) {
+      const id = idle(() => preloadPosLazyPanels(), { timeout: 8_000 });
+      return () => (window as Window & { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback?.(id);
+    }
+    const timer = window.setTimeout(preloadPosLazyPanels, 4_000);
+    return () => window.clearTimeout(timer);
+  }, []);
   const canResetAllTablesOnClose = ["Owner", "Manajer"].includes(
     me.role,
   );
@@ -1022,14 +1139,27 @@ export function PosView({
   // memantau (Bar & Dapur, pesanan, laporan). Transaksi & kas tetap butuh shift.
   const [ownerViewing, setOwnerViewing] = useState(false);
   const posVisible = shiftOpen || ownerViewing;
+  // Ukuran teks pilihan kasir (Theme Studio) juga berlaku di dialog/sheet yang dirender di luar area POS (U10):
+  // --pos-fs dipasang di root dokumen selama POS terbuka, dilepas saat keluar.
+  const posFontScale = cashierPosSettings.textSize === "large" ? "1.12" : cashierPosSettings.textSize === "small" ? "0.92" : "1";
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty("--pos-fs", posFontScale);
+    return () => {
+      root.style.removeProperty("--pos-fs");
+    };
+  }, [posFontScale]);
   // Owner tanpa shift (owner, Nov 2026): semua fitur POS boleh, kecuali pembayaran TUNAI (uang harus masuk laci shift).
   const ownerNoShift = !shiftOpen && ownerViewing && me.role === "Owner";
   const canTransact = shiftOpen || ownerNoShift;
   useEffect(() => {
     if (!posVisible) return;
     const onKey = (event: KeyboardEvent) => {
-      if (!/^(F([1-4]|6|9)|\[)$/.test(event.key) || event.altKey || event.ctrlKey || event.metaKey) return;
-      if (event.key === "[" && (event.target as HTMLElement | null)?.closest?.("input, textarea, select, [contenteditable='true']")) return;
+      const typing = Boolean(
+        (event.target as HTMLElement | null)?.closest?.("input, textarea, select, [contenteditable='true']"),
+      );
+      // Daftar tombol = POS_SHORTCUTS (src/lib/pos-shortcuts.ts), sama dengan lembar pintasan `?`.
+      if (!isPosGlobalShortcut(event, typing)) return;
       if (document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]')) return;
       if (posShortcutRef.current(event.key) !== false) event.preventDefault();
     };
@@ -1122,11 +1252,38 @@ export function PosView({
         ]
           .join(" ")
           .toLowerCase(),
-        isBestseller: item.tags.some((t) => t.toLowerCase() === "bestseller"),
+        taggedBestseller: item.tags.some((t) => t.toLowerCase() === "bestseller"),
         shortcodes: menuShortcodes(item.name),
       })),
     [menuItems],
   );
+  // Terlaris dari penjualan NYATA 7 hari outlet ini (Fase 5, `GET /api/pos/insights`). Belum ada data (outlet baru)
+  // → tag manual lama, dan tile memakai label "Best Seller" supaya jelas itu bukan hitungan penjualan.
+  const [salesBestsellers, setSalesBestsellers] = useState<BestsellerRow[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => {
+      if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+      garageApi
+        .get<{ bestsellers: BestsellerRow[] }>("/api/pos/insights", { cache: "no-store" })
+        .then((data) => {
+          if (!cancelled) setSalesBestsellers((previous) => keepIfEqual(previous, data.bestsellers ?? []));
+        })
+        .catch(() => undefined); // tidak kritis: tetap pakai data terakhir / tag manual
+    };
+    load();
+    const timer = window.setInterval(load, 30 * 60_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
+  const bestsellerFromSales = salesBestsellers.length > 0;
+  const bestsellerOrder = useMemo(() => {
+    if (bestsellerFromSales) return salesBestsellers.map((row) => row.menuItemId);
+    return indexedMenu.filter((entry) => entry.taggedBestseller).map((entry) => entry.item.id);
+  }, [bestsellerFromSales, indexedMenu, salesBestsellers]);
+  const bestsellerRank = useMemo(() => new Map(bestsellerOrder.map((id, index) => [id, index])), [bestsellerOrder]);
   const shortcodeById = useMemo(
     () => new Map(indexedMenu.map((entry) => [entry.item.id, entry.shortcodes[0]])),
     [indexedMenu],
@@ -1143,43 +1300,46 @@ export function PosView({
       // Storage diblokir / rusak → mulai dari bestseller.
     }
   }, []);
+  // Urutan strip Favorit dibekukan selama transaksi berjalan (U6): dulu tombol bergeser di bawah
+  // kursor tiap tap. Urutan baru dipakai saat keranjang kosong lagi (transaksi selesai/dikosongkan).
+  const cartEmpty = cart.length === 0;
+  const [favoriteOrderCounts, setFavoriteOrderCounts] = useState(favoriteCounts);
+  // Penyesuaian state saat render (pola React resmi), bukan di effect.
+  if (cartEmpty && favoriteOrderCounts !== favoriteCounts) setFavoriteOrderCounts(favoriteCounts);
   const favoriteItems = useMemo(() => {
     const ranked = indexedMenu
-      .filter((entry) => (favoriteCounts[entry.item.id] ?? 0) > 0)
-      .sort((a, b) => (favoriteCounts[b.item.id] ?? 0) - (favoriteCounts[a.item.id] ?? 0))
+      .filter((entry) => (favoriteOrderCounts[entry.item.id] ?? 0) > 0)
+      .sort((a, b) => (favoriteOrderCounts[b.item.id] ?? 0) - (favoriteOrderCounts[a.item.id] ?? 0))
       .map((entry) => entry.item);
     const picked = new Set(ranked.map((item) => item.id));
-    for (const entry of indexedMenu) {
+    const itemById = new Map(indexedMenu.map((entry) => [entry.item.id, entry.item]));
+    for (const id of bestsellerOrder) {
       if (ranked.length >= POS_FAVORITE_LIMIT) break;
-      if (entry.isBestseller && !picked.has(entry.item.id)) ranked.push(entry.item);
+      const item = itemById.get(id);
+      if (item && !picked.has(id)) ranked.push(item);
     }
     return ranked.slice(0, POS_FAVORITE_LIMIT);
-  }, [favoriteCounts, indexedMenu]);
+  }, [bestsellerOrder, favoriteOrderCounts, indexedMenu]);
   /** Hati di kartu V6 = favorit perangkat ini (sudah sering ditap), bukan klaim terlaris. */
   const favoriteIdSet = useMemo(
     () => new Set(favoriteItems.filter((item) => (favoriteCounts[item.id] ?? 0) > 0).map((item) => item.id)),
     [favoriteCounts, favoriteItems],
   );
+  // Kode singkat ("cl" → Coffee Latte) dicocokkan di samping teks biasa; kode persis paling depan.
+  // Filter yang sama dipakai tombol Enter (`searchMenuEntries`, src/lib/pos-search.ts).
+  const acceptMenuEntry = useCallback(
+    (entry: (typeof indexedMenu)[number]) =>
+      menuFilterMatches(menuCategory, entry.item.category, entry.item.menuGroup) &&
+      (!bestsellerOnly || bestsellerRank.has(entry.item.id)),
+    [bestsellerOnly, bestsellerRank, menuCategory],
+  );
   const filteredMenu = useMemo(() => {
-    // Kode singkat ("cl" → Coffee Latte) dicocokkan di samping teks biasa;
-    // kode persis tampil paling depan supaya kasir cukup tap kartu pertama.
-    const exact: MenuItem[] = [];
-    const result: MenuItem[] = [];
-    for (const entry of indexedMenu) {
-      if (!menuFilterMatches(menuCategory, entry.item.category, entry.item.menuGroup)) continue;
-      if (bestsellerOnly && !entry.isBestseller) continue;
-      if (normalizedMenuQuery) {
-        const codeRank = shortcodeMatchRank(normalizedMenuQuery, entry.shortcodes);
-        if (codeRank === 2) {
-          exact.push(entry.item);
-          continue;
-        }
-        if (!codeRank && !entry.searchIndex.includes(normalizedMenuQuery)) continue;
-      }
-      result.push(entry.item);
-    }
-    return exact.length ? [...exact, ...result] : result;
-  }, [bestsellerOnly, indexedMenu, menuCategory, normalizedMenuQuery]);
+    const term = parseQuantityQuery(normalizedMenuQuery).term;
+    const found = searchMenuEntries(indexedMenu, term, acceptMenuEntry);
+    // Filter Terlaris tanpa kata cari: urut dari yang paling laku.
+    if (!bestsellerOnly || term) return found;
+    return [...found].sort((a, b) => (bestsellerRank.get(a.id) ?? 999) - (bestsellerRank.get(b.id) ?? 999));
+  }, [acceptMenuEntry, bestsellerOnly, bestsellerRank, indexedMenu, normalizedMenuQuery]);
   const visibleProductCount =
     productPageState.filterKey === productFilterKey
       ? productPageState.count
@@ -1197,6 +1357,7 @@ export function PosView({
     for (const item of menuItems) map.set(item.id, item);
     return map;
   }, [menuItems]);
+  const cartItemIdSet = useMemo(() => new Set(cart.map((line) => line.itemId)), [cart]);
 
   // Nama item (lowercase) → station Dapur/Bar. Dipakai untuk chit dapur pada order
   // QR/waiter yang itemnya tidak membawa kategori.
@@ -1277,7 +1438,11 @@ export function PosView({
   // Dulu layar tidak membulatkan → "Uang Pas" Rp 34.650 ditolak server (total Rp 34.700).
   const { service, tax, grossTotal: total } = calculateBillingTotals(subtotal, settings);
   const roundingAdjustment = total - (subtotal + service + tax);
-  const voucher = posVoucherResult?.valid ? posVoucherResult.discount : 0;
+  // Batas maks diskon voucher dari Pengaturan (voucherMaxDiscountPct) — SAMA dengan server
+  // (createOrderOnce). Dulu layar memakai diskon mentah → total layar < tagihan server.
+  const voucher = posVoucherResult?.valid
+    ? capVoucherDiscountBySettings(posVoucherResult.discount, subtotal, settings)
+    : 0;
   // Manual discount dihitung dari total SETELAH voucher (urutan: voucher → manual)
   const manualDiscountAmount = manualDiscount
     ? manualDiscount.type === "percent"
@@ -1812,15 +1977,13 @@ export function PosView({
       }
       // Monitor kasir: tiket yang belum diantar (waiting/processing/ready),
       // FIFO — yang pesan duluan di atas.
-      setKitchenTickets(
-        rows
-          .filter((t) => t.status === "queue" || t.status === "cooking" || t.status === "ready")
-          .sort(
-            (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-          ),
-      );
+      const activeRows = rows
+        .filter((t) => t.status === "queue" || t.status === "cooking" || t.status === "ready")
+        .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      // Data sama → referensi lama, React tidak me-render ulang POS (U3).
+      setKitchenTickets((previous) => keepIfEqual(previous, activeRows));
       const syncedAt = Date.now();
-      setKitchenDoneTickets(
+      const doneRows =
         rows
           .filter(
             (t) =>
@@ -1828,9 +1991,10 @@ export function PosView({
               t.deliveredAt &&
               syncedAt - new Date(t.deliveredAt).getTime() <= 60 * 60_000,
           )
-          .sort((a, b) => new Date(b.deliveredAt ?? 0).getTime() - new Date(a.deliveredAt ?? 0).getTime()),
-      );
-      setKitchenTicketsAt(syncedAt);
+          .sort((a, b) => new Date(b.deliveredAt ?? 0).getTime() - new Date(a.deliveredAt ?? 0).getTime());
+      setKitchenDoneTickets((previous) => keepIfEqual(previous, doneRows));
+      // Umur tiket ditampilkan per menit: jam acuan cukup diperbarui tiap ≥ 30 dtk.
+      setKitchenTicketsAt((previous) => (previous && syncedAt - previous < 30_000 ? previous : syncedAt));
     } catch {
       // diam-diam — monitor produksi bukan alur kritis pembayaran
     }
@@ -1893,7 +2057,7 @@ export function PosView({
       );
       previousCustomerOrderIdsRef.current = nextOrderIds;
       customerOrdersPrimedRef.current = true;
-      setCustomerOrders(orders);
+      setCustomerOrders((previous) => keepIfEqual(previous, orders));
       setSelectedCustomerOrderId((current) =>
         current && !nextOrderIds.has(current) ? null : current,
       );
@@ -1992,7 +2156,7 @@ export function PosView({
         `/api/customer/orders/insights${queryString ? `?${queryString}` : ""}`,
         { cache: "no-store" },
       );
-      setQrInsights(insights);
+      setQrInsights((previous) => keepIfEqual(previous, insights));
     } catch (error) {
       setQrInsightsError(
         error instanceof Error ? error.message : "QR control insight gagal dimuat.",
@@ -2013,8 +2177,8 @@ export function PosView({
       const rows = await garageApi.get<TableLiveRow[]>("/api/tables/live", {
         cache: "no-store",
       });
-      setTableLiveRows(rows);
-      setTableLiveUpdatedAt(Date.now());
+      setTableLiveRows((previous) => keepIfEqual(previous, rows));
+      tableLiveUpdatedAtRef.current = Date.now();
       return rows;
     } catch (error) {
       setTableLiveError(
@@ -2084,11 +2248,6 @@ export function PosView({
     }
   }, [loadTableLiveData]);
 
-  // Ticker 10 detik untuk indikator "terakhir update" peta meja.
-  useEffect(() => {
-    const id = setInterval(() => setNowTick(Date.now()), 10_000);
-    return () => clearInterval(id);
-  }, []);
 
   // Buka dialog detail meja + lazy-load rincian item (meja terisi saja).
   // Fetch dilakukan di handler klik, bukan di useEffect, agar tidak memicu
@@ -2433,9 +2592,9 @@ export function PosView({
       // Referensi QRIS/transfer yang dicek kasir (menimpa referensi pelanggan).
       paymentReference?: string;
     } = {},
-  ) {
+  ): Promise<boolean> {
     if (customerOrderActionId) {
-      return;
+      return false;
     }
 
     setCustomerOrderActionId(`${order.id}:${action}`);
@@ -2525,10 +2684,12 @@ export function PosView({
         setSelectedCustomerOrderId(null);
         setQrOrdersOpen(false);
       }
+      return true;
     } catch (error) {
       setCustomerOrderError(
         error instanceof Error ? error.message : "Aksi order QR pelanggan gagal.",
       );
+      return false;
     } finally {
       setCustomerOrderActionId(null);
     }
@@ -2603,13 +2764,18 @@ export function PosView({
 
   function openFinalizeDialog(order: CustomerOrder) {
     const method = customerOrderPaymentMethod(order);
-    setFinalizeMethod(
+    const preferred =
       order.fulfillment === "delivery"
         ? "QRIS"
         : (paymentMethods as readonly string[]).includes(method)
           ? (method as PaymentMethod)
-          : "Cash",
-    );
+          : "Cash";
+    // Owner tanpa shift: tunai pasti ditolak server (uang harus masuk laci) → jangan ditawarkan (K4).
+    // QRIS hanya bila gambar QRIS resmi terpasang (K11); selain itu Transfer.
+    const nonCash: PaymentMethod = qrisImageReady ? "QRIS" : "Bank Transfer";
+    setFinalizeMethod(preferred === "Cash" && !shiftOpen ? nonCash : preferred);
+    setFinalizeError(null);
+    setCustomerOrderError(null);
     setFinalizeCash("");
     setFinalizeReference(customerOrderPaymentReference(order) ?? "");
     setFinalizeOrderTarget(order);
@@ -2633,17 +2799,30 @@ export function PosView({
   const finalizeReferenceMissing =
     finalizeMethod === "QRIS" && settings.qrisReferenceRequired && !normalizePaymentReference(finalizeReference);
 
-  function confirmFinalizeOrder() {
-    if (!finalizeOrderTarget || finalizeCashShort || finalizeReferenceMissing) return;
+  async function confirmFinalizeOrder() {
+    if (!finalizeOrderTarget || finalizeCashShort || finalizeReferenceMissing || finalizePending) return;
     // Tunai wajib diisi (Owner, Nov 2026): kosong ≠ uang pas.
     if (finalizeMethod === "Cash" && finalizeCash === "") return;
+    if (finalizeMethod === "Cash" && !shiftOpen) {
+      setFinalizeError("Tunai wajib dari shift yang sedang buka (uang masuk laci). Pilih QRIS/Transfer atau Mulai Shift.");
+      return;
+    }
     const target = finalizeOrderTarget;
-    setFinalizeOrderTarget(null);
-    void decideCustomerOrder(target, "paid", {
-      paymentMethod: finalizeMethod,
-      cashReceived: finalizeMethod === "Cash" ? finalizeCashValue : undefined,
-      paymentReference: finalizeMethod === "Cash" ? undefined : finalizeReference,
-    });
+    // Dialog tetap terbuka sampai lunas tersimpan (K5): bila gagal, nominal yang diketik
+    // tidak hilang dan pesan error tampil di dialog ini, bukan di panel lain.
+    setFinalizePending(true);
+    setFinalizeError(null);
+    setCustomerOrderError(null);
+    try {
+      const saved = await decideCustomerOrder(target, "paid", {
+        paymentMethod: finalizeMethod,
+        cashReceived: finalizeMethod === "Cash" ? finalizeCashValue : undefined,
+        paymentReference: finalizeMethod === "Cash" ? undefined : finalizeReference,
+      });
+      if (saved) setFinalizeOrderTarget(null);
+    } finally {
+      setFinalizePending(false);
+    }
   }
 
   // Bayar satu bill meja (termasuk bill pisahan) dari detail meja.
@@ -2692,20 +2871,24 @@ export function PosView({
     return Number.isFinite(parsed) ? parsed : 0;
   }
 
+  // K9: nominal tunai waiter WAJIB diketik (kosong ≠ uang pas), sama dengan Final Bayar.
   function receiveWaiterCash(order: CustomerOrder) {
-    const amount = cashInputValue(customerOrderCashReceived || String(order.total));
+    if (!customerOrderCashReceived.trim()) {
+      setCustomerOrderError("Isi nominal uang yang diterima dari pelanggan.");
+      return;
+    }
     void decideCustomerOrder(order, "waiter_cash_received", {
-      cashReceived: amount,
+      cashReceived: cashInputValue(customerOrderCashReceived),
     });
   }
 
   function depositWaiterCash(order: CustomerOrder) {
-    const amount = cashInputValue(
-      customerOrderCashDeposited ||
-        String(order.cashReceived ?? order.total),
-    );
+    if (!customerOrderCashDeposited.trim()) {
+      setCustomerOrderError("Isi nominal uang yang disetor ke kasir.");
+      return;
+    }
     void decideCustomerOrder(order, "waiter_cash_deposited", {
-      cashDeposited: amount,
+      cashDeposited: cashInputValue(customerOrderCashDeposited),
     });
   }
 
@@ -2734,7 +2917,8 @@ export function PosView({
     }
   }
 
-  function addItem(itemId: string, variantId: string) {
+  function addItem(itemId: string, variantId: string, qty = 1) {
+    const add = Math.max(1, Math.min(999, Math.floor(qty)));
     setCart((current) => {
       const existing = current.find(
         (line) => line.itemId === itemId && line.variantId === variantId,
@@ -2742,11 +2926,11 @@ export function PosView({
       if (existing) {
         return current.map((line) =>
           line.itemId === itemId && line.variantId === variantId
-            ? { ...line, qty: line.qty + 1 }
+            ? { ...line, qty: Math.min(999, line.qty + add) }
             : line,
         );
       }
-      return [...current, { itemId, variantId, qty: 1 }];
+      return [...current, { itemId, variantId, qty: add }];
     });
   }
 
@@ -3310,10 +3494,13 @@ export function PosView({
           showSignature: settings.receiptShowSignature,
         },
       ),
-    ).catch(() => undefined);
+    ).catch(() => {
+      // K11: kas sudah tercatat; yang gagal hanya cetak slip — beri tahu kasir, jangan ditelan.
+      setPosNotice("Kas tercatat, tapi slip gagal dicetak. Cek printer struk.");
+    });
   }
 
-  function handleProductTap(item: MenuItem) {
+  function handleProductTap(item: MenuItem, qty = 1) {
     if (!canTransact) {
       setShiftError("Buka shift terlebih dahulu sebelum transaksi.");
       return;
@@ -3339,10 +3526,12 @@ export function PosView({
     });
 
     if (item.variants.length === 1) {
-      addItem(item.id, item.variants[0].id);
+      addItem(item.id, item.variants[0].id, qty);
       return;
     }
 
+    // Qty dari `3*kode` dipakai saat varian dipilih di dialog.
+    pendingVariantQtyRef.current = qty;
     setVariantItem(item);
   }
 
@@ -3381,8 +3570,9 @@ export function PosView({
     setPosVoucherCode("");
     setPosVoucherResult(null);
     setManualDiscount(null);
-    setSelectedPaymentMethod("Cash");
-    setPaymentProvider(defaultPaymentProvider("Cash"));
+    // Owner tanpa shift: jangan mulai dari Tunai (pasti ditolak server, K4).
+    setSelectedPaymentMethod(shiftOpen ? "Cash" : "QRIS");
+    setPaymentProvider(defaultPaymentProvider(shiftOpen ? "Cash" : "QRIS"));
     setPaymentReference("");
     // GOD++ F-01: uang diterima TIDAK diisi otomatis. Nilai lama (total saat dialog dibuka) tidak ikut
     // berubah saat voucher/diskon → layar sempat menampilkan "kembalian" palsu. Kasir isi nominal atau
@@ -3421,8 +3611,9 @@ export function PosView({
     setMemberClaimCode(null);
     setMemberClaimError(null);
     setManualDiscount(null);
-    setSelectedPaymentMethod("Cash");
-    setPaymentProvider(defaultPaymentProvider("Cash"));
+    // Owner tanpa shift: jangan mulai dari Tunai (pasti ditolak server, K4).
+    setSelectedPaymentMethod(shiftOpen ? "Cash" : "QRIS");
+    setPaymentProvider(defaultPaymentProvider(shiftOpen ? "Cash" : "QRIS"));
     setPaymentReference("");
     setCashReceived("");
   }
@@ -3514,6 +3705,13 @@ export function PosView({
   }
 
   async function closeShift(payload: CloseShiftPayload) {
+    // Fase 4: penjualan offline di perangkat ini harus terkirim dulu — uangnya milik shift ini.
+    if (offlineStatus.pendingCount > 0) {
+      setShiftError(
+        `${offlineStatus.pendingCount} penjualan offline di perangkat ini belum terkirim. Sambungkan internet & sinkron dulu (atau tinjau yang ditolak) sebelum tutup shift.`,
+      );
+      return;
+    }
     setShiftPending(true);
     setShiftError(null);
     try {
@@ -3766,6 +3964,10 @@ export function PosView({
   // nama pelanggan (take away). Voucher/poin/diskon manual dipakai saat Final Bayar.
   async function submitOpenBill() {
     if (paymentPending || !cartLines.length) return;
+    if (posOffline) {
+      setPaymentError("Bayar nanti butuh koneksi. Saat offline pakai Tunai atau QRIS statis.");
+      return;
+    }
     const openBillName =
       posCustomerMode === "member" ? (selectedMember?.member.name ?? "") : guestName.trim();
     if (orderType === "delivery") {
@@ -3780,6 +3982,12 @@ export function PosView({
       setPaymentError("Bayar nanti take away wajib isi nama pelanggan.");
       return;
     }
+    // K7: potongan tidak ikut Bayar nanti (Final Bayar belum membawa voucher/diskon/poin) —
+    // jangan dihapus diam-diam, minta kasir memilih.
+    if (posVoucherResult?.valid || manualDiscount || pointsToUse > 0) {
+      setPaymentError("Bayar nanti tidak membawa voucher/diskon/poin. Hapus potongan dulu, atau bayar sekarang.");
+      return;
+    }
     setPaymentPending(true);
     setPaymentError(null);
     setPaymentResult(null);
@@ -3789,6 +3997,8 @@ export function PosView({
       tableLabel: orderType === "dine-in" ? tableLabel : undefined,
       customerName: openBillName || undefined,
       customerPhone: posCustomerMode === "member" ? undefined : guestPhone.trim() || undefined,
+      // K7: member ditautkan ke bill → poin masuk saat Final Bayar (dulu hanya nama terkirim).
+      memberCustomerId: posCustomerMode === "member" ? selectedMember?.customerId : undefined,
       items: cart.map((line) => ({
         itemId: line.itemId,
         variantId: line.variantId,
@@ -3798,10 +4008,13 @@ export function PosView({
     };
     const attempt = idempotencyAttemptFor(orderAttemptRef.current, body, makeIdempotencyKey);
     orderAttemptRef.current = attempt;
+    // K10: setelah server menyimpan, error kerja lanjutan (cetak/refresh) bukan "gagal simpan".
+    let saved = false;
     try {
       const result = await garageApi.post<OpenBillSaved>("/api/orders/open-bill", body, {
         headers: { "X-Idempotency-Key": attempt.key },
       });
+      saved = true;
       orderAttemptRef.current = null;
       // Bill buatan kasir sendiri bukan "order QR baru" → tanpa suara/toast.
       previousCustomerOrderIdsRef.current.add(result.orderId);
@@ -3838,12 +4051,12 @@ export function PosView({
       await loadTableLiveData({ silent: true });
       invalidateGarageCache([GARAGE_TAGS.orders, GARAGE_TAGS.kitchen, GARAGE_TAGS.dashboard]);
     } catch (error) {
+      if (saved) {
+        setPosNotice("Tagihan tersimpan. Data layar belum ter-refresh — muat ulang bila perlu.");
+        return;
+      }
       orderAttemptRef.current = markAttemptAfterError(attempt, error);
-      setPaymentError(
-        isUncertainSubmitError(error)
-          ? UNCERTAIN_SUBMIT_MESSAGE
-          : error instanceof Error ? error.message : "Tagihan gagal disimpan.",
-      );
+      setPaymentError(submitErrorMessage(error, "Tagihan gagal disimpan."));
     } finally {
       setPaymentPending(false);
     }
@@ -3910,6 +4123,152 @@ export function PosView({
     ]);
   }
 
+  // ── Fase 4: penjualan saat offline ──
+  /** Alasan penjualan offline tidak bisa dipakai untuk isi keranjang/metode ini (null = boleh). */
+  function offlineUnsupportedReason(method: PaymentMethod, effectiveOrderType: OrderType): string | null {
+    if (method !== "Cash" && method !== "QRIS") {
+      return "Saat offline hanya Tunai atau QRIS statis (cek mutasi nanti). Transfer & E-Wallet butuh koneksi.";
+    }
+    if (effectiveOrderType === "delivery") return "Delivery butuh koneksi.";
+    if (posCustomerMode === "member" || posVoucherResult?.valid || manualDiscount || pointsToUse > 0) {
+      return "Saat offline member, voucher, poin & diskon tidak bisa dipakai (butuh koneksi). Hapus dulu, atau tunggu online.";
+    }
+    if (method === "Cash" && !shiftOpen) return "Tunai offline wajib dari shift yang sedang buka.";
+    return null;
+  }
+
+  /**
+   * Simpan penjualan di perangkat + cetak struk sementara (OFF-…) & chit Bar/Dapur. Tunai → POST /api/orders saat
+   * online (shift yang sama, tiket langsung ditutup); QRIS statis → tagihan "cek mutasi" lewat jalur Bayar nanti.
+   * `key` = kunci anti-dobel; untuk respons yang hilang saat online dipakai kunci yang SAMA (server dedup).
+   */
+  async function queueOfflineSale(input: {
+    method: PaymentMethod;
+    effectiveOrderType: OrderType;
+    cash: number;
+    orderBody: Record<string, unknown> & { tableLabel?: string };
+    key: string;
+  }): Promise<boolean> {
+    const blocked = offlineSaleBlockReason(offlineStatus.queue, currentTimeMs());
+    if (blocked) {
+      setPaymentError(blocked);
+      return false;
+    }
+    let sequence = 1;
+    const seqKey = `garage:pos:offline-seq:${me.device}`;
+    try {
+      sequence = Number(window.localStorage.getItem(seqKey) || "0") + 1;
+      window.localStorage.setItem(seqKey, String(sequence));
+    } catch {
+      sequence = currentTimeMs() % 10_000;
+    }
+    const offlineNo = makeOfflineNo(me.device, sequence);
+    const soldAt = new Date().toISOString();
+    const offline = { offlineNo, soldAt, cashSessionId: shiftOpen ? cashSession.id : null };
+    const customerName =
+      guestName.trim() || (input.method === "QRIS" ? `QRIS offline ${offlineNo}` : null);
+    const label = String(input.orderBody.tableLabel ?? tableLabel);
+    const kind = input.method === "QRIS" ? "open-bill" : "order";
+    const payload =
+      kind === "order"
+        ? { ...input.orderBody, offline }
+        : {
+            orderType: input.effectiveOrderType === "dine-in" ? "dine-in" : "takeaway",
+            tableLabel: input.effectiveOrderType === "dine-in" ? tableLabel : undefined,
+            customerName: customerName ?? `QRIS offline ${offlineNo}`,
+            customerPhone: guestPhone.trim() || undefined,
+            items: cart.map((line) => ({ itemId: line.itemId, variantId: line.variantId, qty: line.qty, note: line.note || undefined })),
+            offlinePayment: "QRIS" as const,
+            offline,
+          };
+    try {
+      await enqueueOrder(input.key, payload, { total: totalDue, customerName: customerName ?? undefined, itemCount: cartItemCount }, { kind, offlineNo });
+    } catch (error) {
+      setPaymentError(error instanceof Error ? error.message : "Penjualan offline gagal disimpan di perangkat.");
+      return false;
+    }
+    offlineStatus.refresh();
+    // Struk sementara dari data lokal (dicetak tanpa server: printer langsung / agent lokal).
+    const receipt: OrderReceipt = {
+      invoiceNo: offlineNo,
+      invoiceStatus: "offline",
+      orderNo: offlineNo,
+      queueNo: null,
+      ticketNo: offlineNo,
+      ticketNos: [],
+      createdAt: soldAt,
+      outlet: { code: me.outlet.code, name: me.outlet.name },
+      cashier: { name: me.user.name, role: me.role, device: me.device },
+      tableLabel: label,
+      channel: input.effectiveOrderType,
+      payment: {
+        method: input.method === "QRIS" ? "QRIS (cek mutasi)" : input.method,
+        provider: null,
+        reference: null,
+        cashReceived: input.method === "Cash" ? input.cash : null,
+        change: input.method === "Cash" ? Math.max(0, input.cash - totalDue) : null,
+      },
+      customer: { name: customerName, phone: guestPhone.trim() || null },
+      items: cartLines.map((line) => ({
+        name: line.item.name,
+        variant: line.variant.label,
+        qty: line.qty,
+        unitPrice: line.variant.price,
+        lineTotal: line.variant.price * line.qty,
+      })),
+      subtotal,
+      service,
+      tax,
+      discount: 0,
+      total: totalDue,
+      settings: {
+        serviceChargePct: settings.serviceChargePct,
+        taxPct: settings.taxPct,
+        defaultPrinterName: settings.defaultPrinterName,
+        receiptCopies: settings.receiptCopies,
+        brandName: settings.brandName,
+        brandTagline: settings.brandTagline,
+        outletAddress: settings.outletAddress,
+        outletPhone: settings.outletPhone,
+        npwp: settings.npwp,
+        receiptFooter: `${OFFLINE_RECEIPT_NOTE}\n${settings.receiptFooter || "TERIMA KASIH"}`,
+      },
+      memberReward: null,
+      brand: { deliveryWhatsapp: paymentBrandConfig.deliveryWhatsapp, social: paymentBrandConfig.social },
+    };
+    setCompletedReceipt(receipt);
+    setReceiptHistory((current) => [receipt, ...current].slice(0, settings.receiptHistoryMax));
+    void printChitIfEnabled({
+      orderNo: offlineNo,
+      queueNo: null,
+      tableLabel: label,
+      orderType: input.effectiveOrderType,
+      createdAt: soldAt,
+      cashierName: me.user.name,
+      customerName,
+      items: cartLines.map((line) => ({
+        name: line.item.name,
+        variant: line.variant.label,
+        qty: line.qty,
+        note: line.note ?? null,
+        station: chitStationFor(line.item),
+      })),
+    });
+    setPaymentResult(
+      input.method === "QRIS"
+        ? `${offlineNo} disimpan offline. QRIS dicek mutasinya oleh Owner/Manajer setelah online.`
+        : `${offlineNo} disimpan offline. Terkirim otomatis saat online.`,
+    );
+    setPosNotice(`Penjualan offline ${offlineNo} disimpan di perangkat — terkirim otomatis saat online.`);
+    orderAttemptRef.current = null;
+    setPaymentStep("done");
+    setCart([]);
+    setSelectedTableNumber("");
+    setGuestName("");
+    setGuestPhone("");
+    return true;
+  }
+
   // overrides: "Bayar 1 tap" (take away uang pas) tanpa melewati langkah wizard.
   async function submitOrder(
     paymentMethod: PaymentMethod,
@@ -3937,9 +4296,18 @@ export function PosView({
       return;
     }
 
-    if (paymentMethod === "QRIS" && !qrisImageReady) {
+    // Offline: QRIS statis boleh walau gambar QRIS belum termuat (pelanggan scan stiker), cek mutasi nanti.
+    if (paymentMethod === "QRIS" && !qrisImageReady && !posOffline) {
       setPaymentError("QRIS resmi belum dikonfigurasi.");
       return;
+    }
+
+    if (posOffline) {
+      const unsupported = offlineUnsupportedReason(paymentMethod, effectiveOrderType);
+      if (unsupported) {
+        setPaymentError(unsupported);
+        return;
+      }
     }
 
     setPaymentPending(true);
@@ -3960,7 +4328,8 @@ export function PosView({
       paymentMethod,
       paymentProvider:
         (overrides.orderType ? defaultPaymentProvider(paymentMethod) : paymentProviderValue) || undefined,
-      paymentReference: paymentReference.trim() || undefined,
+      // Bayar 1-tap: referensi dari dialog sebelumnya (reset belum berlaku di render ini) tidak ikut.
+      paymentReference: overrides.orderType ? undefined : paymentReference.trim() || undefined,
       cashReceived: paymentMethod === "Cash" ? effectiveCash : undefined,
       customerId: posCustomerMode === "member" ? selectedMember?.customerId : undefined,
       memberPhone: posCustomerMode === "member" ? selectedMember?.member.phone : undefined,
@@ -3986,10 +4355,22 @@ export function PosView({
     const attempt = idempotencyAttemptFor(orderAttemptRef.current, orderBody, makeIdempotencyKey);
     orderAttemptRef.current = attempt;
 
+    if (posOffline) {
+      try {
+        await queueOfflineSale({ method: paymentMethod, effectiveOrderType, cash: effectiveCash, orderBody, key: attempt.key });
+      } finally {
+        setPaymentPending(false);
+      }
+      return;
+    }
+
+    // K10: setelah server menyimpan (LUNAS), error kerja lanjutan bukan "pembayaran gagal".
+    let saved = false;
     try {
       const result = await garageApi.post<OrderCreateResponse>("/api/orders", orderBody, {
         headers: { "X-Idempotency-Key": attempt.key },
       });
+      saved = true;
       orderAttemptRef.current = null;
 
       const kdsTicketLabel =
@@ -4003,12 +4384,14 @@ export function PosView({
         posCustomerMode === "member"
           ? (selectedMember?.member.name ?? null)
           : guestName.trim() || null;
+      // Nilai EFEKTIF order ini (Bayar 1-tap memaksa take away) — bukan state layar
+      // yang mungkin masih dine-in dari order sebelumnya (K3).
       const voiceTable =
-        orderType === "dine-in"
+        effectiveOrderType === "dine-in"
           ? selectedTableNumber || tableLabel
-          : orderType === "takeaway"
+          : effectiveOrderType === "takeaway"
             ? "takeaway"
-            : tableLabel;
+            : orderBody.tableLabel;
       // Smart-split voice: deteksi kategori cart, fire heads-up cuma ke
       // station yang akan dapet tiket (Dapur: Makanan/Cemilan; Bar: Coffee/Non-Coffee).
       let hasKitchenItem = false;
@@ -4046,8 +4429,8 @@ export function PosView({
       void printChitIfEnabled({
         orderNo: result.orderNo,
         queueNo: result.receipt.queueNo ?? null,
-        tableLabel: result.receipt.tableLabel ?? tableLabel,
-        orderType,
+        tableLabel: result.receipt.tableLabel ?? orderBody.tableLabel,
+        orderType: effectiveOrderType,
         createdAt: result.receipt.createdAt ?? new Date().toISOString(),
         cashierName: result.receipt.cashier?.name ?? null,
         customerName: result.receipt.customer?.name ?? null,
@@ -4087,17 +4470,47 @@ export function PosView({
         GARAGE_TAGS.customers,
       ]);
     } catch (error) {
+      if (saved) {
+        setPosNotice("Pembayaran tersimpan (LUNAS). Data layar belum ter-refresh — cek Riwayat struk, jangan tagih ulang.");
+        return;
+      }
+      // Fase 4: koneksi putus saat bayar TUNAI → simpan sebagai penjualan offline dengan kunci yang SAMA
+      // (bila sebenarnya sudah tersimpan, server mengembalikan order yang sama saat sinkron, tidak dobel).
+      if (
+        (error as { code?: string } | null)?.code === "NETWORK_ERROR" &&
+        paymentMethod === "Cash" &&
+        !offlineUnsupportedReason(paymentMethod, effectiveOrderType)
+      ) {
+        if (await queueOfflineSale({ method: paymentMethod, effectiveOrderType, cash: effectiveCash, orderBody, key: attempt.key })) {
+          return;
+        }
+      }
       // GOD++ F-03: gagal tidak pasti → key yang sama dipakai lagi walau isi berubah (server cek dulu).
       orderAttemptRef.current = markAttemptAfterError(attempt, error);
-      setPaymentError(
-        isUncertainSubmitError(error)
-          ? UNCERTAIN_SUBMIT_MESSAGE
-          : error instanceof Error ? error.message : "Pembayaran gagal.",
-      );
+      setPaymentError(submitErrorMessage(error, "Pembayaran gagal."));
     } finally {
       setPaymentPending(false);
     }
   }
+
+  // Fase 4: worker sinkron penjualan offline (pola waiter-view). Setelah ada yang terkirim → muat ulang data.
+  useEffect(() => {
+    offlineSyncedRef.current = (count: number) => {
+      offlineStatus.refresh();
+      setPosNotice(`${count} penjualan offline terkirim ke server.`);
+      void onOrderCreated();
+      void loadCustomerOrders({ silent: true });
+      invalidateGarageCache([GARAGE_TAGS.orders, GARAGE_TAGS.finance, GARAGE_TAGS.kitchen, GARAGE_TAGS.dashboard]);
+    };
+  });
+  useEffect(() => {
+    startSyncWorker();
+    setPosSyncListener((count) => offlineSyncedRef.current(count));
+    return () => {
+      setPosSyncListener(null);
+      stopSyncWorker();
+    };
+  }, []);
 
   // POS V6 shortcut kasir (papan 01/05): F1 Kasir · F2 Pesanan QR · F3 Meja · F4 Riwayat · F9 Bayar.
   // Hanya membuka panel/dialog yang sama dengan tombolnya; tidak pernah menyelesaikan pembayaran.
@@ -4110,10 +4523,21 @@ export function PosView({
       else if (key === "F4") setReceiptHistoryOpen(true);
       else if (key === "F6") openPendingBills();
       else if (key === "[") toggleSidebarMode();
+      else if (key === "?") setShortcutSheetOpen(true);
       else if (key === "F9") {
         if (!cartLines.length) return false;
         resetPaymentDialog();
         setPaymentOpen(true);
+      } else if (key === "F8") {
+        // Bayar nanti: langsung ke langkah pembayaran, tombol "Bayar nanti" difokuskan (Enter = simpan).
+        if (!cartLines.length) {
+          setPosNotice("Keranjang masih kosong.");
+          return true;
+        }
+        resetPaymentDialog();
+        setPaymentStep("payment");
+        setPaymentOpen(true);
+        window.setTimeout(() => document.querySelector<HTMLButtonElement>('[data-testid="pos-open-bill"]')?.focus(), 80);
       } else return false;
       return true;
     };
@@ -4921,15 +5345,17 @@ export function PosView({
         }}
         onReload={() => void refreshCashierData()}
       />
-      <PosV6ThemeStudio
-        canCustomize={canManagePosSettings}
-        open={themeStudioOpen}
-        onOpenChange={setThemeStudioOpen}
-        theme={cashierTheme}
-        onThemeChange={onCashierThemeChange}
-        settings={cashierPosSettings}
-        onSettingsChange={updateCashierPosSettings}
-      />
+      {mountThemeStudio ? (
+        <PosV6ThemeStudio
+          canCustomize={canManagePosSettings}
+          open={themeStudioOpen}
+          onOpenChange={setThemeStudioOpen}
+          theme={cashierTheme}
+          onThemeChange={onCashierThemeChange}
+          settings={cashierPosSettings}
+          onSettingsChange={updateCashierPosSettings}
+        />
+      ) : null}
 
       <Dialog
         open={activeCashierToolOpen !== null}
@@ -5010,7 +5436,7 @@ export function PosView({
 
           {activeCashierToolOpen === "reports" && (
             <div className="space-y-3">
-              <PosShiftSalesSummary />
+              <PosShiftSalesSummary unpaidBills={pendingSummary.counts.all} />
               {settings.partnerHubEnabled && cashSession.id ? <PartnerShiftSalesCard sessionId={cashSession.id} /> : null}
               <details className="rounded-md border border-[#34343c] bg-white/[0.03] p-2">
                 <summary className="cursor-pointer px-1 py-1 text-sm font-semibold text-white">
@@ -5521,32 +5947,34 @@ export function PosView({
       />
 
       {/* Cek Meja: detail + aksi cepat saat tap kartu meja */}
-      <PosTableDetailDialog
-        tableDetail={tableDetail}
-        setTableDetail={setTableDetail}
-        tableOrderBills={tableOrderBills}
-        setTableOrderBills={setTableOrderBills}
-        tableItemsLoading={tableItemsLoading}
-        setTableItemsLoading={setTableItemsLoading}
-        tableItemsError={tableItemsError}
-        setTableItemsError={setTableItemsError}
-        tableActionBusy={tableActionBusy}
-        provisionalBillBusyId={provisionalBillBusyId}
-        canDeleteInvoice={canDeleteInvoice}
-        setInvoiceDeleteTarget={setInvoiceDeleteTarget}
-        setOrderType={setOrderType}
-        setSelectedTableNumber={setSelectedTableNumber}
-        setQrOperationsOpen={setQrOperationsOpen}
-        setQrInsightFilters={setQrInsightFilters}
-        setQrWorkTab={setQrWorkTab}
-        setResetTableDialogOpen={setResetTableDialogOpen}
-        setSelectedTableToReset={setSelectedTableToReset}
-        setTableSplitBill={setTableSplitBill}
-        payTableBill={payTableBill}
-        printProvisionalBill={printProvisionalBill}
-        reprintTableBillChit={reprintTableBillChit}
-        requestTableBill={requestTableBill}
-      />
+      {mountTableDetail ? (
+        <PosTableDetailDialog
+          tableDetail={tableDetail}
+          setTableDetail={setTableDetail}
+          tableOrderBills={tableOrderBills}
+          setTableOrderBills={setTableOrderBills}
+          tableItemsLoading={tableItemsLoading}
+          setTableItemsLoading={setTableItemsLoading}
+          tableItemsError={tableItemsError}
+          setTableItemsError={setTableItemsError}
+          tableActionBusy={tableActionBusy}
+          provisionalBillBusyId={provisionalBillBusyId}
+          canDeleteInvoice={canDeleteInvoice}
+          setInvoiceDeleteTarget={setInvoiceDeleteTarget}
+          setOrderType={setOrderType}
+          setSelectedTableNumber={setSelectedTableNumber}
+          setQrOperationsOpen={setQrOperationsOpen}
+          setQrInsightFilters={setQrInsightFilters}
+          setQrWorkTab={setQrWorkTab}
+          setResetTableDialogOpen={setResetTableDialogOpen}
+          setSelectedTableToReset={setSelectedTableToReset}
+          setTableSplitBill={setTableSplitBill}
+          payTableBill={payTableBill}
+          printProvisionalBill={printProvisionalBill}
+          reprintTableBillChit={reprintTableBillChit}
+          requestTableBill={requestTableBill}
+        />
+      ) : null}
 
       {/* Konfirmasi + alasan Reject order QR (aksi susah-dibalik). */}
       <PosRejectOrderDialog
@@ -5563,7 +5991,9 @@ export function PosView({
       <PosV6FinalizeDialog
         target={finalizeOrderTarget}
         theme={cashierTheme}
-        onClose={() => setFinalizeOrderTarget(null)}
+        onClose={() => {
+          if (!finalizePending) setFinalizeOrderTarget(null);
+        }}
         method={finalizeMethod}
         setMethod={setFinalizeMethod}
         cash={finalizeCash}
@@ -5575,20 +6005,25 @@ export function PosView({
         setQrisImageReady={setQrisImageReady}
         referenceRequired={settings.qrisReferenceRequired}
         handoverNote={finalizeHandoverNote}
-        onConfirm={confirmFinalizeOrder}
+        onConfirm={() => void confirmFinalizeOrder()}
+        pending={finalizePending}
+        error={finalizeError ?? (finalizeOrderTarget ? customerOrderError : null)}
+        cashAllowed={shiftOpen}
       />
 
-      <PosV6ModuleSheet
-        view={moduleView}
-        onClose={() => setModuleView(null)}
-        role={me.role}
-        partner={{
-          userId: me.user.id,
-          canHandleMoney: canHandleMoney({ role: me.role, workstation: me.workstation ?? null }),
-          slaAccept: settings.partnerSlaAcceptWarnMinutes,
-          slaReady: settings.partnerReadyWaitWarnMinutes,
-        }}
-      />
+      {mountModuleSheet ? (
+        <PosV6ModuleSheet
+          view={moduleView}
+          onClose={() => setModuleView(null)}
+          role={me.role}
+          partner={{
+            userId: me.user.id,
+            canHandleMoney: canHandleMoney({ role: me.role, workstation: me.workstation ?? null }),
+            slaAccept: settings.partnerSlaAcceptWarnMinutes,
+            slaReady: settings.partnerReadyWaitWarnMinutes,
+          }}
+        />
+      ) : null}
 
       {/* Tagihan Belum Bayar: daftar + popup detail (Owner, Nov 2026). */}
       <PosV6PendingBills
@@ -6802,7 +7237,7 @@ export function PosView({
                         <Button
                           type="button"
                           size="sm"
-                          className="garage-press h-9 flex-[1.4] basis-[120px] bg-[#22c55e] px-2 text-[11px] text-white hover:bg-[#16a34a]"
+                          className="garage-press h-9 flex-[1.4] basis-[120px] bg-[#d11a2a] px-2 text-[11px] text-white hover:bg-[#ff2a3a]"
                           disabled={Boolean(busyAction)}
                           onClick={() => openFinalizeDialog(order)}
                         >
@@ -6971,7 +7406,7 @@ export function PosView({
                           <Button
                             type="button"
                             size="sm"
-                            className="garage-press h-8 flex-1 basis-[104px] bg-[#22c55e] px-2 text-[11px] text-white hover:bg-[#16a34a]"
+                            className="garage-press h-8 flex-1 basis-[104px] bg-[#d11a2a] px-2 text-[11px] text-white hover:bg-[#ff2a3a]"
                             disabled={Boolean(busyAction)}
                             onClick={() => openFinalizeDialog(order)}
                           >
@@ -7031,20 +7466,7 @@ export function PosView({
                   <h3 className="mt-1 text-base font-black text-white">
                     {tableMapRows.length} meja outlet
                   </h3>
-                  {tableLiveUpdatedAt ? (
-                    <p className="mt-0.5 text-[10px] text-[#8f8f98]">
-                      Terakhir update{" "}
-                      {(() => {
-                        const secs = Math.max(
-                          0,
-                          Math.round((nowTick - tableLiveUpdatedAt) / 1000),
-                        );
-                        return secs < 60
-                          ? `${secs}s lalu`
-                          : `${Math.floor(secs / 60)}m lalu`;
-                      })()}
-                    </p>
-                  ) : null}
+                  <UpdatedAgo atRef={tableLiveUpdatedAtRef} />
                 </div>
                 {/* Ringkasan cepat: kosong / terisi / perlu bersih */}
                 <div className="flex flex-wrap gap-1.5">
@@ -7661,7 +8083,7 @@ export function PosView({
                                 <Button
                                   type="button"
                                   size="sm"
-                                  className="garage-press h-9 bg-[#22c55e] px-2 text-[11px] text-white hover:bg-[#16a34a]"
+                                  className="garage-press h-9 bg-[#d11a2a] px-2 text-[11px] text-white hover:bg-[#ff2a3a]"
                                   disabled={Boolean(busyAction)}
                                   onClick={(event) => {
                                     event.stopPropagation();
@@ -8053,7 +8475,9 @@ export function PosView({
                       <Button
                         type="button"
                         className="garage-press h-11"
-                        disabled={customerOrderActionId?.startsWith(`${selectedCustomerOrder.id}:`)}
+                        disabled={
+                          customerOrderActionId?.startsWith(`${selectedCustomerOrder.id}:`) || !customerOrderCashReceived.trim()
+                        }
                         onClick={() => receiveWaiterCash(selectedCustomerOrder)}
                       >
                         Terima Cash
@@ -8069,7 +8493,9 @@ export function PosView({
                         type="button"
                         variant="outline"
                         className="garage-press h-11 border-[#4a4a54]"
-                        disabled={customerOrderActionId?.startsWith(`${selectedCustomerOrder.id}:`)}
+                        disabled={
+                          customerOrderActionId?.startsWith(`${selectedCustomerOrder.id}:`) || !customerOrderCashDeposited.trim()
+                        }
                         onClick={() => depositWaiterCash(selectedCustomerOrder)}
                       >
                         Setor ke Kasir
@@ -8103,7 +8529,7 @@ export function PosView({
                 {canFinalizeCustomerOrder(selectedCustomerOrder) ? (
                   <Button
                     type="button"
-                    className="garage-press h-11 flex-[1.4] basis-[170px] bg-[#22c55e] text-white hover:bg-[#16a34a]"
+                    className="garage-press h-11 flex-[1.4] basis-[170px] bg-[#d11a2a] text-white hover:bg-[#ff2a3a]"
                     disabled={
                       customerOrderActionId?.startsWith(`${selectedCustomerOrder.id}:`) ||
                       !canConfirmCustomerPayment(me.role)
@@ -8238,6 +8664,8 @@ export function PosView({
         </Dialog>
         <div className="pos-main-layout grid min-h-0 flex-1 gap-2 md:grid-cols-[minmax(0,1fr)_286px] md:items-stretch lg:grid-cols-[minmax(0,1fr)_330px] min-[1200px]:grid-cols-[minmax(0,1fr)_360px]">
           <div className="flex min-h-0 min-w-0 flex-col gap-2">
+            {/* Fase 4: status mode jual offline (tidak tampil saat online & antrean kosong). */}
+            <PosOfflineBanner status={offlineStatus} />
             <div className="garage-panel garage-animate-in flex shrink-0 flex-col gap-2 rounded-md p-2">
               <div className="flex flex-col gap-2 md:flex-row md:items-center">
                 <div className="relative min-w-0 flex-1">
@@ -8246,11 +8674,17 @@ export function PosView({
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
                     onKeyDown={(event) => {
-                      // Enter = pesan menu teratas hasil cari / kode singkat.
+                      // Esc = kosongkan kolom cari (fokus tetap di sini, siap scan berikutnya).
+                      if (event.key === "Escape" && query) {
+                        event.preventDefault();
+                        setQuery("");
+                        return;
+                      }
+                      // Enter = pesan menu teratas hasil cari / kode singkat. `3*cl` = 3× hasil teratas.
                       if (event.key !== "Enter" || !query.trim()) return;
+                      const { qty: typedQty, term: scanned } = parseQuantityQuery(query);
                       // Scanner barcode: kode SKU/barcode persis (produk atau varian, termasuk produk mitra)
                       // langsung masuk keranjang dengan varian yang discan.
-                      const scanned = query.trim().toLowerCase();
                       for (const item of menuItems) {
                         if (soldOutIds.has(item.id) || item.stock === "sold_out") continue;
                         const variant = item.variants.find(
@@ -8264,25 +8698,49 @@ export function PosView({
                             return;
                           }
                           if (locked) return;
-                          addItem(item.id, (variant ?? item.variants[0]).id);
+                          addItem(item.id, (variant ?? item.variants[0]).id, typedQty);
                           setQuery("");
                           return;
                         }
                       }
-                      if (deferredQuery !== query) return;
-                      const first = filteredMenu.find((item) => !soldOutIds.has(item.id));
-                      if (!first) return;
                       event.preventDefault();
-                      handleProductTap(first);
+                      // Kode scanner tanpa kecocokan persis: jangan menebak hasil teratas (bisa item salah).
+                      if (isBarcodeLike(scanned)) {
+                        setPosNotice(`Kode ${scanned} tidak dikenal. Cek produk/SKU di Manajemen Produk.`);
+                        setQuery("");
+                        return;
+                      }
+                      // Hasil dihitung dari teks yang baru diketik (bukan hasil tampilan yang tertunda).
+                      const first = searchMenuEntries(indexedMenu, scanned, acceptMenuEntry).find(
+                        (item) => !soldOutIds.has(item.id) && item.stock !== "sold_out",
+                      );
+                      if (!first) {
+                        setPosNotice(`Tidak ada menu tersedia untuk "${scanned}".`);
+                        return;
+                      }
+                      handleProductTap(first, typedQty);
                       setQuery("");
                     }}
                     enterKeyHint="done"
                     aria-label="Cari menu atau kode singkat, Enter untuk pesan menu teratas"
                     data-testid="pos-menu-search"
                     className="h-9 border-[#34343c] bg-white/[0.06] pl-9"
-                    placeholder="Cari menu / kode singkat (mis. cl)"
+                    placeholder="Cari menu / kode (cl, 3*cl)"
                   />
                 </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  // Pintasan keyboard hanya berguna di laptop/PC: disembunyikan di layar HP (tidak makan satu baris).
+                  className="garage-press hidden h-9 w-9 shrink-0 border-[#4a4a54] bg-white/[0.06] text-[#d4d4d8] md:inline-flex"
+                  onClick={() => setShortcutSheetOpen(true)}
+                  aria-label="Pintasan keyboard (tombol ?)"
+                  title="Pintasan keyboard (?)"
+                  data-testid="pos-shortcuts-open"
+                >
+                  <Keyboard className="size-4" aria-hidden />
+                </Button>
                 <PosEventBundles
                   shiftOpen={canTransact}
                   regularCart={cart.map((line) => ({ itemId: line.itemId, variantId: line.variantId, qty: line.qty, note: line.note || undefined }))}
@@ -8292,6 +8750,7 @@ export function PosView({
                 />
                 <PosQuickRetail
                   shiftOpen={canTransact}
+                  cashAllowed={shiftOpen}
                   menuItems={menuItems}
                   settings={settings}
                   qrisImagePath={paymentBrandConfig.qrisImagePath}
@@ -8328,7 +8787,7 @@ export function PosView({
                   {posV6CategoryList.map((sub) => (
                     <PosV6CategoryTile key={sub} icon={posV6CategoryIcon(sub)} label={sub} active={menuCategory === sub} onClick={() => setMenuCategory(sub)} />
                   ))}
-                  <PosV6CategoryTile icon={Star} label="Best Seller" active={bestsellerOnly} onClick={() => setBestsellerOnly((v) => !v)} />
+                  <PosV6CategoryTile icon={Star} label={bestsellerFromSales ? "Terlaris 7 hari" : "Best Seller"} active={bestsellerOnly} onClick={() => setBestsellerOnly((v) => !v)} />
                 </div>
                 {favoriteItems.length && !normalizedMenuQuery && menuCategory === "All" && !bestsellerOnly ? (
                   <div className="garage-scroll-x flex gap-1.5 pb-0.5" data-testid="pos-favorites">
@@ -8569,9 +9028,10 @@ export function PosView({
                   {cartLines.map((line) => (
                     <div
                       key={`${line.itemId}-${line.variantId}`}
-                      className="pos-cart-line garage-press rounded-md border border-[#3a3a42] bg-[#25252d]/86 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] hover:border-[#555560]"
+                      className="pos-cart-line garage-press rounded-md border border-[#3a3a42] bg-[#25252d]/86 px-2.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] hover:border-[#555560]"
                     >
-                      <div className="flex items-start justify-between gap-3">
+                      {/* Fase 3 (U8): satu baris ringkas — qty di kanan sejajar nama (dulu baris "Qty" sendiri, ±130px). */}
+                      <div className="flex items-start gap-2.5">
                         {cashierPosSettings.showPhotos ? (
                           <span className="pos-v6-line-thumb" aria-hidden>
                             {line.item.imageUrl ? (
@@ -8586,56 +9046,74 @@ export function PosView({
                           </span>
                         ) : null}
                         <div className="min-w-0 flex-1">
-                          <p className="pos-cart-title break-words text-[15px] font-semibold leading-5 text-white">
+                          <p className="pos-cart-title break-words text-[length:calc(15px*var(--pos-fs,1))] font-semibold leading-snug text-white">
                             {line.item.name}
                           </p>
-                          <p className="pos-cart-meta mt-0.5 break-words text-sm text-[#d0d0d6]">
+                          <p className="pos-cart-meta mt-0.5 break-words text-[length:calc(14px*var(--pos-fs,1))] text-[#d0d0d6]">
                             {line.variant.label !== "Regular"
                               ? `${line.variant.label} - `
                               : ""}
                             {currency.format(line.variant.price)}
                           </p>
+                          {/* Catatan dapur (kurang es, tanpa bawang, …) — tombol ringkas; editor di bawah saat dibuka. */}
+                          {noteEditKey !== `${line.itemId}-${line.variantId}` ? (
+                            <CartLineNoteTrigger
+                              note={line.note ?? ""}
+                              onEdit={() => setNoteEditKey(`${line.itemId}-${line.variantId}`)}
+                            />
+                          ) : null}
                         </div>
-                        <p className="pos-cart-price garage-mono shrink-0 text-right text-sm font-semibold text-white">
-                          {currency.format(line.variant.price * line.qty)}
-                        </p>
-                      </div>
-                      <div className="mt-3 flex items-center justify-between gap-3">
-                        <p className="pos-muted-label garage-mono text-xs text-[#c8c8cc]">
-                          Qty
-                        </p>
-                        <div className="pos-qty-control inline-flex h-9 shrink-0 items-center overflow-hidden rounded-md border border-[#4a4a54] bg-[#15151b]">
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="garage-press size-9 rounded-none border-0 text-[#f4f4f5] hover:bg-white/[0.08]"
-                            onClick={() => decrementItem(line.itemId, line.variantId)}
-                            aria-label={`Decrease ${line.item.name} ${line.variant.label}`}
-                          >
-                            <Minus className="size-3.5" />
-                          </Button>
-                          <span className="garage-mono min-w-9 border-x border-[#34343c] px-2 text-center text-sm font-semibold text-white">
-                            {line.qty}
-                          </span>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="garage-press size-9 rounded-none border-0 text-[#f4f4f5] hover:bg-white/[0.08]"
-                            onClick={() => addItem(line.itemId, line.variantId)}
-                            aria-label={`Increase ${line.item.name} ${line.variant.label}`}
-                          >
-                            <Plus className="size-3.5" />
-                          </Button>
+                        <div className="flex shrink-0 flex-col items-end gap-1.5">
+                          <p className="pos-cart-price garage-mono text-right text-[length:calc(14px*var(--pos-fs,1))] font-semibold text-white">
+                            {currency.format(line.variant.price * line.qty)}
+                          </p>
+                          <div className="pos-qty-control inline-flex h-10 shrink-0 items-center overflow-hidden rounded-md border border-[#4a4a54] bg-[#15151b]">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="garage-press size-10 rounded-none border-0 text-[#f4f4f5] hover:bg-white/[0.08]"
+                              onClick={() => decrementItem(line.itemId, line.variantId)}
+                              aria-label={`Kurangi ${line.item.name} ${line.variant.label}`}
+                            >
+                              <Minus className="size-4" />
+                            </Button>
+                            <span
+                              className="garage-mono min-w-9 border-x border-[#34343c] px-2 text-center text-[length:calc(14px*var(--pos-fs,1))] font-semibold text-white"
+                              aria-label={`Qty ${line.qty}`}
+                            >
+                              {line.qty}
+                            </span>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="garage-press size-10 rounded-none border-0 text-[#f4f4f5] hover:bg-white/[0.08]"
+                              onClick={() => addItem(line.itemId, line.variantId)}
+                              aria-label={`Tambah ${line.item.name} ${line.variant.label}`}
+                            >
+                              <Plus className="size-4" />
+                            </Button>
+                          </div>
                         </div>
                       </div>
-                      {/* Item note input — request customer: less ice, no garlic, extra spicy.
-                          Auto-saved on blur. Note dikirim ke kitchen ticket. */}
-                      <CartLineNoteRow
-                        note={line.note ?? ""}
-                        onChange={(value) => setItemNote(line.itemId, line.variantId, value)}
-                      />
+                      {noteEditKey === `${line.itemId}-${line.variantId}` ? (
+                        <CartLineNoteEditor
+                          note={line.note ?? ""}
+                          onSave={(value) => {
+                            setItemNote(line.itemId, line.variantId, value);
+                            setNoteEditKey(null);
+                          }}
+                        />
+                      ) : null}
                     </div>
                   ))}
+                  <PosV6Pairing
+                    anchor={cart.length ? (menuItemsById.get(cart[cart.length - 1].itemId) ?? null) : null}
+                    menuById={menuItemsById}
+                    cartItemIds={cartItemIdSet}
+                    soldOutIds={soldOutIds}
+                    disabled={!offlineStatus.online || locked || !canTransact}
+                    onPick={(item) => handleProductTap(item)}
+                  />
                 </div>
               ) : (
                 <div className="pos-cart-empty relative flex h-full min-h-[180px] flex-col items-center justify-center overflow-hidden rounded-md border border-dashed border-[#4a4a54] bg-[#202027]/66 p-5 text-center">
@@ -8669,13 +9147,7 @@ export function PosView({
                       <div className="flex justify-between gap-3 text-sm">
                         <span>Pajak ({taxPct}%)</span>
                         <span className="font-mono tabular-nums">{currency.format(tax)}</span>
-                        {roundingAdjustment !== 0 ? (
-                      <div className="flex justify-between gap-3 text-sm">
-                        <span>Pembulatan</span>
-                        <span className="font-mono tabular-nums">{currency.format(roundingAdjustment)}</span>
                       </div>
-                    ) : null}
-                  </div>
                     ) : null}
                     {roundingAdjustment !== 0 ? (
                       <div className="flex justify-between gap-3 text-sm">
@@ -8742,7 +9214,7 @@ export function PosView({
                     variant="outline"
                     data-testid="pos-quick-cash"
                     disabled={!cartLines.length || paymentPending || !shiftOpen}
-                    className="garage-press pos-v6-quick h-12 border-[#22c55e]/55 bg-[#22c55e]/12 px-2 text-xs font-bold text-[#dcfce7]"
+                    className="garage-press pos-v6-quick h-12 border-[#4a4a54] bg-white/[0.06] px-2 text-xs font-bold text-[#f4f4f5]"
                     onClick={() => {
                       resetPaymentDialog();
                       setOrderType("takeaway");
@@ -8761,7 +9233,7 @@ export function PosView({
                     variant="outline"
                     data-testid="pos-quick-qris"
                     disabled={!cartLines.length || paymentPending || !canTransact}
-                    className="garage-press pos-v6-quick h-12 border-[#f5a742]/55 bg-[#f5a742]/12 px-2 text-xs font-bold text-[#ffd08a]"
+                    className="garage-press pos-v6-quick h-12 border-[#4a4a54] bg-white/[0.06] px-2 text-xs font-bold text-[#f4f4f5]"
                     onClick={() => {
                       resetPaymentDialog();
                       setOrderType("takeaway");
@@ -8793,6 +9265,16 @@ export function PosView({
                         : "Selesaikan order kasir dari ringkasan, meja, pelanggan, lalu pembayaran."}
                     </DialogDescription>
                   </DialogHeader>
+                  {posOffline && paymentStep !== "done" ? (
+                    <p
+                      role="status"
+                      data-testid="pos-offline-pay-note"
+                      className="rounded-md border border-[#d11a2a]/55 bg-[#d11a2a]/14 px-3 py-2 text-sm font-semibold leading-5 text-[#ffd0c8]"
+                    >
+                      Offline: hanya Tunai atau QRIS statis (dicek mutasinya nanti). Member, voucher, poin, diskon, Transfer,
+                      E-Wallet & Bayar nanti butuh koneksi. Struk sementara bernomor OFF-….
+                    </p>
+                  ) : null}
                   {paymentStep === "done" && openBillSaved ? (
                     <div className="garage-scroll min-h-0 overflow-y-auto pr-1">
                       <OpenBillSavedPanel
@@ -8983,13 +9465,15 @@ export function PosView({
                             }}
                           />
                         ) : null}
-                        <MemberQrScanDialog
-                          open={memberQrOpen}
-                          busy={memberQrBusy}
-                          error={memberQrError}
-                          onDetect={(payload) => void verifyMemberQr(payload)}
-                          onOpenChange={setMemberQrOpen}
-                        />
+                        {mountMemberQr ? (
+                          <MemberQrScanDialog
+                            open={memberQrOpen}
+                            busy={memberQrBusy}
+                            error={memberQrError}
+                            onDetect={(payload) => void verifyMemberQr(payload)}
+                            onOpenChange={setMemberQrOpen}
+                          />
+                        ) : null}
                         {paymentStep === "customer" ? (
                           <CheckoutCustomerStep
                             mode={posCustomerMode}
@@ -9149,19 +9633,18 @@ export function PosView({
                             variant="outline"
                             className="garage-press h-11 border-[#4a4a54]"
                             disabled={paymentPending}
-                            onClick={() =>
+                            onClick={() => {
+                              // Langkah pertama: tombol menutup dialog (dulu berlabel "Ringkasan" dan tidak berbuat apa-apa, U12).
+                              if (paymentStep === "summary") {
+                                setPaymentOpen(false);
+                                return;
+                              }
                               setPaymentStep((step) =>
-                                step === "payment"
-                                  ? "customer"
-                                  : step === "customer"
-                                    ? "table"
-                                    : step === "table"
-                                      ? "summary"
-                                      : "summary",
-                              )
-                            }
+                                step === "payment" ? "customer" : step === "customer" ? "table" : "summary",
+                              );
+                            }}
                           >
-                            {paymentStep === "summary" ? "Ringkasan" : "Kembali"}
+                            {paymentStep === "summary" ? "Kembali ke keranjang" : "Kembali"}
                           </Button>
                           {paymentStep === "summary" ? (
                             <Button
@@ -9201,6 +9684,7 @@ export function PosView({
                             >
                               <Clock aria-hidden className="size-4" />
                               Bayar nanti
+                              <kbd className="pos-v6-kbd ml-1">F8</kbd>
                             </Button>
                           ) : null}
                           {paymentStep === "payment" ? (
@@ -9233,10 +9717,51 @@ export function PosView({
         </>
       )}
 
+      {/* Pesan aksi selalu terlihat & dibacakan pembaca layar (U2) — dulu di bawah 1200px hanya ikon. */}
+      <div
+        role="status"
+        aria-live="polite"
+        data-testid="pos-toast"
+        // Laptop: kiri bawah di atas tombol AYA/bantuan, tidak menutupi keranjang. HP: atas (AYA di bawah).
+        className="pointer-events-none fixed left-4 right-4 top-24 z-50 md:bottom-28 md:right-auto md:top-auto md:max-w-[420px]"
+      >
+        {toastNotice ? <p className="pos-v6-toast">{toastNotice}</p> : null}
+      </div>
+
+      <Dialog open={shortcutSheetOpen} onOpenChange={setShortcutSheetOpen}>
+        <DialogContent
+          data-cashier-theme-scope={isCashierKiosk ? cashierTheme : undefined}
+          className="max-h-[90svh] overflow-y-auto sm:max-w-md"
+          data-testid="pos-shortcut-sheet"
+        >
+          <DialogHeader className="text-left">
+            <DialogTitle>Pintasan keyboard kasir</DialogTitle>
+            <DialogDescription>Tombol F bekerja saat tidak ada dialog terbuka.</DialogDescription>
+          </DialogHeader>
+          <dl className="grid grid-cols-[auto_1fr] items-baseline gap-x-4 gap-y-2 text-sm">
+            {POS_SHORTCUTS.map((shortcut) => (
+              <Fragment key={shortcut.key}>
+                <dt>
+                  <kbd className="pos-v6-kbd">{shortcut.key}</kbd>
+                </dt>
+                <dd className="leading-5">{shortcut.label}</dd>
+              </Fragment>
+            ))}
+          </dl>
+        </DialogContent>
+      </Dialog>
+
       <PosVariantPickerDialog
         variantItem={variantItem}
-        setVariantItem={setVariantItem}
-        addItem={addItem}
+        setVariantItem={(next) => {
+          setVariantItem(next);
+          if (next === null) {
+            pendingVariantQtyRef.current = 1;
+            // Fokus kembali ke kolom cari: scan/ketik berikutnya tidak hilang (U5).
+            window.setTimeout(() => focusPosSearch(), 0);
+          }
+        }}
+        addItem={(itemId, variantId) => addItem(itemId, variantId, pendingVariantQtyRef.current)}
       />
 
       <PosClearCartDialog
@@ -9494,38 +10019,42 @@ export function PosView({
         cashierTheme={cashierTheme}
       />
 
-      <PosInvoiceDeleteDialog
-        target={invoiceDeleteTarget}
-        onClose={() => setInvoiceDeleteTarget(null)}
-        onDeleted={(message) => {
-          setInvoiceDeleteTarget(null);
-          setSelectedCustomerOrderId(null);
-          setPosNotice(message);
-          void loadCustomerOrders({ silent: true });
-          void loadTableLiveData({ silent: true });
-          void loadKitchenTickets();
-          invalidateGarageCache([GARAGE_TAGS.orders, GARAGE_TAGS.finance, GARAGE_TAGS.kitchen, GARAGE_TAGS.dashboard]);
-        }}
-      />
+      {mountInvoiceDelete ? (
+        <PosInvoiceDeleteDialog
+          target={invoiceDeleteTarget}
+          onClose={() => setInvoiceDeleteTarget(null)}
+          onDeleted={(message) => {
+            setInvoiceDeleteTarget(null);
+            setSelectedCustomerOrderId(null);
+            setPosNotice(message);
+            void loadCustomerOrders({ silent: true });
+            void loadTableLiveData({ silent: true });
+            void loadKitchenTickets();
+            invalidateGarageCache([GARAGE_TAGS.orders, GARAGE_TAGS.finance, GARAGE_TAGS.kitchen, GARAGE_TAGS.dashboard]);
+          }}
+        />
+      ) : null}
       <PosOrderCancelDialog
         target={cancelTarget}
         onClose={() => setCancelTarget(null)}
         onFinished={handleCancelFinished}
       />
 
-      <PosCartSplitDialog
-        open={cartSplitOpen}
-        lines={cartSplitLines}
-        orderType={orderType}
-        tableNumber={selectedTableNumber || undefined}
-        tableLabel={tableLabel}
-        settings={settings}
-        qrisReady={qrisImageReady}
-        blockedReason={cartSplitBlockedReason}
-        onGuestPaid={handleSplitGuestPaid}
-        onClose={(paid, assignment) => void handleSplitClose(paid, assignment)}
-        onPrintReceipt={(receipt) => void reprintReceipt(receipt)}
-      />
+      {mountCartSplit ? (
+        <PosCartSplitDialog
+          open={cartSplitOpen}
+          lines={cartSplitLines}
+          orderType={orderType}
+          tableNumber={selectedTableNumber || undefined}
+          tableLabel={tableLabel}
+          settings={settings}
+          qrisReady={qrisImageReady}
+          blockedReason={cartSplitBlockedReason}
+          onGuestPaid={handleSplitGuestPaid}
+          onClose={(paid, assignment) => void handleSplitClose(paid, assignment)}
+          onPrintReceipt={(receipt) => void reprintReceipt(receipt)}
+        />
+      ) : null}
 
       <PosTableBillSplitDialog
         bill={tableSplitBill}
@@ -9536,15 +10065,17 @@ export function PosView({
       />
 
       {/* Dialog: Kas Keluar / Masuk Laci */}
-      <CashDrawerDialog
-        open={expenseDialogOpen}
-        onOpenChange={setExpenseDialogOpen}
-        role={me.role}
-        threshold={settings.cashMovementPinThreshold}
-        shiftOpen={shiftOpen}
-        themeScope={isCashierKiosk ? cashierTheme : undefined}
-        onRecorded={handleCashMovementRecorded}
-      />
+      {mountCashDrawer ? (
+        <CashDrawerDialog
+          open={expenseDialogOpen}
+          onOpenChange={setExpenseDialogOpen}
+          role={me.role}
+          threshold={settings.cashMovementPinThreshold}
+          shiftOpen={shiftOpen}
+          themeScope={isCashierKiosk ? cashierTheme : undefined}
+          onRecorded={handleCashMovementRecorded}
+        />
+      ) : null}
 
     </section>
   );

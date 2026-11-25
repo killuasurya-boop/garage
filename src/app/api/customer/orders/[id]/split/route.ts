@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { fail, ok, readJson } from "@/lib/api-response";
+import { fail, ok, readJson, serviceErrorResponse } from "@/lib/api-response";
 import { splitCustomerOrder } from "@/lib/garage-service";
 import { checkIdempotency, readIdempotencyKey } from "@/lib/idempotency";
 import { rateLimit } from "@/lib/rate-limit";
@@ -59,10 +59,6 @@ export async function POST(
     return ok(result, { status: 201 });
   } catch (error) {
     if (cache?.kind === "miss") cache.abandon();
-    return fail(
-      400,
-      "ORDER_SPLIT_FAILED",
-      error instanceof Error ? error.message : "Gagal memisah bill.",
-    );
+    return serviceErrorResponse(error, "ORDER_SPLIT_FAILED", "Gagal memisah bill. Coba lagi.");
   }
 }

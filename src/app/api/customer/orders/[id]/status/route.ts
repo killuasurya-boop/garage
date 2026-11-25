@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { fail, ok, readJson } from "@/lib/api-response";
+import { fail, ok, readJson, serviceErrorResponse } from "@/lib/api-response";
 import { updateCustomerOrderStatus } from "@/lib/garage-service";
 import { requireCashierSession } from "@/lib/server-auth";
 
@@ -53,10 +53,6 @@ export async function PATCH(
 
     return ok(result);
   } catch (error) {
-    return fail(
-      400,
-      "CUSTOMER_ORDER_STATUS_FAILED",
-      error instanceof Error ? error.message : "Status customer order gagal diproses.",
-    );
+    return serviceErrorResponse(error, "CUSTOMER_ORDER_STATUS_FAILED", "Status pesanan gagal diproses. Coba lagi.");
   }
 }

@@ -255,8 +255,9 @@ export function PosV6ProductCard({
   const photo = showPhoto ? (
     <span className="pos-v6-card-photo" aria-hidden>
       {imageUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element -- foto menu dari storage (ukuran bebas)
-        <img src={imageUrl} alt="" loading="lazy" decoding="async" />
+        // Fase 3 (U11): versi kecil sesuai lebar kartu lewat next/image (pola yang sama dengan menu digital
+        // pelanggan), bukan file 800×800 penuh untuk tiap kartu.
+        <Image src={imageUrl} alt="" fill sizes="(max-width: 767px) 46vw, (max-width: 1365px) 180px, 220px" />
       ) : (
         <span className="pos-v6-card-fallback">
           <FallbackIcon className="size-7" aria-hidden />

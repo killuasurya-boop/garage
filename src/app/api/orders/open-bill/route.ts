@@ -1,6 +1,7 @@
+import { createHash } from "node:crypto";
 import { z } from "zod";
 
-import { fail, ok, readJson } from "@/lib/api-response";
+import { fail, ok, readJson, serviceErrorResponse } from "@/lib/api-response";
 import { eventCartItemSchema } from "@/lib/event-menu-service";
 import { createCustomerOrder, updateCustomerOrderStatus } from "@/lib/garage-service";
 import { checkIdempotency, readIdempotencyKey } from "@/lib/idempotency";
@@ -56,7 +57,9 @@ export async function POST(request: Request) {
   if (body.data.eventId && (!key || key.length < 8)) {
     return fail(400, "IDEMPOTENCY_KEY_REQUIRED", "Kunci transaksi paket event wajib dikirim.");
   }
-  const cache = key ? checkIdempotency<OpenBillResult>(`open-bill:${session.data.user.id}`, key) : null;
+  // Sidik isi di scope cache memori: kunci sama + isi berbeda diteruskan ke service (ditolak di sana).
+  const bodyHash = createHash("sha256").update(JSON.stringify(body.data)).digest("hex").slice(0, 16);
+  const cache = key ? checkIdempotency<OpenBillResult>(`open-bill:${session.data.user.id}:${bodyHash}`, key) : null;
   if (cache?.kind === "hit") return ok(cache.result);
   if (cache?.kind === "pending") return fail(409, "OPEN_BILL_IN_PROGRESS", "Tagihan masih diproses.");
 
@@ -83,10 +86,15 @@ export async function POST(request: Request) {
       skipCashierNotify: true,
       paymentMethod: "Cash",
       items,
-      ...(eventId ? { eventId, eventItems: eventItems ?? [], clientRequestKey: key! } : {}),
+      ...(eventId
+        ? { eventId, eventItems: eventItems ?? [], clientRequestKey: key! }
+        : key && key.length >= 8
+          ? { clientRequestKey: `${session.data.user.id}:${key}` }
+          : {}),
     });
     // Kasir sendiri yang membuat → langsung diterima & masuk Bar/Dapur.
-    // Replay paket event (kunci sama) mengembalikan order yang mungkin sudah diterima.
+    // Replay (kunci sama, tersimpan di DB) mengembalikan order yang mungkin sudah diterima;
+    // bila percobaan sebelumnya gagal di langkah terima, retry ini yang menyelesaikannya (S5).
     if (created.order.status === "pending_cashier" || created.order.status === "awaiting_payment") {
       await updateCustomerOrderStatus(created.order.id, { action: "accept" }, session.data, { openBill: true });
     }
@@ -100,6 +108,6 @@ export async function POST(request: Request) {
     return ok(result, { status: 201 });
   } catch (error) {
     if (cache?.kind === "miss") cache.abandon();
-    return fail(400, "OPEN_BILL_FAILED", error instanceof Error ? error.message : "Tagihan gagal disimpan.");
+    return serviceErrorResponse(error, "OPEN_BILL_FAILED", "Tagihan gagal disimpan. Coba lagi.");
   }
 }

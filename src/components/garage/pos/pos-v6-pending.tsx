@@ -425,6 +425,9 @@ export function PosV6FinalizeDialog({
   referenceRequired,
   handoverNote,
   onConfirm,
+  pending = false,
+  error = null,
+  cashAllowed = true,
 }: {
   target: CustomerOrder | null;
   theme?: string;
@@ -441,6 +444,12 @@ export function PosV6FinalizeDialog({
   referenceRequired: boolean;
   handoverNote: string | null;
   onConfirm: () => void;
+  /** Request Final Bayar sedang berjalan — tombol dikunci, dialog tidak bisa ditutup. */
+  pending?: boolean;
+  /** Error dari server ditampilkan DI dialog ini (nominal yang diketik tetap ada). */
+  error?: string | null;
+  /** false = tanpa shift buka (mode Owner): Tunai tidak ditawarkan. */
+  cashAllowed?: boolean;
 }) {
   const total = target?.total ?? 0;
   const cashValue = Number(cash.replace(/\D/g, "")) || 0;
@@ -454,7 +463,7 @@ export function PosV6FinalizeDialog({
     qrisReferenceMissing: referenceMissing,
     tableMissing: false,
   });
-  const disabled = method === "Cash" ? !cashReady : referenceMissing;
+  const disabled = pending || (method === "Cash" ? !cashReady || !cashAllowed : referenceMissing);
   const methods = target?.fulfillment === "delivery" ? (["QRIS"] as PaymentMethod[]) : paymentMethods;
 
   return (
@@ -480,7 +489,12 @@ export function PosV6FinalizeDialog({
                   aria-checked={method === value}
                   className="pos-v6-pend-tab"
                   data-active={method === value}
-                  disabled={value === "QRIS" && !qrisImageReady && target.fulfillment !== "delivery"}
+                  disabled={
+                    pending ||
+                    (value === "QRIS" && !qrisImageReady && target.fulfillment !== "delivery") ||
+                    (value === "Cash" && !cashAllowed)
+                  }
+                  title={value === "Cash" && !cashAllowed ? "Tunai butuh shift yang sedang buka" : undefined}
                   onClick={() => setMethod(value)}
                 >
                   {value === "Cash" ? "Tunai" : value === "Bank Transfer" ? "Transfer" : value}
@@ -523,12 +537,29 @@ export function PosV6FinalizeDialog({
                 />
               </div>
             )}
+            {!cashAllowed && target.fulfillment !== "delivery" ? (
+              <p className="pos-v6-pend-flag !text-sm" data-testid="finalize-no-cash">
+                Tanpa shift buka: Tunai tidak bisa dipakai (uang harus masuk laci). Pilih QRIS/Transfer atau Mulai Shift.
+              </p>
+            ) : null}
+            {error ? (
+              <p className="pos-v6-pend-flag !text-sm" role="alert" data-testid="finalize-error">
+                <AlertTriangle className="size-4 shrink-0" aria-hidden /> {error}
+              </p>
+            ) : null}
             <div className="grid gap-2 sm:grid-cols-[auto_1fr]">
-              <button type="button" className="pos-v6-btn-outline justify-center" onClick={onClose}>
+              <button type="button" className="pos-v6-btn-outline justify-center" onClick={onClose} disabled={pending}>
                 Batal
               </button>
-              <button type="button" className="pos-v6-btn-primary justify-center !min-h-12 text-base" onClick={onConfirm} disabled={disabled} data-testid="pos-finalize-confirm">
-                <CheckCircle2 className="size-5" aria-hidden /> {label}
+              <button
+                type="button"
+                className="pos-v6-btn-primary justify-center !min-h-12 text-base"
+                onClick={onConfirm}
+                disabled={disabled}
+                aria-busy={pending}
+                data-testid="pos-finalize-confirm"
+              >
+                <CheckCircle2 className="size-5" aria-hidden /> {pending ? "Menyimpan pembayaran…" : label}
               </button>
             </div>
           </>

@@ -49,6 +49,7 @@ function unitPriceOf(item: MenuItem, variantPrice: number) {
  */
 export function PosQuickRetail({
   shiftOpen,
+  cashAllowed = true,
   menuItems,
   settings,
   qrisImagePath,
@@ -61,6 +62,8 @@ export function PosQuickRetail({
   /** Tema kasir aktif (POS V6) — dialog ikut tema. */
   theme?: string;
   shiftOpen: boolean;
+  /** false = mode Owner tanpa shift: Tunai tidak ditawarkan (uang harus masuk laci, K4). */
+  cashAllowed?: boolean;
   menuItems: MenuItem[];
   settings: AppSettings;
   qrisImagePath: string;
@@ -72,7 +75,7 @@ export function PosQuickRetail({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [lines, setLines] = useState<Line[]>([]);
-  const [tender, setTender] = useState<Tender>("Cash");
+  const [tender, setTender] = useState<Tender>(cashAllowed ? "Cash" : "QRIS");
   const [cash, setCash] = useState("");
   const [reference, setReference] = useState("");
   const [busy, setBusy] = useState(false);
@@ -134,14 +137,14 @@ export function PosQuickRetail({
   const cashShort = tender === "Cash" && (cash === "" || cashValue < total);
   const referenceMissing = tender === "QRIS" && settings.qrisReferenceRequired && !normalizePaymentReference(reference);
   const canPay = shiftOpen && cartLines.length > 0 && total > 0 && !busy && !cashShort && !referenceMissing &&
-    (tender === "Cash" || qrisImageReady);
+    (tender === "Cash" ? cashAllowed : qrisImageReady);
 
   function resetSale() {
     setLines([]);
     setQuery("");
     setCash("");
     setReference("");
-    setTender("Cash");
+    setTender(cashAllowed ? "Cash" : "QRIS");
     setError(null);
     setNotice(null);
     setReceipt(null);
@@ -484,7 +487,8 @@ export function PosQuickRetail({
                       type="button"
                       role="radio"
                       aria-checked={tender === method}
-                      disabled={busy || (method === "QRIS" && !qrisImageReady)}
+                      disabled={busy || (method === "QRIS" && !qrisImageReady) || (method === "Cash" && !cashAllowed)}
+                      title={method === "Cash" && !cashAllowed ? "Tunai butuh shift yang sedang buka" : undefined}
                       onClick={() => {
                         // Ganti metode sebelum bayar tidak mencatat apa pun (tender guard §09.2).
                         setTender(method);

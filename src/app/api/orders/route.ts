@@ -1,15 +1,22 @@
 import { z } from "zod";
 
-import { fail, ok, readJson } from "@/lib/api-response";
-import { createOrder, getOrderData } from "@/lib/garage-service";
+import { fail, ok, readJson, serviceErrorResponse } from "@/lib/api-response";
+import { createOrder, getOrderData, posOrderFingerprint } from "@/lib/garage-service";
 import { checkIdempotency, readIdempotencyKey } from "@/lib/idempotency";
 import { TABLE_NUMBER_RANGE_MESSAGE, parseTableNumber } from "@/lib/garage-tables";
+import { PAYMENT_METHOD_PATTERN } from "@/lib/payment-method-input";
 import { rateLimit } from "@/lib/rate-limit";
 import { requireCashierSession, requirePermission } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
 
 type CreateOrderResult = Awaited<ReturnType<typeof createOrder>>;
+
+const paymentMethodField = z
+  .string()
+  .trim()
+  .max(40)
+  .regex(PAYMENT_METHOD_PATTERN, "Metode bayar tidak dikenal.");
 
 const orderSchema = z.object({
   orderType: z.enum(["dine-in", "takeaway", "delivery"]),
@@ -20,13 +27,13 @@ const orderSchema = z.object({
     .trim()
     .refine((value) => parseTableNumber(value) !== null, { message: TABLE_NUMBER_RANGE_MESSAGE })
     .optional(),
-  tableLabel: z.string().min(1).optional(),
-  paymentMethod: z.string().min(1).optional(),
-  paymentProvider: z.string().min(1).optional(),
+  tableLabel: z.string().trim().min(1).max(40).optional(),
+  paymentMethod: paymentMethodField.optional(),
+  paymentProvider: z.string().trim().min(1).max(60).optional(),
   paymentReference: z.string().trim().max(80).optional(),
   cashReceived: z.number().int().nonnegative().optional(),
   customerId: z.string().uuid().optional(),
-  memberPhone: z.string().trim().min(8).optional(),
+  memberPhone: z.string().trim().min(8).max(24).optional(),
   guestName: z.string().trim().min(2).max(80).optional(),
   guestPhone: z.string().trim().min(8).max(24).optional(),
   pointsToRedeem: z.number().int().min(0).max(1_000_000).optional(),
@@ -46,7 +53,7 @@ const orderSchema = z.object({
   splits: z
     .array(
       z.object({
-        method: z.string().trim().min(1).max(40),
+        method: paymentMethodField,
         amount: z.number().int().positive(),
         provider: z.string().trim().max(60).optional(),
         reference: z.string().trim().max(80).optional(),
@@ -58,13 +65,15 @@ const orderSchema = z.object({
   items: z
     .array(
       z.object({
-        itemId: z.string().min(1),
-        variantId: z.string().min(1),
-        qty: z.number().int().positive(),
+        itemId: z.string().min(1).max(120),
+        variantId: z.string().min(1).max(120),
+        // Batas wajar per baris (S9): qty raksasa dulu bisa meluap kolom int line_total.
+        qty: z.number().int().positive().max(999, "Qty per item maksimal 999."),
         note: z.string().trim().max(120).optional(),
       }),
     )
-    .min(1),
+    .min(1)
+    .max(100, "Maksimal 100 baris item per order."),
 });
 
 export async function GET(request: Request) {
@@ -100,9 +109,11 @@ export async function POST(request: Request) {
   const idempotencyKey = readIdempotencyKey(request);
   // Jendela 15 menit: kasir sering baru mengulang Bayar setelah WiFi/server pulih.
   // Retry dengan key sama dalam jendela ini mengembalikan order yang sama (tidak dobel).
+  // Sidik isi ikut di scope cache: kunci sama + isi berbeda tidak boleh mengembalikan
+  // hasil lama dari memori — diteruskan ke service yang menolaknya (IDEMPOTENCY_MISMATCH).
   const cache = idempotencyKey
     ? checkIdempotency<CreateOrderResult>(
-        `orders-create:${session.data.user.id}`,
+        `orders-create:${session.data.user.id}:${posOrderFingerprint(body.data)}`,
         idempotencyKey,
         15 * 60_000,
       )
@@ -137,10 +148,6 @@ export async function POST(request: Request) {
     return ok(result, { status: "replayed" in result ? 200 : 201 });
   } catch (error) {
     if (cache?.kind === "miss") cache.abandon();
-    return fail(
-      400,
-      "ORDER_CREATE_FAILED",
-      error instanceof Error ? error.message : "Gagal membuat order.",
-    );
+    return serviceErrorResponse(error, "ORDER_CREATE_FAILED", "Gagal membuat order. Coba lagi atau hubungi Owner.");
   }
 }

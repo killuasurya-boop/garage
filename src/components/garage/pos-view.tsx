@@ -282,7 +282,7 @@ import {
   type TableBillSplitResult,
 } from "@/components/garage/pos-table-bill-split-dialog";
 import { remainingCart, type SplitAssignment } from "@/lib/split-bill";
-import { calculateBillingTotals } from "@/lib/garage-billing";
+import { calculateBillingTotals, capVoucherDiscountBySettings } from "@/lib/garage-billing";
 import { maxRedeemablePoints, normalizePhone } from "@/lib/member-types";
 import { PosMemberWaVerify } from "@/components/garage/pos-member-wa-verify";
 import { BillRow, chitStationFor, formatReceiptDate, PaymentStep, OpenBillSaved } from "@/components/garage/pos/pos-ui-shared";
@@ -861,6 +861,8 @@ export function PosView({
   const [finalizeOrderTarget, setFinalizeOrderTarget] = useState<CustomerOrder | null>(null);
   // Final Bayar: kasir boleh ganti metode (tiap tamu bill pisahan bisa beda).
   const [finalizeMethod, setFinalizeMethod] = useState<PaymentMethod>("Cash");
+  const [finalizePending, setFinalizePending] = useState(false);
+  const [finalizeError, setFinalizeError] = useState<string | null>(null);
   const [finalizeCash, setFinalizeCash] = useState("");
   const [finalizeReference, setFinalizeReference] = useState("");
   // Split bill per produk: bill meja (pisah) & keranjang kasir (bayar per tamu).
@@ -1278,7 +1280,11 @@ export function PosView({
   // Dulu layar tidak membulatkan → "Uang Pas" Rp 34.650 ditolak server (total Rp 34.700).
   const { service, tax, grossTotal: total } = calculateBillingTotals(subtotal, settings);
   const roundingAdjustment = total - (subtotal + service + tax);
-  const voucher = posVoucherResult?.valid ? posVoucherResult.discount : 0;
+  // Batas maks diskon voucher dari Pengaturan (voucherMaxDiscountPct) — SAMA dengan server
+  // (createOrderOnce). Dulu layar memakai diskon mentah → total layar < tagihan server.
+  const voucher = posVoucherResult?.valid
+    ? capVoucherDiscountBySettings(posVoucherResult.discount, subtotal, settings)
+    : 0;
   // Manual discount dihitung dari total SETELAH voucher (urutan: voucher → manual)
   const manualDiscountAmount = manualDiscount
     ? manualDiscount.type === "percent"
@@ -2469,9 +2475,9 @@ export function PosView({
       // Referensi QRIS/transfer yang dicek kasir (menimpa referensi pelanggan).
       paymentReference?: string;
     } = {},
-  ) {
+  ): Promise<boolean> {
     if (customerOrderActionId) {
-      return;
+      return false;
     }
 
     setCustomerOrderActionId(`${order.id}:${action}`);
@@ -2561,10 +2567,12 @@ export function PosView({
         setSelectedCustomerOrderId(null);
         setQrOrdersOpen(false);
       }
+      return true;
     } catch (error) {
       setCustomerOrderError(
         error instanceof Error ? error.message : "Aksi order QR pelanggan gagal.",
       );
+      return false;
     } finally {
       setCustomerOrderActionId(null);
     }
@@ -2639,13 +2647,16 @@ export function PosView({
 
   function openFinalizeDialog(order: CustomerOrder) {
     const method = customerOrderPaymentMethod(order);
-    setFinalizeMethod(
+    const preferred =
       order.fulfillment === "delivery"
         ? "QRIS"
         : (paymentMethods as readonly string[]).includes(method)
           ? (method as PaymentMethod)
-          : "Cash",
-    );
+          : "Cash";
+    // Owner tanpa shift: tunai pasti ditolak server (uang harus masuk laci) → jangan ditawarkan (K4).
+    setFinalizeMethod(preferred === "Cash" && !shiftOpen ? "QRIS" : preferred);
+    setFinalizeError(null);
+    setCustomerOrderError(null);
     setFinalizeCash("");
     setFinalizeReference(customerOrderPaymentReference(order) ?? "");
     setFinalizeOrderTarget(order);
@@ -2669,17 +2680,30 @@ export function PosView({
   const finalizeReferenceMissing =
     finalizeMethod === "QRIS" && settings.qrisReferenceRequired && !normalizePaymentReference(finalizeReference);
 
-  function confirmFinalizeOrder() {
-    if (!finalizeOrderTarget || finalizeCashShort || finalizeReferenceMissing) return;
+  async function confirmFinalizeOrder() {
+    if (!finalizeOrderTarget || finalizeCashShort || finalizeReferenceMissing || finalizePending) return;
     // Tunai wajib diisi (Owner, Nov 2026): kosong ≠ uang pas.
     if (finalizeMethod === "Cash" && finalizeCash === "") return;
+    if (finalizeMethod === "Cash" && !shiftOpen) {
+      setFinalizeError("Tunai wajib dari shift yang sedang buka (uang masuk laci). Pilih QRIS/Transfer atau Mulai Shift.");
+      return;
+    }
     const target = finalizeOrderTarget;
-    setFinalizeOrderTarget(null);
-    void decideCustomerOrder(target, "paid", {
-      paymentMethod: finalizeMethod,
-      cashReceived: finalizeMethod === "Cash" ? finalizeCashValue : undefined,
-      paymentReference: finalizeMethod === "Cash" ? undefined : finalizeReference,
-    });
+    // Dialog tetap terbuka sampai lunas tersimpan (K5): bila gagal, nominal yang diketik
+    // tidak hilang dan pesan error tampil di dialog ini, bukan di panel lain.
+    setFinalizePending(true);
+    setFinalizeError(null);
+    setCustomerOrderError(null);
+    try {
+      const saved = await decideCustomerOrder(target, "paid", {
+        paymentMethod: finalizeMethod,
+        cashReceived: finalizeMethod === "Cash" ? finalizeCashValue : undefined,
+        paymentReference: finalizeMethod === "Cash" ? undefined : finalizeReference,
+      });
+      if (saved) setFinalizeOrderTarget(null);
+    } finally {
+      setFinalizePending(false);
+    }
   }
 
   // Bayar satu bill meja (termasuk bill pisahan) dari detail meja.
@@ -3417,8 +3441,9 @@ export function PosView({
     setPosVoucherCode("");
     setPosVoucherResult(null);
     setManualDiscount(null);
-    setSelectedPaymentMethod("Cash");
-    setPaymentProvider(defaultPaymentProvider("Cash"));
+    // Owner tanpa shift: jangan mulai dari Tunai (pasti ditolak server, K4).
+    setSelectedPaymentMethod(shiftOpen ? "Cash" : "QRIS");
+    setPaymentProvider(defaultPaymentProvider(shiftOpen ? "Cash" : "QRIS"));
     setPaymentReference("");
     // GOD++ F-01: uang diterima TIDAK diisi otomatis. Nilai lama (total saat dialog dibuka) tidak ikut
     // berubah saat voucher/diskon → layar sempat menampilkan "kembalian" palsu. Kasir isi nominal atau
@@ -3457,8 +3482,9 @@ export function PosView({
     setMemberClaimCode(null);
     setMemberClaimError(null);
     setManualDiscount(null);
-    setSelectedPaymentMethod("Cash");
-    setPaymentProvider(defaultPaymentProvider("Cash"));
+    // Owner tanpa shift: jangan mulai dari Tunai (pasti ditolak server, K4).
+    setSelectedPaymentMethod(shiftOpen ? "Cash" : "QRIS");
+    setPaymentProvider(defaultPaymentProvider(shiftOpen ? "Cash" : "QRIS"));
     setPaymentReference("");
     setCashReceived("");
   }
@@ -3996,7 +4022,8 @@ export function PosView({
       paymentMethod,
       paymentProvider:
         (overrides.orderType ? defaultPaymentProvider(paymentMethod) : paymentProviderValue) || undefined,
-      paymentReference: paymentReference.trim() || undefined,
+      // Bayar 1-tap: referensi dari dialog sebelumnya (reset belum berlaku di render ini) tidak ikut.
+      paymentReference: overrides.orderType ? undefined : paymentReference.trim() || undefined,
       cashReceived: paymentMethod === "Cash" ? effectiveCash : undefined,
       customerId: posCustomerMode === "member" ? selectedMember?.customerId : undefined,
       memberPhone: posCustomerMode === "member" ? selectedMember?.member.phone : undefined,
@@ -4039,12 +4066,14 @@ export function PosView({
         posCustomerMode === "member"
           ? (selectedMember?.member.name ?? null)
           : guestName.trim() || null;
+      // Nilai EFEKTIF order ini (Bayar 1-tap memaksa take away) — bukan state layar
+      // yang mungkin masih dine-in dari order sebelumnya (K3).
       const voiceTable =
-        orderType === "dine-in"
+        effectiveOrderType === "dine-in"
           ? selectedTableNumber || tableLabel
-          : orderType === "takeaway"
+          : effectiveOrderType === "takeaway"
             ? "takeaway"
-            : tableLabel;
+            : orderBody.tableLabel;
       // Smart-split voice: deteksi kategori cart, fire heads-up cuma ke
       // station yang akan dapet tiket (Dapur: Makanan/Cemilan; Bar: Coffee/Non-Coffee).
       let hasKitchenItem = false;
@@ -4082,8 +4111,8 @@ export function PosView({
       void printChitIfEnabled({
         orderNo: result.orderNo,
         queueNo: result.receipt.queueNo ?? null,
-        tableLabel: result.receipt.tableLabel ?? tableLabel,
-        orderType,
+        tableLabel: result.receipt.tableLabel ?? orderBody.tableLabel,
+        orderType: effectiveOrderType,
         createdAt: result.receipt.createdAt ?? new Date().toISOString(),
         cashierName: result.receipt.cashier?.name ?? null,
         customerName: result.receipt.customer?.name ?? null,
@@ -5599,7 +5628,9 @@ export function PosView({
       <PosV6FinalizeDialog
         target={finalizeOrderTarget}
         theme={cashierTheme}
-        onClose={() => setFinalizeOrderTarget(null)}
+        onClose={() => {
+          if (!finalizePending) setFinalizeOrderTarget(null);
+        }}
         method={finalizeMethod}
         setMethod={setFinalizeMethod}
         cash={finalizeCash}
@@ -5611,7 +5642,10 @@ export function PosView({
         setQrisImageReady={setQrisImageReady}
         referenceRequired={settings.qrisReferenceRequired}
         handoverNote={finalizeHandoverNote}
-        onConfirm={confirmFinalizeOrder}
+        onConfirm={() => void confirmFinalizeOrder()}
+        pending={finalizePending}
+        error={finalizeError ?? (finalizeOrderTarget ? customerOrderError : null)}
+        cashAllowed={shiftOpen}
       />
 
       <PosV6ModuleSheet
@@ -8328,6 +8362,7 @@ export function PosView({
                 />
                 <PosQuickRetail
                   shiftOpen={canTransact}
+                  cashAllowed={shiftOpen}
                   menuItems={menuItems}
                   settings={settings}
                   qrisImagePath={paymentBrandConfig.qrisImagePath}
@@ -8705,13 +8740,7 @@ export function PosView({
                       <div className="flex justify-between gap-3 text-sm">
                         <span>Pajak ({taxPct}%)</span>
                         <span className="font-mono tabular-nums">{currency.format(tax)}</span>
-                        {roundingAdjustment !== 0 ? (
-                      <div className="flex justify-between gap-3 text-sm">
-                        <span>Pembulatan</span>
-                        <span className="font-mono tabular-nums">{currency.format(roundingAdjustment)}</span>
                       </div>
-                    ) : null}
-                  </div>
                     ) : null}
                     {roundingAdjustment !== 0 ? (
                       <div className="flex justify-between gap-3 text-sm">

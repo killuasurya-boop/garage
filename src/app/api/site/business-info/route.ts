@@ -22,6 +22,13 @@ const businessInfoSchema = z.object({
   hoursClose: z.string().trim().regex(/^\d{2}:\d{2}$/, "Format jam HH:MM.").optional(),
   mapsUrl: z.string().trim().url().max(500).or(z.literal("")).optional(),
   aboutText: z.string().trim().max(2000).optional(),
+  // Kosong (null) = rating tidak ditampilkan di website.
+  googleRating: z.number().min(1, "Rating 1–5.").max(5, "Rating 1–5.").nullable().optional(),
+  googleReviewCount: z.number().int("Jumlah ulasan bilangan bulat.").min(1, "Jumlah ulasan minimal 1.").max(1_000_000).nullable().optional(),
+}).refine((v) => v.googleRating === undefined && v.googleReviewCount === undefined
+  || (v.googleRating == null) === (v.googleReviewCount == null), {
+  path: ["googleReviewCount"],
+  message: "Isi rating DAN jumlah ulasan Google, atau kosongkan keduanya.",
 });
 
 export async function PUT(request: Request) {

@@ -14851,6 +14851,9 @@ export type BusinessInfo = {
   hoursClose: string;
   mapsUrl: string;
   aboutText: string; // paragraf "About/Story" landing, pisah antar-paragraf dgn baris kosong
+  // Rating profil Google, diisi Owner di Pengaturan Website (Owner 24 Nov 2026). null = tidak ditampilkan di website.
+  googleRating: number | null;
+  googleReviewCount: number | null;
 };
 
 export const DEFAULT_BUSINESS_INFO: BusinessInfo = {
@@ -14865,6 +14868,9 @@ export const DEFAULT_BUSINESS_INFO: BusinessInfo = {
   mapsUrl: GARAGE_LOCATION.mapsUrl,
   aboutText:
     "Dibangun untuk mereka yang menikmati ritual lambat — proses giling, seruputan pertama, dan obrolan yang tidak ingin selesai. Garage adalah bengkel yang menyamar jadi coffee shop, tempat material industrial bertemu seni meracik kopi.\n\nKami me-roasting dalam batch kecil. Buka sore, tutup larut. Tidak mengikuti tren — kami sedang membangun tempat yang layak ditempuh perjalanannya.",
+  // Nilai lama (Google Maps per 28 Sep 2026) sampai Owner mengubah/mengosongkannya di Pengaturan.
+  googleRating: GARAGE_LOCATION.rating,
+  googleReviewCount: GARAGE_LOCATION.reviewCount,
 };
 
 const BUSINESS_INFO_KEY = "site.businessInfo";
@@ -14885,6 +14891,12 @@ export async function saveBusinessInfo(
 ): Promise<BusinessInfo> {
   const db = getDb();
   const merged = { ...(await getBusinessInfo()), ...input };
+  // Rating dibulatkan 1 desimal; rating & jumlah ulasan selalu berpasangan (salah satu kosong = keduanya kosong).
+  if (merged.googleRating != null) merged.googleRating = Math.round(merged.googleRating * 10) / 10;
+  if (merged.googleRating == null || !merged.googleReviewCount) {
+    merged.googleRating = null;
+    merged.googleReviewCount = null;
+  }
   // Upsert manual: unique index (outlet_id, key) tidak men-trigger ON CONFLICT
   // untuk baris global (outlet_id NULL, NULL dianggap distinct di Postgres).
   const [existing] = await db

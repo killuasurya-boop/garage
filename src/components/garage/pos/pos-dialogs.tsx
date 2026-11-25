@@ -16,8 +16,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { type AppSettings, type CartLine, type CustomerOrder, type MenuItem, type MenuVariant, type OrderReceipt, type OrderType, type TableLiveRow } from "@/lib/garage-api-types";
 import { currency, type GarageMenuItem } from "@/lib/garage-data";
+import { filterReceipts } from "@/lib/pos-search";
 import { AlertTriangle, Archive, ArrowRight, Ban, Banknote, Camera, Check, Loader2, PauseCircle, Percent, Plus, Printer, RefreshCw, Trash2, Users } from "lucide-react";
-import { type ChangeEvent, type Dispatch, type FormEvent, type RefObject, type SetStateAction } from "react";
+import { type ChangeEvent, type Dispatch, type FormEvent, type RefObject, type SetStateAction, useState } from "react";
 
 export function PosClearCartDialog({
   clearCartOpen,
@@ -1127,12 +1128,15 @@ export function PosReceiptHistoryDialog({
   clearReceiptHistory: () => Promise<void>;
   cashierTheme: CashierThemeMode;
 }) {
+  const [historyQuery, setHistoryQuery] = useState("");
+  const shownReceipts = filterReceipts(receiptHistory, historyQuery);
   return (
     <Dialog
       open={receiptHistoryOpen}
       onOpenChange={(open) => {
         setReceiptHistoryOpen(open);
         if (!open) {
+          setHistoryQuery("");
           setReprintTargetId(null);
           setReprintStatus("idle");
           setReprintError(null);
@@ -1157,13 +1161,25 @@ export function PosReceiptHistoryDialog({
             <AlertDescription>{reprintError}</AlertDescription>
           </Alert>
         ) : null}
+        {receiptHistory.length > 0 ? (
+          <Input
+            value={historyQuery}
+            onChange={(event) => setHistoryQuery(event.target.value)}
+            placeholder="Cari no order, meja, nama, atau nominal"
+            aria-label="Cari riwayat struk"
+            data-testid="pos-receipt-search"
+            className="h-10 shrink-0 border-[#34343c] bg-white/[0.06]"
+          />
+        ) : null}
         <div className="garage-scroll min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
           {receiptHistory.length === 0 ? (
-            <p className="py-8 text-center text-xs text-[#8f8f99]">
+            <p className="py-8 text-center text-sm text-[#b8b8bf]">
               Belum ada struk yang dicetak di shift ini.
             </p>
+          ) : shownReceipts.length === 0 ? (
+            <p className="py-8 text-center text-sm text-[#b8b8bf]">Tidak ada struk yang cocok dengan &quot;{historyQuery}&quot;.</p>
           ) : (
-            receiptHistory.map((receipt) => {
+            shownReceipts.map((receipt) => {
               const isTarget = reprintTargetId === receipt.invoiceNo;
               const printing = isTarget && reprintStatus === "printing";
               const success = isTarget && reprintStatus === "success";

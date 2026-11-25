@@ -93,6 +93,14 @@ export function nextActionFor(order: CustomerOrder, lane: PendingLane, cashWithW
       return { kind: "accept_first", label: "Terima pesanan", hint: "Pesanan belum diterima kasir. Terima dulu, lalu tagih." };
     }
   }
+  if (lane === "digital" && order.qrisNeedsMutationCheck) {
+    // Penjualan QRIS statis saat POS offline (Fase 4): uang belum tentu masuk — lunasi hanya setelah mutasi dicek.
+    return {
+      kind: "verify_digital",
+      label: "Cek mutasi QRIS offline",
+      hint: `Dibayar QRIS statis saat POS offline${order.offlineNo ? ` (${order.offlineNo})` : ""}. Lunasi hanya bila dana sudah masuk di mutasi QRIS.`,
+    };
+  }
   if (lane === "digital") {
     return { kind: "verify_digital", label: "Cek mutasi & lunasi", hint: "Cek notifikasi QRIS/bank: nominal sama dengan total, referensi belum dipakai." };
   }

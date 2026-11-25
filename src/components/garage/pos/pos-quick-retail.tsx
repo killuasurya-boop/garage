@@ -12,9 +12,8 @@ import type { AppSettings, MenuItem, OrderCreateResponse, OrderReceipt } from "@
 import { calculateBillingTotals } from "@/lib/garage-billing";
 import {
   idempotencyAttemptFor,
-  isUncertainSubmitError,
   markAttemptAfterError,
-  UNCERTAIN_SUBMIT_MESSAGE,
+  submitErrorMessage,
   type IdempotencyAttempt,
 } from "@/lib/idempotency-client";
 import { quickCashOptions } from "@/lib/pos-cash";
@@ -49,6 +48,7 @@ function unitPriceOf(item: MenuItem, variantPrice: number) {
  */
 export function PosQuickRetail({
   shiftOpen,
+  cashAllowed = true,
   menuItems,
   settings,
   qrisImagePath,
@@ -61,6 +61,8 @@ export function PosQuickRetail({
   /** Tema kasir aktif (POS V6) — dialog ikut tema. */
   theme?: string;
   shiftOpen: boolean;
+  /** false = mode Owner tanpa shift: Tunai tidak ditawarkan (uang harus masuk laci, K4). */
+  cashAllowed?: boolean;
   menuItems: MenuItem[];
   settings: AppSettings;
   qrisImagePath: string;
@@ -72,7 +74,7 @@ export function PosQuickRetail({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [lines, setLines] = useState<Line[]>([]);
-  const [tender, setTender] = useState<Tender>("Cash");
+  const [tender, setTender] = useState<Tender>(cashAllowed ? "Cash" : "QRIS");
   const [cash, setCash] = useState("");
   const [reference, setReference] = useState("");
   const [busy, setBusy] = useState(false);
@@ -134,14 +136,14 @@ export function PosQuickRetail({
   const cashShort = tender === "Cash" && (cash === "" || cashValue < total);
   const referenceMissing = tender === "QRIS" && settings.qrisReferenceRequired && !normalizePaymentReference(reference);
   const canPay = shiftOpen && cartLines.length > 0 && total > 0 && !busy && !cashShort && !referenceMissing &&
-    (tender === "Cash" || qrisImageReady);
+    (tender === "Cash" ? cashAllowed : qrisImageReady);
 
   function resetSale() {
     setLines([]);
     setQuery("");
     setCash("");
     setReference("");
-    setTender("Cash");
+    setTender(cashAllowed ? "Cash" : "QRIS");
     setError(null);
     setNotice(null);
     setReceipt(null);
@@ -215,21 +217,26 @@ export function PosQuickRetail({
     };
     const current = idempotencyAttemptFor(attempt, body, makeKey);
     setAttempt(current);
+    let result: OrderCreateResponse;
     try {
-      const result = await garageApi.post<OrderCreateResponse>("/api/orders", body, {
+      result = await garageApi.post<OrderCreateResponse>("/api/orders", body, {
         headers: { "X-Idempotency-Key": current.key },
       });
-      setAttempt(null);
-      setReceipt(result.receipt);
-      setLines([]);
-      await onCompleted(result);
     } catch (caught) {
       setAttempt(markAttemptAfterError(current, caught));
-      setError(
-        isUncertainSubmitError(caught)
-          ? UNCERTAIN_SUBMIT_MESSAGE
-          : caught instanceof Error ? caught.message : "Pembayaran gagal. Status order dicek dari server — coba lagi.",
-      );
+      setError(submitErrorMessage(caught, "Pembayaran gagal. Status order dicek dari server — coba lagi."));
+      setBusy(false);
+      return;
+    }
+    // Sudah LUNAS di server. Kerja lanjutan (refresh, cetak) di luar try pembayaran (K10):
+    // bila gagal, layar tidak boleh menyatakan pembayaran gagal.
+    setAttempt(null);
+    setReceipt(result.receipt);
+    setLines([]);
+    try {
+      await onCompleted(result);
+    } catch {
+      setNotice("Pembayaran tersimpan. Data layar belum ter-refresh — muat ulang bila perlu.");
     } finally {
       setBusy(false);
     }
@@ -484,7 +491,8 @@ export function PosQuickRetail({
                       type="button"
                       role="radio"
                       aria-checked={tender === method}
-                      disabled={busy || (method === "QRIS" && !qrisImageReady)}
+                      disabled={busy || (method === "QRIS" && !qrisImageReady) || (method === "Cash" && !cashAllowed)}
+                      title={method === "Cash" && !cashAllowed ? "Tunai butuh shift yang sedang buka" : undefined}
                       onClick={() => {
                         // Ganti metode sebelum bayar tidak mencatat apa pun (tender guard §09.2).
                         setTender(method);

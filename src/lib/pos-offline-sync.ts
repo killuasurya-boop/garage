@@ -13,7 +13,10 @@ import {
   markFailed,
   markSynced,
   markSyncing,
+  resetStuckSyncing,
+  type QueuedOrder,
 } from "@/lib/pos-offline-queue";
+import { classifySyncResponse, isRetryDue, OFFLINE_SYNC_BATCH } from "@/lib/pos-offline-rules";
 
 const RETRY_INTERVAL_MS = 30_000;
 
@@ -21,20 +24,32 @@ let intervalId: number | null = null;
 let onlineListener: (() => void) | null = null;
 let visibilityListener: (() => void) | null = null;
 let running = false;
+let syncedListener: ((count: number) => void) | null = null;
 
-async function syncOne(): Promise<boolean> {
-  if (typeof navigator !== "undefined" && !navigator.onLine) return false;
+/** POS memasang listener ini untuk memuat ulang data setelah penjualan offline masuk server. */
+export function setPosSyncListener(listener: ((count: number) => void) | null) {
+  syncedListener = listener;
+}
+
+function endpointFor(item: QueuedOrder) {
+  return item.kind === "open-bill" ? "/api/orders/open-bill" : "/api/orders";
+}
+
+type SyncStep = "synced" | "failed" | "idle";
+
+async function syncOne(): Promise<SyncStep> {
+  if (typeof navigator !== "undefined" && !navigator.onLine) return "idle";
   const all = await listQueue();
-  // Item yang ditolak permanen dilewati, supaya satu order bermasalah tidak
-  // memacetkan seluruh antrean (dulu selalu mencoba item gagal tertua dulu).
+  const now = Date.now();
+  // Item yang ditolak permanen dilewati (tampil di "Perlu ditinjau"); item gagal sementara menunggu jeda backoff.
   const target =
     all.find((q) => q.status === "pending") ??
-    all.find((q) => q.status === "failed" && !q.permanent);
-  if (!target) return false;
+    all.find((q) => q.status === "failed" && !q.permanent && isRetryDue(q, now));
+  if (!target) return "idle";
 
   await markSyncing(target.id);
   try {
-    const res = await fetch("/api/orders", {
+    const res = await fetch(endpointFor(target), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -46,38 +61,43 @@ async function syncOne(): Promise<boolean> {
       },
       body: JSON.stringify(target.payload),
     });
-    if (res.ok || res.status === 200) {
+    const errBody = res.ok ? null : await res.json().catch(() => null);
+    const outcome = classifySyncResponse(res.status, errBody?.error?.code ?? null);
+    if (outcome === "synced") {
       await markSynced(target.id);
-      return true;
+      return "synced";
     }
-    // 409 ORDER_IN_PROGRESS = duplikat baru sebagian: tunggu
-    // 400 = invalid payload (tidak retry, mark failed)
-    const errBody = await res.json().catch(() => null);
-    const msg = errBody?.error?.message ?? `HTTP ${res.status}`;
-    // 4xx selain 408/409/429 = ditolak permanen; 5xx/408/409/429 dicoba lagi.
-    const permanent = res.status >= 400 && res.status < 500 && ![408, 409, 429].includes(res.status);
-    await markFailed(target.id, msg, permanent);
-    return false;
+    await markFailed(target.id, errBody?.error?.message ?? `HTTP ${res.status}`, outcome === "permanent");
+    return "failed";
   } catch (e) {
-    await markFailed(target.id, e instanceof Error ? e.message : "Network error");
-    return false;
+    await markFailed(target.id, e instanceof Error ? e.message : "Koneksi terputus");
+    return "failed";
   }
 }
 
 async function syncLoop() {
   if (running) return;
   running = true;
+  let synced = 0;
   try {
-    // Sync 1 per tick (jaga ringan). Tick 30s atau saat trigger online.
-    await syncOne();
+    // Kuras antrean (maks OFFLINE_SYNC_BATCH per putaran); berhenti saat tidak ada yang siap atau jaringan gagal.
+    for (let index = 0; index < OFFLINE_SYNC_BATCH; index += 1) {
+      const step = await syncOne();
+      if (step === "synced") synced += 1;
+      else if (step === "idle") break;
+      else if (typeof navigator !== "undefined" && !navigator.onLine) break;
+    }
   } finally {
     running = false;
+    if (synced > 0) syncedListener?.(synced);
   }
 }
 
 export function startSyncWorker() {
   if (typeof window === "undefined") return;
   if (intervalId !== null) return; // sudah jalan
+  // Item "syncing" yang yatim (tab ditutup saat sinkron) dikembalikan dulu, lalu mulai.
+  void resetStuckSyncing().catch(() => undefined).finally(() => void syncLoop());
   // Polling
   intervalId = window.setInterval(() => {
     void syncLoop();
@@ -90,8 +110,6 @@ export function startSyncWorker() {
     if (document.visibilityState === "visible") void syncLoop();
   };
   document.addEventListener("visibilitychange", visibilityListener);
-  // Kick off pertama
-  void syncLoop();
 }
 
 export function stopSyncWorker() {

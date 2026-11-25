@@ -334,7 +334,66 @@ type OrderInput = {
     qty: number;
     note?: string;
   }>;
+  /**
+   * Penjualan yang terjadi saat POS offline (Fase 4, owner 25 Nov 2026). Nomor sementara di struk, waktu jual di
+   * perangkat, dan shift tempat uang tunai masuk laci. Shift harus sama dengan shift terbuka saat sinkron.
+   */
+  offline?: OfflineSaleInfo;
 };
+
+export type OfflineSaleInfo = {
+  offlineNo: string;
+  soldAt: string;
+  cashSessionId?: string | null;
+};
+
+/** Shift saat penjualan offline sudah ditutup / berbeda → perlu ditinjau Owner, tidak pernah pindah laci. */
+export class OfflineShiftClosedError extends Error {
+  readonly code = "OFFLINE_SHIFT_CLOSED";
+  constructor(offlineNo: string) {
+    super(
+      `Penjualan offline ${offlineNo}: shift saat penjualan sudah ditutup atau berbeda. Uang tidak dipindah ke shift lain — perlu ditinjau Owner/Manajer.`,
+    );
+    this.name = "OfflineShiftClosedError";
+  }
+}
+
+/**
+ * Tiket produksi penjualan offline: chit Bar/Dapur sudah dicetak di kasir & pesanan sudah dibuat saat offline,
+ * jadi tiket langsung ditutup (tidak muncul lagi sebagai antrean baru di Production Hub).
+ */
+async function closeOfflineProductionTickets(tx: GarageTx, ticketIds: string[], actorName: string) {
+  if (!ticketIds.length) return;
+  const now = new Date();
+  await tx
+    .update(kitchenTickets)
+    .set({
+      status: "delivered",
+      readyAt: now,
+      deliveredAt: now,
+      readyByName: actorName,
+      deliveredByName: actorName,
+      chitPrintedAt: now,
+      internalNotes: "Penjualan offline — chit sudah dicetak di kasir",
+    })
+    .where(inArray(kitchenTickets.id, ticketIds));
+  await tx
+    .update(productionTicketItems)
+    .set({ status: "ready", readyAt: now })
+    .where(inArray(productionTicketItems.ticketId, ticketIds));
+}
+
+/** Tutup tiket produksi order offline yang baru diterima (jalur Bayar nanti / QRIS offline). */
+export async function closeOfflineProductionTicketsForOrder(orderId: string, actorName: string) {
+  await getDb().transaction(async (tx) => {
+    const rows = await tx
+      .select({ id: kitchenTickets.id })
+      .from(kitchenTickets)
+      .where(and(eq(kitchenTickets.orderId, orderId), inArray(kitchenTickets.status, ["queue", "cooking", "ready"])));
+    await closeOfflineProductionTickets(tx, rows.map((row) => row.id), actorName);
+  });
+  publishProductionChange();
+}
 
 type CustomerOrderSource = "qr_table" | "qr_takeaway" | "instagram" | "campaign";
 
@@ -362,6 +421,11 @@ type CustomerOrderInput = {
   staffOrder?: boolean;
   /** Tagihan "Bayar nanti" dari POS: produk tersembunyi di menu digital (mis. rokok) tetap boleh. */
   allowHiddenItems?: boolean;
+  /**
+   * Penjualan QRIS statis saat POS offline (Fase 4): tagihan menunggu cek mutasi Owner/Manajer
+   * (payment pending metode QRIS, `qrisVerification: needs_mutation_check`), tidak pernah dianggap lunas otomatis.
+   */
+  offline?: OfflineSaleInfo;
   paymentMethod?: string;
   paymentProvider?: string;
   paymentReference?: string;
@@ -1133,6 +1197,9 @@ function customerOrderResponse(
     cashierConfirmedAt,
     // Tagihan dibuat staf (Bayar nanti/waiter): metode bayar belum dipilih pelanggan.
     staffOrder: metadata.staffOrder === true,
+    // Penjualan offline (Fase 4): nomor sementara di struk & QRIS yang wajib dicek mutasinya.
+    offlineNo: typeof metadata.offlineNo === "string" ? metadata.offlineNo : null,
+    qrisNeedsMutationCheck: metadata.qrisVerification === "needs_mutation_check",
     items: items.map((item) => ({
       id: item.id,
       menuItemId: item.menuItemId,
@@ -9722,7 +9789,13 @@ export async function getCustomerOrderingStatus(outletId?: string) {
 }
 
 function eventCheckoutRequestKey(input: CustomerOrderInput) {
-  return input.eventId && input.clientRequestKey ? `event:${input.eventId}:${input.clientRequestKey}` : null;
+  if (!input.clientRequestKey) return null;
+  if (input.eventId) return `event:${input.eventId}:${input.clientRequestKey}`;
+  // "Bayar nanti" POS (S5/K2): kunci anti-dobel disimpan di order (unik di DB), bukan hanya
+  // memori 60 dtk → retry setelah restart/instance lain tidak membuat bill & tiket dapur dobel.
+  // Kunci sudah di-scope per user oleh route (`<userId>:<key>`).
+  if (input.staffOrder) return `open-bill:${input.clientRequestKey}`;
+  return null;
 }
 
 function eventCheckoutFingerprint(input: CustomerOrderInput) {
@@ -9745,7 +9818,11 @@ async function replayEventCheckout(db: GarageDb | GarageTx, input: CustomerOrder
   const [row] = await db.select().from(orders).where(eq(orders.clientRequestKey, key)).limit(1);
   if (!row) return null;
   if (row.clientRequestFingerprint !== eventCheckoutFingerprint(input)) {
-    throw new Error("Kunci checkout sudah digunakan untuk pesanan berbeda. Muat ulang keranjang.");
+    // code: kasir POS (Bayar nanti/Paket Event) melihat pesan ini dan kuncinya tetap dipakai
+    // (bukan kunci baru yang membuat bill kedua) — sama dengan IdempotencyMismatchError order POS.
+    throw Object.assign(new Error("Kunci checkout sudah digunakan untuk pesanan berbeda. Muat ulang keranjang."), {
+      code: "IDEMPOTENCY_MISMATCH",
+    });
   }
   const items = await db.select().from(orderItems).where(eq(orderItems.orderId, row.id));
   const [payment] = await db.select().from(payments).where(eq(payments.orderId, row.id)).orderBy(desc(payments.createdAt)).limit(1);
@@ -9778,6 +9855,12 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
   try {
     return await createCustomerOrderImpl(input);
   } catch (error) {
+    if (!input.eventId && input.staffOrder && input.clientRequestKey) {
+      // Dua kiriman kunci sama berbarengan: yang kalah (unik DB) membaca bill pemenang.
+      const replay = await replayEventCheckout(db, input);
+      if (replay) return replay;
+      throw error;
+    }
     if (!input.eventId || !input.clientRequestKey || input.clientRequestKey.length < 8) throw error;
     // An earlier attempt may commit between the optimistic replay lookup and
     // quote validation. Reconcile after waiting for its event lock before a
@@ -9796,7 +9879,7 @@ async function createCustomerOrderImpl(input: CustomerOrderInput) {
   const db = getDb();
   if (input.eventItems?.length && !input.eventId) throw new Error("Event wajib dipilih untuk menu event.");
   if (input.eventId && (!input.clientRequestKey || input.clientRequestKey.length < 8)) throw new Error("Kunci checkout event wajib dikirim.");
-  if (input.eventId) {
+  if (eventCheckoutRequestKey(input)) {
     const replay = await replayEventCheckout(db, input);
     if (replay) return replay;
   }
@@ -10135,7 +10218,7 @@ async function createCustomerOrderImpl(input: CustomerOrderInput) {
         outletId: outlet.id,
         eventId: eventConfirmedLines?.some(line => line.eventSnapshot) ? input.eventId ?? null : null,
         clientRequestKey: eventCheckoutRequestKey(input),
-        clientRequestFingerprint: input.eventId ? eventCheckoutFingerprint(input) : null,
+        clientRequestFingerprint: eventCheckoutRequestKey(input) ? eventCheckoutFingerprint(input) : null,
         customerId: customer?.id ?? null,
         tableLabel,
         channel,
@@ -10192,7 +10275,16 @@ async function createCustomerOrderImpl(input: CustomerOrderInput) {
           reference: paymentReference,
           source: "customer_qr",
           // "Bayar nanti" dari kasir: metode belum dipilih pelanggan (kolom method wajib diisi → "Cash" placeholder).
-          ...(input.staffOrder ? { staffOrder: true } : {}),
+          // Penjualan QRIS offline: metodenya sudah pasti QRIS (bukan placeholder) dan wajib dicek mutasinya.
+          ...(input.staffOrder && !input.offline ? { staffOrder: true } : {}),
+          ...(input.offline
+            ? {
+                offlineSale: true,
+                offlineNo: input.offline.offlineNo,
+                offlineSoldAt: input.offline.soldAt,
+                ...(/qris/i.test(paymentMethod) ? { qrisVerification: "needs_mutation_check" } : {}),
+              }
+            : {}),
           tableJoinCode: joinCode,
           orderType: input.orderType,
           invoiceNo,
@@ -10962,14 +11054,20 @@ async function updateCustomerOrderStatusImpl(
           });
         }
 
-        await tx
+        // Potong RELATIF (onHand − qty) di DB: dua penjualan bersamaan dengan bahan sama
+        // tidak saling menimpa nilai absolut (S7). Status dihitung dari hasil terbaru.
+        const [deducted] = await tx
           .update(inventoryLocationStocks)
           .set({
-            onHand: nextOnHand,
-            status: inventoryStatusFor(nextOnHand, outletStock.min),
+            onHand: sql`round((${inventoryLocationStocks.onHand} - ${deductQty})::numeric, 4)::real`,
             movement: `Auto deduct ${order.orderNo}`,
             updatedAt: now,
           })
+          .where(eq(inventoryLocationStocks.id, outletStock.id))
+          .returning({ onHand: inventoryLocationStocks.onHand });
+        await tx
+          .update(inventoryLocationStocks)
+          .set({ status: inventoryStatusFor(deducted?.onHand ?? nextOnHand, outletStock.min) })
           .where(eq(inventoryLocationStocks.id, outletStock.id));
         await tx.insert(stockMovements).values({
           itemSku: recipe.inventorySku,
@@ -11105,7 +11203,9 @@ async function updateCustomerOrderStatusImpl(
       const latestCashDeposited = latestPayment
         ? numberFromMetadata(latestPayment.metadata, "cashDeposited")
         : null;
-      const confirmingMethod = input.paymentMethod?.trim() || latestPayment?.method || "Cash";
+      // Delivery = QRIS saja: tanpa metode dikirim jangan jatuh ke metode lama/Tunai (S11).
+      const confirmingMethod =
+        input.paymentMethod?.trim() || (order.fulfillment === "delivery" ? "QRIS" : latestPayment?.method || "Cash");
       const confirmingIsCash = isCashMethod(confirmingMethod);
       // Tender guard (PRD §09.2): referensi QRIS/transfer dicek ganda; QRIS
       // wajib referensi bila diaktifkan Owner. Hanya saat benar-benar melunasi.
@@ -11136,6 +11236,26 @@ async function updateCustomerOrderStatusImpl(
           ? input.cashDeposited ?? latestCashDeposited ?? confirmedCashReceived
           : null;
       const effectiveCashDeposited = input.cashDeposited ?? latestCashDeposited;
+      // Semua baris pembayaran yang belum lunas ikut ditangkap (split tender yang
+      // dikembalikan ke Pending punya >1 baris pending). Dulu hanya satu baris
+      // yang ditangkap → order "Lunas" tapi laci/catatan hanya sebagian (S2).
+      const strictPending = existingPayments.filter((payment) => payment.status === "pending");
+      const firstUncaptured = existingPayments.find((payment) => payment.status !== "captured") ?? null;
+      const pendingRows = strictPending.length ? strictPending : firstUncaptured ? [firstUncaptured] : [];
+      const amountDueNow = existingPayments.length
+        ? pendingRows.reduce((sum, payment) => sum + payment.amount, 0)
+        : order.total;
+      // Tunai: uang yang diketik kasir tidak boleh kurang dari yang ditagih sekarang (S3).
+      // Tanpa nominal tetap = uang pas (keputusan Owner; UI POS sudah mewajibkan nominal).
+      if (
+        confirmingIsCash &&
+        order.status !== "paid" &&
+        order.status !== "completed" &&
+        input.cashReceived != null &&
+        input.cashReceived < amountDueNow
+      ) {
+        throw new Error("Uang diterima kurang dari total tagihan.");
+      }
 
       if (
         confirmingIsCash &&
@@ -11186,9 +11306,9 @@ async function updateCustomerOrderStatusImpl(
           },
         });
       } else {
-        const pendingPayment =
-          existingPayments.find((payment) => payment.status !== "captured") ?? null;
-        if (pendingPayment) {
+        for (const [rowIndex, pendingPayment] of pendingRows.entries()) {
+          // Nominal uang diterima/kembalian dicatat sekali (baris pertama) agar tidak terhitung ganda.
+          const carriesCash = confirmingIsCash && rowIndex === 0;
           const metadata = {
             ...pendingPayment.metadata,
             provider:
@@ -11206,11 +11326,11 @@ async function updateCustomerOrderStatusImpl(
               (isCashMethod(pendingPayment.method) || confirmingIsCash)
                 ? "cashier_confirmed"
                 : pendingPayment.metadata.cashFlowStatus ?? null,
-            ...(confirmingIsCash
+            ...(carriesCash
               ? {
                   cashReceived: confirmedCashReceived,
                   cashDeposited: confirmedCashDeposited,
-                  change: Math.max(0, (confirmedCashReceived ?? order.total) - order.total),
+                  change: Math.max(0, (confirmedCashReceived ?? amountDueNow) - amountDueNow),
                 }
               : {}),
             invoiceNo:
@@ -11224,7 +11344,7 @@ async function updateCustomerOrderStatusImpl(
             cashierConfirmedByName: garage.user.name,
             cashierConfirmedAt: invoiceIssuedAt,
           };
-          capturedNowAmount = pendingPayment.amount;
+          capturedNowAmount += pendingPayment.amount;
           await tx
             .update(payments)
             .set({
@@ -11266,7 +11386,12 @@ async function updateCustomerOrderStatusImpl(
         if (customer) {
           const beforeLevel = normalizeMemberLevel(customer.cardTier ?? customer.tier);
           if (account) {
-            const settings = await getAppSettings(order.outletId);
+            // Pakai settings yang sudah dibaca sebelum transaksi (outlet staf = outlet order):
+            // membaca lagi di sini memakai koneksi kedua (PGlite: macet; Postgres: koneksi pool ekstra).
+            const settings =
+              !order.outletId || order.outletId === garage.profile.outlet.id
+                ? outletSettings
+                : await getAppSettings(order.outletId);
             const { pointsEarned } = calculateEarnedPointsWithSettings(
               order.subtotal - order.discount,
               beforeLevel,
@@ -11675,15 +11800,57 @@ async function applyRecipeStockDeduction(input: {
   }
 }
 
+/**
+ * Sidik isi order POS (S4/K6): kunci anti-dobel hanya boleh mengulang order yang
+ * SAMA isinya. Hanya bagian yang menentukan apa yang dijual & ditagih (item, qty,
+ * metode, pelanggan, voucher/diskon/poin, split) — nominal uang diterima tidak ikut.
+ */
+export function posOrderFingerprint(input: OrderInput) {
+  const norm = (value: string | undefined | null) => value?.trim().toLowerCase() || null;
+  const payload = {
+    orderType: input.orderType,
+    saleChannel: input.saleChannel ?? null,
+    paymentMethod: norm(input.paymentMethod),
+    customerId: input.customerId ?? null,
+    memberPhone: norm(input.memberPhone),
+    voucherCode: norm(input.voucherCode),
+    pointsToRedeem: input.pointsToRedeem ?? 0,
+    manualDiscount: input.manualDiscount
+      ? { type: input.manualDiscount.type, rawValue: input.manualDiscount.rawValue, amount: input.manualDiscount.amount }
+      : null,
+    splits: (input.splits ?? []).map((split) => ({ method: norm(split.method), amount: split.amount })),
+    items: input.items
+      .map((item) => ({ itemId: item.itemId, variantId: item.variantId, qty: item.qty }))
+      .sort((a, b) => `${a.itemId}:${a.variantId}:${a.qty}`.localeCompare(`${b.itemId}:${b.variantId}:${b.qty}`)),
+  };
+  return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
+}
+
 // Order yang sudah tersimpan dengan kunci anti-dobel yang sama → kembalikan hasil
 // yang sama persis (struk diambil dari print job receipt) tanpa membuat order baru.
-async function findOrderByRequestKey(requestKey: string) {
+// Kunci sama + isi berbeda = tolak (dulu diam-diam mengembalikan order lama → penjualan
+// baru tidak tercatat padahal kasir melihat "sukses").
+async function findOrderByRequestKey(requestKey: string, fingerprint?: string) {
   const [row] = await getDb()
-    .select({ id: orders.id })
+    .select({ id: orders.id, fingerprint: orders.clientRequestFingerprint })
     .from(orders)
     .where(eq(orders.clientRequestKey, requestKey))
     .limit(1);
-  return row?.id ?? null;
+  if (!row) return null;
+  if (fingerprint && row.fingerprint && row.fingerprint !== fingerprint) {
+    throw new IdempotencyMismatchError();
+  }
+  return row.id;
+}
+
+export class IdempotencyMismatchError extends Error {
+  readonly code = "IDEMPOTENCY_MISMATCH";
+  constructor() {
+    super(
+      "Transaksi sebelumnya dengan isi berbeda (item/metode) sudah tersimpan. Cek Riwayat struk sebelum menagih lagi, lalu buat transaksi baru.",
+    );
+    this.name = "IdempotencyMismatchError";
+  }
 }
 
 async function replayCreatedOrder(orderId: string) {
@@ -11752,18 +11919,19 @@ async function createOrderImpl(
   options: { offlineSync?: boolean; requestKey?: string } = {},
 ) {
   const requestKey = options.requestKey?.trim() || undefined;
+  const fingerprint = requestKey ? posOrderFingerprint(input) : undefined;
   if (requestKey) {
-    const existingId = await findOrderByRequestKey(requestKey);
+    const existingId = await findOrderByRequestKey(requestKey, fingerprint);
     if (existingId) return replayCreatedOrder(existingId);
   }
   try {
-    return await createOrderOnce(input, garage, { ...options, requestKey });
+    return await createOrderOnce(input, garage, { ...options, requestKey, fingerprint });
   } catch (error) {
     // Dua kiriman kunci sama berbarengan: yang kalah membaca order pemenang.
     // Termasuk kalah di klaim approval diskon (pemenang sudah memakainya) —
     // bila order pemenang ada, kembalikan order itu, bukan error ke kasir.
     if (requestKey) {
-      const existingId = await findOrderByRequestKey(requestKey);
+      const existingId = await findOrderByRequestKey(requestKey, fingerprint);
       if (existingId) return replayCreatedOrder(existingId);
     }
     throw error;
@@ -11779,7 +11947,7 @@ export function isStaleCashSession(openedAt: Date | string, now = new Date()) {
 async function createOrderOnce(
   input: OrderInput,
   garage: GarageSession,
-  options: { offlineSync?: boolean; requestKey?: string },
+  options: { offlineSync?: boolean; requestKey?: string; fingerprint?: string },
 ) {
   const db = getDb();
   const [openCashSession] = await db
@@ -11797,6 +11965,10 @@ async function createOrderOnce(
   // Owner (owner, Nov 2026): boleh transaksi tanpa shift untuk semua pembayaran NON-tunai. Tunai tetap wajib
   // shift karena uang masuk laci (buku kas & tutup shift bergantung padanya) — dicek setelah metode diketahui.
   const ownerNoShift = !openCashSession && garage.profile.role === "Owner";
+  // Penjualan offline: uang tunai sudah masuk laci shift saat jual → shift itu harus masih terbuka & milik kasir ini.
+  if (input.offline && (input.offline.cashSessionId ?? null) !== (openCashSession?.id ?? null)) {
+    throw new OfflineShiftClosedError(input.offline.offlineNo);
+  }
   if (!openCashSession && !ownerNoShift) {
     throw new Error("Open shift wajib dilakukan sebelum transaksi POS.");
   }
@@ -12022,6 +12194,14 @@ async function createOrderOnce(
     manualDiscountReason: input.manualDiscount?.reason?.trim() || null,
     pointsRedeemed: pointsRedeem.points,
     pointsDiscount: pointsRedeem.discount,
+    ...(input.offline
+      ? {
+          offlineSale: true,
+          offlineNo: input.offline.offlineNo,
+          offlineSoldAt: input.offline.soldAt,
+          offlineDevice: garage.profile.deviceLabel,
+        }
+      : {}),
   };
 
   if (input.cashReceived !== undefined) {
@@ -12170,6 +12350,7 @@ async function createOrderOnce(
         customerName: memberCustomer?.name ?? guestName,
         customerPhone: memberCustomer?.phone ?? guestPhone,
         clientRequestKey: options.requestKey ?? null,
+        clientRequestFingerprint: options.requestKey ? options.fingerprint ?? null : null,
         createdBy: garage.user.id,
       })
       .returning();
@@ -12319,6 +12500,9 @@ async function createOrderOnce(
       lines: insertedItems,
       menuInfo: productionMenuInfo,
     });
+    if (input.offline) {
+      await closeOfflineProductionTickets(tx, tickets.map((ticket) => ticket.id), garage.user.name);
+    }
     const partnerTickets = await createPartnerTicketsForOrder(tx, {
       order: { id: order.id, orderNo: order.orderNo, tableLabel: order.tableLabel, customerName: order.customerName, outletId: garage.profile.outlet.id, channel },
       lines: insertedItems,
@@ -12385,14 +12569,20 @@ async function createOrderOnce(
         });
       }
 
-      await tx
+      // Potong RELATIF (onHand − qty) di DB: dua penjualan bersamaan dengan bahan sama
+      // tidak saling menimpa nilai absolut (S7). Status dihitung dari hasil terbaru.
+      const [deducted] = await tx
         .update(inventoryLocationStocks)
         .set({
-          onHand: nextOnHand,
-          status: inventoryStatusFor(nextOnHand, outletStock.min),
+          onHand: sql`round((${inventoryLocationStocks.onHand} - ${deductQty})::numeric, 4)::real`,
           movement: `Auto deduct ${order.orderNo}`,
           updatedAt: new Date(),
         })
+        .where(eq(inventoryLocationStocks.id, outletStock.id))
+        .returning({ onHand: inventoryLocationStocks.onHand });
+      await tx
+        .update(inventoryLocationStocks)
+        .set({ status: inventoryStatusFor(deducted?.onHand ?? nextOnHand, outletStock.min) })
         .where(eq(inventoryLocationStocks.id, outletStock.id));
       const wasteNote =
         (recipe.recipeWastePct ?? 0) > 0
@@ -12529,7 +12719,7 @@ async function createOrderOnce(
     await tx.insert(auditLogs).values({
       time: nowTimeLabel(),
       actor: `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`,
-      action: `Create order ${orderNo}`,
+      action: input.offline ? `Create order ${orderNo} (offline ${input.offline.offlineNo})` : `Create order ${orderNo}`,
       object: order.tableLabel,
       device: garage.profile.deviceLabel,
       status: "recorded",
@@ -12539,6 +12729,14 @@ async function createOrderOnce(
         ticketNos,
         tableNumber,
         customerId: memberCustomer?.id ?? null,
+        ...(input.offline
+          ? {
+              actionType: "offline_sale",
+              offlineNo: input.offline.offlineNo,
+              offlineSoldAt: input.offline.soldAt,
+              cashSessionId: openCashSession?.id ?? null,
+            }
+          : {}),
       },
     });
 
@@ -16316,7 +16514,7 @@ export async function splitCustomerOrder(
   const { roundingMode } = await getAppSettings(garage.profile.outlet.id);
 
   return db.transaction(async (tx) => {
-    const order = await findOutletOrder(tx, orderId, garage);
+    const order = await findOutletOrder(tx, orderId, garage, { forUpdate: true });
     if (!order) throw new Error("Order tidak ditemukan.");
     if (!customerOrderSources.includes(order.orderSource)) {
       throw new Error("Pisah bill hanya untuk bill meja (order QR/waiter). Untuk keranjang kasir, pakai Split per produk saat Bayar.");
@@ -16515,7 +16713,9 @@ async function voidOrderImpl(
   reason: string,
   garage: GarageSession,
   // auditAction: label Audit Log (mis. "Hapus invoice" untuk invoice belum lunas).
-  options: { auditAction?: string } = {},
+  // requireUnpaidStatuses: dicek ulang SETELAH baris order dikunci (hapus invoice
+  // belum lunas) — Final Bayar yang masuk di sela cek tidak boleh ikut terhapus (S6).
+  options: { auditAction?: string; requireUnpaidStatuses?: ReadonlySet<string> } = {},
 ) {
   const db = getDb();
   const actor = `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`;
@@ -16529,6 +16729,23 @@ async function voidOrderImpl(
     }
     if (order.status === "voided") {
       throw new Error("Order ini sudah dibatalkan sebelumnya.");
+    }
+    if (options.requireUnpaidStatuses && !options.requireUnpaidStatuses.has(order.status)) {
+      throw new Error(
+        order.status === "paid"
+          ? "Invoice sudah LUNAS tidak bisa dihapus. Gunakan Batal / Refund dengan alasan (tercatat di audit)."
+          : "Invoice ini sudah dibatalkan/ditolak sebelumnya.",
+      );
+    }
+    if (options.requireUnpaidStatuses) {
+      const captured = await tx
+        .select({ id: payments.id })
+        .from(payments)
+        .where(and(eq(payments.orderId, order.id), eq(payments.status, "captured")))
+        .limit(1);
+      if (captured.length) {
+        throw new Error("Invoice sudah ada pembayaran lunas — gunakan Batal / Refund, bukan hapus invoice.");
+      }
     }
     if (order.eventId && !order.acceptedAt) await releaseEventQuotaForOrder(tx, order.id);
     const outletId = order.outletId ?? garage.profile.outlet.id;
@@ -23970,7 +24187,7 @@ export async function revertOrderPayment(idOrOrderNo: string, reason: string, ga
  */
 export async function confirmOrderPayment(
   idOrOrderNo: string,
-  input: { paymentMethod: string; cashReceived?: number | null; reason: string },
+  input: { paymentMethod: string; cashReceived?: number | null; paymentReference?: string | null; reason: string },
   garage: GarageSession,
 ) {
   assertOwnerOrManager(garage);
@@ -23983,7 +24200,13 @@ export async function confirmOrderPayment(
   if (order.status === "paid") throw new Error("Order sudah lunas.");
   const result = await updateCustomerOrderStatus(
     order.id,
-    { action: "paid", paymentMethod: input.paymentMethod, cashReceived: input.cashReceived ?? undefined },
+    {
+      action: "paid",
+      paymentMethod: input.paymentMethod,
+      cashReceived: input.cashReceived ?? undefined,
+      // Referensi mutasi QRIS/transfer yang dicek Owner/Manajer (mis. QRIS offline).
+      paymentReference: input.paymentReference?.trim() || undefined,
+    },
     garage,
     { adminConfirm: true },
   );
@@ -24199,7 +24422,10 @@ export async function deleteUnpaidInvoice(
   if (!UNPAID_DELETABLE_STATUSES.has(order.status)) {
     throw new Error("Invoice ini sudah dibatalkan/ditolak sebelumnya.");
   }
-  const result = await voidOrder(order.id, `Hapus invoice: ${input.reason}`, garage, { auditAction: "Hapus invoice" });
+  const result = await voidOrder(order.id, `Hapus invoice: ${input.reason}`, garage, {
+    auditAction: "Hapus invoice",
+    requireUnpaidStatuses: UNPAID_DELETABLE_STATUSES,
+  });
   // Dihapus = dibatalkan + diarsip (tetap bisa dilihat lewat filter Arsip & dipulihkan ke daftar).
   await getDb()
     .update(orders)

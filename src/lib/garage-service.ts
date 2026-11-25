@@ -334,7 +334,66 @@ type OrderInput = {
     qty: number;
     note?: string;
   }>;
+  /**
+   * Penjualan yang terjadi saat POS offline (Fase 4, owner 25 Nov 2026). Nomor sementara di struk, waktu jual di
+   * perangkat, dan shift tempat uang tunai masuk laci. Shift harus sama dengan shift terbuka saat sinkron.
+   */
+  offline?: OfflineSaleInfo;
 };
+
+export type OfflineSaleInfo = {
+  offlineNo: string;
+  soldAt: string;
+  cashSessionId?: string | null;
+};
+
+/** Shift saat penjualan offline sudah ditutup / berbeda → perlu ditinjau Owner, tidak pernah pindah laci. */
+export class OfflineShiftClosedError extends Error {
+  readonly code = "OFFLINE_SHIFT_CLOSED";
+  constructor(offlineNo: string) {
+    super(
+      `Penjualan offline ${offlineNo}: shift saat penjualan sudah ditutup atau berbeda. Uang tidak dipindah ke shift lain — perlu ditinjau Owner/Manajer.`,
+    );
+    this.name = "OfflineShiftClosedError";
+  }
+}
+
+/**
+ * Tiket produksi penjualan offline: chit Bar/Dapur sudah dicetak di kasir & pesanan sudah dibuat saat offline,
+ * jadi tiket langsung ditutup (tidak muncul lagi sebagai antrean baru di Production Hub).
+ */
+async function closeOfflineProductionTickets(tx: GarageTx, ticketIds: string[], actorName: string) {
+  if (!ticketIds.length) return;
+  const now = new Date();
+  await tx
+    .update(kitchenTickets)
+    .set({
+      status: "delivered",
+      readyAt: now,
+      deliveredAt: now,
+      readyByName: actorName,
+      deliveredByName: actorName,
+      chitPrintedAt: now,
+      internalNotes: "Penjualan offline — chit sudah dicetak di kasir",
+    })
+    .where(inArray(kitchenTickets.id, ticketIds));
+  await tx
+    .update(productionTicketItems)
+    .set({ status: "ready", readyAt: now })
+    .where(inArray(productionTicketItems.ticketId, ticketIds));
+}
+
+/** Tutup tiket produksi order offline yang baru diterima (jalur Bayar nanti / QRIS offline). */
+export async function closeOfflineProductionTicketsForOrder(orderId: string, actorName: string) {
+  await getDb().transaction(async (tx) => {
+    const rows = await tx
+      .select({ id: kitchenTickets.id })
+      .from(kitchenTickets)
+      .where(and(eq(kitchenTickets.orderId, orderId), inArray(kitchenTickets.status, ["queue", "cooking", "ready"])));
+    await closeOfflineProductionTickets(tx, rows.map((row) => row.id), actorName);
+  });
+  publishProductionChange();
+}
 
 type CustomerOrderSource = "qr_table" | "qr_takeaway" | "instagram" | "campaign";
 
@@ -362,6 +421,11 @@ type CustomerOrderInput = {
   staffOrder?: boolean;
   /** Tagihan "Bayar nanti" dari POS: produk tersembunyi di menu digital (mis. rokok) tetap boleh. */
   allowHiddenItems?: boolean;
+  /**
+   * Penjualan QRIS statis saat POS offline (Fase 4): tagihan menunggu cek mutasi Owner/Manajer
+   * (payment pending metode QRIS, `qrisVerification: needs_mutation_check`), tidak pernah dianggap lunas otomatis.
+   */
+  offline?: OfflineSaleInfo;
   paymentMethod?: string;
   paymentProvider?: string;
   paymentReference?: string;
@@ -1133,6 +1197,9 @@ function customerOrderResponse(
     cashierConfirmedAt,
     // Tagihan dibuat staf (Bayar nanti/waiter): metode bayar belum dipilih pelanggan.
     staffOrder: metadata.staffOrder === true,
+    // Penjualan offline (Fase 4): nomor sementara di struk & QRIS yang wajib dicek mutasinya.
+    offlineNo: typeof metadata.offlineNo === "string" ? metadata.offlineNo : null,
+    qrisNeedsMutationCheck: metadata.qrisVerification === "needs_mutation_check",
     items: items.map((item) => ({
       id: item.id,
       menuItemId: item.menuItemId,
@@ -10208,7 +10275,16 @@ async function createCustomerOrderImpl(input: CustomerOrderInput) {
           reference: paymentReference,
           source: "customer_qr",
           // "Bayar nanti" dari kasir: metode belum dipilih pelanggan (kolom method wajib diisi → "Cash" placeholder).
-          ...(input.staffOrder ? { staffOrder: true } : {}),
+          // Penjualan QRIS offline: metodenya sudah pasti QRIS (bukan placeholder) dan wajib dicek mutasinya.
+          ...(input.staffOrder && !input.offline ? { staffOrder: true } : {}),
+          ...(input.offline
+            ? {
+                offlineSale: true,
+                offlineNo: input.offline.offlineNo,
+                offlineSoldAt: input.offline.soldAt,
+                ...(/qris/i.test(paymentMethod) ? { qrisVerification: "needs_mutation_check" } : {}),
+              }
+            : {}),
           tableJoinCode: joinCode,
           orderType: input.orderType,
           invoiceNo,
@@ -11889,6 +11965,10 @@ async function createOrderOnce(
   // Owner (owner, Nov 2026): boleh transaksi tanpa shift untuk semua pembayaran NON-tunai. Tunai tetap wajib
   // shift karena uang masuk laci (buku kas & tutup shift bergantung padanya) — dicek setelah metode diketahui.
   const ownerNoShift = !openCashSession && garage.profile.role === "Owner";
+  // Penjualan offline: uang tunai sudah masuk laci shift saat jual → shift itu harus masih terbuka & milik kasir ini.
+  if (input.offline && (input.offline.cashSessionId ?? null) !== (openCashSession?.id ?? null)) {
+    throw new OfflineShiftClosedError(input.offline.offlineNo);
+  }
   if (!openCashSession && !ownerNoShift) {
     throw new Error("Open shift wajib dilakukan sebelum transaksi POS.");
   }
@@ -12114,6 +12194,14 @@ async function createOrderOnce(
     manualDiscountReason: input.manualDiscount?.reason?.trim() || null,
     pointsRedeemed: pointsRedeem.points,
     pointsDiscount: pointsRedeem.discount,
+    ...(input.offline
+      ? {
+          offlineSale: true,
+          offlineNo: input.offline.offlineNo,
+          offlineSoldAt: input.offline.soldAt,
+          offlineDevice: garage.profile.deviceLabel,
+        }
+      : {}),
   };
 
   if (input.cashReceived !== undefined) {
@@ -12412,6 +12500,9 @@ async function createOrderOnce(
       lines: insertedItems,
       menuInfo: productionMenuInfo,
     });
+    if (input.offline) {
+      await closeOfflineProductionTickets(tx, tickets.map((ticket) => ticket.id), garage.user.name);
+    }
     const partnerTickets = await createPartnerTicketsForOrder(tx, {
       order: { id: order.id, orderNo: order.orderNo, tableLabel: order.tableLabel, customerName: order.customerName, outletId: garage.profile.outlet.id, channel },
       lines: insertedItems,
@@ -12628,7 +12719,7 @@ async function createOrderOnce(
     await tx.insert(auditLogs).values({
       time: nowTimeLabel(),
       actor: `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`,
-      action: `Create order ${orderNo}`,
+      action: input.offline ? `Create order ${orderNo} (offline ${input.offline.offlineNo})` : `Create order ${orderNo}`,
       object: order.tableLabel,
       device: garage.profile.deviceLabel,
       status: "recorded",
@@ -12638,6 +12729,14 @@ async function createOrderOnce(
         ticketNos,
         tableNumber,
         customerId: memberCustomer?.id ?? null,
+        ...(input.offline
+          ? {
+              actionType: "offline_sale",
+              offlineNo: input.offline.offlineNo,
+              offlineSoldAt: input.offline.soldAt,
+              cashSessionId: openCashSession?.id ?? null,
+            }
+          : {}),
       },
     });
 
@@ -24076,7 +24175,7 @@ export async function revertOrderPayment(idOrOrderNo: string, reason: string, ga
  */
 export async function confirmOrderPayment(
   idOrOrderNo: string,
-  input: { paymentMethod: string; cashReceived?: number | null; reason: string },
+  input: { paymentMethod: string; cashReceived?: number | null; paymentReference?: string | null; reason: string },
   garage: GarageSession,
 ) {
   assertOwnerOrManager(garage);
@@ -24089,7 +24188,13 @@ export async function confirmOrderPayment(
   if (order.status === "paid") throw new Error("Order sudah lunas.");
   const result = await updateCustomerOrderStatus(
     order.id,
-    { action: "paid", paymentMethod: input.paymentMethod, cashReceived: input.cashReceived ?? undefined },
+    {
+      action: "paid",
+      paymentMethod: input.paymentMethod,
+      cashReceived: input.cashReceived ?? undefined,
+      // Referensi mutasi QRIS/transfer yang dicek Owner/Manajer (mis. QRIS offline).
+      paymentReference: input.paymentReference?.trim() || undefined,
+    },
     garage,
     { adminConfirm: true },
   );

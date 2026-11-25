@@ -287,6 +287,11 @@ import { calculateBillingTotals, capVoucherDiscountBySettings } from "@/lib/gara
 import { isBarcodeLike, parseQuantityQuery, searchMenuEntries } from "@/lib/pos-search";
 import { isPosGlobalShortcut, POS_SHORTCUTS } from "@/lib/pos-shortcuts";
 import { keepIfEqual } from "@/lib/stable-state";
+import { enqueueOrder } from "@/lib/pos-offline-queue";
+import { makeOfflineNo, OFFLINE_RECEIPT_NOTE, offlineSaleBlockReason } from "@/lib/pos-offline-rules";
+import { usePosOfflineStatus } from "@/lib/pos-offline-status";
+import { setPosSyncListener, startSyncWorker, stopSyncWorker } from "@/lib/pos-offline-sync";
+import { PosOfflineBanner } from "@/components/garage/pos-offline-banner";
 import { maxRedeemablePoints, normalizePhone } from "@/lib/member-types";
 import { PosMemberWaVerify } from "@/components/garage/pos-member-wa-verify";
 import { BillRow, chitStationFor, formatReceiptDate, PaymentStep, OpenBillSaved } from "@/components/garage/pos/pos-ui-shared";
@@ -336,6 +341,11 @@ type ManualDiscount = {
   approvalId?: string;
   approvalStatus?: "pending" | "approved" | "rejected";
 };
+
+/** Jam sekarang (ms) — dipanggil dari handler event (bukan saat render). */
+function currentTimeMs() {
+  return Date.now();
+}
 
 /** "Terakhir update Ns lalu" peta meja — berdetak sendiri (render ulang hanya komponen ini). */
 function UpdatedAgo({ atRef }: { atRef: { current: number | null } }) {
@@ -715,6 +725,12 @@ export function PosView({
   const [paymentReference, setPaymentReference] = useState("");
   const [cashReceived, setCashReceived] = useState("");
   const [paymentPending, setPaymentPending] = useState(false);
+  // ── Fase 4: mode jual offline (owner 25 Nov 2026) ──
+  // Tunai & QRIS statis tetap bisa dijual saat internet/server mati; disimpan di perangkat (IndexedDB) lalu dikirim
+  // otomatis saat online (kunci anti-dobel). Batas Owner: 50 penjualan / 8 jam. QRIS offline = tagihan cek mutasi.
+  const offlineStatus = usePosOfflineStatus();
+  const posOffline = !offlineStatus.online;
+  const offlineSyncedRef = useRef<(count: number) => void>(() => undefined);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [paymentResult, setPaymentResult] = useState<string | null>(null);
   const [completedReceipt, setCompletedReceipt] = useState<OrderReceipt | null>(null);
@@ -3632,6 +3648,13 @@ export function PosView({
   }
 
   async function closeShift(payload: CloseShiftPayload) {
+    // Fase 4: penjualan offline di perangkat ini harus terkirim dulu — uangnya milik shift ini.
+    if (offlineStatus.pendingCount > 0) {
+      setShiftError(
+        `${offlineStatus.pendingCount} penjualan offline di perangkat ini belum terkirim. Sambungkan internet & sinkron dulu (atau tinjau yang ditolak) sebelum tutup shift.`,
+      );
+      return;
+    }
     setShiftPending(true);
     setShiftError(null);
     try {
@@ -3884,6 +3907,10 @@ export function PosView({
   // nama pelanggan (take away). Voucher/poin/diskon manual dipakai saat Final Bayar.
   async function submitOpenBill() {
     if (paymentPending || !cartLines.length) return;
+    if (posOffline) {
+      setPaymentError("Bayar nanti butuh koneksi. Saat offline pakai Tunai atau QRIS statis.");
+      return;
+    }
     const openBillName =
       posCustomerMode === "member" ? (selectedMember?.member.name ?? "") : guestName.trim();
     if (orderType === "delivery") {
@@ -4039,6 +4066,152 @@ export function PosView({
     ]);
   }
 
+  // ── Fase 4: penjualan saat offline ──
+  /** Alasan penjualan offline tidak bisa dipakai untuk isi keranjang/metode ini (null = boleh). */
+  function offlineUnsupportedReason(method: PaymentMethod, effectiveOrderType: OrderType): string | null {
+    if (method !== "Cash" && method !== "QRIS") {
+      return "Saat offline hanya Tunai atau QRIS statis (cek mutasi nanti). Transfer & E-Wallet butuh koneksi.";
+    }
+    if (effectiveOrderType === "delivery") return "Delivery butuh koneksi.";
+    if (posCustomerMode === "member" || posVoucherResult?.valid || manualDiscount || pointsToUse > 0) {
+      return "Saat offline member, voucher, poin & diskon tidak bisa dipakai (butuh koneksi). Hapus dulu, atau tunggu online.";
+    }
+    if (method === "Cash" && !shiftOpen) return "Tunai offline wajib dari shift yang sedang buka.";
+    return null;
+  }
+
+  /**
+   * Simpan penjualan di perangkat + cetak struk sementara (OFF-…) & chit Bar/Dapur. Tunai → POST /api/orders saat
+   * online (shift yang sama, tiket langsung ditutup); QRIS statis → tagihan "cek mutasi" lewat jalur Bayar nanti.
+   * `key` = kunci anti-dobel; untuk respons yang hilang saat online dipakai kunci yang SAMA (server dedup).
+   */
+  async function queueOfflineSale(input: {
+    method: PaymentMethod;
+    effectiveOrderType: OrderType;
+    cash: number;
+    orderBody: Record<string, unknown> & { tableLabel?: string };
+    key: string;
+  }): Promise<boolean> {
+    const blocked = offlineSaleBlockReason(offlineStatus.queue, currentTimeMs());
+    if (blocked) {
+      setPaymentError(blocked);
+      return false;
+    }
+    let sequence = 1;
+    const seqKey = `garage:pos:offline-seq:${me.device}`;
+    try {
+      sequence = Number(window.localStorage.getItem(seqKey) || "0") + 1;
+      window.localStorage.setItem(seqKey, String(sequence));
+    } catch {
+      sequence = currentTimeMs() % 10_000;
+    }
+    const offlineNo = makeOfflineNo(me.device, sequence);
+    const soldAt = new Date().toISOString();
+    const offline = { offlineNo, soldAt, cashSessionId: shiftOpen ? cashSession.id : null };
+    const customerName =
+      guestName.trim() || (input.method === "QRIS" ? `QRIS offline ${offlineNo}` : null);
+    const label = String(input.orderBody.tableLabel ?? tableLabel);
+    const kind = input.method === "QRIS" ? "open-bill" : "order";
+    const payload =
+      kind === "order"
+        ? { ...input.orderBody, offline }
+        : {
+            orderType: input.effectiveOrderType === "dine-in" ? "dine-in" : "takeaway",
+            tableLabel: input.effectiveOrderType === "dine-in" ? tableLabel : undefined,
+            customerName: customerName ?? `QRIS offline ${offlineNo}`,
+            customerPhone: guestPhone.trim() || undefined,
+            items: cart.map((line) => ({ itemId: line.itemId, variantId: line.variantId, qty: line.qty, note: line.note || undefined })),
+            offlinePayment: "QRIS" as const,
+            offline,
+          };
+    try {
+      await enqueueOrder(input.key, payload, { total: totalDue, customerName: customerName ?? undefined, itemCount: cartItemCount }, { kind, offlineNo });
+    } catch (error) {
+      setPaymentError(error instanceof Error ? error.message : "Penjualan offline gagal disimpan di perangkat.");
+      return false;
+    }
+    offlineStatus.refresh();
+    // Struk sementara dari data lokal (dicetak tanpa server: printer langsung / agent lokal).
+    const receipt: OrderReceipt = {
+      invoiceNo: offlineNo,
+      invoiceStatus: "offline",
+      orderNo: offlineNo,
+      queueNo: null,
+      ticketNo: offlineNo,
+      ticketNos: [],
+      createdAt: soldAt,
+      outlet: { code: me.outlet.code, name: me.outlet.name },
+      cashier: { name: me.user.name, role: me.role, device: me.device },
+      tableLabel: label,
+      channel: input.effectiveOrderType,
+      payment: {
+        method: input.method === "QRIS" ? "QRIS (cek mutasi)" : input.method,
+        provider: null,
+        reference: null,
+        cashReceived: input.method === "Cash" ? input.cash : null,
+        change: input.method === "Cash" ? Math.max(0, input.cash - totalDue) : null,
+      },
+      customer: { name: customerName, phone: guestPhone.trim() || null },
+      items: cartLines.map((line) => ({
+        name: line.item.name,
+        variant: line.variant.label,
+        qty: line.qty,
+        unitPrice: line.variant.price,
+        lineTotal: line.variant.price * line.qty,
+      })),
+      subtotal,
+      service,
+      tax,
+      discount: 0,
+      total: totalDue,
+      settings: {
+        serviceChargePct: settings.serviceChargePct,
+        taxPct: settings.taxPct,
+        defaultPrinterName: settings.defaultPrinterName,
+        receiptCopies: settings.receiptCopies,
+        brandName: settings.brandName,
+        brandTagline: settings.brandTagline,
+        outletAddress: settings.outletAddress,
+        outletPhone: settings.outletPhone,
+        npwp: settings.npwp,
+        receiptFooter: `${OFFLINE_RECEIPT_NOTE}\n${settings.receiptFooter || "TERIMA KASIH"}`,
+      },
+      memberReward: null,
+      brand: { deliveryWhatsapp: paymentBrandConfig.deliveryWhatsapp, social: paymentBrandConfig.social },
+    };
+    setCompletedReceipt(receipt);
+    setReceiptHistory((current) => [receipt, ...current].slice(0, settings.receiptHistoryMax));
+    void printChitIfEnabled({
+      orderNo: offlineNo,
+      queueNo: null,
+      tableLabel: label,
+      orderType: input.effectiveOrderType,
+      createdAt: soldAt,
+      cashierName: me.user.name,
+      customerName,
+      items: cartLines.map((line) => ({
+        name: line.item.name,
+        variant: line.variant.label,
+        qty: line.qty,
+        note: line.note ?? null,
+        station: chitStationFor(line.item),
+      })),
+    });
+    setPaymentResult(
+      input.method === "QRIS"
+        ? `${offlineNo} disimpan offline. QRIS dicek mutasinya oleh Owner/Manajer setelah online.`
+        : `${offlineNo} disimpan offline. Terkirim otomatis saat online.`,
+    );
+    setPosNotice(`Penjualan offline ${offlineNo} disimpan di perangkat — terkirim otomatis saat online.`);
+    orderAttemptRef.current = null;
+    setPaymentStep("done");
+    setCart([]);
+    setSelectedTableNumber("");
+    setGuestName("");
+    setGuestPhone("");
+    return true;
+  }
+
   // overrides: "Bayar 1 tap" (take away uang pas) tanpa melewati langkah wizard.
   async function submitOrder(
     paymentMethod: PaymentMethod,
@@ -4066,9 +4239,18 @@ export function PosView({
       return;
     }
 
-    if (paymentMethod === "QRIS" && !qrisImageReady) {
+    // Offline: QRIS statis boleh walau gambar QRIS belum termuat (pelanggan scan stiker), cek mutasi nanti.
+    if (paymentMethod === "QRIS" && !qrisImageReady && !posOffline) {
       setPaymentError("QRIS resmi belum dikonfigurasi.");
       return;
+    }
+
+    if (posOffline) {
+      const unsupported = offlineUnsupportedReason(paymentMethod, effectiveOrderType);
+      if (unsupported) {
+        setPaymentError(unsupported);
+        return;
+      }
     }
 
     setPaymentPending(true);
@@ -4115,6 +4297,15 @@ export function PosView({
     // setelah respons hilang mengembalikan order yang sudah tersimpan.
     const attempt = idempotencyAttemptFor(orderAttemptRef.current, orderBody, makeIdempotencyKey);
     orderAttemptRef.current = attempt;
+
+    if (posOffline) {
+      try {
+        await queueOfflineSale({ method: paymentMethod, effectiveOrderType, cash: effectiveCash, orderBody, key: attempt.key });
+      } finally {
+        setPaymentPending(false);
+      }
+      return;
+    }
 
     // K10: setelah server menyimpan (LUNAS), error kerja lanjutan bukan "pembayaran gagal".
     let saved = false;
@@ -4226,6 +4417,17 @@ export function PosView({
         setPosNotice("Pembayaran tersimpan (LUNAS). Data layar belum ter-refresh — cek Riwayat struk, jangan tagih ulang.");
         return;
       }
+      // Fase 4: koneksi putus saat bayar TUNAI → simpan sebagai penjualan offline dengan kunci yang SAMA
+      // (bila sebenarnya sudah tersimpan, server mengembalikan order yang sama saat sinkron, tidak dobel).
+      if (
+        (error as { code?: string } | null)?.code === "NETWORK_ERROR" &&
+        paymentMethod === "Cash" &&
+        !offlineUnsupportedReason(paymentMethod, effectiveOrderType)
+      ) {
+        if (await queueOfflineSale({ method: paymentMethod, effectiveOrderType, cash: effectiveCash, orderBody, key: attempt.key })) {
+          return;
+        }
+      }
       // GOD++ F-03: gagal tidak pasti → key yang sama dipakai lagi walau isi berubah (server cek dulu).
       orderAttemptRef.current = markAttemptAfterError(attempt, error);
       setPaymentError(submitErrorMessage(error, "Pembayaran gagal."));
@@ -4233,6 +4435,25 @@ export function PosView({
       setPaymentPending(false);
     }
   }
+
+  // Fase 4: worker sinkron penjualan offline (pola waiter-view). Setelah ada yang terkirim → muat ulang data.
+  useEffect(() => {
+    offlineSyncedRef.current = (count: number) => {
+      offlineStatus.refresh();
+      setPosNotice(`${count} penjualan offline terkirim ke server.`);
+      void onOrderCreated();
+      void loadCustomerOrders({ silent: true });
+      invalidateGarageCache([GARAGE_TAGS.orders, GARAGE_TAGS.finance, GARAGE_TAGS.kitchen, GARAGE_TAGS.dashboard]);
+    };
+  });
+  useEffect(() => {
+    startSyncWorker();
+    setPosSyncListener((count) => offlineSyncedRef.current(count));
+    return () => {
+      setPosSyncListener(null);
+      stopSyncWorker();
+    };
+  }, []);
 
   // POS V6 shortcut kasir (papan 01/05): F1 Kasir · F2 Pesanan QR · F3 Meja · F4 Riwayat · F9 Bayar.
   // Hanya membuka panel/dialog yang sama dengan tombolnya; tidak pernah menyelesaikan pembayaran.
@@ -8380,6 +8601,8 @@ export function PosView({
         </Dialog>
         <div className="pos-main-layout grid min-h-0 flex-1 gap-2 md:grid-cols-[minmax(0,1fr)_286px] md:items-stretch lg:grid-cols-[minmax(0,1fr)_330px] min-[1200px]:grid-cols-[minmax(0,1fr)_360px]">
           <div className="flex min-h-0 min-w-0 flex-col gap-2">
+            {/* Fase 4: status mode jual offline (tidak tampil saat online & antrean kosong). */}
+            <PosOfflineBanner status={offlineStatus} />
             <div className="garage-panel garage-animate-in flex shrink-0 flex-col gap-2 rounded-md p-2">
               <div className="flex flex-col gap-2 md:flex-row md:items-center">
                 <div className="relative min-w-0 flex-1">
@@ -8971,6 +9194,16 @@ export function PosView({
                         : "Selesaikan order kasir dari ringkasan, meja, pelanggan, lalu pembayaran."}
                     </DialogDescription>
                   </DialogHeader>
+                  {posOffline && paymentStep !== "done" ? (
+                    <p
+                      role="status"
+                      data-testid="pos-offline-pay-note"
+                      className="rounded-md border border-[#d11a2a]/55 bg-[#d11a2a]/14 px-3 py-2 text-sm font-semibold leading-5 text-[#ffd0c8]"
+                    >
+                      Offline: hanya Tunai atau QRIS statis (dicek mutasinya nanti). Member, voucher, poin, diskon, Transfer,
+                      E-Wallet & Bayar nanti butuh koneksi. Struk sementara bernomor OFF-….
+                    </p>
+                  ) : null}
                   {paymentStep === "done" && openBillSaved ? (
                     <div className="garage-scroll min-h-0 overflow-y-auto pr-1">
                       <OpenBillSavedPanel

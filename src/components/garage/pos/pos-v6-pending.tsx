@@ -55,6 +55,7 @@ export function useMinuteClock() {
 const AGE_LABEL = { fresh: "Baru", warn: "≥ 30 mnt", late: "≥ 60 mnt", stale: "Kemarin — cek kasir" } as const;
 
 function sourceLabel(order: CustomerOrder) {
+  if (order.offlineNo) return `Penjualan offline ${order.offlineNo}`;
   if (order.staffOrder) return "Bayar nanti (kasir/waiter)";
   if (order.orderSource === "qr_table") return "QR meja";
   if (order.orderSource === "qr_takeaway") return order.fulfillment === "delivery" ? "Delivery online" : "QR take away";

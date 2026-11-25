@@ -90,6 +90,20 @@ description: Aturan WAJIB modul POS Garage OS: kasir, keranjang, order/invoice a
     message (never the top result), Esc clears, focus returns after the variant dialog. Action messages = `pos-toast`
     (`role="status"`). Favorit order is frozen while the cart has items. Riwayat Struk is searchable (`filterReceipts`).
 
+- Mode jual offline (Fase 4, owner 25 Nov 2026): when the POS is offline (or a CASH payment hits `NETWORK_ERROR`) the sale is
+  stored in IndexedDB (`pos-offline-queue.ts`) and synced by `pos-offline-sync.ts` with the same idempotency key (never double).
+  Only Tunai + QRIS statis; member/voucher/points/discount/Transfer/E-Wallet/Bayar nanti/delivery need a connection.
+  Owner limits = `pos-offline-rules.ts`: max 50 pending sales and 8 hours since the oldest. Temporary receipt number
+  `OFF-<device>-<seq>` + "STRUK SEMENTARA" footer; Bar/Dapur chits print locally.
+  - Cash: `POST /api/orders` with `offline { offlineNo, soldAt, cashSessionId }` — the sale's shift MUST still be the open shift
+    (`OfflineShiftClosedError` / `OFFLINE_SHIFT_CLOSED` otherwise: never posted to a closed or another drawer → "Perlu ditinjau").
+  - QRIS statis: `POST /api/orders/open-bill` with `offlinePayment: "QRIS"` → unpaid bill, payment pending QRIS,
+    `qrisVerification: "needs_mutation_check"`; Belum Bayar shows "Cek mutasi QRIS offline"; Owner/Manajer settle via Final Bayar /
+    `confirmOrderPayment` (accepts `paymentReference`). Never treated as paid automatically.
+  - Production tickets of offline sales are closed at sync (`closeOfflineProductionTickets`) — chits were printed offline.
+  - Rejected-for-good items stay on the device ("Perlu ditinjau" in `PosOfflineBanner`), never auto-deleted. Closing the shift is
+    blocked on the device while its queue is not empty (the close-check panel itself stays info-only).
+
 - Browser-dialog printing uses `browserColumns` (huruf Besar → 24 col on 58 mm) with tall
   TOTAL/Kembali lines; cashier can print Bar/Dapur chits manually (`printKitchenChits`).
 

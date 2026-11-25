@@ -722,6 +722,10 @@ export type CustomerOrder = {
   cashierConfirmedAt: string | null;
   /** Tagihan dibuat staf ("Bayar nanti"/waiter) — metode bayar belum dipilih pelanggan. */
   staffOrder?: boolean;
+  /** Nomor sementara penjualan offline (OFF-…), bila order berasal dari mode offline POS. */
+  offlineNo?: string | null;
+  /** QRIS statis saat offline: Owner/Manajer wajib cek mutasi sebelum Final Bayar. */
+  qrisNeedsMutationCheck?: boolean;
   items: CustomerOrderItem[];
 };
 

@@ -74,6 +74,20 @@ const orderSchema = z.object({
     )
     .min(1)
     .max(100, "Maksimal 100 baris item per order."),
+  // Penjualan saat POS offline (Fase 4): nomor sementara OFF-…, waktu jual di perangkat, shift tempat uang masuk laci.
+  offline: z
+    .object({
+      offlineNo: z.string().trim().regex(/^OFF-[A-Z0-9-]{3,40}$/, "Nomor offline tidak valid."),
+      soldAt: z
+        .string()
+        .datetime({ offset: true })
+        .refine((value) => {
+          const age = Date.now() - new Date(value).getTime();
+          return age >= -5 * 60_000 && age <= 3 * 24 * 60 * 60_000;
+        }, "Waktu penjualan offline di luar batas (maks 3 hari)."),
+      cashSessionId: z.string().uuid().nullable().optional(),
+    })
+    .optional(),
 });
 
 export async function GET(request: Request) {

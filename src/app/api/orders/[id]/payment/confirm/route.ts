@@ -11,6 +11,7 @@ export const runtime = "nodejs";
 const schema = z.object({
   paymentMethod: z.enum(["Cash", "QRIS", "Bank Transfer", "E-Wallet"]),
   cashReceived: z.number().int().nonnegative().max(100_000_000).nullable().optional(),
+  paymentReference: z.string().trim().max(80).nullable().optional(),
   reason: z.string().trim().min(3, "Alasan minimal 3 karakter.").max(200),
 });
 

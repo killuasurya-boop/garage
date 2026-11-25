@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { fail, ok, readJson, serviceErrorResponse } from "@/lib/api-response";
 import { eventCartItemSchema } from "@/lib/event-menu-service";
-import { createCustomerOrder, updateCustomerOrderStatus } from "@/lib/garage-service";
+import { closeOfflineProductionTicketsForOrder, createCustomerOrder, updateCustomerOrderStatus } from "@/lib/garage-service";
 import { checkIdempotency, readIdempotencyKey } from "@/lib/idempotency";
 import { requireCashierSession } from "@/lib/server-auth";
 
@@ -35,6 +35,18 @@ const openBillSchema = z
     // Paket event dari POS (owner, Okt 2026): harga/kuota/komponen dihitung ulang di server.
     eventId: z.string().uuid().optional(),
     eventItems: z.array(eventCartItemSchema).max(40).optional(),
+    // QRIS statis saat POS offline (Fase 4): tagihan QRIS yang wajib dicek mutasinya, chit sudah dicetak di kasir.
+    offlinePayment: z.literal("QRIS").optional(),
+    offline: z
+      .object({
+        offlineNo: z.string().trim().regex(/^OFF-[A-Z0-9-]{3,40}$/, "Nomor offline tidak valid."),
+        soldAt: z.string().datetime({ offset: true }),
+        cashSessionId: z.string().uuid().nullable().optional(),
+      })
+      .optional(),
+  })
+  .refine((value) => !value.offlinePayment || Boolean(value.offline), {
+    message: "QRIS offline wajib membawa data penjualan offline.",
   })
   .refine((value) => value.items.length > 0 || Boolean(value.eventItems?.length), {
     message: "Keranjang masih kosong.",
@@ -66,7 +78,7 @@ export async function POST(request: Request) {
   if (cache?.kind === "pending") return fail(409, "OPEN_BILL_IN_PROGRESS", "Tagihan masih diproses.");
 
   try {
-    const { orderType, tableLabel, customerName, customerPhone, customerNote, items, eventId, eventItems, memberCustomerId } =
+    const { orderType, tableLabel, customerName, customerPhone, customerNote, items, eventId, eventItems, memberCustomerId, offline, offlinePayment } =
       body.data;
     const table =
       orderType === "dine-in" && tableLabel
@@ -89,7 +101,9 @@ export async function POST(request: Request) {
       staffOrder: true,
       allowHiddenItems: true,
       skipCashierNotify: true,
-      paymentMethod: "Cash",
+      // "Cash" = placeholder metode Bayar nanti; QRIS offline = metode pasti (tunggu cek mutasi).
+      paymentMethod: offlinePayment ?? "Cash",
+      ...(offline ? { offline } : {}),
       items,
       ...(eventId
         ? { eventId, eventItems: eventItems ?? [], clientRequestKey: key! }
@@ -103,6 +117,8 @@ export async function POST(request: Request) {
     if (created.order.status === "pending_cashier" || created.order.status === "awaiting_payment") {
       await updateCustomerOrderStatus(created.order.id, { action: "accept" }, session.data, { openBill: true });
     }
+    // Penjualan offline: chit Bar/Dapur sudah dicetak & dibuat saat offline → tiket langsung ditutup (tidak dobel).
+    if (offline) await closeOfflineProductionTicketsForOrder(created.order.id, session.data.user.name);
     const result: OpenBillResult = {
       orderId: created.order.id,
       orderNo: created.order.orderNo,

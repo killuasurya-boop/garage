@@ -46,3 +46,15 @@ export function markAttemptAfterError(attempt: IdempotencyAttempt, error: unknow
 
 export const UNCERTAIN_SUBMIT_MESSAGE =
   "Status pembayaran belum pasti (koneksi/server bermasalah). Jangan buat order baru — tekan bayar lagi: sistem mengecek order yang sama di server, tidak akan tercatat dobel.";
+
+/**
+ * Pesan untuk kasir setelah submit gagal. Kunci sama + isi berbeda (server: IDEMPOTENCY_MISMATCH,
+ * audit POS 24 Nov 2026 S4/K6) berarti percobaan sebelumnya SUDAH tersimpan dengan isi lain —
+ * tampilkan pesan server apa adanya (cek Riwayat struk), bukan pesan "belum pasti" umum.
+ * Kunci tetap ditandai tidak pasti agar tekan ulang tidak pernah membuat order kedua diam-diam.
+ */
+export function submitErrorMessage(error: unknown, fallback: string) {
+  if ((error as { code?: unknown } | null)?.code === "IDEMPOTENCY_MISMATCH" && error instanceof Error) return error.message;
+  if (isUncertainSubmitError(error)) return UNCERTAIN_SUBMIT_MESSAGE;
+  return error instanceof Error ? error.message : fallback;
+}

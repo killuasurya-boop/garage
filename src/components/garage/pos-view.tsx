@@ -272,9 +272,8 @@ import { pendingBillsView, type PendingBill } from "@/lib/pos-pending-bills";
 import { componentLabel, groupOrderLines } from "@/lib/order-package-lines";
 import {
   idempotencyAttemptFor,
-  isUncertainSubmitError,
+  submitErrorMessage,
   markAttemptAfterError,
-  UNCERTAIN_SUBMIT_MESSAGE,
   type IdempotencyAttempt,
 } from "@/lib/idempotency-client";
 import {
@@ -3860,10 +3859,13 @@ export function PosView({
     };
     const attempt = idempotencyAttemptFor(orderAttemptRef.current, body, makeIdempotencyKey);
     orderAttemptRef.current = attempt;
+    // K10: setelah server menyimpan, error kerja lanjutan (cetak/refresh) bukan "gagal simpan".
+    let saved = false;
     try {
       const result = await garageApi.post<OpenBillSaved>("/api/orders/open-bill", body, {
         headers: { "X-Idempotency-Key": attempt.key },
       });
+      saved = true;
       orderAttemptRef.current = null;
       // Bill buatan kasir sendiri bukan "order QR baru" → tanpa suara/toast.
       previousCustomerOrderIdsRef.current.add(result.orderId);
@@ -3900,12 +3902,12 @@ export function PosView({
       await loadTableLiveData({ silent: true });
       invalidateGarageCache([GARAGE_TAGS.orders, GARAGE_TAGS.kitchen, GARAGE_TAGS.dashboard]);
     } catch (error) {
+      if (saved) {
+        setPosNotice("Tagihan tersimpan. Data layar belum ter-refresh — muat ulang bila perlu.");
+        return;
+      }
       orderAttemptRef.current = markAttemptAfterError(attempt, error);
-      setPaymentError(
-        isUncertainSubmitError(error)
-          ? UNCERTAIN_SUBMIT_MESSAGE
-          : error instanceof Error ? error.message : "Tagihan gagal disimpan.",
-      );
+      setPaymentError(submitErrorMessage(error, "Tagihan gagal disimpan."));
     } finally {
       setPaymentPending(false);
     }
@@ -4049,10 +4051,13 @@ export function PosView({
     const attempt = idempotencyAttemptFor(orderAttemptRef.current, orderBody, makeIdempotencyKey);
     orderAttemptRef.current = attempt;
 
+    // K10: setelah server menyimpan (LUNAS), error kerja lanjutan bukan "pembayaran gagal".
+    let saved = false;
     try {
       const result = await garageApi.post<OrderCreateResponse>("/api/orders", orderBody, {
         headers: { "X-Idempotency-Key": attempt.key },
       });
+      saved = true;
       orderAttemptRef.current = null;
 
       const kdsTicketLabel =
@@ -4152,13 +4157,13 @@ export function PosView({
         GARAGE_TAGS.customers,
       ]);
     } catch (error) {
+      if (saved) {
+        setPosNotice("Pembayaran tersimpan (LUNAS). Data layar belum ter-refresh — cek Riwayat struk, jangan tagih ulang.");
+        return;
+      }
       // GOD++ F-03: gagal tidak pasti → key yang sama dipakai lagi walau isi berubah (server cek dulu).
       orderAttemptRef.current = markAttemptAfterError(attempt, error);
-      setPaymentError(
-        isUncertainSubmitError(error)
-          ? UNCERTAIN_SUBMIT_MESSAGE
-          : error instanceof Error ? error.message : "Pembayaran gagal.",
-      );
+      setPaymentError(submitErrorMessage(error, "Pembayaran gagal."));
     } finally {
       setPaymentPending(false);
     }

@@ -12,7 +12,7 @@ import { garageApi } from "@/lib/api-client";
 import { bundleUnavailableReason, type EventMenuSelection } from "@/lib/event-menu-display";
 import type { EventMenuContext, EventMenuEntry, EventMenuProduct } from "@/lib/event-menu-types";
 import { MAX_TABLE_NUMBER, parseTableNumber, tableLabelFor } from "@/lib/garage-tables";
-import { idempotencyAttemptFor, type IdempotencyAttempt } from "@/lib/idempotency-client";
+import { idempotencyAttemptFor, markAttemptAfterError, submitErrorMessage, type IdempotencyAttempt } from "@/lib/idempotency-client";
 
 const currency = new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 });
 
@@ -136,6 +136,7 @@ export function PosEventBundles({ shiftOpen, regularCart, regularCartTotal, make
     };
     const attempt = idempotencyAttemptFor(attemptRef.current, body, makeKey);
     attemptRef.current = attempt;
+    let stored = false;
     try {
       const result = await garageApi.post<{ orderId: string; orderNo: string; total: number; tableLabel: string | null }>(
         "/api/orders/open-bill",
@@ -157,10 +158,19 @@ export function PosEventBundles({ shiftOpen, regularCart, regularCartTotal, make
       const saved = { ...result, customerName: customerName.trim() || null, chitLines };
       reset();
       setOpen(false);
+      stored = true;
       await onSaved(saved, withCart);
       void load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Paket gagal disimpan.");
+      if (stored) {
+        // Bill sudah tersimpan; yang gagal hanya langkah lanjutan (K10) — jangan sebut "gagal simpan".
+        void load();
+        return;
+      }
+      // K8: gagal tidak pasti (jaringan/5xx) → kunci yang sama dipakai lagi walau paket diganti,
+      // server mengecek dulu sehingga bill tidak dobel.
+      attemptRef.current = markAttemptAfterError(attempt, err);
+      setError(submitErrorMessage(err, "Paket gagal disimpan."));
       void load();
     } finally {
       setBusy(false);

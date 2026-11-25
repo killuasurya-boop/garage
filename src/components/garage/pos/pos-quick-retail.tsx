@@ -12,9 +12,8 @@ import type { AppSettings, MenuItem, OrderCreateResponse, OrderReceipt } from "@
 import { calculateBillingTotals } from "@/lib/garage-billing";
 import {
   idempotencyAttemptFor,
-  isUncertainSubmitError,
   markAttemptAfterError,
-  UNCERTAIN_SUBMIT_MESSAGE,
+  submitErrorMessage,
   type IdempotencyAttempt,
 } from "@/lib/idempotency-client";
 import { quickCashOptions } from "@/lib/pos-cash";
@@ -218,21 +217,26 @@ export function PosQuickRetail({
     };
     const current = idempotencyAttemptFor(attempt, body, makeKey);
     setAttempt(current);
+    let result: OrderCreateResponse;
     try {
-      const result = await garageApi.post<OrderCreateResponse>("/api/orders", body, {
+      result = await garageApi.post<OrderCreateResponse>("/api/orders", body, {
         headers: { "X-Idempotency-Key": current.key },
       });
-      setAttempt(null);
-      setReceipt(result.receipt);
-      setLines([]);
-      await onCompleted(result);
     } catch (caught) {
       setAttempt(markAttemptAfterError(current, caught));
-      setError(
-        isUncertainSubmitError(caught)
-          ? UNCERTAIN_SUBMIT_MESSAGE
-          : caught instanceof Error ? caught.message : "Pembayaran gagal. Status order dicek dari server — coba lagi.",
-      );
+      setError(submitErrorMessage(caught, "Pembayaran gagal. Status order dicek dari server — coba lagi."));
+      setBusy(false);
+      return;
+    }
+    // Sudah LUNAS di server. Kerja lanjutan (refresh, cetak) di luar try pembayaran (K10):
+    // bila gagal, layar tidak boleh menyatakan pembayaran gagal.
+    setAttempt(null);
+    setReceipt(result.receipt);
+    setLines([]);
+    try {
+      await onCompleted(result);
+    } catch {
+      setNotice("Pembayaran tersimpan. Data layar belum ter-refresh — muat ulang bila perlu.");
     } finally {
       setBusy(false);
     }

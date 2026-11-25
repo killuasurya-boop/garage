@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { fail, ok, readJson } from "@/lib/api-response";
+import { fail, ok, readJson, serviceErrorResponse } from "@/lib/api-response";
 import { confirmOrderPayment } from "@/lib/garage-service";
 import { checkIdempotency } from "@/lib/idempotency";
 import { requireOwnerOrManager } from "@/lib/server-auth";
@@ -25,10 +25,13 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   if (cache.kind === "pending") return fail(409, "IN_PROGRESS", "Masih diproses.");
   try {
     const result = await confirmOrderPayment(id, body.data, session.data);
-    cache.commit(result);
+    // Hasil TIDAK disimpan (S10): kunci cache = id order, jadi konfirmasi → batal → konfirmasi
+    // dalam 60 dtk dulu mengembalikan hasil lama tanpa menyimpan apa pun. Kunci hanya menahan
+    // kiriman ganda yang masih berjalan; ulangan setelah selesai ditolak service (status sudah berubah).
+    cache.abandon();
     return ok(result);
   } catch (error) {
     cache.abandon();
-    return fail(400, "PAYMENT_CONFIRM_FAILED", error instanceof Error ? error.message : "Gagal mengonfirmasi pelunasan.");
+    return serviceErrorResponse(error, "PAYMENT_CONFIRM_FAILED", "Gagal mengonfirmasi pelunasan.");
   }
 }

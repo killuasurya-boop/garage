@@ -9751,7 +9751,11 @@ async function replayEventCheckout(db: GarageDb | GarageTx, input: CustomerOrder
   const [row] = await db.select().from(orders).where(eq(orders.clientRequestKey, key)).limit(1);
   if (!row) return null;
   if (row.clientRequestFingerprint !== eventCheckoutFingerprint(input)) {
-    throw new Error("Kunci checkout sudah digunakan untuk pesanan berbeda. Muat ulang keranjang.");
+    // code: kasir POS (Bayar nanti/Paket Event) melihat pesan ini dan kuncinya tetap dipakai
+    // (bukan kunci baru yang membuat bill kedua) — sama dengan IdempotencyMismatchError order POS.
+    throw Object.assign(new Error("Kunci checkout sudah digunakan untuk pesanan berbeda. Muat ulang keranjang."), {
+      code: "IDEMPOTENCY_MISMATCH",
+    });
   }
   const items = await db.select().from(orderItems).where(eq(orderItems.orderId, row.id));
   const [payment] = await db.select().from(payments).where(eq(payments.orderId, row.id)).orderBy(desc(payments.createdAt)).limit(1);
@@ -11123,7 +11127,9 @@ async function updateCustomerOrderStatusImpl(
       const latestCashDeposited = latestPayment
         ? numberFromMetadata(latestPayment.metadata, "cashDeposited")
         : null;
-      const confirmingMethod = input.paymentMethod?.trim() || latestPayment?.method || "Cash";
+      // Delivery = QRIS saja: tanpa metode dikirim jangan jatuh ke metode lama/Tunai (S11).
+      const confirmingMethod =
+        input.paymentMethod?.trim() || (order.fulfillment === "delivery" ? "QRIS" : latestPayment?.method || "Cash");
       const confirmingIsCash = isCashMethod(confirmingMethod);
       // Tender guard (PRD §09.2): referensi QRIS/transfer dicek ganda; QRIS
       // wajib referensi bila diaktifkan Owner. Hanya saat benar-benar melunasi.

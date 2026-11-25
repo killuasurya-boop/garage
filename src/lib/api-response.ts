@@ -44,7 +44,7 @@ export async function readJson<T>(request: Request, schema: ZodSchema<T>) {
 
 // Pesan error internal (SQL, nama tabel/constraint, koneksi) tidak boleh sampai ke layar kasir (S8).
 const INTERNAL_ERROR_PATTERN =
-  /\b(relation|violates|syntax error|column|constraint|duplicate key|ECONN\w*|timeout expired|failed query|params:|deadlock)\b|\b(select|insert|update|delete)\s.+\b(from|into|set)\b/i;
+  /\b(relation|violates|syntax error|column|constraint|duplicate key|ECONN\w*|timeout expired|failed query|params:|deadlock)\b|\binsert\s+into\b|\bdelete\s+from\b|\bupdate\s+"?\w+"?\s+set\b|\bselect\s.+\sfrom\b/i;
 
 export function isInternalErrorMessage(message: string) {
   return !message.trim() || INTERNAL_ERROR_PATTERN.test(message);

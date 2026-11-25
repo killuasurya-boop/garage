@@ -88,6 +88,7 @@ Maximize2,
 Minimize2,
 X,
 Handshake,
+Keyboard,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
@@ -96,6 +97,7 @@ import {
 ChangeEvent,
 ComponentType,
 FormEvent,
+Fragment,
 useCallback,
 useDeferredValue,
 useEffect,
@@ -238,7 +240,7 @@ import { PAYMENT_STATUS_LABEL, paymentStatusOf, type PaymentStatus } from "@/lib
 import { quickCashOptions } from "@/lib/pos-cash";
 import { normalizePaymentReference } from "@/lib/tender-guard";
 import { finalPayLabel } from "@/lib/pos-final-pay-label";
-import { menuShortcodes, shortcodeMatchRank } from "@/lib/menu-shortcode";
+import { menuShortcodes } from "@/lib/menu-shortcode";
 import { buildCashMovementSlipContent } from "@/lib/management-slips";
 import { CashDrawerDialog, type CashMovementRecorded } from "@/components/garage/cash-drawer-dialog";
 import { claimReprint } from "@/lib/reprint-guard";
@@ -282,6 +284,8 @@ import {
 } from "@/components/garage/pos-table-bill-split-dialog";
 import { remainingCart, type SplitAssignment } from "@/lib/split-bill";
 import { calculateBillingTotals, capVoucherDiscountBySettings } from "@/lib/garage-billing";
+import { isBarcodeLike, parseQuantityQuery, searchMenuEntries } from "@/lib/pos-search";
+import { isPosGlobalShortcut, POS_SHORTCUTS } from "@/lib/pos-shortcuts";
 import { maxRedeemablePoints, normalizePhone } from "@/lib/member-types";
 import { PosMemberWaVerify } from "@/components/garage/pos-member-wa-verify";
 import { BillRow, chitStationFor, formatReceiptDate, PaymentStep, OpenBillSaved } from "@/components/garage/pos/pos-ui-shared";
@@ -656,6 +660,8 @@ export function PosView({
     return () => window.clearInterval(id);
   }, [parkedListOpen]);
   const [variantItem, setVariantItem] = useState<MenuItem | null>(null);
+  const pendingVariantQtyRef = useRef(1);
+  const [shortcutSheetOpen, setShortcutSheetOpen] = useState(false);
   const [clearCartOpen, setClearCartOpen] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [paymentStep, setPaymentStep] = useState<PaymentStep>("summary");
@@ -726,6 +732,14 @@ export function PosView({
   const [shiftPending, setShiftPending] = useState(false);
   const [shiftError, setShiftError] = useState<string | null>(null);
   const [posNotice, setPosNotice] = useState<string | null>(null);
+  // Toast = posNotice terbaru, disembunyikan sendiri setelah 5 dtk (badge header tetap memakai posNotice).
+  const [expiredToast, setExpiredToast] = useState<string | null>(null);
+  useEffect(() => {
+    if (!posNotice) return;
+    const timer = window.setTimeout(() => setExpiredToast(posNotice), 5000);
+    return () => window.clearTimeout(timer);
+  }, [posNotice]);
+  const toastNotice = posNotice && posNotice !== expiredToast ? posNotice : null;
   // Smart Partner Hub: badge + pemberitahuan sekali saat jumlah pesanan mitra yang perlu perhatian bertambah.
   const partnerAttention = usePartnerAttention(settings.partnerHubEnabled, settings.partnerSlaAcceptWarnMinutes, settings.partnerReadyWaitWarnMinutes);
   const [partnerAttentionSeen, setPartnerAttentionSeen] = useState(0);
@@ -1030,8 +1044,11 @@ export function PosView({
   useEffect(() => {
     if (!posVisible) return;
     const onKey = (event: KeyboardEvent) => {
-      if (!/^(F([1-4]|6|9)|\[)$/.test(event.key) || event.altKey || event.ctrlKey || event.metaKey) return;
-      if (event.key === "[" && (event.target as HTMLElement | null)?.closest?.("input, textarea, select, [contenteditable='true']")) return;
+      const typing = Boolean(
+        (event.target as HTMLElement | null)?.closest?.("input, textarea, select, [contenteditable='true']"),
+      );
+      // Daftar tombol = POS_SHORTCUTS (src/lib/pos-shortcuts.ts), sama dengan lembar pintasan `?`.
+      if (!isPosGlobalShortcut(event, typing)) return;
       if (document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]')) return;
       if (posShortcutRef.current(event.key) !== false) event.preventDefault();
     };
@@ -1145,10 +1162,16 @@ export function PosView({
       // Storage diblokir / rusak → mulai dari bestseller.
     }
   }, []);
+  // Urutan strip Favorit dibekukan selama transaksi berjalan (U6): dulu tombol bergeser di bawah
+  // kursor tiap tap. Urutan baru dipakai saat keranjang kosong lagi (transaksi selesai/dikosongkan).
+  const cartEmpty = cart.length === 0;
+  const [favoriteOrderCounts, setFavoriteOrderCounts] = useState(favoriteCounts);
+  // Penyesuaian state saat render (pola React resmi), bukan di effect.
+  if (cartEmpty && favoriteOrderCounts !== favoriteCounts) setFavoriteOrderCounts(favoriteCounts);
   const favoriteItems = useMemo(() => {
     const ranked = indexedMenu
-      .filter((entry) => (favoriteCounts[entry.item.id] ?? 0) > 0)
-      .sort((a, b) => (favoriteCounts[b.item.id] ?? 0) - (favoriteCounts[a.item.id] ?? 0))
+      .filter((entry) => (favoriteOrderCounts[entry.item.id] ?? 0) > 0)
+      .sort((a, b) => (favoriteOrderCounts[b.item.id] ?? 0) - (favoriteOrderCounts[a.item.id] ?? 0))
       .map((entry) => entry.item);
     const picked = new Set(ranked.map((item) => item.id));
     for (const entry of indexedMenu) {
@@ -1156,32 +1179,23 @@ export function PosView({
       if (entry.isBestseller && !picked.has(entry.item.id)) ranked.push(entry.item);
     }
     return ranked.slice(0, POS_FAVORITE_LIMIT);
-  }, [favoriteCounts, indexedMenu]);
+  }, [favoriteOrderCounts, indexedMenu]);
   /** Hati di kartu V6 = favorit perangkat ini (sudah sering ditap), bukan klaim terlaris. */
   const favoriteIdSet = useMemo(
     () => new Set(favoriteItems.filter((item) => (favoriteCounts[item.id] ?? 0) > 0).map((item) => item.id)),
     [favoriteCounts, favoriteItems],
   );
-  const filteredMenu = useMemo(() => {
-    // Kode singkat ("cl" → Coffee Latte) dicocokkan di samping teks biasa;
-    // kode persis tampil paling depan supaya kasir cukup tap kartu pertama.
-    const exact: MenuItem[] = [];
-    const result: MenuItem[] = [];
-    for (const entry of indexedMenu) {
-      if (!menuFilterMatches(menuCategory, entry.item.category, entry.item.menuGroup)) continue;
-      if (bestsellerOnly && !entry.isBestseller) continue;
-      if (normalizedMenuQuery) {
-        const codeRank = shortcodeMatchRank(normalizedMenuQuery, entry.shortcodes);
-        if (codeRank === 2) {
-          exact.push(entry.item);
-          continue;
-        }
-        if (!codeRank && !entry.searchIndex.includes(normalizedMenuQuery)) continue;
-      }
-      result.push(entry.item);
-    }
-    return exact.length ? [...exact, ...result] : result;
-  }, [bestsellerOnly, indexedMenu, menuCategory, normalizedMenuQuery]);
+  // Kode singkat ("cl" → Coffee Latte) dicocokkan di samping teks biasa; kode persis paling depan.
+  // Filter yang sama dipakai tombol Enter (`searchMenuEntries`, src/lib/pos-search.ts).
+  const acceptMenuEntry = useCallback(
+    (entry: (typeof indexedMenu)[number]) =>
+      menuFilterMatches(menuCategory, entry.item.category, entry.item.menuGroup) && (!bestsellerOnly || entry.isBestseller),
+    [bestsellerOnly, menuCategory],
+  );
+  const filteredMenu = useMemo(
+    () => searchMenuEntries(indexedMenu, parseQuantityQuery(normalizedMenuQuery).term, acceptMenuEntry),
+    [acceptMenuEntry, indexedMenu, normalizedMenuQuery],
+  );
   const visibleProductCount =
     productPageState.filterKey === productFilterKey
       ? productPageState.count
@@ -2799,7 +2813,8 @@ export function PosView({
     }
   }
 
-  function addItem(itemId: string, variantId: string) {
+  function addItem(itemId: string, variantId: string, qty = 1) {
+    const add = Math.max(1, Math.min(999, Math.floor(qty)));
     setCart((current) => {
       const existing = current.find(
         (line) => line.itemId === itemId && line.variantId === variantId,
@@ -2807,11 +2822,11 @@ export function PosView({
       if (existing) {
         return current.map((line) =>
           line.itemId === itemId && line.variantId === variantId
-            ? { ...line, qty: line.qty + 1 }
+            ? { ...line, qty: Math.min(999, line.qty + add) }
             : line,
         );
       }
-      return [...current, { itemId, variantId, qty: 1 }];
+      return [...current, { itemId, variantId, qty: add }];
     });
   }
 
@@ -3381,7 +3396,7 @@ export function PosView({
     });
   }
 
-  function handleProductTap(item: MenuItem) {
+  function handleProductTap(item: MenuItem, qty = 1) {
     if (!canTransact) {
       setShiftError("Buka shift terlebih dahulu sebelum transaksi.");
       return;
@@ -3407,10 +3422,12 @@ export function PosView({
     });
 
     if (item.variants.length === 1) {
-      addItem(item.id, item.variants[0].id);
+      addItem(item.id, item.variants[0].id, qty);
       return;
     }
 
+    // Qty dari `3*kode` dipakai saat varian dipilih di dialog.
+    pendingVariantQtyRef.current = qty;
     setVariantItem(item);
   }
 
@@ -4197,10 +4214,21 @@ export function PosView({
       else if (key === "F4") setReceiptHistoryOpen(true);
       else if (key === "F6") openPendingBills();
       else if (key === "[") toggleSidebarMode();
+      else if (key === "?") setShortcutSheetOpen(true);
       else if (key === "F9") {
         if (!cartLines.length) return false;
         resetPaymentDialog();
         setPaymentOpen(true);
+      } else if (key === "F8") {
+        // Bayar nanti: langsung ke langkah pembayaran, tombol "Bayar nanti" difokuskan (Enter = simpan).
+        if (!cartLines.length) {
+          setPosNotice("Keranjang masih kosong.");
+          return true;
+        }
+        resetPaymentDialog();
+        setPaymentStep("payment");
+        setPaymentOpen(true);
+        window.setTimeout(() => document.querySelector<HTMLButtonElement>('[data-testid="pos-open-bill"]')?.focus(), 80);
       } else return false;
       return true;
     };
@@ -8342,11 +8370,17 @@ export function PosView({
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
                     onKeyDown={(event) => {
-                      // Enter = pesan menu teratas hasil cari / kode singkat.
+                      // Esc = kosongkan kolom cari (fokus tetap di sini, siap scan berikutnya).
+                      if (event.key === "Escape" && query) {
+                        event.preventDefault();
+                        setQuery("");
+                        return;
+                      }
+                      // Enter = pesan menu teratas hasil cari / kode singkat. `3*cl` = 3× hasil teratas.
                       if (event.key !== "Enter" || !query.trim()) return;
+                      const { qty: typedQty, term: scanned } = parseQuantityQuery(query);
                       // Scanner barcode: kode SKU/barcode persis (produk atau varian, termasuk produk mitra)
                       // langsung masuk keranjang dengan varian yang discan.
-                      const scanned = query.trim().toLowerCase();
                       for (const item of menuItems) {
                         if (soldOutIds.has(item.id) || item.stock === "sold_out") continue;
                         const variant = item.variants.find(
@@ -8360,25 +8394,49 @@ export function PosView({
                             return;
                           }
                           if (locked) return;
-                          addItem(item.id, (variant ?? item.variants[0]).id);
+                          addItem(item.id, (variant ?? item.variants[0]).id, typedQty);
                           setQuery("");
                           return;
                         }
                       }
-                      if (deferredQuery !== query) return;
-                      const first = filteredMenu.find((item) => !soldOutIds.has(item.id));
-                      if (!first) return;
                       event.preventDefault();
-                      handleProductTap(first);
+                      // Kode scanner tanpa kecocokan persis: jangan menebak hasil teratas (bisa item salah).
+                      if (isBarcodeLike(scanned)) {
+                        setPosNotice(`Kode ${scanned} tidak dikenal. Cek produk/SKU di Manajemen Produk.`);
+                        setQuery("");
+                        return;
+                      }
+                      // Hasil dihitung dari teks yang baru diketik (bukan hasil tampilan yang tertunda).
+                      const first = searchMenuEntries(indexedMenu, scanned, acceptMenuEntry).find(
+                        (item) => !soldOutIds.has(item.id) && item.stock !== "sold_out",
+                      );
+                      if (!first) {
+                        setPosNotice(`Tidak ada menu tersedia untuk "${scanned}".`);
+                        return;
+                      }
+                      handleProductTap(first, typedQty);
                       setQuery("");
                     }}
                     enterKeyHint="done"
                     aria-label="Cari menu atau kode singkat, Enter untuk pesan menu teratas"
                     data-testid="pos-menu-search"
                     className="h-9 border-[#34343c] bg-white/[0.06] pl-9"
-                    placeholder="Cari menu / kode singkat (mis. cl)"
+                    placeholder="Cari menu / kode (cl, 3*cl)"
                   />
                 </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  // Pintasan keyboard hanya berguna di laptop/PC: disembunyikan di layar HP (tidak makan satu baris).
+                  className="garage-press hidden h-9 w-9 shrink-0 border-[#4a4a54] bg-white/[0.06] text-[#d4d4d8] md:inline-flex"
+                  onClick={() => setShortcutSheetOpen(true)}
+                  aria-label="Pintasan keyboard (tombol ?)"
+                  title="Pintasan keyboard (?)"
+                  data-testid="pos-shortcuts-open"
+                >
+                  <Keyboard className="size-4" aria-hidden />
+                </Button>
                 <PosEventBundles
                   shiftOpen={canTransact}
                   regularCart={cart.map((line) => ({ itemId: line.itemId, variantId: line.variantId, qty: line.qty, note: line.note || undefined }))}
@@ -9328,6 +9386,7 @@ export function PosView({
                             >
                               <Clock aria-hidden className="size-4" />
                               Bayar nanti
+                              <kbd className="pos-v6-kbd ml-1">F8</kbd>
                             </Button>
                           ) : null}
                           {paymentStep === "payment" ? (
@@ -9360,10 +9419,51 @@ export function PosView({
         </>
       )}
 
+      {/* Pesan aksi selalu terlihat & dibacakan pembaca layar (U2) — dulu di bawah 1200px hanya ikon. */}
+      <div
+        role="status"
+        aria-live="polite"
+        data-testid="pos-toast"
+        // Laptop: kiri bawah di atas tombol AYA/bantuan, tidak menutupi keranjang. HP: atas (AYA di bawah).
+        className="pointer-events-none fixed left-4 right-4 top-24 z-50 md:bottom-28 md:right-auto md:top-auto md:max-w-[420px]"
+      >
+        {toastNotice ? <p className="pos-v6-toast">{toastNotice}</p> : null}
+      </div>
+
+      <Dialog open={shortcutSheetOpen} onOpenChange={setShortcutSheetOpen}>
+        <DialogContent
+          data-cashier-theme-scope={isCashierKiosk ? cashierTheme : undefined}
+          className="max-h-[90svh] overflow-y-auto sm:max-w-md"
+          data-testid="pos-shortcut-sheet"
+        >
+          <DialogHeader className="text-left">
+            <DialogTitle>Pintasan keyboard kasir</DialogTitle>
+            <DialogDescription>Tombol F bekerja saat tidak ada dialog terbuka.</DialogDescription>
+          </DialogHeader>
+          <dl className="grid grid-cols-[auto_1fr] items-baseline gap-x-4 gap-y-2 text-sm">
+            {POS_SHORTCUTS.map((shortcut) => (
+              <Fragment key={shortcut.key}>
+                <dt>
+                  <kbd className="pos-v6-kbd">{shortcut.key}</kbd>
+                </dt>
+                <dd className="leading-5">{shortcut.label}</dd>
+              </Fragment>
+            ))}
+          </dl>
+        </DialogContent>
+      </Dialog>
+
       <PosVariantPickerDialog
         variantItem={variantItem}
-        setVariantItem={setVariantItem}
-        addItem={addItem}
+        setVariantItem={(next) => {
+          setVariantItem(next);
+          if (next === null) {
+            pendingVariantQtyRef.current = 1;
+            // Fokus kembali ke kolom cari: scan/ketik berikutnya tidak hilang (U5).
+            window.setTimeout(() => focusPosSearch(), 0);
+          }
+        }}
+        addItem={(itemId, variantId) => addItem(itemId, variantId, pendingVariantQtyRef.current)}
       />
 
       <PosClearCartDialog

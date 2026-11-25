@@ -1398,6 +1398,14 @@
 
   /* Kurangi gerakan: animasi selalu-menyala MATI. */
   .cashier-pos-surface[data-pos-reduced-motion="on"] .pos-v6-sidebar-glow { animation: none !important; opacity: 0.8; }
+
+  /* Fase 2: pesan aksi kasir (toast, role=status). Warna dari token tema → terbaca di semua tema. */
+  .pos-v6-toast {
+    margin: 0; padding: 10px 14px; border-radius: 8px; font-size: 14px; line-height: 20px; font-weight: 600;
+    color: var(--pos-text, #f4f4f5); background: var(--pos-surface, #17171c);
+    border: 1px solid var(--pos-border, #34343c); border-left: 4px solid var(--pos-warning, #f5a742);
+    box-shadow: 0 8px 24px rgb(0 0 0 / 0.28);
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .pos-v6-sidebar-glow, .pos-v6-nav-item[data-active="true"]::after, .pos-v6-nav-count, .pos-v6-pend-row { animation: none !important; }

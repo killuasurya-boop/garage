@@ -75,6 +75,21 @@ description: Aturan WAJIB modul POS Garage OS: kasir, keranjang, order/invoice a
   totals are shown, never drawer cash. Nav "Belum Bayar" (F6), sidebar collapse `[`, always-on red edge line (off with reduced
   motion), POS links/`window.open` to internal pages open in `PosV6ModuleSheet` (no new tab; PDFs via `?inline=1`).
 
+- POS Fase 1–2 (owner, 25 Nov 2026, `docs/pos-v6/AUDIT-BUG-KONSEP-2026-11-24.md`):
+  - Idempotency = key + content fingerprint: POS orders `posOrderFingerprint` (stored in `orders.client_request_fingerprint`),
+    Bayar nanti/event checkout `eventCheckoutFingerprint` (`open-bill:<userId>:<key>` for staff open bills). Same key + different
+    content = `IDEMPOTENCY_MISMATCH` (409); the client keeps the old key and shows the server message (`submitErrorMessage`).
+  - Final Bayar captures EVERY pending payment row (split tender after revert); cash received < amount due is refused.
+    The dialog stays open until saved. Owner without shift is never offered Tunai; QRIS needs the official QRIS image.
+  - Bayar nanti in member mode links the member (`memberCustomerId`, points at Final Bayar); an active voucher/discount/points
+    blocks Bayar nanti with a message (never dropped silently). Waiter cash amounts are required (empty ≠ uang pas).
+  - Route errors go through `serviceErrorResponse` (`src/lib/api-response.ts`): no SQL/internal text to the client.
+  - Keyboard (laptop/PC): existing F-keys never change (F1 cari, F2 Pesanan QR, F3 Meja, F4 Riwayat, F6 Belum Bayar,
+    F9 Bayar, `[` sidebar); added F8 Bayar nanti and `?` shortcut sheet. One list = `POS_SHORTCUTS` (`src/lib/pos-shortcuts.ts`).
+    Search Enter uses the typed text (`searchMenuEntries`, `src/lib/pos-search.ts`), `3*cl` = qty 3, unknown ≥8-digit code =
+    message (never the top result), Esc clears, focus returns after the variant dialog. Action messages = `pos-toast`
+    (`role="status"`). Favorit order is frozen while the cart has items. Riwayat Struk is searchable (`filterReceipts`).
+
 - Browser-dialog printing uses `browserColumns` (huruf Besar → 24 col on 58 mm) with tall
   TOTAL/Kembali lines; cashier can print Bar/Dapur chits manually (`printKitchenChits`).
 

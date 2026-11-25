@@ -533,6 +533,7 @@ function PartnerDetail({
                     <Chip tone={p.available ? "green" : "red"}>{p.available ? "Tersedia" : "Habis"}</Chip>
                   </span>
                 </div>
+                <ProductPhoto product={p} busy={busy} runP={runP} />
                 {!p.active && (p.submissionStatus === "pending" || p.submissionStatus === "revision") ? (
                   <div className="mt-2 grid gap-1 rounded-lg border border-[#ffd08a]/30 bg-[#2a1d0a]/50 px-3 py-2 text-xs text-[#ffe2b0]">
                     <p>
@@ -1026,11 +1027,71 @@ function ImportCatalogCard({ busy, onImport }: { busy: boolean; onImport: () => 
 }
 
 /** Pengaturan khusus satu produk mitra: tampilan (Owner/Manajer) + HPP & harga jual per varian (Owner, wajib alasan). */
+/**
+ * Foto produk mitra di kartu Kelola Mitra (Owner/Manajer). Bisa mengganti/menghapus foto siapa pun yang
+ * mengunggah (termasuk foto dari Portal Mitra). Langsung tersimpan; tidak lewat formulir Pengaturan.
+ */
+function ProductPhoto({ product, busy, runP }: { product: Product; busy: string | null; runP: RunP }) {
+  const key = `pimg-${product.linkId}`;
+  const working = busy === key;
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-3">
+      {product.imageUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={product.imageUrl} alt={`Foto ${product.name}`} className="size-16 shrink-0 rounded-lg border border-[#3a3a42] object-cover" />
+      ) : (
+        <span className="grid size-16 shrink-0 place-items-center rounded-lg border border-dashed border-[#4a4a52] px-1 text-center text-[11px] leading-tight text-[#b8b8bf]">Belum ada foto</span>
+      )}
+      <div className="flex flex-wrap gap-2">
+        <label
+          className={`inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-[#3a3a42] px-3 text-sm font-semibold text-[#e4e4e8] hover:bg-white/10 focus-within:ring-2 focus-within:ring-[#ff5a66] ${busy !== null ? "pointer-events-none opacity-60" : ""}`}
+        >
+          {working ? "Memproses…" : product.imageUrl ? "Ganti foto" : "Unggah foto"}
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="sr-only"
+            disabled={busy !== null}
+            aria-label={`${product.imageUrl ? "Ganti" : "Unggah"} foto ${product.name}`}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = "";
+              if (!file) return;
+              void runP(
+                key,
+                async () => {
+                  const body = new FormData();
+                  body.append("image", file);
+                  const res = await fetch(`/api/partners/products/${encodeURIComponent(product.linkId)}/image`, { method: "POST", body, credentials: "include" });
+                  const json = (await res.json().catch(() => null)) as { data?: { imageUrl: string }; error?: { message?: string } } | null;
+                  if (!res.ok || !json?.data) throw new Error(json?.error?.message ?? "Foto gagal diunggah.");
+                },
+                "Foto produk diperbarui.",
+              );
+            }}
+          />
+        </label>
+        {product.imageUrl ? (
+          <Btn
+            tone="danger"
+            disabled={busy !== null}
+            onClick={() => {
+              if (!window.confirm(`Hapus foto ${product.name}? Produk tampil tanpa foto di kasir & menu digital.`)) return;
+              void runP(key, () => api(`/api/partners/products/${encodeURIComponent(product.linkId)}/image`, { method: "DELETE" }), "Foto produk dihapus.");
+            }}
+          >
+            Hapus foto
+          </Btn>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function ProductSettings({ product, isOwner, busy, runP }: { product: Product; isOwner: boolean; busy: string | null; runP: RunP }) {
   const [form, setForm] = useState({
     name: product.name,
     category: product.category,
-    imageUrl: product.imageUrl ?? "",
     description: product.description ?? "",
     showInDigitalMenu: product.showInDigitalMenu,
   });
@@ -1045,7 +1106,7 @@ function ProductSettings({ product, isOwner, busy, runP }: { product: Product; i
           event.preventDefault();
           void runP(
             `pset-${product.linkId}`,
-            () => api(`/api/partners/products/${product.linkId}`, { method: "PATCH", body: JSON.stringify({ settings: { ...form, imageUrl: form.imageUrl || null, description: form.description || null } }) }),
+            () => api(`/api/partners/products/${product.linkId}`, { method: "PATCH", body: JSON.stringify({ settings: { ...form, description: form.description || null } }) }),
             "Pengaturan produk disimpan.",
           );
         }}
@@ -1055,45 +1116,6 @@ function ProductSettings({ product, isOwner, busy, runP }: { product: Product; i
         </Field>
         <Field label="Kategori">
           <input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} required minLength={2} className={inputCls} />
-        </Field>
-        <Field label="Foto produk">
-          <div className="flex flex-wrap items-center gap-2">
-            {form.imageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={form.imageUrl} alt={`Foto ${form.name}`} className="size-14 rounded-lg border border-[#3a3a42] object-cover" />
-            ) : null}
-            <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-[#3a3a42] px-3 text-sm font-semibold text-[#e4e4e8] hover:bg-white/10">
-              {busy === `pimg-${product.linkId}` ? "Mengunggah…" : form.imageUrl ? "Ganti foto" : "Unggah foto"}
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                className="sr-only"
-                aria-label={`Unggah foto ${product.name}`}
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  e.target.value = "";
-                  if (!file) return;
-                  void runP(
-                    `pimg-${product.linkId}`,
-                    async () => {
-                      const body = new FormData();
-                      body.append("image", file);
-                      const res = await fetch(`/api/partners/products/${product.linkId}/image`, { method: "POST", body, credentials: "include" });
-                      const json = (await res.json().catch(() => null)) as { data?: { imageUrl: string }; error?: { message?: string } } | null;
-                      if (!res.ok || !json?.data) throw new Error(json?.error?.message ?? "Foto gagal diunggah.");
-                      setForm((f) => ({ ...f, imageUrl: json.data!.imageUrl }));
-                    },
-                    "Foto produk diperbarui.",
-                  );
-                }}
-              />
-            </label>
-            {form.imageUrl ? (
-              <button type="button" onClick={() => setForm({ ...form, imageUrl: "" })} className="min-h-11 px-2 text-sm text-[#ffb3b8] underline">
-                Hapus foto
-              </button>
-            ) : null}
-          </div>
         </Field>
         <Field label="Deskripsi singkat">
           <input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} maxLength={500} className={inputCls} />

@@ -127,7 +127,10 @@ description: Aturan WAJIB Smart Partner Hub (mitra resmi, produk partner, portal
   (partner session, other partner's link = 404) and staff `POST /api/partners/products/[linkId]/image` (Owner/Manajer) share
   `partner-product-image.ts` (multipart `image`, JPG/PNG/WebP ≤8 MB → WebP ≤200 KB, `/garage-uploads/menu`) and the single writer
   `setPartnerProductImage` (access checked BEFORE the file is written; event `product_photo`). Display only: price, approval and
-  Promo Website pick are unchanged. Portal section "Foto produk" (`partner-portal-photos.tsx`) lists all the partner's products incl. pending.
+  Promo Website pick are unchanged.
+  Owner/Manajer change or remove ANY partner photo (also one the partner uploaded) straight from the product card in Kelola Mitra
+  (`ProductPhoto` in `desk-manage.tsx`; `DELETE /api/partners/products/[linkId]/image` = `setPartnerProductImage(..., async () => null)`).
+  The Pengaturan form never sends `imageUrl` (a stale form must not overwrite a newer partner photo). Portal section "Foto produk" (`partner-portal-photos.tsx`) lists all the partner's products incl. pending.
 - Audit 23 Nov 2026: pisah bill SEBAGIAN untuk item mitra yang barisnya sudah di setoran aktif (`active_line_key`) ditolak
   (`movePartnerLineOnSplit` → `PartnerOrderError`, pesan menyebut nomor setoran); pindah seluruh qty tetap boleh. Sebelumnya
   baris pecahan baru (createdAt sama) bisa disetor lagi → mitra dibayar dua kali. HPP Mitra di laba: lihat skill `garage-kas`.

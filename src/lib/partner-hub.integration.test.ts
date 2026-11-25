@@ -263,6 +263,20 @@ describe("Smart Partner Hub — Portal Mitra & isolasi", () => {
     const events = await d.select().from(t.schema.partnerEvents).where(eq(t.schema.partnerEvents.kind, "product_photo"));
     expect(events.map((e: { actorType: string }) => e.actorType)).toEqual(expect.arrayContaining(["partner"]));
     expect(events).toHaveLength(2);
+
+    // Owner menimpa foto dari mitra, menyimpan Pengaturan tidak menyentuh foto, lalu Owner menghapusnya.
+    await svc.setPartnerProductImage(linkA, store("/garage-uploads/menu/mitra-b.webp"), { partner: partnerSession(partnerA) });
+    await svc.setPartnerProductImage(linkA, store("/garage-uploads/menu/owner-a.webp"), { garage: owner() });
+    await svc.updatePartnerProductSettings(linkA, { description: "Es krim alpukat lembut dengan topping cokelat" }, owner());
+    const [afterOwner] = await d.select({ imageUrl: t.schema.menuItems.imageUrl }).from(t.schema.menuItems).where(eq(t.schema.menuItems.id, menuA));
+    expect(afterOwner.imageUrl).toBe("/garage-uploads/menu/owner-a.webp");
+    await svc.setPartnerProductImage(linkA, async () => null, { garage: owner() });
+    const [afterDelete] = await d.select({ imageUrl: t.schema.menuItems.imageUrl }).from(t.schema.menuItems).where(eq(t.schema.menuItems.id, menuA));
+    expect(afterDelete.imageUrl).toBeNull();
+    const all = await d.select().from(t.schema.partnerEvents).where(eq(t.schema.partnerEvents.kind, "product_photo"));
+    expect(all).toHaveLength(5);
+    // Kembalikan foto supaya tes lain (mis. syarat Promo Website) tidak berubah.
+    await svc.setPartnerProductImage(linkA, store("/garage-uploads/menu/mgr-a.webp"), { garage: owner() });
   });
 
   it("keuangan per mitra: 2 × Es Krim Pokat = jual 44.000, HPP 38.000, profit 6.000", async () => {

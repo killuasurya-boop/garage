@@ -18,6 +18,7 @@ import {
   PLATINUM_ANNUAL_SPEND,
   type MemberLevel,
 } from "@/lib/member-types";
+import { VOUCHERS_RETIRED } from "@/lib/voucher-policy";
 
 export type VoucherLike = {
   id: string;
@@ -108,6 +109,8 @@ export function getEligibleCustomerOffers(input: {
   now?: Date;
   limit?: number;
 }): CustomerOffer[] {
+  // Voucher dimatikan Owner 25 Nov 2026 (voucher-policy.ts): tidak ada penawaran voucher yang ditampilkan.
+  if (VOUCHERS_RETIRED) return [];
   const now = input.now ?? new Date();
   const redeemed = new Set(input.redeemedVoucherIds ?? []);
   const offers: Array<CustomerOffer & { sortKey: number }> = [];
@@ -175,11 +178,7 @@ export function samplePoints(amount: number, tier: string, rules: Pick<PointRule
 }
 
 /** Benefit yang benar-benar dijalankan sistem untuk satu tier (pakai aturan poin aktif). */
-export function verifiedTierBenefits(
-  tier: string,
-  rules: PointRules,
-  options?: { includeWelcome?: boolean },
-): TierBenefit[] {
+export function verifiedTierBenefits(tier: string, rules: PointRules): TierBenefit[] {
   const level = normalizeMemberLevel(tier);
   const rule = memberRuleForLevel(level);
   const benefits: TierBenefit[] = [];
@@ -197,23 +196,9 @@ export function verifiedTierBenefits(
       detail: `1 poin = ${rupiah(rules.pointValue)}. Mulai ${rules.redeemMinPoints} poin, maks. ${rules.redeemMaxPct}% harga menu per tagihan.`,
     });
   }
-  benefits.push({
-    key: "member-promo",
-    title: "Voucher & promo member",
-    detail: "Voucher Garage hanya bisa dipakai member — termasuk voucher pribadi dari kasir/CRM.",
-  });
-  if (options?.includeWelcome && level === "Silver") {
-    benefits.push({
-      key: "welcome",
-      title: "Welcome reward",
-      detail: `Voucher diskon ${WELCOME_VOUCHER.percent}% (maks. ${rupiah(WELCOME_VOUCHER.maxDiscount)}, sekali pakai, ${WELCOME_VOUCHER.days} hari) terbit otomatis saat daftar.`,
-    });
-  }
+  // Tanpa "Voucher & promo member" dan "Welcome reward": voucher dimatikan Owner 25 Nov 2026.
   return benefits;
 }
-
-/** Sama dengan issueWelcomeVoucher (member-service.ts) — dijaga tes. */
-export const WELCOME_VOUCHER = { percent: 10, maxDiscount: 25_000, days: 30 } as const;
 
 export type TierShowcase = { level: MemberLevel; requirement: string; benefits: TierBenefit[]; requiresApproval: boolean };
 
@@ -228,7 +213,7 @@ export function tierShowcase(rules: PointRules): TierShowcase[] {
         : rule.level === "Ultra"
           ? "Undangan Owner (min. 3 tahun member + persetujuan)"
           : `Belanja lunas ${rupiah(rule.level === "Gold" ? GOLD_ANNUAL_SPEND : PLATINUM_ANNUAL_SPEND)} dalam 12 bulan`,
-    benefits: verifiedTierBenefits(rule.level, rules, { includeWelcome: true }),
+    benefits: verifiedTierBenefits(rule.level, rules),
   }));
 }
 

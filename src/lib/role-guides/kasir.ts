@@ -93,13 +93,13 @@ export const kasirGuide: RoleGuide = {
     },
     {
       id: "member-diskon",
-      title: "5. Member, voucher & diskon",
+      title: "5. Member, poin & diskon",
       steps: [
         { text: "Cari member dengan nomor HP, atau daftarkan member baru dari kasir. Nomor wajib WhatsApp aktif (08xx)." },
         {
           text: "Cek WA member: saat member dipilih, tekan Cek WA (WhatsApp terbuka), minta pelanggan membalas, lalu tekan Tandai WA aktif.",
         },
-        { text: "Voucher: masukkan kode lalu cek. Voucher pribadi hanya bisa dipakai pemiliknya, dan kuota voucher dibatasi." },
+        { text: "Voucher dan Promo QR sudah tidak berlaku (Owner 25 Nov 2026). Potongan hanya lewat tukar poin member atau diskon kasir berizin." },
         {
           text: "Poin: tekan Scan QR member, lalu pindai QR di kartu/aplikasi member (kamera atau scanner). Setelah terverifikasi, isi jumlah poin yang dipakai. Potongan muncul di ringkasan bayar.",
           warn: "Poin tidak bisa dipakai hanya dengan nomor HP. QR harus milik member yang dipilih.",
@@ -140,7 +140,7 @@ export const kasirGuide: RoleGuide = {
         },
         {
           text: "Bayar nanti (simpan tagihan): di langkah 4 tekan Bayar nanti. Wajib pilih meja (dine-in) atau isi nama pelanggan (take away). Pesanan langsung masuk Bar/Dapur, tagihan tetap terbuka.",
-          tip: "Saat pelanggan selesai, buka Pesanan Pelanggan / detail meja lalu tekan Final Bayar — pilih Cash/QRIS/Transfer, kembalian tampil di sana. Voucher, poin & diskon dipakai saat Final Bayar.",
+          tip: "Saat pelanggan selesai, buka Pesanan Pelanggan / detail meja lalu tekan Final Bayar — pilih Cash/QRIS/Transfer, kembalian tampil di sana. Poin & diskon kasir dipakai saat Final Bayar.",
         },
         { text: "QRIS: tunjukkan QR resmi Garage, tunggu notifikasi berhasil di aplikasi bank, baru tekan Lunas." },
         { text: "Split bayar: satu tagihan dibayar dengan beberapa metode (mis. sebagian tunai, sisanya QRIS)." },

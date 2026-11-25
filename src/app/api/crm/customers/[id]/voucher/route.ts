@@ -4,6 +4,7 @@ import { fail, ok, readJson } from "@/lib/api-response";
 import { issuePersonalVoucherForCrm } from "@/lib/garage-service";
 import { MAX_PERCENT_VOUCHER, MIN_PERCENT_VOUCHER } from "@/lib/member-types";
 import { requirePermission } from "@/lib/server-auth";
+import { VOUCHER_RETIRED_CODE, VOUCHER_RETIRED_MESSAGE, VOUCHERS_RETIRED } from "@/lib/voucher-policy";
 
 export const runtime = "nodejs";
 
@@ -20,6 +21,8 @@ export async function POST(
 ) {
   const session = await requirePermission("crm:write");
   if (session.response) return session.response;
+  // Voucher dimatikan Owner 25 Nov 2026 (src/lib/voucher-policy.ts).
+  if (VOUCHERS_RETIRED) return fail(410, VOUCHER_RETIRED_CODE, VOUCHER_RETIRED_MESSAGE);
 
   const { id } = await context.params;
   const body = await readJson(request, voucherSchema);

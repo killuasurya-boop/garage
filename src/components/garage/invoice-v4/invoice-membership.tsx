@@ -129,7 +129,7 @@ export function InvoiceMembership({ token, customerName }: { token: string; cust
       <SmartOfferCarousel
         offers={context.offers}
         token={token}
-        title={context.viewer === "member" ? "Voucher & Promo Anda" : "Promo Spesial Member"}
+        title={context.viewer === "member" ? "Promo Anda" : "Promo Spesial Member"}
       />
 
       <MemberTierBenefits tiers={context.tiers} currentTier={context.member?.tier ?? null} />
@@ -179,7 +179,7 @@ function MembershipInvitation({
             <Crown className="mb-1 mr-1.5 inline size-5 text-[var(--iv-red)]" aria-hidden />
             Jadi Member Garage Coffee
           </h2>
-          <p className="mt-1.5 text-[13.5px] leading-5 text-[var(--iv-text-2)]">Gratis. Poin & voucher untuk kunjungan berikutnya.</p>
+          <p className="mt-1.5 text-[13.5px] leading-5 text-[var(--iv-text-2)]">Gratis. Kumpulkan poin, tukar jadi potongan di kunjungan berikutnya.</p>
         </div>
         <MemberCardPreview />
       </div>
@@ -232,7 +232,7 @@ export function MemberCardPreview({ tier = "Silver" }: { tier?: string }) {
   );
 }
 
-/** State C — member login: kartu ASLI, poin, progres, voucher, izin promosi. */
+/** State C — member login: kartu ASLI, poin, level, progres, izin promosi. */
 function MemberCardPanel({
   context,
   token,
@@ -292,8 +292,9 @@ function MemberCardPanel({
           {member.pointsValue > 0 ? <p className="text-[12px] text-[var(--iv-text-3)]">≈ {rupiah(member.pointsValue)}</p> : null}
         </div>
         <div className="iv-subcard p-3">
-          <p className="text-[12px] text-[var(--iv-text-3)]">Voucher aktif</p>
-          <p className="iv-money text-[22px] text-[var(--iv-cream)]">{context.offers.filter((offer) => offer.code).length}</p>
+          {/* Dulu "Voucher aktif"; voucher dimatikan Owner 25 Nov 2026 → tampilkan level member (data nyata). */}
+          <p className="text-[12px] text-[var(--iv-text-3)]">Level</p>
+          <p className="iv-money text-[22px] text-[var(--iv-cream)]">{member.tier}</p>
         </div>
       </div>
 

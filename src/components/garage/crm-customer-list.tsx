@@ -13,7 +13,6 @@ import {
   CreditCard,
   Download,
   Eye,
-  Gift,
   Heart,
   MessageCircle,
   Phone,
@@ -238,7 +237,7 @@ export function CrmCustomerList({
               </p>
               <h2 className="mt-1 text-xl font-black text-white">Daftar Member</h2>
               <p className="mt-1 text-xs text-[#b8b8bf]">
-                Kelola Silver, Gold, Platinum, Ultra, kartu member, voucher, dan catatan CRM.
+                Kelola Silver, Gold, Platinum, Ultra, kartu member, poin, dan catatan CRM.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -673,7 +672,6 @@ function CustomerDetailModal({
   const [noteInput, setNoteInput] = useState("");
   const [noteEditing, setNoteEditing] = useState(false);
   const [noteSaving, setNoteSaving] = useState(false);
-  const [voucherOpen, setVoucherOpen] = useState(false);
   const [profileEditing, setProfileEditing] = useState(false);
   const [profileBirthday, setProfileBirthday] = useState("");
   const [profileReferral, setProfileReferral] = useState("");
@@ -1055,15 +1053,7 @@ function CustomerDetailModal({
                     <MessageCircle className="size-4" />
                     Kirim WA
                   </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="garage-press h-11 gap-2 border-[#f5a742]/55 bg-[#f5a742]/8 text-[#ffd79a] hover:bg-[#f5a742]/15"
-                    onClick={() => setVoucherOpen(true)}
-                  >
-                    <Gift className="size-4" />
-                    Beri Voucher
-                  </Button>
+                  {/* "Beri Voucher" dihapus: voucher dimatikan Owner 25 Nov 2026 (voucher-policy.ts). */}
                   <Button
                     type="button"
                     variant="outline"
@@ -1556,14 +1546,6 @@ function CustomerDetailModal({
       </Dialog>
 
       {detail && (
-        <VoucherDialog
-          open={voucherOpen}
-          onClose={() => setVoucherOpen(false)}
-          customer={detail}
-        />
-      )}
-
-      {detail && (
         <TukarPoinDialog
           open={tukarPoinOpen}
           onClose={() => {
@@ -1616,247 +1598,6 @@ function StatBox({
       </div>
       <p className={`mt-1 garage-mono text-lg font-bold ${valueClass}`}>{value}</p>
     </div>
-  );
-}
-
-// ─── VOUCHER DIALOG ─────────────────────────────────────────
-
-function VoucherDialog({
-  open,
-  onClose,
-  customer,
-}: {
-  open: boolean;
-  onClose: () => void;
-  customer: { id: string; name: string; phone: string };
-}) {
-  const [voucherType, setVoucherType] = useState<"percent" | "fixed">("percent");
-  const [value, setValue] = useState("10");
-  const [validDays, setValidDays] = useState("30");
-  const [reason, setReason] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [result, setResult] = useState<{
-    code: string;
-    validUntil: string;
-  } | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleIssue = async () => {
-    setSubmitting(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/crm/customers/${customer.id}/voucher`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: voucherType,
-          value: Number(value),
-          validDays: Number(validDays),
-          reason: reason.trim() || undefined,
-        }),
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        data?: { code: string; validUntil: string };
-        error?: { message?: string };
-      };
-      if (!res.ok || !data.data) {
-        throw new Error(data.error?.message || "Gagal generate voucher");
-      }
-      setResult(data.data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Gagal generate voucher");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleSendVoucherWa = () => {
-    if (!result) return;
-    const valueLabel = voucherType === "fixed"
-      ? `Rp ${Number(value).toLocaleString("id-ID")}`
-      : `${value}%`;
-    const expiry = new Date(result.validUntil).toLocaleDateString("id-ID", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    });
-    const message = `Halo ${customer.name.split(/\s+/)[0] || "Kak"}!\n\nTerima kasih sudah jadi customer setia GARAGE. Ini hadiah spesial buat kamu:\n\n🎁 VOUCHER ${valueLabel}\nKode: *${result.code}*\nBerlaku sampai: ${expiry}\n\nTinggal tunjukkan kode ini ke kasir atau ketik saat order online ya!`;
-    const url = `https://wa.me/${normalizeWaNumber(customer.phone)}?text=${encodeURIComponent(message)}`;
-    window.open(url, "_blank", "noopener,noreferrer");
-  };
-
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(o) => {
-        if (!o) {
-          onClose();
-          setTimeout(() => {
-            setResult(null);
-            setError(null);
-          }, 200);
-        }
-      }}
-    >
-      <DialogContent className="border-[#34343c] bg-[#111116] sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Gift className="size-5 text-[#f5a742]" />
-            Beri Voucher untuk {customer.name}
-          </DialogTitle>
-          <DialogDescription>
-            Generate kode voucher unik untuk customer ini.
-          </DialogDescription>
-        </DialogHeader>
-
-        {!result ? (
-          <div className="space-y-3">
-            {/* Type toggle */}
-            <div className="flex rounded-md border border-[#34343c] bg-[#17171c] p-0.5">
-              <button
-                type="button"
-                onClick={() => { setVoucherType("percent"); setValue("10"); }}
-                className={`flex-1 rounded py-1.5 text-xs font-medium transition-colors ${
-                  voucherType === "percent"
-                    ? "bg-[#f5a742] text-black"
-                    : "text-[#8f8f99] hover:text-white"
-                }`}
-              >
-                Persen (%)
-              </button>
-              <button
-                type="button"
-                onClick={() => { setVoucherType("fixed"); setValue("5000"); }}
-                className={`flex-1 rounded py-1.5 text-xs font-medium transition-colors ${
-                  voucherType === "fixed"
-                    ? "bg-[#f5a742] text-black"
-                    : "text-[#8f8f99] hover:text-white"
-                }`}
-              >
-                Nominal (Rp)
-              </button>
-            </div>
-
-            <div>
-              <p className="mb-1 text-xs text-[#b8b8bf]">
-                {voucherType === "percent" ? "Potongan voucher (%)" : "Potongan voucher (Rp)"}
-              </p>
-              {voucherType === "percent" ? (
-                <Input
-                  type="number"
-                  min={5}
-                  max={50}
-                  step={5}
-                  value={value}
-                  onChange={(event) => setValue(event.target.value)}
-                  placeholder="10"
-                  className="h-10 border-[#34343c] bg-white/[0.06]"
-                />
-              ) : (
-                <Input
-                  type="number"
-                  min={1000}
-                  step={1000}
-                  value={value}
-                  onChange={(event) => setValue(event.target.value)}
-                  placeholder="5000"
-                  className="h-10 border-[#34343c] bg-white/[0.06]"
-                />
-              )}
-              <p className="mt-1 text-[10px] text-[#8f8f99]">
-                {voucherType === "percent"
-                  ? "Batas sehat CRM: 5%-50%, bisa digunakan siapa pun."
-                  : "Minimum Rp 1.000."}
-              </p>
-            </div>
-
-            <div>
-              <p className="mb-1 text-xs text-[#b8b8bf]">Berlaku berapa hari?</p>
-              <Input
-                type="number"
-                value={validDays}
-                onChange={(event) => setValidDays(event.target.value)}
-                placeholder="30"
-                className="h-10 border-[#34343c] bg-white/[0.06]"
-              />
-            </div>
-
-            <div>
-              <p className="mb-1 text-xs text-[#b8b8bf]">Alasan (opsional, internal)</p>
-              <Input
-                type="text"
-                value={reason}
-                onChange={(event) => setReason(event.target.value)}
-                placeholder="Birthday gift, customer kecewa, dll"
-                className="h-10 border-[#34343c] bg-white/[0.06]"
-              />
-            </div>
-
-            {error && (
-              <p className="text-xs text-[#ffc2c8]">{error}</p>
-            )}
-
-            <Button
-              type="button"
-              className="garage-press h-11 w-full gap-2"
-              onClick={() => void handleIssue()}
-              disabled={submitting || !value || (voucherType === "percent" ? Number(value) < 5 || Number(value) > 50 : Number(value) < 1000)}
-            >
-              {submitting ? (
-                <RefreshCw className="size-4 animate-spin" />
-              ) : (
-                <Gift className="size-4" />
-              )}
-              Generate Voucher
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <div className="rounded-md border border-[#22c55e]/45 bg-[#22c55e]/12 p-4 text-center">
-              <p className="garage-mono text-[10px] uppercase tracking-wide text-[#86efac]">
-                Voucher Code
-              </p>
-              <p className="mt-2 garage-display select-all text-2xl font-bold text-white">
-                {result.code}
-              </p>
-              <div className="mt-2 flex items-center justify-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="garage-press h-8 border-[#4a4a54] px-2 text-xs"
-                  onClick={() => void navigator.clipboard.writeText(result.code)}
-                >
-                  <Clipboard className="size-3.5" />
-                  Copy
-                </Button>
-              </div>
-              <p className="mt-2 text-[10px] text-[#86efac]">
-                Berlaku sampai {new Date(result.validUntil).toLocaleDateString("id-ID")}
-              </p>
-            </div>
-
-            <Button
-              type="button"
-              className="garage-press h-11 w-full gap-2 bg-[#25d366] text-black hover:bg-[#34e377]"
-              onClick={handleSendVoucherWa}
-            >
-              <MessageCircle className="size-4" />
-              Kirim Voucher via WA
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              className="garage-press h-10 w-full border-[#4a4a54]"
-              onClick={onClose}
-            >
-              Tutup
-            </Button>
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
   );
 }
 

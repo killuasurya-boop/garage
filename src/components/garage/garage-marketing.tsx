@@ -2233,15 +2233,7 @@ function MarketingPromos({
             Refresh
           </Button>
           <div className="ml-auto" />
-          <Button
-            type="button"
-            className="garage-press h-9 gap-2 bg-[#d11a2a] text-white hover:bg-[#ff2a3a]"
-            disabled={!canWrite}
-            onClick={() => setCreateOpen(true)}
-          >
-            <Plus className="size-4" />
-            Promo baru
-          </Button>
+          <p className="text-xs text-[#ffd79a]">Voucher &amp; promo kode dimatikan Owner (25 Nov 2026). Data lama hanya arsip.</p>
         </div>
       </div>
 
@@ -2330,19 +2322,7 @@ function MarketingPromos({
                     </td>
                     <td className="px-3 py-2 text-right">
                       <div className="flex items-center justify-end gap-1">
-                        {row.status !== "active" ? (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-8 border-[#34343c] px-2 text-[#86efac]"
-                            disabled={!canWrite}
-                            onClick={() => void handleSetStatus(row, "active")}
-                            title="Aktifkan"
-                          >
-                            <Check className="size-3.5" />
-                          </Button>
-                        ) : null}
+                        {/* Tombol "Aktifkan" dihapus: voucher/promo kode dimatikan Owner 25 Nov 2026 (server menolak, 410). */}
                         {row.status !== "paused" ? (
                           <Button
                             type="button"

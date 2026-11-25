@@ -5060,8 +5060,7 @@ const MEMBER_TIER_COLOR = {
 };
 const MEMBER_PERK_LABEL = {
   "Earn normal point": `1 poin tiap Rp ${(POINT_EARN_AMOUNT * 2).toLocaleString("id-ID")} · 1 poin = Rp100 saat bayar`,
-  "Akses promo umum": "Akses promo umum",
-  "Welcome reward": "Welcome reward",
+  "Tukar poin jadi potongan": "Tukar poin jadi potongan tagihan",
   "Point 1.2x": "Poin 1,2x lebih cepat",
   "Birthday reward": "Hadiah ulang tahun",
   "Priority promo": "Promo prioritas",

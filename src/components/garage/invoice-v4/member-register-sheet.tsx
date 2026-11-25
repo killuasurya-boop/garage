@@ -109,7 +109,7 @@ export function MemberRegisterSheet({
             <p className="gm-eyebrow">Gratis · ±1 menit</p>
             <SheetTitle className="gm-heading mt-1 text-[24px] leading-tight">Daftar Member Garage Coffee</SheetTitle>
             <SheetDescription className="mt-1 text-[13.5px] text-[var(--gm-text-2)]">
-              Kumpulkan poin dari belanja berikutnya dan pakai voucher member.
+              Kumpulkan poin dari belanja berikutnya dan tukar jadi potongan tagihan.
             </SheetDescription>
           </div>
 

@@ -316,7 +316,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   memberRedeemMinPoints: 50,
   memberPointExpiryMonths: 12,
   voucherMaxDiscountPct: 30,
-  qrPromoPct: 10,
+  qrPromoPct: 0, // Promo QR dimatikan Owner 25 Nov 2026 (voucher-policy.ts).
   qrPromoMaxAmount: 25_000,
   marketingCampaignName: "Garage Repeat Booster",
   marketingMonthlyBudget: 1_500_000,

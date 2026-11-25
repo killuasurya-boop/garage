@@ -31,7 +31,7 @@ export const memberLevelRules: MemberLevelRule[] = [
     minPoints: 0,
     maxPoints: GOLD_MIN_POINTS - 1,
     multiplier: 1,
-    perks: ["Earn normal point", "Akses promo umum", "Welcome reward"],
+    perks: ["Earn normal point", "Tukar poin jadi potongan"],
   },
   {
     level: "Gold",

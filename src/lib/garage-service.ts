@@ -61,6 +61,7 @@ import {
   orderTypeToChannel,
   qrPromoDiscount,
 } from "@/lib/garage-billing";
+import { VOUCHERS_RETIRED, VOUCHER_RETIRED_MESSAGE, assertVouchersAllowed } from "@/lib/voucher-policy";
 import {
   canHandoverStation,
   canOperateStation,
@@ -5413,6 +5414,7 @@ export async function issuePersonalVoucherForCrm(input: {
   validDays?: number;
   reason?: string;
 }) {
+  assertVouchersAllowed();
   const db = getDb();
   const [customer] = await db
     .select()
@@ -9017,6 +9019,10 @@ export async function validateVoucher(input: {
   customerPhone?: string | null;
 }) {
   const code = voucherCode(input.code);
+  // Semua voucher dimatikan Owner 25 Nov 2026 (voucher-policy.ts): POS & /order menolak order bervoucher.
+  if (VOUCHERS_RETIRED) {
+    return { valid: false, code, title: null, discount: 0, message: VOUCHER_RETIRED_MESSAGE };
+  }
   if (!code) {
     return {
       valid: false,
@@ -9127,6 +9133,7 @@ export async function createVoucher(
   },
   garage: GarageSession,
 ) {
+  assertVouchersAllowed();
   const code = voucherCode(input.code);
   const now = new Date();
   const [row] = await getDb()

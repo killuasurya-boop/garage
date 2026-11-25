@@ -1694,26 +1694,6 @@ export function SettingsView({ me }: { me: GarageMe }) {
                   className="h-10 border-[#34343c] bg-white/[0.06]"
                 />
               </SettingsField>
-              <SettingsField
-                label="Max Discount Voucher (%)"
-                description="Batas atas diskon per voucher (cap untuk voucher tipe persen)."
-                defaultValue={defaults.voucherMaxDiscountPct}
-                currentValue={merged.voucherMaxDiscountPct}
-                onReset={() => resetField("voucherMaxDiscountPct")}
-                disabled={!canWrite}
-              >
-                <Input
-                  type="number"
-                  min={0}
-                  max={100}
-                  value={merged.voucherMaxDiscountPct}
-                  onChange={(e) =>
-                    setField("voucherMaxDiscountPct", Number(e.target.value))
-                  }
-                  disabled={!canWrite}
-                  className="h-10 border-[#34343c] bg-white/[0.06]"
-                />
-              </SettingsField>
               <div className="rounded-md border border-[#34343c] bg-white/[0.04] p-4">
                 <p className="text-sm font-semibold text-white">Simulasi loyalty</p>
                 <p className="mt-1 text-[11px] text-[#b8b8bf]">
@@ -1899,54 +1879,6 @@ export function SettingsView({ me }: { me: GarageMe }) {
                   value={merged.marketingApprovalThreshold}
                   onChange={(e) =>
                     setField("marketingApprovalThreshold", Number(e.target.value))
-                  }
-                  disabled={!canWrite}
-                  className="h-10 border-[#34343c] bg-white/[0.06]"
-                />
-              </SettingsField>
-              <SettingsField
-                label="Voucher Default Type"
-                description="Tipe voucher otomatis dipilih saat klik 'Promo baru' di modul Marketing."
-                defaultValue={defaults.marketingDefaultVoucherType}
-                currentValue={merged.marketingDefaultVoucherType}
-                onReset={() => resetField("marketingDefaultVoucherType")}
-                disabled={!canWrite}
-              >
-                <Select
-                  value={merged.marketingDefaultVoucherType}
-                  onValueChange={(value) =>
-                    setField("marketingDefaultVoucherType", value as "fixed" | "percent")
-                  }
-                  disabled={!canWrite}
-                >
-                  <SelectTrigger className="h-10 border-[#34343c] bg-white/[0.06]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="fixed">Fixed (Rp)</SelectItem>
-                    <SelectItem value="percent">Percent (%)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </SettingsField>
-              <SettingsField
-                label="Voucher Default Value"
-                description="Nilai default voucher saat buat promo baru — angka rupiah jika fixed, persen jika percent."
-                defaultValue={defaults.marketingDefaultVoucherValue}
-                currentValue={merged.marketingDefaultVoucherValue}
-                onReset={() => resetField("marketingDefaultVoucherValue")}
-                disabled={!canWrite}
-                displayValue={
-                  merged.marketingDefaultVoucherType === "percent"
-                    ? `${merged.marketingDefaultVoucherValue}%`
-                    : currency.format(merged.marketingDefaultVoucherValue)
-                }
-              >
-                <Input
-                  type="number"
-                  min={1}
-                  value={merged.marketingDefaultVoucherValue}
-                  onChange={(e) =>
-                    setField("marketingDefaultVoucherValue", Number(e.target.value))
                   }
                   disabled={!canWrite}
                   className="h-10 border-[#34343c] bg-white/[0.06]"

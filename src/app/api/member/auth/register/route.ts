@@ -83,5 +83,5 @@ export async function POST(request: Request) {
   }
 
   // Welcome voucher = baris voucher yang benar-benar diterbitkan registerMember.
-  return successJson({ member: result.data.member, welcomeVoucher: result.data.welcomeVoucher }, { headers, status: 201 });
+  return successJson({ member: result.data.member }, { headers, status: 201 });
 }

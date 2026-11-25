@@ -13,6 +13,7 @@ import {
   voucherRedemptions,
 } from "@/db/schema";
 import { voucherEffectiveStatus } from "@/lib/customer-offers";
+import { assertVouchersAllowed } from "@/lib/voucher-policy";
 
 export type MarketingCampaignStatus =
   | "draft"
@@ -760,6 +761,8 @@ export type CreateMarketingPromoInput = {
 };
 
 export async function createMarketingPromo(input: CreateMarketingPromoInput) {
+  // Promo Marketing = baris voucher; voucher dimatikan Owner 25 Nov 2026.
+  assertVouchersAllowed();
   const db = getDb();
   const [row] = await db
     .insert(vouchers)
@@ -782,6 +785,8 @@ export async function createMarketingPromo(input: CreateMarketingPromoInput) {
 }
 
 export async function updateMarketingPromoStatus(id: string, status: string) {
+  // Menjeda/mengakhiri promo tetap boleh; mengaktifkan lagi tidak (voucher dimatikan Owner 25 Nov 2026).
+  if (status === "active") assertVouchersAllowed();
   const db = getDb();
   const [row] = await db
     .update(vouchers)

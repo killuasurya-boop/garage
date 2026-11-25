@@ -84,3 +84,13 @@ Design consistency is a mandatory acceptance criterion for every member UI chang
 - Member login tetap `garage-member` (`wifiSessionHours`, 3 jam). Setelah tamu online, router membuka `/wifi?welcome=guest`
   (ajakan jadi member: OTP WA baru bisa jalan saat sudah online). `wifiGuestEnabled=false` → WiFi khusus member.
 - QR sambung WiFi (`wifiJoinQrPayload`) tidak pernah memuat password; password harian hanya di skrip router.
+
+## Tanpa voucher (Owner 25 Nov 2026)
+- SEMUA voucher dimatikan: voucher daftar `WELCOME-…` (dulu 10% maks Rp25.000, `issueWelcomeVoucher` dihapus), hadiah CRM
+  `GIFT-…`, promo kode Marketing, kode seed. Satu sumber `src/lib/voucher-policy.ts` (`VOUCHERS_RETIRED`):
+  `validateVoucher` selalu `valid:false`, penerbitan/aktivasi → `assertVouchersAllowed` / route 410 `VOUCHER_RETIRED`.
+  Migrasi 0213 menjeda voucher aktif lama (riwayat `voucher_redemptions` tetap).
+- Member UI tidak boleh menjanjikan voucher: benefit = poin + **tukar poin jadi potongan** (perk Silver
+  "Tukar poin jadi potongan"; tile Member V6 "Tukar Poin · Potong Tagihan"). `getEligibleCustomerOffers` → `[]`,
+  `verifiedTierBenefits` tanpa welcome/member-promo, dompet voucher member kosong, invoice menampilkan Level (bukan
+  "Voucher aktif"). Tukar poin (`point_redemptions`) TETAP jalan.

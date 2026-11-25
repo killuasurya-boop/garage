@@ -94,7 +94,6 @@ export default async function InvoiceTrackingPage({ params }: { params: Promise<
       redeemMaxPct: Number(settings.memberRedeemMaxPct ?? 0),
       redeemMinPoints: Number(settings.memberRedeemMinPoints ?? 0),
     },
-    { includeWelcome: true },
   );
 
   const waData: WhatsAppInvoiceData = {

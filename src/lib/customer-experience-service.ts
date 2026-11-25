@@ -164,12 +164,12 @@ export async function getInvoiceMemberContext(token: string, sessionCustomerId: 
       invoiceLinked: false,
       marketingConsent: null,
       offers: getEligibleCustomerOffers({ viewer: { kind: "guest" }, vouchers: voucherRows, now, limit: 4 }),
-      benefits: verifiedTierBenefits("Silver", rules, { includeWelcome: true }),
+      benefits: verifiedTierBenefits("Silver", rules),
     };
   }
 
   const profile = await getMemberProfile(sessionCustomerId);
-  if (!profile) return { ...base, viewer: "guest" as const, member: null, invoiceLinked: false, marketingConsent: null, offers: [], benefits: verifiedTierBenefits("Silver", rules, { includeWelcome: true }) };
+  if (!profile) return { ...base, viewer: "guest" as const, member: null, invoiceLinked: false, marketingConsent: null, offers: [], benefits: verifiedTierBenefits("Silver", rules) };
 
   const redeemed = voucherRows.length
     ? await db

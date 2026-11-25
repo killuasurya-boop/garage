@@ -80,13 +80,13 @@ const SEGMENT_META: Record<
     icon: Gift,
     tone: "border-[#3b82f6]/45 bg-[#3b82f6]/10 text-[#93c5fd]",
     bulkTemplate: (name) =>
-      `Halo ${name}!\n\nPoin GARAGE-mu sudah cukup banget untuk redeem voucher 🎉\n\nMampir yuk dan tukar poin kamu jadi diskon atau menu gratis. Info lengkap di link invoice terakhir.`,
+      `Halo ${name}!\n\nPoin GARAGE-mu sudah cukup untuk ditukar 🎉\n\nMampir yuk dan tukar poin kamu jadi potongan tagihan di kasir. Info lengkap di link invoice terakhir.`,
   },
   birthdayWeek: {
     icon: Cake,
     tone: "border-[#ec4899]/45 bg-[#ec4899]/10 text-[#f9a8d4]",
     bulkTemplate: (name) =>
-      `Halo ${name}!\n\nHappy birthday week dari GARAGE Coffee! Kamu dapat birthday reward spesial: voucher Rp25.000 atau free drink pilihan.\n\nTunjukkan pesan ini ke kasir minggu ini ya.`,
+      `Halo ${name}!\n\nHappy birthday week dari GARAGE Coffee! Semoga harimu menyenangkan. Mampir ke GARAGE minggu ini ya, kami tunggu!`,
   },
   stampMission: {
     icon: BadgeCheck,

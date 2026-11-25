@@ -121,6 +121,11 @@ description: Aturan WAJIB modul POS Garage OS: kasir, keranjang, order/invoice a
   them. Hot cashier path (catalog, cart, checkout/payment, Final Bayar/Belum Bayar, chat inbox with unread polling)
   stays static. Helpers needed at startup live in light files (`pos-v6-module-view.ts`, `pos-v6-theme-custom-style.tsx`).
 
+- POS colours (U9, owner 25 Nov 2026 "versi aman"): legacy hex classes are remapped by 3 stacked substring layers (OS preset,
+  old cashier theme, POS V6 remap) — `docs/pos-v6/WARNA-TEMA-3-LAPIS.md`. New colour classes in POS files MUST use `--pos-*`
+  tokens; `pos/pos-color-classes.test.ts` fails if a file's hex-class count rises (new POS files = 0). Any colour/class change
+  in POS = run the pixel harness (`e2e/pos-theme-visual.spec.ts` + `scripts/pos-visual-diff.mjs`, 5 themes, must be 0 diff).
+
 - Browser-dialog printing uses `browserColumns` (huruf Besar → 24 col on 58 mm) with tall
   TOTAL/Kembali lines; cashier can print Bar/Dapur chits manually (`printKitchenChits`).
 

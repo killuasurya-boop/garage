@@ -286,6 +286,7 @@ import { remainingCart, type SplitAssignment } from "@/lib/split-bill";
 import { calculateBillingTotals, capVoucherDiscountBySettings } from "@/lib/garage-billing";
 import { isBarcodeLike, parseQuantityQuery, searchMenuEntries } from "@/lib/pos-search";
 import { isPosGlobalShortcut, POS_SHORTCUTS } from "@/lib/pos-shortcuts";
+import { keepIfEqual } from "@/lib/stable-state";
 import { maxRedeemablePoints, normalizePhone } from "@/lib/member-types";
 import { PosMemberWaVerify } from "@/components/garage/pos-member-wa-verify";
 import { BillRow, chitStationFor, formatReceiptDate, PaymentStep, OpenBillSaved } from "@/components/garage/pos/pos-ui-shared";
@@ -305,7 +306,7 @@ import {
   PosTablePrintDialog,
   PosVariantPickerDialog,
 } from "@/components/garage/pos/pos-dialogs";
-import { CashPaymentPanel, QrisPaymentPanel, BankTransferPaymentPanel, EWalletPaymentPanel, PaymentWizardProgress, CheckoutSummaryCard, CheckoutOrderStep, CheckoutCustomerStep, CartLineNoteRow, OpenBillSavedPanel } from "@/components/garage/pos/pos-checkout-panels";
+import { CashPaymentPanel, QrisPaymentPanel, BankTransferPaymentPanel, EWalletPaymentPanel, PaymentWizardProgress, CheckoutSummaryCard, CheckoutOrderStep, CheckoutCustomerStep, CartLineNoteEditor, CartLineNoteTrigger, OpenBillSavedPanel } from "@/components/garage/pos/pos-checkout-panels";
 import { PaymentCompletePanel, PrintableReceipt } from "@/components/garage/pos/pos-receipt-panels";
 import { OPENING_CASH_DEFAULT_MAX, OPENING_CASH_STEP, openingCashError } from "@/lib/opening-cash";
 
@@ -335,6 +336,28 @@ type ManualDiscount = {
   approvalId?: string;
   approvalStatus?: "pending" | "approved" | "rejected";
 };
+
+/** "Terakhir update Ns lalu" peta meja — berdetak sendiri (render ulang hanya komponen ini). */
+function UpdatedAgo({ atRef }: { atRef: { current: number | null } }) {
+  // Ref dibaca di timer (bukan saat render), hasilnya disimpan di state komponen kecil ini.
+  const [view, setView] = useState<{ now: number; at: number | null }>({ now: 0, at: null });
+  useEffect(() => {
+    const tick = () => setView({ now: Date.now(), at: atRef.current });
+    const first = window.setTimeout(tick, 0);
+    const id = window.setInterval(tick, 10_000);
+    return () => {
+      window.clearTimeout(first);
+      window.clearInterval(id);
+    };
+  }, [atRef]);
+  if (!view.at) return null;
+  const secs = Math.max(0, Math.round((view.now - view.at) / 1000));
+  return (
+    <p className="mt-0.5 text-[10px] text-[#8f8f98]">
+      Terakhir update {secs < 60 ? `${secs}s lalu` : `${Math.floor(secs / 60)}m lalu`}
+    </p>
+  );
+}
 
 function PosHeaderClock() {
   const [now, setNow] = useState(() => new Date());
@@ -662,6 +685,8 @@ export function PosView({
   const [variantItem, setVariantItem] = useState<MenuItem | null>(null);
   const pendingVariantQtyRef = useRef(1);
   const [shortcutSheetOpen, setShortcutSheetOpen] = useState(false);
+  // Baris keranjang yang catatan dapurnya sedang diedit (satu saja).
+  const [noteEditKey, setNoteEditKey] = useState<string | null>(null);
   const [clearCartOpen, setClearCartOpen] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [paymentStep, setPaymentStep] = useState<PaymentStep>("summary");
@@ -843,9 +868,11 @@ export function PosView({
   const [tableLiveLoading, setTableLiveLoading] = useState(false);
   const [tableLiveError, setTableLiveError] = useState<string | null>(null);
   // Timestamp sinkron terakhir peta meja (untuk indikator "terakhir update").
-  const [tableLiveUpdatedAt, setTableLiveUpdatedAt] = useState<number | null>(null);
+  // Ref (bukan state): jam "terakhir update" dibaca komponen kecil `UpdatedAgo` yang berdetak
+  // sendiri, jadi seluruh POS tidak di-render ulang tiap polling/10 dtk (U3).
+  const tableLiveUpdatedAtRef = useRef<number | null>(null);
   // Ticker ringan supaya label "Xs lalu" berjalan walau tidak ada re-render lain.
-  const [nowTick, setNowTick] = useState(() => Date.now());
+
   const [shiftHandoverPending, setShiftHandoverPending] = useState(false);
   const [dismissedQrNoticeKey, setDismissedQrNoticeKey] = useState<string | null>(null);
   const [qrNoticePulseKey, setQrNoticePulseKey] = useState<string | null>(null);
@@ -983,7 +1010,7 @@ export function PosView({
     setPendingError(null);
     try {
       const rows = await garageApi.get<CustomerOrder[]>("/api/customer/orders?scope=unpaid", { cache: "no-store" });
-      setPendingOrders(rows);
+      setPendingOrders((previous) => keepIfEqual(previous, rows));
       setPendingDetail((current) => (current ? rows.find((row) => row.id === current.id) ?? null : null));
     } catch (error) {
       setPendingError(error instanceof Error ? error.message : "Tagihan belum bayar gagal dimuat.");
@@ -1867,15 +1894,13 @@ export function PosView({
       }
       // Monitor kasir: tiket yang belum diantar (waiting/processing/ready),
       // FIFO — yang pesan duluan di atas.
-      setKitchenTickets(
-        rows
-          .filter((t) => t.status === "queue" || t.status === "cooking" || t.status === "ready")
-          .sort(
-            (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-          ),
-      );
+      const activeRows = rows
+        .filter((t) => t.status === "queue" || t.status === "cooking" || t.status === "ready")
+        .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      // Data sama → referensi lama, React tidak me-render ulang POS (U3).
+      setKitchenTickets((previous) => keepIfEqual(previous, activeRows));
       const syncedAt = Date.now();
-      setKitchenDoneTickets(
+      const doneRows =
         rows
           .filter(
             (t) =>
@@ -1883,9 +1908,10 @@ export function PosView({
               t.deliveredAt &&
               syncedAt - new Date(t.deliveredAt).getTime() <= 60 * 60_000,
           )
-          .sort((a, b) => new Date(b.deliveredAt ?? 0).getTime() - new Date(a.deliveredAt ?? 0).getTime()),
-      );
-      setKitchenTicketsAt(syncedAt);
+          .sort((a, b) => new Date(b.deliveredAt ?? 0).getTime() - new Date(a.deliveredAt ?? 0).getTime());
+      setKitchenDoneTickets((previous) => keepIfEqual(previous, doneRows));
+      // Umur tiket ditampilkan per menit: jam acuan cukup diperbarui tiap ≥ 30 dtk.
+      setKitchenTicketsAt((previous) => (previous && syncedAt - previous < 30_000 ? previous : syncedAt));
     } catch {
       // diam-diam — monitor produksi bukan alur kritis pembayaran
     }
@@ -1948,7 +1974,7 @@ export function PosView({
       );
       previousCustomerOrderIdsRef.current = nextOrderIds;
       customerOrdersPrimedRef.current = true;
-      setCustomerOrders(orders);
+      setCustomerOrders((previous) => keepIfEqual(previous, orders));
       setSelectedCustomerOrderId((current) =>
         current && !nextOrderIds.has(current) ? null : current,
       );
@@ -2047,7 +2073,7 @@ export function PosView({
         `/api/customer/orders/insights${queryString ? `?${queryString}` : ""}`,
         { cache: "no-store" },
       );
-      setQrInsights(insights);
+      setQrInsights((previous) => keepIfEqual(previous, insights));
     } catch (error) {
       setQrInsightsError(
         error instanceof Error ? error.message : "QR control insight gagal dimuat.",
@@ -2068,8 +2094,8 @@ export function PosView({
       const rows = await garageApi.get<TableLiveRow[]>("/api/tables/live", {
         cache: "no-store",
       });
-      setTableLiveRows(rows);
-      setTableLiveUpdatedAt(Date.now());
+      setTableLiveRows((previous) => keepIfEqual(previous, rows));
+      tableLiveUpdatedAtRef.current = Date.now();
       return rows;
     } catch (error) {
       setTableLiveError(
@@ -2139,11 +2165,6 @@ export function PosView({
     }
   }, [loadTableLiveData]);
 
-  // Ticker 10 detik untuk indikator "terakhir update" peta meja.
-  useEffect(() => {
-    const id = setInterval(() => setNowTick(Date.now()), 10_000);
-    return () => clearInterval(id);
-  }, []);
 
   // Buka dialog detail meja + lazy-load rincian item (meja terisi saja).
   // Fetch dilakukan di handler klik, bukan di useEffect, agar tidak memicu
@@ -6922,7 +6943,7 @@ export function PosView({
                         <Button
                           type="button"
                           size="sm"
-                          className="garage-press h-9 flex-[1.4] basis-[120px] bg-[#22c55e] px-2 text-[11px] text-white hover:bg-[#16a34a]"
+                          className="garage-press h-9 flex-[1.4] basis-[120px] bg-[#d11a2a] px-2 text-[11px] text-white hover:bg-[#ff2a3a]"
                           disabled={Boolean(busyAction)}
                           onClick={() => openFinalizeDialog(order)}
                         >
@@ -7091,7 +7112,7 @@ export function PosView({
                           <Button
                             type="button"
                             size="sm"
-                            className="garage-press h-8 flex-1 basis-[104px] bg-[#22c55e] px-2 text-[11px] text-white hover:bg-[#16a34a]"
+                            className="garage-press h-8 flex-1 basis-[104px] bg-[#d11a2a] px-2 text-[11px] text-white hover:bg-[#ff2a3a]"
                             disabled={Boolean(busyAction)}
                             onClick={() => openFinalizeDialog(order)}
                           >
@@ -7151,20 +7172,7 @@ export function PosView({
                   <h3 className="mt-1 text-base font-black text-white">
                     {tableMapRows.length} meja outlet
                   </h3>
-                  {tableLiveUpdatedAt ? (
-                    <p className="mt-0.5 text-[10px] text-[#8f8f98]">
-                      Terakhir update{" "}
-                      {(() => {
-                        const secs = Math.max(
-                          0,
-                          Math.round((nowTick - tableLiveUpdatedAt) / 1000),
-                        );
-                        return secs < 60
-                          ? `${secs}s lalu`
-                          : `${Math.floor(secs / 60)}m lalu`;
-                      })()}
-                    </p>
-                  ) : null}
+                  <UpdatedAgo atRef={tableLiveUpdatedAtRef} />
                 </div>
                 {/* Ringkasan cepat: kosong / terisi / perlu bersih */}
                 <div className="flex flex-wrap gap-1.5">
@@ -7781,7 +7789,7 @@ export function PosView({
                                 <Button
                                   type="button"
                                   size="sm"
-                                  className="garage-press h-9 bg-[#22c55e] px-2 text-[11px] text-white hover:bg-[#16a34a]"
+                                  className="garage-press h-9 bg-[#d11a2a] px-2 text-[11px] text-white hover:bg-[#ff2a3a]"
                                   disabled={Boolean(busyAction)}
                                   onClick={(event) => {
                                     event.stopPropagation();
@@ -8227,7 +8235,7 @@ export function PosView({
                 {canFinalizeCustomerOrder(selectedCustomerOrder) ? (
                   <Button
                     type="button"
-                    className="garage-press h-11 flex-[1.4] basis-[170px] bg-[#22c55e] text-white hover:bg-[#16a34a]"
+                    className="garage-press h-11 flex-[1.4] basis-[170px] bg-[#d11a2a] text-white hover:bg-[#ff2a3a]"
                     disabled={
                       customerOrderActionId?.startsWith(`${selectedCustomerOrder.id}:`) ||
                       !canConfirmCustomerPayment(me.role)
@@ -8724,9 +8732,10 @@ export function PosView({
                   {cartLines.map((line) => (
                     <div
                       key={`${line.itemId}-${line.variantId}`}
-                      className="pos-cart-line garage-press rounded-md border border-[#3a3a42] bg-[#25252d]/86 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] hover:border-[#555560]"
+                      className="pos-cart-line garage-press rounded-md border border-[#3a3a42] bg-[#25252d]/86 px-2.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] hover:border-[#555560]"
                     >
-                      <div className="flex items-start justify-between gap-3">
+                      {/* Fase 3 (U8): satu baris ringkas — qty di kanan sejajar nama (dulu baris "Qty" sendiri, ±130px). */}
+                      <div className="flex items-start gap-2.5">
                         {cashierPosSettings.showPhotos ? (
                           <span className="pos-v6-line-thumb" aria-hidden>
                             {line.item.imageUrl ? (
@@ -8750,45 +8759,55 @@ export function PosView({
                               : ""}
                             {currency.format(line.variant.price)}
                           </p>
+                          {/* Catatan dapur (kurang es, tanpa bawang, …) — tombol ringkas; editor di bawah saat dibuka. */}
+                          {noteEditKey !== `${line.itemId}-${line.variantId}` ? (
+                            <CartLineNoteTrigger
+                              note={line.note ?? ""}
+                              onEdit={() => setNoteEditKey(`${line.itemId}-${line.variantId}`)}
+                            />
+                          ) : null}
                         </div>
-                        <p className="pos-cart-price garage-mono shrink-0 text-right text-sm font-semibold text-white">
-                          {currency.format(line.variant.price * line.qty)}
-                        </p>
-                      </div>
-                      <div className="mt-3 flex items-center justify-between gap-3">
-                        <p className="pos-muted-label garage-mono text-xs text-[#c8c8cc]">
-                          Qty
-                        </p>
-                        <div className="pos-qty-control inline-flex h-9 shrink-0 items-center overflow-hidden rounded-md border border-[#4a4a54] bg-[#15151b]">
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="garage-press size-9 rounded-none border-0 text-[#f4f4f5] hover:bg-white/[0.08]"
-                            onClick={() => decrementItem(line.itemId, line.variantId)}
-                            aria-label={`Decrease ${line.item.name} ${line.variant.label}`}
-                          >
-                            <Minus className="size-3.5" />
-                          </Button>
-                          <span className="garage-mono min-w-9 border-x border-[#34343c] px-2 text-center text-sm font-semibold text-white">
-                            {line.qty}
-                          </span>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="garage-press size-9 rounded-none border-0 text-[#f4f4f5] hover:bg-white/[0.08]"
-                            onClick={() => addItem(line.itemId, line.variantId)}
-                            aria-label={`Increase ${line.item.name} ${line.variant.label}`}
-                          >
-                            <Plus className="size-3.5" />
-                          </Button>
+                        <div className="flex shrink-0 flex-col items-end gap-1.5">
+                          <p className="pos-cart-price garage-mono text-right text-sm font-semibold text-white">
+                            {currency.format(line.variant.price * line.qty)}
+                          </p>
+                          <div className="pos-qty-control inline-flex h-10 shrink-0 items-center overflow-hidden rounded-md border border-[#4a4a54] bg-[#15151b]">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="garage-press size-10 rounded-none border-0 text-[#f4f4f5] hover:bg-white/[0.08]"
+                              onClick={() => decrementItem(line.itemId, line.variantId)}
+                              aria-label={`Kurangi ${line.item.name} ${line.variant.label}`}
+                            >
+                              <Minus className="size-4" />
+                            </Button>
+                            <span
+                              className="garage-mono min-w-9 border-x border-[#34343c] px-2 text-center text-sm font-semibold text-white"
+                              aria-label={`Qty ${line.qty}`}
+                            >
+                              {line.qty}
+                            </span>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="garage-press size-10 rounded-none border-0 text-[#f4f4f5] hover:bg-white/[0.08]"
+                              onClick={() => addItem(line.itemId, line.variantId)}
+                              aria-label={`Tambah ${line.item.name} ${line.variant.label}`}
+                            >
+                              <Plus className="size-4" />
+                            </Button>
+                          </div>
                         </div>
                       </div>
-                      {/* Item note input — request customer: less ice, no garlic, extra spicy.
-                          Auto-saved on blur. Note dikirim ke kitchen ticket. */}
-                      <CartLineNoteRow
-                        note={line.note ?? ""}
-                        onChange={(value) => setItemNote(line.itemId, line.variantId, value)}
-                      />
+                      {noteEditKey === `${line.itemId}-${line.variantId}` ? (
+                        <CartLineNoteEditor
+                          note={line.note ?? ""}
+                          onSave={(value) => {
+                            setItemNote(line.itemId, line.variantId, value);
+                            setNoteEditKey(null);
+                          }}
+                        />
+                      ) : null}
                     </div>
                   ))}
                 </div>
@@ -8891,7 +8910,7 @@ export function PosView({
                     variant="outline"
                     data-testid="pos-quick-cash"
                     disabled={!cartLines.length || paymentPending || !shiftOpen}
-                    className="garage-press pos-v6-quick h-12 border-[#22c55e]/55 bg-[#22c55e]/12 px-2 text-xs font-bold text-[#dcfce7]"
+                    className="garage-press pos-v6-quick h-12 border-[#4a4a54] bg-white/[0.06] px-2 text-xs font-bold text-[#f4f4f5]"
                     onClick={() => {
                       resetPaymentDialog();
                       setOrderType("takeaway");
@@ -8910,7 +8929,7 @@ export function PosView({
                     variant="outline"
                     data-testid="pos-quick-qris"
                     disabled={!cartLines.length || paymentPending || !canTransact}
-                    className="garage-press pos-v6-quick h-12 border-[#f5a742]/55 bg-[#f5a742]/12 px-2 text-xs font-bold text-[#ffd08a]"
+                    className="garage-press pos-v6-quick h-12 border-[#4a4a54] bg-white/[0.06] px-2 text-xs font-bold text-[#f4f4f5]"
                     onClick={() => {
                       resetPaymentDialog();
                       setOrderType("takeaway");
@@ -9334,19 +9353,18 @@ export function PosView({
                             variant="outline"
                             className="garage-press h-11 border-[#4a4a54]"
                             disabled={paymentPending}
-                            onClick={() =>
+                            onClick={() => {
+                              // Langkah pertama: tombol menutup dialog (dulu berlabel "Ringkasan" dan tidak berbuat apa-apa, U12).
+                              if (paymentStep === "summary") {
+                                setPaymentOpen(false);
+                                return;
+                              }
                               setPaymentStep((step) =>
-                                step === "payment"
-                                  ? "customer"
-                                  : step === "customer"
-                                    ? "table"
-                                    : step === "table"
-                                      ? "summary"
-                                      : "summary",
-                              )
-                            }
+                                step === "payment" ? "customer" : step === "customer" ? "table" : "summary",
+                              );
+                            }}
                           >
-                            {paymentStep === "summary" ? "Ringkasan" : "Kembali"}
+                            {paymentStep === "summary" ? "Kembali ke keranjang" : "Kembali"}
                           </Button>
                           {paymentStep === "summary" ? (
                             <Button

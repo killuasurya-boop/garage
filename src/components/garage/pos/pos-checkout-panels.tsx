@@ -17,7 +17,6 @@ WalletCards
 } from "lucide-react";
 import Image from "next/image";
 import {
-useEffect,
 useMemo,
 useState
 } from "react";
@@ -793,79 +792,63 @@ export function CheckoutCustomerStep({
   );
 }
 
-// ─── CartLineNoteRow — input catatan per item di cart ───
-// UX: default collapsed (cuma tombol "+ Catatan" kecil). Klik → expand input.
-// Auto-save on blur. Visible chip dengan icon jika sudah ada catatan.
-export function CartLineNoteRow({
+// ─── Catatan dapur per item di keranjang (Fase 3, U8) ───
+// Tombol ringkas di kolom nama; editor selebar baris hanya saat dibuka. Enter/keluar = simpan & tutup.
+// Dulu catatan yang terisi membuat editor terbuka terus → baris keranjang tinggi.
+
+export function CartLineNoteTrigger({ note, onEdit }: { note: string; onEdit: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onEdit}
+      className="mt-1 flex min-h-6 max-w-full items-center gap-1 text-left text-xs font-medium text-[#b8b8bf] hover:text-[#ffd79a]"
+      aria-label={note ? `Ubah catatan dapur: ${note}` : "Tambah catatan untuk dapur"}
+    >
+      {note ? (
+        <span className="line-clamp-2 break-words text-[#ffd79a]">Catatan: {note}</span>
+      ) : (
+        <>
+          <Plus className="size-3.5 shrink-0" aria-hidden />
+          Catatan dapur
+        </>
+      )}
+    </button>
+  );
+}
+
+export function CartLineNoteEditor({
   note,
-  onChange,
+  onSave,
 }: {
   note: string;
-  onChange: (value: string) => void;
+  onSave: (value: string) => void;
 }) {
-  const [expanded, setExpanded] = useState(Boolean(note));
   const [draft, setDraft] = useState(note);
-
-  // Sync external note changes (misalnya cart di-clear)
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync from prop
-    setDraft(note);
-    if (!note) setExpanded(false);
-  }, [note]);
-
-  const commit = () => {
-    if (draft === note) return;
-    onChange(draft);
-  };
-
-  if (!expanded) {
-    return (
-      <button
-        type="button"
-        onClick={() => setExpanded(true)}
-        className="mt-2 flex items-center gap-1 text-[10px] font-mono text-[#8f8f99] hover:text-[#ffd79a]"
-      >
-        <Plus className="size-3" />
-        Tambah catatan untuk dapur
-      </button>
-    );
-  }
-
   return (
     <div className="mt-2 rounded-md border border-[#f5a742]/30 bg-[#f5a742]/6 p-2">
-      <div className="flex items-center justify-between gap-2">
-        <p className="garage-mono text-[10px] uppercase tracking-wide text-[#ffd79a]">
-          📝 Catatan untuk dapur
-        </p>
-        {!draft && (
-          <button
-            type="button"
-            onClick={() => {
-              setExpanded(false);
-              onChange("");
-            }}
-            className="text-[10px] text-[#8f8f99] underline hover:text-[#d6d6dc]"
-          >
-            Batal
-          </button>
-        )}
-      </div>
-      <input
-        type="text"
-        value={draft}
-        onChange={(event) => setDraft(event.target.value)}
-        onBlur={commit}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") {
-            event.currentTarget.blur();
-          }
-        }}
-        maxLength={120}
-        placeholder="Misal: less ice, no garlic, extra spicy, dibungkus terpisah"
-        className="mt-1 h-9 w-full rounded-md border border-[#34343c] bg-white/[0.06] px-2 text-xs text-white placeholder:text-[#6e6e76] focus:border-[#f5a742] focus:outline-none"
-        autoFocus={!note}
-      />
-      <p className="mt-1 text-right text-[11px] text-[#8f8f99]">{draft.length}/120</p>
+      <label className="block">
+        <span className="garage-mono text-[11px] uppercase tracking-wide text-[#ffd79a]">Catatan untuk dapur</span>
+        <input
+          type="text"
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={() => onSave(draft.trim())}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") event.currentTarget.blur();
+            if (event.key === "Escape") {
+              event.preventDefault();
+              onSave(note);
+            }
+          }}
+          maxLength={120}
+          placeholder="Misal: less ice, no garlic, extra spicy, dibungkus terpisah"
+          className="mt-1 h-10 w-full rounded-md border border-[#34343c] bg-white/[0.06] px-2 text-sm text-white placeholder:text-[#8f8f99] focus:border-[#f5a742] focus:outline-none"
+          autoFocus
+        />
+      </label>
+      <p className="mt-1 text-right text-[11px] text-[#b8b8bf]">
+        {draft.length}/120 · Enter simpan · Esc batal
+      </p>
     </div>
   );
 }

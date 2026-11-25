@@ -538,8 +538,10 @@
     background: var(--pos-surface-muted) !important;
     color: var(--pos-text) !important;
   }
-  .garage-shell .cashier-pos-surface .pos-v6-bill.pos-v6-bill.pos-v6-bill .pos-v6-quick[data-testid="pos-quick-cash"] { border-color: color-mix(in srgb, var(--pos-success) 45%, var(--pos-border)) !important; background: var(--pos-success-soft) !important; }
-  .garage-shell .cashier-pos-surface .pos-v6-bill.pos-v6-bill.pos-v6-bill .pos-v6-quick[data-testid="pos-quick-qris"] { border-color: color-mix(in srgb, var(--pos-info) 45%, var(--pos-border)) !important; background: var(--pos-info-soft) !important; }
+  /* Fase 3 (anti-slop): tombol cepat netral — satu warna aksi utama saja (Bayar, merah). Dulu hijau/biru generik. */
+  .garage-shell .cashier-pos-surface .pos-v6-bill.pos-v6-bill.pos-v6-bill .pos-v6-quick:not(:disabled):hover {
+    border-color: var(--pos-accent) !important;
+  }
 
   /* ------------------------------------------------------------------ Theme Studio (papan 08) */
   .pos-v6-theme-card {

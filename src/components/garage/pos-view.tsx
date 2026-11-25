@@ -270,6 +270,7 @@ import { PosEventBundles, type PosBundleSaved } from "@/components/garage/pos/po
 import { PosQuickRetail } from "@/components/garage/pos/pos-quick-retail";
 import { moduleViewForPath, PosV6ModuleSheet, type PosModuleView } from "@/components/garage/pos/pos-v6-module-sheet";
 import { PosV6FinalizeDialog, PosV6PendingBillDetail, PosV6PendingBills } from "@/components/garage/pos/pos-v6-pending";
+import { PosV6Pairing } from "@/components/garage/pos/pos-v6-pairing";
 import { pendingBillsView, type PendingBill } from "@/lib/pos-pending-bills";
 import { componentLabel, groupOrderLines } from "@/lib/order-package-lines";
 import {
@@ -287,6 +288,7 @@ import { calculateBillingTotals, capVoucherDiscountBySettings } from "@/lib/gara
 import { isBarcodeLike, parseQuantityQuery, searchMenuEntries } from "@/lib/pos-search";
 import { isPosGlobalShortcut, POS_SHORTCUTS } from "@/lib/pos-shortcuts";
 import { keepIfEqual } from "@/lib/stable-state";
+import type { BestsellerRow } from "@/lib/pos-insights";
 import { enqueueOrder } from "@/lib/pos-offline-queue";
 import { makeOfflineNo, OFFLINE_RECEIPT_NOTE, offlineSaleBlockReason } from "@/lib/pos-offline-rules";
 import { usePosOfflineStatus } from "@/lib/pos-offline-status";
@@ -1194,11 +1196,38 @@ export function PosView({
         ]
           .join(" ")
           .toLowerCase(),
-        isBestseller: item.tags.some((t) => t.toLowerCase() === "bestseller"),
+        taggedBestseller: item.tags.some((t) => t.toLowerCase() === "bestseller"),
         shortcodes: menuShortcodes(item.name),
       })),
     [menuItems],
   );
+  // Terlaris dari penjualan NYATA 7 hari outlet ini (Fase 5, `GET /api/pos/insights`). Belum ada data (outlet baru)
+  // → tag manual lama, dan tile memakai label "Best Seller" supaya jelas itu bukan hitungan penjualan.
+  const [salesBestsellers, setSalesBestsellers] = useState<BestsellerRow[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => {
+      if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+      garageApi
+        .get<{ bestsellers: BestsellerRow[] }>("/api/pos/insights", { cache: "no-store" })
+        .then((data) => {
+          if (!cancelled) setSalesBestsellers((previous) => keepIfEqual(previous, data.bestsellers ?? []));
+        })
+        .catch(() => undefined); // tidak kritis: tetap pakai data terakhir / tag manual
+    };
+    load();
+    const timer = window.setInterval(load, 30 * 60_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
+  const bestsellerFromSales = salesBestsellers.length > 0;
+  const bestsellerOrder = useMemo(() => {
+    if (bestsellerFromSales) return salesBestsellers.map((row) => row.menuItemId);
+    return indexedMenu.filter((entry) => entry.taggedBestseller).map((entry) => entry.item.id);
+  }, [bestsellerFromSales, indexedMenu, salesBestsellers]);
+  const bestsellerRank = useMemo(() => new Map(bestsellerOrder.map((id, index) => [id, index])), [bestsellerOrder]);
   const shortcodeById = useMemo(
     () => new Map(indexedMenu.map((entry) => [entry.item.id, entry.shortcodes[0]])),
     [indexedMenu],
@@ -1227,12 +1256,14 @@ export function PosView({
       .sort((a, b) => (favoriteOrderCounts[b.item.id] ?? 0) - (favoriteOrderCounts[a.item.id] ?? 0))
       .map((entry) => entry.item);
     const picked = new Set(ranked.map((item) => item.id));
-    for (const entry of indexedMenu) {
+    const itemById = new Map(indexedMenu.map((entry) => [entry.item.id, entry.item]));
+    for (const id of bestsellerOrder) {
       if (ranked.length >= POS_FAVORITE_LIMIT) break;
-      if (entry.isBestseller && !picked.has(entry.item.id)) ranked.push(entry.item);
+      const item = itemById.get(id);
+      if (item && !picked.has(id)) ranked.push(item);
     }
     return ranked.slice(0, POS_FAVORITE_LIMIT);
-  }, [favoriteOrderCounts, indexedMenu]);
+  }, [bestsellerOrder, favoriteOrderCounts, indexedMenu]);
   /** Hati di kartu V6 = favorit perangkat ini (sudah sering ditap), bukan klaim terlaris. */
   const favoriteIdSet = useMemo(
     () => new Set(favoriteItems.filter((item) => (favoriteCounts[item.id] ?? 0) > 0).map((item) => item.id)),
@@ -1242,13 +1273,17 @@ export function PosView({
   // Filter yang sama dipakai tombol Enter (`searchMenuEntries`, src/lib/pos-search.ts).
   const acceptMenuEntry = useCallback(
     (entry: (typeof indexedMenu)[number]) =>
-      menuFilterMatches(menuCategory, entry.item.category, entry.item.menuGroup) && (!bestsellerOnly || entry.isBestseller),
-    [bestsellerOnly, menuCategory],
+      menuFilterMatches(menuCategory, entry.item.category, entry.item.menuGroup) &&
+      (!bestsellerOnly || bestsellerRank.has(entry.item.id)),
+    [bestsellerOnly, bestsellerRank, menuCategory],
   );
-  const filteredMenu = useMemo(
-    () => searchMenuEntries(indexedMenu, parseQuantityQuery(normalizedMenuQuery).term, acceptMenuEntry),
-    [acceptMenuEntry, indexedMenu, normalizedMenuQuery],
-  );
+  const filteredMenu = useMemo(() => {
+    const term = parseQuantityQuery(normalizedMenuQuery).term;
+    const found = searchMenuEntries(indexedMenu, term, acceptMenuEntry);
+    // Filter Terlaris tanpa kata cari: urut dari yang paling laku.
+    if (!bestsellerOnly || term) return found;
+    return [...found].sort((a, b) => (bestsellerRank.get(a.id) ?? 999) - (bestsellerRank.get(b.id) ?? 999));
+  }, [acceptMenuEntry, bestsellerOnly, bestsellerRank, indexedMenu, normalizedMenuQuery]);
   const visibleProductCount =
     productPageState.filterKey === productFilterKey
       ? productPageState.count
@@ -1266,6 +1301,7 @@ export function PosView({
     for (const item of menuItems) map.set(item.id, item);
     return map;
   }, [menuItems]);
+  const cartItemIdSet = useMemo(() => new Set(cart.map((line) => line.itemId)), [cart]);
 
   // Nama item (lowercase) → station Dapur/Bar. Dipakai untuk chit dapur pada order
   // QR/waiter yang itemnya tidak membawa kategori.
@@ -5377,7 +5413,7 @@ export function PosView({
 
           {activeCashierToolOpen === "reports" && (
             <div className="space-y-3">
-              <PosShiftSalesSummary />
+              <PosShiftSalesSummary unpaidBills={pendingSummary.counts.all} />
               {settings.partnerHubEnabled && cashSession.id ? <PartnerShiftSalesCard sessionId={cashSession.id} /> : null}
               <details className="rounded-md border border-[#34343c] bg-white/[0.03] p-2">
                 <summary className="cursor-pointer px-1 py-1 text-sm font-semibold text-white">
@@ -8724,7 +8760,7 @@ export function PosView({
                   {posV6CategoryList.map((sub) => (
                     <PosV6CategoryTile key={sub} icon={posV6CategoryIcon(sub)} label={sub} active={menuCategory === sub} onClick={() => setMenuCategory(sub)} />
                   ))}
-                  <PosV6CategoryTile icon={Star} label="Best Seller" active={bestsellerOnly} onClick={() => setBestsellerOnly((v) => !v)} />
+                  <PosV6CategoryTile icon={Star} label={bestsellerFromSales ? "Terlaris 7 hari" : "Best Seller"} active={bestsellerOnly} onClick={() => setBestsellerOnly((v) => !v)} />
                 </div>
                 {favoriteItems.length && !normalizedMenuQuery && menuCategory === "All" && !bestsellerOnly ? (
                   <div className="garage-scroll-x flex gap-1.5 pb-0.5" data-testid="pos-favorites">
@@ -9043,6 +9079,14 @@ export function PosView({
                       ) : null}
                     </div>
                   ))}
+                  <PosV6Pairing
+                    anchor={cart.length ? (menuItemsById.get(cart[cart.length - 1].itemId) ?? null) : null}
+                    menuById={menuItemsById}
+                    cartItemIds={cartItemIdSet}
+                    soldOutIds={soldOutIds}
+                    disabled={!offlineStatus.online || locked || !canTransact}
+                    onPick={(item) => handleProductTap(item)}
+                  />
                 </div>
               ) : (
                 <div className="pos-cart-empty relative flex h-full min-h-[180px] flex-col items-center justify-center overflow-hidden rounded-md border border-dashed border-[#4a4a54] bg-[#202027]/66 p-5 text-center">

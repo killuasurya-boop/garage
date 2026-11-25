@@ -14,6 +14,7 @@ import { useBusinessToday } from "@/lib/use-business-today";
 import { buildSalesSummarySlipContent } from "@/lib/management-slips";
 import { printDocument } from "@/lib/print-client";
 import type { SalesReport as SalesReportData } from "@/lib/sales-report";
+import { activeHours, WEEKDAY_LABELS, type WeekdayHourCell } from "@/lib/sales-insights";
 
 type Preset = "today" | "yesterday" | "7d" | "month" | "custom";
 
@@ -65,6 +66,13 @@ function downloadCsv(report: SalesReportData) {
   section("Per jam", report.hours, false);
   section("Kasir", report.cashiers, false);
   section("Tipe order", report.orderTypes, false);
+  if (report.weekdayHours.length) {
+    lines.push("");
+    push("Jam sibuk (transaksi lunas)", "Hari", "Jam", "Transaksi", "Omzet");
+    for (const cell of report.weekdayHours) {
+      push("", WEEKDAY_LABELS[cell.weekday], `${String(cell.hour).padStart(2, "0")}.00`, cell.count, cell.revenue);
+    }
+  }
   const blob = new Blob([`﻿${lines.join("\r\n")}`], { type: "text/csv;charset=utf-8" });
   saveBlob(
     blob,
@@ -77,15 +85,83 @@ function downloadCsv(report: SalesReportData) {
   );
 }
 
+/**
+ * Pola jam sibuk (Fase 5): grid hari × jam WIB, warna amber = jumlah transaksi lunas relatif terhadap sel tersibuk.
+ * Angka tertulis di sel (bukan warna saja); scroll horizontal hanya di dalam panel.
+ */
+function BusyHours({ cells }: { cells: WeekdayHourCell[] }) {
+  const hours = activeHours(cells);
+  const byKey = new Map(cells.map((cell) => [`${cell.weekday}:${cell.hour}`, cell]));
+  const max = Math.max(1, ...cells.map((cell) => cell.count));
+  const busiest = [...cells].sort((a, b) => b.count - a.count || b.revenue - a.revenue).slice(0, 3);
+  return (
+    <section className="rounded-md border border-[#34343c] bg-white/[0.04]" data-testid="sales-busy-hours">
+      <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-[#34343c] px-3 py-2">
+        <h3 className="text-sm font-semibold text-white">Jam sibuk (transaksi lunas per hari &amp; jam WIB)</h3>
+        <p className="text-xs text-[#c4c4cc]">
+          Tersibuk:{" "}
+          {busiest
+            .map((cell) => `${WEEKDAY_LABELS[cell.weekday]} ${String(cell.hour).padStart(2, "0")}.00 (${cell.count} trx)`)
+            .join(" · ")}
+        </p>
+      </div>
+      <div className="garage-scroll-x overflow-x-auto p-2">
+        <table className="border-separate border-spacing-0.5 text-xs">
+          <thead>
+            <tr>
+              <th className="sticky left-0 bg-[#1a1a20] px-1.5 py-1 text-left font-medium text-[#c4c4cc]">Hari</th>
+              {hours.map((hour) => (
+                <th key={hour} className="min-w-9 px-1 py-1 text-center font-mono font-medium text-[#c4c4cc]">
+                  {String(hour).padStart(2, "0")}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {WEEKDAY_LABELS.map((label, weekday) => (
+              <tr key={label}>
+                <th scope="row" className="sticky left-0 bg-[#1a1a20] px-1.5 py-1 text-left font-semibold text-[#ececf1]">
+                  {label}
+                </th>
+                {hours.map((hour) => {
+                  const cell = byKey.get(`${weekday}:${hour}`);
+                  const level = cell ? cell.count / max : 0;
+                  return (
+                    <td
+                      key={hour}
+                      className="h-8 min-w-9 rounded-sm text-center font-mono font-bold tabular-nums"
+                      style={{
+                        background: cell ? `rgba(245, 167, 66, ${0.14 + level * 0.66})` : "rgba(255,255,255,0.03)",
+                        color: level > 0.55 ? "#1a1205" : "#ececf1",
+                      }}
+                      title={cell ? `${label} ${String(hour).padStart(2, "0")}.00 — ${cell.count} transaksi, ${rupiah(cell.revenue)}` : undefined}
+                      aria-label={cell ? `${label} jam ${hour}: ${cell.count} transaksi` : `${label} jam ${hour}: tidak ada transaksi`}
+                    >
+                      {cell ? cell.count : ""}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 function Table({
   title,
   rows,
   showQty,
+  showAverage = false,
   emptyText = "Belum ada data.",
 }: {
   title: string;
   rows: ReportRow[];
   showQty: boolean;
+  /** Kolom rata-rata per transaksi (omzet ÷ trx), mis. Per kasir. */
+  showAverage?: boolean;
   emptyText?: string;
 }) {
   const max = Math.max(1, ...rows.map((row) => row.revenue));
@@ -101,6 +177,7 @@ function Table({
               <tr>
                 <th className="px-3 py-2 text-left font-medium">Nama</th>
                 <th className="px-3 py-2 text-right font-medium">{showQty ? "Qty" : "Trx"}</th>
+                {showAverage ? <th className="px-3 py-2 text-right font-medium">Rata-rata</th> : null}
                 <th className="px-3 py-2 text-right font-medium">Omzet</th>
               </tr>
             </thead>
@@ -118,6 +195,11 @@ function Table({
                   <td className="whitespace-nowrap px-3 py-2 text-right text-[#ececf1]">
                     {showQty ? row.qty : row.count}
                   </td>
+                  {showAverage ? (
+                    <td className="whitespace-nowrap px-3 py-2 text-right text-[#ececf1]">
+                      {row.count ? rupiah(Math.round(row.revenue / row.count)) : "-"}
+                    </td>
+                  ) : null}
                   <td className="whitespace-nowrap px-3 py-2 text-right font-semibold text-white">
                     {rupiah(row.revenue)}
                   </td>
@@ -367,9 +449,10 @@ export function SalesReport({
             <Table title="Per kategori" rows={report.categories} showQty />
             <Table title="Per metode bayar" rows={report.paymentMethods} showQty={false} />
             <Table title="Per jam" rows={report.hours} showQty={false} />
-            <Table title="Per kasir" rows={report.cashiers} showQty={false} />
+            <Table title="Per kasir" rows={report.cashiers} showQty={false} showAverage />
             <Table title="Per tipe order" rows={report.orderTypes} showQty={false} />
           </div>
+          {report.weekdayHours.length ? <BusyHours cells={report.weekdayHours} /> : null}
         </>
       ) : null}
     </div>

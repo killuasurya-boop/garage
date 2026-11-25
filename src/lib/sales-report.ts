@@ -15,6 +15,7 @@ import { businessDateKey, businessDayRange, type BusinessDayPolicy } from "@/lib
 import { loadBusinessDayPolicy } from "@/lib/business-date-policy";
 import { isCalendarDateKey } from "@/lib/date-range";
 import { CHANNEL_GROUP_LABEL, channelGroupOf } from "@/lib/payment-status";
+import { weekdayHourGrid } from "@/lib/sales-insights";
 
 export type SalesReportRange = { from: string; to: string };
 
@@ -240,6 +241,7 @@ export function aggregateSalesReport(input: {
     categories: [...categories.values()].sort(byRevenue),
     paymentMethods: [...methods.values()].sort(byRevenue),
     hours: [...hours.values()].sort((a, b) => a.key.localeCompare(b.key)),
+    weekdayHours: weekdayHourGrid(paidOrders),
     cashiers: [...cashiers.values()].sort(byRevenue),
     orderTypes: [...orderTypes.values()].sort(byRevenue),
   };

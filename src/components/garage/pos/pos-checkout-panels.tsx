@@ -801,7 +801,7 @@ export function CartLineNoteTrigger({ note, onEdit }: { note: string; onEdit: ()
     <button
       type="button"
       onClick={onEdit}
-      className="mt-1 flex min-h-6 max-w-full items-center gap-1 text-left text-xs font-medium text-[#b8b8bf] hover:text-[#ffd79a]"
+      className="mt-1 flex min-h-6 max-w-full items-center gap-1 text-left text-[length:calc(12px*var(--pos-fs,1))] font-medium text-[#b8b8bf] hover:text-[#ffd79a]"
       aria-label={note ? `Ubah catatan dapur: ${note}` : "Tambah catatan untuk dapur"}
     >
       {note ? (

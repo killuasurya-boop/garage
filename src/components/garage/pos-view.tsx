@@ -1065,6 +1065,16 @@ export function PosView({
   // memantau (Bar & Dapur, pesanan, laporan). Transaksi & kas tetap butuh shift.
   const [ownerViewing, setOwnerViewing] = useState(false);
   const posVisible = shiftOpen || ownerViewing;
+  // Ukuran teks pilihan kasir (Theme Studio) juga berlaku di dialog/sheet yang dirender di luar area POS (U10):
+  // --pos-fs dipasang di root dokumen selama POS terbuka, dilepas saat keluar.
+  const posFontScale = cashierPosSettings.textSize === "large" ? "1.12" : cashierPosSettings.textSize === "small" ? "0.92" : "1";
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty("--pos-fs", posFontScale);
+    return () => {
+      root.style.removeProperty("--pos-fs");
+    };
+  }, [posFontScale]);
   // Owner tanpa shift (owner, Nov 2026): semua fitur POS boleh, kecuali pembayaran TUNAI (uang harus masuk laci shift).
   const ownerNoShift = !shiftOpen && ownerViewing && me.role === "Owner";
   const canTransact = shiftOpen || ownerNoShift;
@@ -8750,10 +8760,10 @@ export function PosView({
                           </span>
                         ) : null}
                         <div className="min-w-0 flex-1">
-                          <p className="pos-cart-title break-words text-[15px] font-semibold leading-5 text-white">
+                          <p className="pos-cart-title break-words text-[length:calc(15px*var(--pos-fs,1))] font-semibold leading-snug text-white">
                             {line.item.name}
                           </p>
-                          <p className="pos-cart-meta mt-0.5 break-words text-sm text-[#d0d0d6]">
+                          <p className="pos-cart-meta mt-0.5 break-words text-[length:calc(14px*var(--pos-fs,1))] text-[#d0d0d6]">
                             {line.variant.label !== "Regular"
                               ? `${line.variant.label} - `
                               : ""}
@@ -8768,7 +8778,7 @@ export function PosView({
                           ) : null}
                         </div>
                         <div className="flex shrink-0 flex-col items-end gap-1.5">
-                          <p className="pos-cart-price garage-mono text-right text-sm font-semibold text-white">
+                          <p className="pos-cart-price garage-mono text-right text-[length:calc(14px*var(--pos-fs,1))] font-semibold text-white">
                             {currency.format(line.variant.price * line.qty)}
                           </p>
                           <div className="pos-qty-control inline-flex h-10 shrink-0 items-center overflow-hidden rounded-md border border-[#4a4a54] bg-[#15151b]">
@@ -8782,7 +8792,7 @@ export function PosView({
                               <Minus className="size-4" />
                             </Button>
                             <span
-                              className="garage-mono min-w-9 border-x border-[#34343c] px-2 text-center text-sm font-semibold text-white"
+                              className="garage-mono min-w-9 border-x border-[#34343c] px-2 text-center text-[length:calc(14px*var(--pos-fs,1))] font-semibold text-white"
                               aria-label={`Qty ${line.qty}`}
                             >
                               {line.qty}

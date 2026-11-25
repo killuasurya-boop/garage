@@ -104,6 +104,16 @@ description: Aturan WAJIB modul POS Garage OS: kasir, keranjang, order/invoice a
   - Rejected-for-good items stay on the device ("Perlu ditinjau" in `PosOfflineBanner`), never auto-deleted. Closing the shift is
     blocked on the device while its queue is not empty (the close-check panel itself stays info-only).
 
+- Insight dari data nyata (Fase 5, owner 25 Nov 2026): labels/numbers come from paid sales only, never typed tags or guesses;
+  no data = not shown. `src/lib/pos-insights.ts`: Terlaris = top 8 by qty, paid orders of the staff outlet, last 7 days, min qty 3,
+  Paket Event component lines excluded (`GET /api/pos/insights`); POS tile "Terlaris 7 hari" + Favorit fallback use it, the manual
+  `bestseller` tag is only the fallback while there is no data (tile label "Best Seller"). "Sering dibeli bersama"
+  (`GET /api/pos/upsell`, `pos/pos-v6-pairing.tsx`) = pairs in paid orders of the outlet, 30 days, min 3 shared orders, max 3
+  buttons under the cart (not in cart, not sold out, hidden offline). Cashier shift summary adds items sold / average ticket /
+  voids / Belum Bayar count / top 5 of the shift — still no drawer balance. Owner sales report adds "Jam sibuk"
+  (`weekdayHours`, `src/lib/sales-insights.ts`, WIB day × hour) and average ticket per cashier. No cashier-speed or
+  sold-out-frequency metric until that data is actually recorded.
+
 - Browser-dialog printing uses `browserColumns` (huruf Besar → 24 col on 58 mm) with tall
   TOTAL/Kembali lines; cashier can print Bar/Dapur chits manually (`printKitchenChits`).
 

@@ -11310,7 +11310,12 @@ async function updateCustomerOrderStatusImpl(
         if (customer) {
           const beforeLevel = normalizeMemberLevel(customer.cardTier ?? customer.tier);
           if (account) {
-            const settings = await getAppSettings(order.outletId);
+            // Pakai settings yang sudah dibaca sebelum transaksi (outlet staf = outlet order):
+            // membaca lagi di sini memakai koneksi kedua (PGlite: macet; Postgres: koneksi pool ekstra).
+            const settings =
+              !order.outletId || order.outletId === garage.profile.outlet.id
+                ? outletSettings
+                : await getAppSettings(order.outletId);
             const { pointsEarned } = calculateEarnedPointsWithSettings(
               order.subtotal - order.discount,
               beforeLevel,

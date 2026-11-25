@@ -19,6 +19,8 @@ const openBillSchema = z
     // No WA opsional (Tagihan Belum Bayar menampilkan kontak untuk ditagih).
     customerPhone: z.string().trim().max(20).optional(),
     customerNote: z.string().trim().max(240).optional(),
+    // Member terpilih di POS (K7): bill ditautkan ke member → poin masuk saat Final Bayar.
+    memberCustomerId: z.string().uuid().optional(),
     items: z
       .array(
         z.object({
@@ -64,7 +66,8 @@ export async function POST(request: Request) {
   if (cache?.kind === "pending") return fail(409, "OPEN_BILL_IN_PROGRESS", "Tagihan masih diproses.");
 
   try {
-    const { orderType, tableLabel, customerName, customerPhone, customerNote, items, eventId, eventItems } = body.data;
+    const { orderType, tableLabel, customerName, customerPhone, customerNote, items, eventId, eventItems, memberCustomerId } =
+      body.data;
     const table =
       orderType === "dine-in" && tableLabel
         ? tableLabel.toLowerCase().startsWith("meja")
@@ -75,7 +78,9 @@ export async function POST(request: Request) {
       orderType,
       tableLabel: table,
       outletId: session.data.profile.outlet.id,
-      customerMode: "guest",
+      // Member: nama & No WA diambil dari akun member (divalidasi di service).
+      customerMode: memberCustomerId ? "member" : "guest",
+      memberCustomerId,
       // Nama tamu saja (meja tampil terpisah di tiket); kosong → antrian #.
       guestName: customerName?.replace(/·/g, " ").trim().slice(0, 80) || "Guest Customer",
       guestPhone: customerPhone?.replace(/[^\d+]/g, "") || undefined,

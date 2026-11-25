@@ -463,7 +463,9 @@ export function PosV6FinalizeDialog({
     qrisReferenceMissing: referenceMissing,
     tableMissing: false,
   });
-  const disabled = pending || (method === "Cash" ? !cashReady || !cashAllowed : referenceMissing);
+  // QRIS tanpa gambar QRIS resmi terpasang tidak bisa dikonfirmasi (K11); delivery dibayar pelanggan lebih dulu.
+  const qrisUnavailable = method === "QRIS" && !qrisImageReady && target?.fulfillment !== "delivery";
+  const disabled = pending || qrisUnavailable || (method === "Cash" ? !cashReady || !cashAllowed : referenceMissing);
   const methods = target?.fulfillment === "delivery" ? (["QRIS"] as PaymentMethod[]) : paymentMethods;
 
   return (

@@ -243,3 +243,38 @@ describe("S7 potong stok penjualan", () => {
     expect(typeof afterTwo.status).toBe("string");
   });
 });
+
+describe("K7 Bayar nanti member", () => {
+  it("bill ditautkan ke member (nama/HP dari akun) dan poin masuk saat Final Bayar", async () => {
+    const [member] = await t
+      .getDb()
+      .insert(t.schema.customers)
+      .values({ name: "Member Bayar Nanti", phone: "081277771234", tier: "Bronze", points: 0 } as any)
+      .returning();
+    await t.getDb().insert(t.schema.memberAccounts).values({
+      customerId: member.id,
+      name: "Member Bayar Nanti",
+      phone: "081277771234",
+      passwordHash: "x",
+    });
+    const created = await svc.createCustomerOrder({
+      orderType: "takeaway",
+      outletId,
+      customerMode: "member",
+      memberCustomerId: member.id,
+      guestName: "Member Bayar Nanti",
+      source: "qr_takeaway",
+      staffOrder: true,
+      paymentMethod: "Cash",
+      items: [{ itemId: "itm-food", variantId: "reg", qty: 1 }],
+      clientRequestKey: `${USER}:open-bill-member-1`,
+    });
+    await svc.updateCustomerOrderStatus(created.order.id, { action: "accept" }, as("Kasir"), { openBill: true });
+    const [order] = await rowsWhere(t.schema.orders, t.schema.orders.id, created.order.id);
+    expect(order.customerId).toBe(member.id);
+    expect(order.customerPhone).toBe("081277771234");
+    await svc.updateCustomerOrderStatus(order.id, { action: "paid", paymentMethod: "QRIS" }, as("Kasir"));
+    const [after] = await rowsWhere(t.schema.customers, t.schema.customers.id, member.id);
+    expect(after.points).toBeGreaterThan(0);
+  });
+});

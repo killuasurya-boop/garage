@@ -2653,7 +2653,9 @@ export function PosView({
           ? (method as PaymentMethod)
           : "Cash";
     // Owner tanpa shift: tunai pasti ditolak server (uang harus masuk laci) → jangan ditawarkan (K4).
-    setFinalizeMethod(preferred === "Cash" && !shiftOpen ? "QRIS" : preferred);
+    // QRIS hanya bila gambar QRIS resmi terpasang (K11); selain itu Transfer.
+    const nonCash: PaymentMethod = qrisImageReady ? "QRIS" : "Bank Transfer";
+    setFinalizeMethod(preferred === "Cash" && !shiftOpen ? nonCash : preferred);
     setFinalizeError(null);
     setCustomerOrderError(null);
     setFinalizeCash("");
@@ -2751,20 +2753,24 @@ export function PosView({
     return Number.isFinite(parsed) ? parsed : 0;
   }
 
+  // K9: nominal tunai waiter WAJIB diketik (kosong ≠ uang pas), sama dengan Final Bayar.
   function receiveWaiterCash(order: CustomerOrder) {
-    const amount = cashInputValue(customerOrderCashReceived || String(order.total));
+    if (!customerOrderCashReceived.trim()) {
+      setCustomerOrderError("Isi nominal uang yang diterima dari pelanggan.");
+      return;
+    }
     void decideCustomerOrder(order, "waiter_cash_received", {
-      cashReceived: amount,
+      cashReceived: cashInputValue(customerOrderCashReceived),
     });
   }
 
   function depositWaiterCash(order: CustomerOrder) {
-    const amount = cashInputValue(
-      customerOrderCashDeposited ||
-        String(order.cashReceived ?? order.total),
-    );
+    if (!customerOrderCashDeposited.trim()) {
+      setCustomerOrderError("Isi nominal uang yang disetor ke kasir.");
+      return;
+    }
     void decideCustomerOrder(order, "waiter_cash_deposited", {
-      cashDeposited: amount,
+      cashDeposited: cashInputValue(customerOrderCashDeposited),
     });
   }
 
@@ -3369,7 +3375,10 @@ export function PosView({
           showSignature: settings.receiptShowSignature,
         },
       ),
-    ).catch(() => undefined);
+    ).catch(() => {
+      // K11: kas sudah tercatat; yang gagal hanya cetak slip — beri tahu kasir, jangan ditelan.
+      setPosNotice("Kas tercatat, tapi slip gagal dicetak. Cek printer struk.");
+    });
   }
 
   function handleProductTap(item: MenuItem) {
@@ -3841,6 +3850,12 @@ export function PosView({
       setPaymentError("Bayar nanti take away wajib isi nama pelanggan.");
       return;
     }
+    // K7: potongan tidak ikut Bayar nanti (Final Bayar belum membawa voucher/diskon/poin) —
+    // jangan dihapus diam-diam, minta kasir memilih.
+    if (posVoucherResult?.valid || manualDiscount || pointsToUse > 0) {
+      setPaymentError("Bayar nanti tidak membawa voucher/diskon/poin. Hapus potongan dulu, atau bayar sekarang.");
+      return;
+    }
     setPaymentPending(true);
     setPaymentError(null);
     setPaymentResult(null);
@@ -3850,6 +3865,8 @@ export function PosView({
       tableLabel: orderType === "dine-in" ? tableLabel : undefined,
       customerName: openBillName || undefined,
       customerPhone: posCustomerMode === "member" ? undefined : guestPhone.trim() || undefined,
+      // K7: member ditautkan ke bill → poin masuk saat Final Bayar (dulu hanya nama terkirim).
+      memberCustomerId: posCustomerMode === "member" ? selectedMember?.customerId : undefined,
       items: cart.map((line) => ({
         itemId: line.itemId,
         variantId: line.variantId,
@@ -8128,7 +8145,9 @@ export function PosView({
                       <Button
                         type="button"
                         className="garage-press h-11"
-                        disabled={customerOrderActionId?.startsWith(`${selectedCustomerOrder.id}:`)}
+                        disabled={
+                          customerOrderActionId?.startsWith(`${selectedCustomerOrder.id}:`) || !customerOrderCashReceived.trim()
+                        }
                         onClick={() => receiveWaiterCash(selectedCustomerOrder)}
                       >
                         Terima Cash
@@ -8144,7 +8163,9 @@ export function PosView({
                         type="button"
                         variant="outline"
                         className="garage-press h-11 border-[#4a4a54]"
-                        disabled={customerOrderActionId?.startsWith(`${selectedCustomerOrder.id}:`)}
+                        disabled={
+                          customerOrderActionId?.startsWith(`${selectedCustomerOrder.id}:`) || !customerOrderCashDeposited.trim()
+                        }
                         onClick={() => depositWaiterCash(selectedCustomerOrder)}
                       >
                         Setor ke Kasir

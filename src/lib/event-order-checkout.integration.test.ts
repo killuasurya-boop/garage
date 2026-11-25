@@ -187,15 +187,15 @@ describe("checkout menu event memakai order Garage existing", () => {
     } finally { spy.mockRestore(); }
   });
 
-  it("harga paket final: tanpa promo QR/service/pajak, menu reguler tetap kena promo", async () => {
+  it("harga paket final: tanpa promo QR/service/pajak; Promo QR dimatikan juga untuk menu reguler", async () => {
     const { createCustomerOrder } = await import("@/lib/garage-service");
     const only = await createCustomerOrder({ ...input("final-price-bundle-0001"), eventItems: bundleCart() });
     const [bundleOrder] = await t.getDb().select().from(t.schema.orders).where(eq(t.schema.orders.id, only.order.id));
     expect(bundleOrder).toMatchObject({ subtotal: 40000, discount: 0, total: 40000 });
     const mixed = await createCustomerOrder({ ...input("final-price-mixed-0002"), eventItems: bundleCart(), items: [{ itemId: "itm-food", variantId: "reg", qty: 1 }] });
     const [mixedOrder] = await t.getDb().select().from(t.schema.orders).where(eq(t.schema.orders.id, mixed.order.id));
-    // Promo QR default 10% hanya dari menu reguler Rp 30.000 → Rp 3.000.
-    expect(mixedOrder).toMatchObject({ subtotal: 70000, discount: 3000, total: 67000 });
+    // Promo QR dimatikan Owner 25 Nov 2026 (voucher-policy.ts): menu reguler Rp 30.000 juga tanpa potongan.
+    expect(mixedOrder).toMatchObject({ subtotal: 70000, discount: 0, total: 70000 });
   });
 
   it("paket berisi rokok dari POS (open bill) diterima tanpa tiket produksi untuk rokok", async () => {

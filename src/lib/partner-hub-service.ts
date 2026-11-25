@@ -1207,7 +1207,8 @@ export async function setPartnerProductAvailability(
  */
 export async function setPartnerProductImage(
   linkId: string,
-  store: () => Promise<string>,
+  /** Tulis file & kembalikan URL-nya; `null` = hapus foto (hanya Garage OS). */
+  store: () => Promise<string | null>,
   who: { partner?: PartnerSession; garage?: GarageSession },
 ) {
   const db = getDb();

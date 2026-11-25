@@ -516,7 +516,7 @@ export const API_ROUTE_CATALOG: ApiRouteEntry[] = [
   {"path":"/api/partners/price-proposals/{id}/decide","methods":["POST"],"note":""},
   {"path":"/api/partners/price-proposals","methods":["GET"],"note":""},
   {"path":"/api/partners/product-submissions","methods":["GET"],"note":""},
-  {"path":"/api/partners/products/{linkId}/image","methods":["POST"],"note":""},
+  {"path":"/api/partners/products/{linkId}/image","methods":["POST","DELETE"],"note":""},
   {"path":"/api/partners/products/{linkId}/marketing","methods":["GET","POST"],"note":""},
   {"path":"/api/partners/products/{linkId}/move","methods":["POST"],"note":""},
   {"path":"/api/partners/products/{linkId}/revision","methods":["POST"],"note":""},

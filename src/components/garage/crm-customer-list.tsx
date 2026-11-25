@@ -9,7 +9,6 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  Clipboard,
   CreditCard,
   Download,
   Eye,

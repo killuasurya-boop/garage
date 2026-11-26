@@ -129,6 +129,20 @@ description: Aturan WAJIB modul POS Garage OS: kasir, keranjang, order/invoice a
 - Browser-dialog printing uses `browserColumns` (huruf Besar → 24 col on 58 mm) with tall
   TOTAL/Kembali lines; cashier can print Bar/Dapur chits manually (`printKitchenChits`).
 
+## Menu & header POS (Nov 2026)
+
+- Sidebar Kasir (≥1280 px) = 9 menu kerja dari `posNavModel` (`src/lib/pos-nav.ts`) + tombol "Lainnya" (`pos-more-open`)
+  yang membuka lembar 5 grup (Laporan & riwayat, Pelanggan, Mitra, Gudang & cek, Perangkat; swatch tema ada di
+  Perangkat). Satu model dipakai sidebar, lembar Lainnya, dan lembar Menu (<1280 px / Owner-Manajer).
+- Handler menu HANYA di `runPosNav` (pos-view.tsx); komponen (`pos-v6-nav.tsx`) hanya menampilkan. Jangan
+  menambah `onClick` menu baru di JSX.
+- Menu baru = tambah ke `posNavModel` (+ ikon unik di `POS_NAV_ICONS` + kasus di `runPosNav` + tes `pos-nav.test.ts`).
+  Tombol F (F1, F2, F3, F4, F6, F8, F9) dan `[` tidak berubah.
+- Topbar satu baris ≤ 64 px: chip shift, chip QR/Tagih (hanya bila > 0), chip koneksi (buka QC), layar penuh,
+  Menu (<1280 px; Owner/Manajer selalu), Absen (ikon sidik jari selalu tampak), profil. Tanpa omzet/kas (blind count).
+- Label kalimat biasa, bukan HURUF BESAR; nama menu panjang turun baris di sidebar (tidak elipsis); target klik ≥ 40 px.
+- Di bawah 1280 px sidebar hanya disembunyikan CSS (masih di DOM): tes E2E pakai locator `visible`.
+
 ## Event Menu Rules
 
 - Event prices and bundles reference existing products/variants; never overwrite regular prices or create parallel event transactions.

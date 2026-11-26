@@ -66,7 +66,8 @@ test("Belum Bayar: tagih tunai dari popup detail, modul popup tanpa tab baru, si
   await page.keyboard.press("Escape");
 
   // 5. Modul jadi popup: Riwayat Penjualan terbuka di dalam POS, tab tetap satu.
-  await page.getByRole("button", { name: "Riwayat Penjualan" }).click();
+  await page.getByTestId("pos-more-open").click();
+  await page.getByRole("button", { name: "Riwayat penjualan" }).click();
   const moduleSheet = page.getByTestId("pos-module-sheet");
   await expect(moduleSheet).toBeVisible();
   expect(page.context().pages()).toHaveLength(1);

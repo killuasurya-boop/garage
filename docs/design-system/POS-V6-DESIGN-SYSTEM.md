@@ -57,8 +57,8 @@ teks ≥ 7:1, teks redup/harga/tombol/total/kembalian ≥ 4,5:1 untuk keempat te
 
 | Papan | Komponen React | File | Status |
 |---|---|---|---|
-| 01 Sidebar | `PosV6NavGroup`, `PosV6NavItem` (badge, titik status, shortcut), `PosV6ThemeSwatches` | `src/components/garage/pos/pos-v6.tsx`, sidebar di `pos-view.tsx` | Selesai; mode Penuh/Ikon saja |
-| 02 Header | `PosV6Brand`, `PosV6ShiftChip`, `PosV6Clock`, `PosV6Kpi`, `PosV6TopbarButton`, `PosV6Profile` (menu akun: Menu Kasir, Absen, Fee, Shift, Theme Studio, Pengaturan, Keluar) | `pos-v6.tsx`, topbar di `pos-view.tsx` | Selesai; HP = satu baris ikon |
+| 01 Sidebar | `PosV6NavItem` (badge, titik status, shortcut), `PosV6NavList`/`PosV6NavGroups`/`PosV6MoreSheet` (daftar dari `posNavModel`), `PosV6ThemeSwatches` (di lembar Lainnya) | `src/lib/pos-nav.ts`, `pos/pos-v6-nav.tsx`, `pos/pos-v6.tsx`, sidebar di `pos-view.tsx` | Selesai (Nov 2026): 9 menu kerja + "Lainnya" (lembar 5 grup), lebar 208 px, tanpa scroll di 1366x768; nama panjang turun baris; mode Penuh/Ikon saja |
+| 02 Header | `PosV6Brand`, `PosV6ShiftChip`, `PosV6Clock`, `PosV6Kpi`, `PosV6TopbarChip` (QR, Tagih), `PosV6ConnectionChip` (buka QC), `PosV6TopbarButton`, `PosV6Profile` (menu akun: Menu Kasir, Absen, Fee, Shift, Theme Studio, Pengaturan, Keluar) | `pos-v6.tsx`, topbar di `pos-view.tsx` | Selesai (Nov 2026): satu baris ≤ 64 px; chip shift/QR/Tagih/koneksi bisa diklik; tombol Menu di bawah 1280 px (Owner/Manajer selalu); Absen ikon selalu tampak (≥ sm; di HP lewat menu akun) |
 | 03 Katalog | `PosV6CategoryTile`, `PosV6ProductCard` (Visual/Ringkas/Daftar, Habis, Signature, Unggulan, Promo, Favorit) | `pos-v6.tsx` | Selesai |
 | 04 Keranjang | tab Pesanan/Meja, thumbnail baris, Subtotal/Layanan/Pajak/Pembulatan, Total Tagihan, Bayar F9 | `pos-view.tsx` + `pos-v6.css` | Selesai (struktur baris lama dipertahankan) |
 | 05 Pembayaran | Pemilih metode berikon; `CashPaymentPanel` (Uang Diterima, nominal cepat + Uang Pas, Kembalian); `QrisPaymentPanel` (QR + total + verifikasi + ref); `BankTransferPaymentPanel`/`EWalletPaymentPanel` (pilih akun, nomor bisa disalin, total) | `pos/pos-checkout-panels.tsx` | Selesai |

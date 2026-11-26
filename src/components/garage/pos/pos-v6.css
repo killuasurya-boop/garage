@@ -81,6 +81,7 @@
   .pos-v6-tb-btn:disabled { opacity: 0.55; cursor: not-allowed; }
   .pos-v6-tb-btn:focus-visible,
   .pos-v6-nav-item:focus-visible,
+  .pos-v6-sidebar-toggle:focus-visible,
   .pos-v6-cat:focus-visible,
   .pos-v6-card:focus-visible,
   .pos-v6-swatch:focus-visible,
@@ -238,6 +239,9 @@
     opacity: 0.75;
   }
   .pos-v6-sidebar[data-mode="compact"] .pos-v6-nav-item { justify-content: center; padding: 0; }
+  /* Sidebar lebar: nama menu panjang ("Produksi Bar & Dapur") turun ke baris kedua, tidak dipotong elipsis. */
+  .pos-v6-sidebar:not([data-mode="compact"]) .pos-v6-nav-item { padding-block: 4px; }
+  .pos-v6-sidebar:not([data-mode="compact"]) .pos-v6-nav-label { white-space: normal !important; overflow: visible !important; text-overflow: clip !important; line-height: 1.2; overflow-wrap: anywhere; }
   .pos-v6-sidebar[data-mode="compact"] :is(.pos-v6-nav-label, .pos-v6-nav-kbd, .pos-v6-nav-group-label, .pos-v6-nav-dot) { display: none; }
   .pos-v6-sidebar[data-mode="compact"] .pos-v6-nav-count { position: absolute; top: 2px; right: 6px; min-width: 18px; height: 18px; line-height: 18px; font-size: calc(10px * var(--pos-fs, 1)); }
   .pos-v6-mode {
@@ -670,7 +674,7 @@
   /* Logo utuh (25 Nov 2026): lebar mengikuti ruang sisa (toggle tidak lagi menimpa), tinggi mengikuti rasio, object-contain. */
   .pos-v6-sidebar-brand .pos-v6-brand { flex: 1 1 auto; min-width: 0; }
   .pos-v6-sidebar-brand .pos-v6-logo { display: block; min-width: 0; line-height: 0; }
-  .pos-v6-sidebar-brand img { width: 100% !important; max-width: 150px; height: auto !important; aspect-ratio: 1200 / 282; object-fit: contain; }
+  .pos-v6-sidebar-brand img { width: 100% !important; max-width: 132px; height: auto !important; aspect-ratio: 1200 / 282; object-fit: contain; }
   .garage-shell .cashier-pos-surface .pos-v6-bill-tools {
     border: 1px solid var(--pos-border) !important;
     background: var(--pos-surface-muted) !important;
@@ -1359,7 +1363,7 @@
   .pos-v6-sidebar-brand:hover::after { transform: translateX(120%); }
   .garage-shell .cashier-pos-surface .pos-v6-sidebar-toggle {
     position: relative; flex: 0 0 auto; z-index: 2; display: grid; place-items: center;
-    width: 32px; height: 32px; border-radius: 9px;
+    width: 40px; height: 40px; border-radius: 10px;
     border: 1px solid var(--pos-chrome-line); background: var(--pos-chrome-chip); color: var(--pos-chrome-fg);
     transition: background-color 120ms ease-out, transform 120ms ease-out, color 120ms ease-out;
   }

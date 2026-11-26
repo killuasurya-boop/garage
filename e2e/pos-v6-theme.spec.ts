@@ -30,13 +30,16 @@ test("POS V6: ganti tema tanpa mengubah keranjang, tema bertahan setelah refresh
   await expect(orderTab).toContainText("Pesanan (1)");
   const totalBefore = await page.locator(".pos-total-box").innerText();
 
-  // Ganti tema lewat Mode Tampilan di sidebar → hanya visual.
+  // Ganti tema lewat Mode Tampilan di lembar "Lainnya" → hanya visual.
+  await page.getByTestId("pos-more-open").click();
   await page.getByRole("radio", { name: "Tema Warm Coffee" }).click();
+  await page.keyboard.press("Escape");
   await expect(surface).toHaveAttribute("data-cashier-theme", "warm-light");
   await expect(orderTab).toContainText("Pesanan (1)");
   expect(await page.locator(".pos-total-box").innerText()).toBe(totalBefore);
 
   // Theme Studio: pilih Focus Blue + katalog Daftar.
+  await page.getByTestId("pos-more-open").click();
   await page.getByRole("button", { name: "Theme Studio" }).first().click();
   const studio = page.getByRole("dialog", { name: "Garage POS Theme Studio" });
   await studio.getByRole("radio", { name: /Focus Blue/ }).click();

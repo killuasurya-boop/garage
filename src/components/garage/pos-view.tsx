@@ -5027,7 +5027,7 @@ export function PosView({
               {cashierPosSettings.sidebarMode === "compact" ? <PanelLeftOpen className="size-4" aria-hidden /> : <PanelLeftClose className="size-4" aria-hidden />}
             </button>
           </div>
-          <nav className="flex flex-1 flex-col gap-1 px-2.5 pb-3">
+          <nav className="flex flex-1 flex-col gap-1 px-2.5 pb-3" aria-label="Menu kerja kasir">
             <PosV6NavList items={navModel.primary} onSelect={runPosNav} activeId="kasir" />
             <div className="pos-v6-nav-group">
               <PosV6NavItem icon={POS_NAV_ICONS.more} label="Lainnya" count={navModel.moreAttention} testId="pos-more-open" onClick={() => setMoreOpen(true)} />

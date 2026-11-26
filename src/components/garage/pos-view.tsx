@@ -19,7 +19,7 @@ import {
   type PosV6CardBadge,
 } from "@/components/garage/pos/pos-v6";
 import { isSignature, isUnggulan } from "@/components/garage/order/v5/menu-v5-model";
-import { POS_NAV_ICONS, PosV6MoreSheet, PosV6NavList } from "@/components/garage/pos/pos-v6-nav";
+import { POS_NAV_ICONS, PosV6MoreSheet, PosV6NavGroups, PosV6NavList } from "@/components/garage/pos/pos-v6-nav";
 import { posNavModel, type PosNavId } from "@/lib/pos-nav";
 import { PosV6ThemeCustomStyle } from "@/components/garage/pos/pos-v6-theme-custom-style";
 import { PosV6ConnectionChip, PosV6QcPanel } from "@/components/garage/pos/pos-v6-qc";
@@ -36,19 +36,16 @@ UtensilsCrossed,
 BarChart3,
 Bell,
 Check,
-ClipboardCheck,
 Clock,
 CreditCard,
 Fingerprint,
 FileText,
-History,
 Info,
 Headset,
 LockKeyhole,
 LogOut,
 Menu,
 MessageCircle,
-Mic,
 Minus,
 Monitor,
 Moon,
@@ -79,7 +76,6 @@ Star,
 SunMedium,
 Timer,
 Trash2,
-UserPlus,
 Users,
 Volume2,
 Wallet,
@@ -2223,6 +2219,10 @@ export function PosView({
         return unreachable;
       }
     }
+  }
+  function selectMenuNav(id: PosNavId) {
+    setCashierMenuOpen(false);
+    runPosNav(id);
   }
   // Pengingat: satu bunyi bila ada tagihan yang BARU lewat 30 mnt (sekali per tagihan).
   const pendingAlertedRef = useRef<Set<string> | null>(null);
@@ -4936,7 +4936,7 @@ export function PosView({
         <SheetContent
           side="left"
           data-cashier-theme-scope={cashierTheme}
-          className="garage-scroll garage-side-panel garage-pos-nav-sheet w-[min(90vw,340px)] border-[#34343c] bg-[#0b0b0e] p-4 text-[#f4f4f5]"
+          className="garage-scroll garage-side-panel garage-pos-nav-sheet pos-v6-more-sheet w-[min(90vw,340px)] border-[var(--pos-chrome-line)] bg-[var(--pos-chrome-bg)] p-4 text-[var(--pos-chrome-fg)]"
         >
           <SheetHeader className="text-left">
             <SheetTitle>Menu Kasir</SheetTitle>
@@ -4945,16 +4945,16 @@ export function PosView({
             </SheetDescription>
           </SheetHeader>
           <div className="mt-4 space-y-3">
-            <div className="rounded-md border border-[#34343c] bg-white/[0.055] p-3">
+            <div className="rounded-md border border-[var(--pos-chrome-line)] bg-[var(--pos-chrome-chip)] p-3">
               <div className="flex items-center gap-3">
-                <span className="garage-mono flex size-10 shrink-0 items-center justify-center rounded-full border border-[#f5a742]/35 bg-[#f5a742]/12 text-sm font-semibold text-[#ffd08a]">
+                <span className="garage-mono flex size-10 shrink-0 items-center justify-center rounded-full border border-[var(--pos-chrome-line)] bg-[var(--pos-chrome-chip)] text-sm font-semibold text-[var(--pos-chrome-fg)]">
                   {profileInitials}
                 </span>
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-white">
+                  <p className="truncate text-sm font-semibold text-[var(--pos-chrome-fg)]">
                     {me.user.name}
                   </p>
-                  <p className="truncate text-xs text-[#b8b8bf]">
+                  <p className="truncate text-xs text-[var(--pos-chrome-muted)]">
                     {me.role} - {me.device}
                   </p>
                 </div>
@@ -4963,9 +4963,9 @@ export function PosView({
             {/* Navigasi modul di dalam SATU menu kasir — tanpa sidebar kedua
                 (NAV_ACTION_AUDIT §1.4). */}
             {onNavigateModule && navModules.length > 0 && (
-              <div className="rounded-md border border-[#34343c] bg-white/[0.03] p-2">
-                <p className="garage-mono px-1 pb-1.5 pt-1 text-[10px] uppercase tracking-[0.14em] text-[#8a8a92]">
-                  Navigasi Modul
+              <div className="rounded-md border border-[var(--pos-chrome-line)] bg-[var(--pos-chrome-chip)] p-2">
+                <p className="garage-mono px-1 pb-1.5 pt-1 text-xs font-semibold text-[var(--pos-chrome-muted)]">
+                  Navigasi modul
                 </p>
                 <div className="grid grid-cols-2 gap-1.5">
                   {navModules.map((m) => {
@@ -4978,9 +4978,9 @@ export function PosView({
                           setCashierMenuOpen(false);
                           onNavigateModule(m.id);
                         }}
-                        className="garage-press flex h-10 items-center gap-2 rounded-md border border-[#34343c] bg-white/[0.04] px-2.5 text-left text-xs font-semibold text-[#d4d4d8] transition-colors hover:border-[#d11a2a]/55 hover:bg-white/[0.08] hover:text-white"
+                        className="garage-press flex h-10 items-center gap-2 rounded-md border border-[var(--pos-chrome-line)] bg-[var(--pos-chrome-chip)] px-2.5 text-left text-xs font-semibold text-[var(--pos-chrome-fg)] transition-colors hover:bg-[var(--pos-chrome-hover)]"
                       >
-                        <Icon className="size-3.5 shrink-0 text-[#d11a2a]" />
+                        <Icon className="size-3.5 shrink-0 text-[var(--pos-chrome-muted)]" />
                         <span className="truncate">{m.label}</span>
                       </button>
                     );
@@ -4988,264 +4988,14 @@ export function PosView({
                 </div>
               </div>
             )}
-            <div className="grid gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                className="garage-press h-11 justify-start gap-2 border-[#22c55e]/45 bg-[#22c55e]/12 px-3 text-sm text-[#dcfce7]"
-                onClick={() => setCashierMenuOpen(false)}
-              >
-                <ShoppingCart className="size-4" />
-                Jual / Kasir
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="garage-press h-11 justify-start gap-2 border-[#4a4a54] bg-white/[0.055] px-3 text-sm"
-                onClick={() => {
-                  setCashierMenuOpen(false);
-                  setThemeStudioOpen(true);
-                }}
-              >
-                <Palette className="size-4" />
-                Theme Studio (tampilan)
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className={`garage-press h-11 justify-start gap-2 px-3 text-sm ${
-                  shiftOpen
-                    ? "garage-shift-open border-[#22c55e]/55 bg-[#22c55e]/16 text-[#dcfce7] hover:bg-[#22c55e]/22"
-                    : "garage-shift-closed border-[#d11a2a]/70 bg-[#d11a2a]/20 text-[#ffe1e5] hover:bg-[#d11a2a]/28"
-                }`}
-                onClick={() => {
-                  setCashierMenuOpen(false);
-                  prepareShiftDialog();
-                }}
-              >
-                {shiftOpen ? (
-                  <ShieldCheck className="size-4" />
-                ) : (
-                  <ShieldAlert className="size-4" />
-                )}
-                {shiftOpen ? "Shift Aktif / Tutup Shift" : "Mulai Shift"}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="garage-press h-11 justify-between border-[#4a4a54] bg-white/[0.055] px-3 text-sm"
-                onClick={() => {
-                  setCashierMenuOpen(false);
-                  setQrOperationsOpen(true);
-                }}
-              >
-                <span className="inline-flex items-center gap-2">
-                  <Bell className="size-4" />
-                  QR Order
-                </span>
-                <Badge className={`${waitingCustomerOrderCount ? statusClass.pending_cashier : statusClass.info} px-2 text-[10px]`}>
-                  {waitingCustomerOrderCount}
-                </Badge>
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="garage-press h-11 justify-start gap-2 border-[#4a4a54] bg-white/[0.055] px-3 text-sm"
-                onClick={() => {
-                  setCashierMenuOpen(false);
-                  setCashierToolOpen("contacts");
-                }}
-              >
-                <Users className="size-4" />
-                Kontak / Member
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="garage-press h-11 justify-start gap-2 border-[#4a4a54] bg-white/[0.055] px-3 text-sm"
-                onClick={() => {
-                  setCashierMenuOpen(false);
-                  setCashierToolOpen("reports");
-                }}
-              >
-                <BarChart3 className="size-4" />
-                Laporan Shift
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="garage-press h-11 justify-start gap-2 border-[#f5a742]/45 bg-[#f5a742]/12 px-3 text-sm text-[#ffd08a] hover:bg-[#f5a742]/20"
-                onClick={() => {
-                  setCashierMenuOpen(false);
-                  openModulePath("/shift");
-                }}
-              >
-                <FileText className="size-4" />
-                Riwayat & Laporan PDF
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="garage-press h-11 justify-start gap-2 border-[#f5a742]/45 bg-[#f5a742]/12 px-3 text-sm text-[#ffd08a] hover:bg-[#f5a742]/20"
-                onClick={() => {
-                  setCashierMenuOpen(false);
-                  openModulePath("/sales-history");
-                }}
-              >
-                <ReceiptText className="size-4" />
-                Riwayat Penjualan
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="garage-press h-11 justify-between border-[#4a4a54] bg-white/[0.055] px-3 text-sm"
-                onClick={() => {
-                  setCashierMenuOpen(false);
-                  setReceiptHistoryOpen(true);
-                }}
-              >
-                <span className="inline-flex items-center gap-2">
-                  <History className="size-4" />
-                  Riwayat Struk Shift
-                </span>
-                <Badge className="border-[#4a4a54] bg-white/[0.08] px-2 text-[10px]">
-                  {receiptHistory.length}
-                </Badge>
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className={`garage-press h-11 justify-between px-3 text-sm ${
-                  soldOutIds.size > 0
-                    ? "border-[#d11a2a]/55 bg-[#d11a2a]/14 text-[#ffe1e5] hover:bg-[#d11a2a]/22"
-                    : "border-[#4a4a54] bg-white/[0.055]"
-                }`}
-                onClick={() => {
-                  setCashierMenuOpen(false);
-                  setSoldOutDialogOpen(true);
-                }}
-              >
-                <span className="inline-flex items-center gap-2">
-                  <Ban className="size-4" />
-                  Atur Stok Habis
-                </span>
-                <Badge
-                  className={`px-2 text-[10px] ${
-                    soldOutIds.size > 0
-                      ? "border-[#d11a2a]/55 bg-[#d11a2a]/22 text-[#ffe1e5]"
-                      : "border-[#4a4a54] bg-white/[0.08]"
-                  }`}
-                >
-                  {soldOutIds.size}
-                </Badge>
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="garage-press h-11 justify-start gap-2 border-[#4a4a54] bg-white/[0.055] px-3 text-sm"
-                onClick={() => {
-                  setCashierMenuOpen(false);
-                  openExpenseDialog();
-                }}
-              >
-                <Banknote className="size-4" />
-                Kas Keluar / Masuk
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="garage-press h-11 justify-start gap-2 border-[#4a4a54] bg-white/[0.055] px-3 text-sm"
-                onClick={() => {
-                  setCashierMenuOpen(false);
-                  setMemberRegMsg(null);
-                  setMemberRegOpen(true);
-                }}
-              >
-                <UserPlus className="size-4" />
-                Daftar Member
-              </Button>
-              {canQuickCount ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="garage-press h-11 justify-start gap-2 border-[#4a4a54] bg-white/[0.055] px-3 text-sm"
-                  onClick={() => {
-                    setCashierMenuOpen(false);
-                    openQuickCount();
-                  }}
-                >
-                  <ClipboardCheck className="size-4" />
-                  Stok Opname Gudang
-                </Button>
-              ) : null}
-              {canManagePosSettings ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="garage-press h-11 justify-start gap-2 border-[#4a4a54] bg-white/[0.055] px-3 text-sm"
-                  onClick={() => {
-                    setCashierMenuOpen(false);
-                    setCashierToolOpen("settings");
-                  }}
-                >
-                  <Settings className="size-4" />
-                  Pengaturan POS
-                </Button>
-              ) : null}
-              <Button
-                type="button"
-                variant="outline"
-                className="garage-press h-11 justify-start gap-2 border-[#f5a742]/45 bg-[#f5a742]/12 px-3 text-sm text-[#ffd08a] hover:bg-[#f5a742]/20"
-                onClick={() => {
-                  setCashierMenuOpen(false);
-                  voice.unlock();
-                  setVoiceDialogOpen(true);
-                }}
-              >
-                <Mic className="size-4" />
-                Pengumuman Suara
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="garage-press h-11 justify-start gap-2 border-[#4a4a54] bg-white/[0.055] px-3 text-sm"
-                onClick={() => {
-                  setCashierMenuOpen(false);
-                  onOpenEarnings();
-                }}
-              >
-                <Wallet className="size-4" />
-                Fee Saya
-              </Button>
-              <Separator className="my-1 bg-[#34343c]" />
-              {!isCashierKiosk && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="garage-press h-11 justify-start gap-2 border-[#4a4a54] bg-white/[0.055] px-3 text-sm"
-                  onClick={() => {
-                    setCashierMenuOpen(false);
-                    void exitPosToDashboard();
-                  }}
-                >
-                  <BarChart3 className="size-4" />
-                  Dashboard
-                </Button>
-              )}
-              <Button
-                type="button"
-                variant="outline"
-                className="garage-press h-11 justify-start gap-2 border-[#d11a2a]/55 bg-[#d11a2a]/14 px-3 text-sm text-[#ffe1e5] hover:bg-[#d11a2a]/22"
-                disabled={signOutPending}
-                onClick={() => {
-                  setCashierMenuOpen(false);
-                  void signOutFromPos();
-                }}
-              >
-                <LogOut className="size-4" />
-                {signOutPending ? "Keluar..." : "Keluar"}
-              </Button>
+            <div className="grid gap-0.5">
+              <PosV6NavList items={navModel.primary} onSelect={selectMenuNav} />
             </div>
+            <PosV6NavGroups
+              groups={navModel.more}
+              onSelect={selectMenuNav}
+              extra={{ "mode-tampilan": <PosV6ThemeSwatches value={cashierTheme} onChange={onCashierThemeChange} onOpenStudio={() => setThemeStudioOpen(true)} /> }}
+            />
           </div>
         </SheetContent>
       </Sheet>
@@ -6163,7 +5913,10 @@ export function PosView({
             shiftLabel={shiftOpen ? (/aktif/i.test(me.shift) ? me.shift : `Shift aktif · ${me.shift}`) : "Belum ada shift aktif"}
             theme={cashierTheme}
             actions={[
-              { key: "menu", label: "Menu Kasir", icon: Menu, onSelect: () => setCashierMenuOpen(true) },
+              { key: "menu", label: "Menu Kasir", icon: Menu, onSelect: () => {
+                if (isCashierKiosk && window.matchMedia("(min-width: 1280px)").matches) setMoreOpen(true);
+                else setCashierMenuOpen(true);
+              } },
               ...(canAccessModule(me.role, "absensi-v2") ? [{ key: "absen", label: "Absen Kehadiran", icon: Fingerprint, onSelect: () => window.location.assign("/absen") }] : []),
               { key: "fee", label: "Fee Saya", icon: Wallet, onSelect: () => onOpenEarnings() },
               { key: "shift", label: shiftOpen ? "Shift Aktif / Tutup Shift" : "Mulai Shift", icon: shiftOpen ? ShieldCheck : ShieldAlert, onSelect: prepareShiftDialog },

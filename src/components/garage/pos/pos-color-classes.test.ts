@@ -11,7 +11,7 @@ import { describe, expect, it } from "vitest";
 const HEX_COLOR_CLASS = /\b(?:bg|text|border)-(?:\[#[0-9a-fA-F]{3,8}\]|(?:white|black)\b)/g;
 
 const BASELINE: Record<string, number> = {
-  "src/components/garage/pos-view.tsx": 1052,
+  "src/components/garage/pos-view.tsx": 969,
   "src/components/garage/pos/pos-checkout-panels.tsx": 201,
   "src/components/garage/pos/pos-dialogs.tsx": 247,
   "src/components/garage/pos/pos-event-bundles.tsx": 39,

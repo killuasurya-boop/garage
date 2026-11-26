@@ -53,19 +53,6 @@
     border: 1px solid var(--pos-chrome-line) !important;
     box-shadow: 0 6px 20px rgba(20, 10, 10, 0.12);
   }
-  .pos-v6-brand-title { border-color: var(--pos-chrome-line); color: var(--pos-chrome-fg); }
-  .pos-v6-version {
-    display: inline-flex;
-    align-items: center;
-    height: 20px;
-    padding: 0 7px;
-    border-radius: 6px;
-    background: var(--pos-accent);
-    color: var(--pos-accent-fg);
-    font-size: calc(12px * var(--pos-fs, 1));
-    font-weight: 800;
-    letter-spacing: 0.02em;
-  }
   .pos-v6-logo-plate img { border-radius: 8px; }
   .pos-v6-divider { width: 1px; height: 32px; flex-shrink: 0; background: var(--pos-chrome-line); }
   .pos-v6-shift-dot { background: #8b8b93; }
@@ -131,6 +118,10 @@
     font-size: calc(12px * var(--pos-fs, 1));
     font-weight: 600;
   }
+  .pos-v6-tb-statuschip { min-height: 40px; font-size: calc(13px * var(--pos-fs, 1)); }
+  .pos-v6-tb-statuschip .pos-v6-tb-count { margin-left: 2px; }
+  .pos-v6-tb-statuschip[data-bad="true"] { border-color: #e5484d; }
+  .garage-shell .cashier-pos-surface .pos-v6-topbar { flex-wrap: nowrap; }
   .pos-v6-tb-chip-dot { width: 8px; height: 8px; border-radius: 999px; background: #22c55e; }
   .pos-v6-profile {
     display: inline-flex;
@@ -249,7 +240,6 @@
   .pos-v6-sidebar[data-mode="compact"] .pos-v6-nav-item { justify-content: center; padding: 0; }
   .pos-v6-sidebar[data-mode="compact"] :is(.pos-v6-nav-label, .pos-v6-nav-kbd, .pos-v6-nav-group-label, .pos-v6-nav-dot) { display: none; }
   .pos-v6-sidebar[data-mode="compact"] .pos-v6-nav-count { position: absolute; top: 2px; right: 6px; min-width: 18px; height: 18px; line-height: 18px; font-size: calc(10px * var(--pos-fs, 1)); }
-  .pos-v6-sidebar-foot { padding: 10px; border-top: 1px solid var(--pos-chrome-line); }
   .pos-v6-mode {
     padding: 10px;
     border-radius: 12px;
@@ -677,7 +667,6 @@
 }
 
 @layer components {
-  .pos-v6-sidebar-caption { margin-top: 6px; color: var(--pos-chrome-muted); font-size: calc(11.5px * var(--pos-fs, 1)); font-weight: 600; }
   /* Logo utuh (25 Nov 2026): lebar mengikuti ruang sisa (toggle tidak lagi menimpa), tinggi mengikuti rasio, object-contain. */
   .pos-v6-sidebar-brand .pos-v6-brand { flex: 1 1 auto; min-width: 0; }
   .pos-v6-sidebar-brand .pos-v6-logo { display: block; min-width: 0; line-height: 0; }
@@ -1385,7 +1374,7 @@
 
   /* Garis merah tepi sidebar — selalu menyala (permintaan Owner). Hanya background-position + opacity. */
   .pos-v6-sidebar-glow {
-    position: fixed; top: 0; bottom: 0; left: 246px; z-index: 41; width: 3px; pointer-events: none; display: none;
+    position: fixed; top: 0; bottom: 0; left: 206px; z-index: 41; width: 3px; pointer-events: none; display: none;
     background: linear-gradient(180deg, transparent 0%, #7a0a10 18%, #d4202a 38%, #ff4a55 50%, #d4202a 62%, #7a0a10 82%, transparent 100%);
     background-size: 100% 260%;
     opacity: 0.9;

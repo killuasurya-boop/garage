@@ -28,13 +28,11 @@ export function posV6ChromeIsLight(theme: CashierThemeMode) {
 export function PosV6Brand({
   theme,
   compact = false,
-  subtitle = "Point of Sale System",
   hideLogoAtXl = false,
 }: {
   theme: CashierThemeMode;
   /** true = logo saja; "icon" = emblem GC (sidebar ringkas). */
   compact?: boolean | "icon";
-  subtitle?: string;
   /** Topbar kiosk: logo sudah tampil di sidebar (≥ xl), jangan dobel. */
   hideLogoAtXl?: boolean;
 }) {
@@ -54,15 +52,6 @@ export function PosV6Brand({
           className="h-auto w-[112px] object-contain xl:w-[128px]"
         />
       </span>
-      )}
-      {compact ? null : (
-        <span className={`pos-v6-brand-title hidden min-w-0 md:block ${hideLogoAtXl ? "border-l pl-3 xl:border-l-0 xl:pl-0" : "border-l pl-3"}`}>
-          <span className="flex items-center gap-2">
-            <span className="truncate text-[17px] font-extrabold leading-tight xl:text-lg">Garage OS POS V6</span>
-            <span className="pos-v6-version">V6</span>
-          </span>
-          <span className="block truncate text-xs tracking-wide opacity-80">{subtitle}</span>
-        </span>
       )}
     </div>
   );
@@ -88,15 +77,24 @@ export function PosV6Clock({ compact = false }: { compact?: boolean }) {
   );
 }
 
-export function PosV6ShiftChip({ open, cashier }: { open: boolean; cashier: string }) {
+export function PosV6ShiftChip({ open, cashier, onClick }: { open: boolean; cashier: string; onClick?: () => void }) {
+  const label = open ? "Shift aktif" : "Shift belum aktif";
   return (
-    <span className="pos-v6-shift flex min-w-0 items-center gap-2" data-open={open}>
+    <button
+      type="button"
+      className="pos-v6-shift flex min-h-10 min-w-0 items-center gap-2 rounded-lg px-1.5"
+      data-open={open}
+      data-testid="pos-topbar-shift"
+      onClick={onClick}
+      aria-label={`${label}, kasir ${cashier}. Buka menu shift`}
+      title={`${label} · Kasir: ${cashier}`}
+    >
       <span className="pos-v6-shift-dot size-2.5 shrink-0 rounded-full" aria-hidden />
-      <span className="min-w-0 leading-tight">
-        <span className="block text-sm font-bold">{open ? "Shift Aktif" : "Shift Tidak Aktif"}</span>
-        <span className="block truncate text-[11px] opacity-80">Kasir: {cashier}</span>
+      <span className="min-w-0 text-left leading-tight">
+        <span className="block whitespace-nowrap text-sm font-bold">{label}</span>
+        <span className="hidden max-w-[140px] truncate text-[11px] opacity-80 xl:block">Kasir: {cashier}</span>
       </span>
-    </span>
+    </button>
   );
 }
 
@@ -343,6 +341,8 @@ export function PosV6TopbarButton({
   disabled,
   title,
   spin,
+  testId,
+  iconOnly,
 }: {
   icon: IconType;
   label: string;
@@ -357,10 +357,14 @@ export function PosV6TopbarButton({
   disabled?: boolean;
   title?: string;
   spin?: boolean;
+  testId?: string;
+  /** Hanya ikon (label tetap di aria-label/title). */
+  iconOnly?: boolean;
 }) {
   return (
     <button
       type="button"
+      data-testid={testId}
       className={`pos-v6-tb-btn ${className}`}
       data-tone={tone}
       data-pulse={pulse ? "true" : "false"}
@@ -370,8 +374,8 @@ export function PosV6TopbarButton({
       disabled={disabled}
     >
       <Icon className={`size-4 shrink-0 ${spin ? "animate-spin" : ""}`} aria-hidden />
-      <span className="hidden 2xl:inline">{label}</span>
-      {short ? <span className="2xl:hidden">{short}</span> : null}
+      {iconOnly ? null : <span className="hidden 2xl:inline">{label}</span>}
+      {short && !iconOnly ? <span className="2xl:hidden">{short}</span> : null}
       {count ? <span className="pos-v6-tb-count">{count > 99 ? "99+" : count}</span> : null}
     </button>
   );
@@ -407,11 +411,11 @@ export function PosV6Profile({
           <span className="pos-v6-avatar" aria-hidden>
             {initials}
           </span>
-          <span className="hidden min-w-0 text-left leading-tight lg:block">
+          <span className="hidden min-w-0 text-left leading-tight xl:block">
             <span className="block max-w-[132px] truncate text-sm font-bold">{name}</span>
             <span className="block truncate text-[11px] opacity-80">{role}</span>
           </span>
-          <ChevronDown className="hidden size-4 shrink-0 opacity-80 lg:block" aria-hidden />
+          <ChevronDown className="hidden size-4 shrink-0 opacity-80 xl:block" aria-hidden />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" sideOffset={8} data-cashier-theme-scope={theme} className="pos-v6-profile-menu w-64 p-1.5">
@@ -444,6 +448,46 @@ export function PosV6Profile({
         })}
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/** Chip status topbar yang bisa diklik (QR / Tagih). Label hanya di layar lebar; sempit = ikon + angka. */
+export function PosV6TopbarChip({
+  icon: Icon,
+  label,
+  count,
+  tone,
+  pulse,
+  onClick,
+  testId,
+  ariaLabel,
+  className = "",
+}: {
+  icon: IconType;
+  label: string;
+  count: number;
+  tone?: "warn" | "danger";
+  pulse?: boolean;
+  onClick: () => void;
+  testId: string;
+  ariaLabel: string;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      className={`pos-v6-tb-btn pos-v6-tb-statuschip ${className}`}
+      data-tone={tone}
+      data-pulse={pulse ? "true" : "false"}
+      data-testid={testId}
+      onClick={onClick}
+      aria-label={ariaLabel}
+      title={ariaLabel}
+    >
+      <Icon className="size-4 shrink-0" aria-hidden />
+      <span className="hidden 2xl:inline">{label}</span>
+      <span className="pos-v6-tb-count">{count > 99 ? "99+" : count}</span>
+    </button>
   );
 }
 

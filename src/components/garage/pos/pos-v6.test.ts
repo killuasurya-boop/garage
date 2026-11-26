@@ -70,6 +70,9 @@ describe("POS V6 — tema kasir", () => {
       expect(contrast(firstHex(t["--pos-price"]), surface)).toBeGreaterThanOrEqual(4.5);
       expect(contrast(firstHex(t["--pos-accent-fg"]), firstHex(t["--pos-accent"]))).toBeGreaterThanOrEqual(4.5);
       expect(contrast(firstHex(t["--pos-chrome-fg"]), firstHex(t["--pos-chrome-solid"]))).toBeGreaterThanOrEqual(7);
+      // Lembar Lainnya memakai latar chrome: judul/label/deskripsi harus terbaca di semua tema.
+      expect(contrast(firstHex(t["--pos-chrome-fg"]), firstHex(t["--pos-chrome-bg"]))).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(firstHex(t["--pos-chrome-muted"]), firstHex(t["--pos-chrome-bg"]))).toBeGreaterThanOrEqual(4.5);
       // Total tagihan (aksen) di atas kotak total
       expect(contrast(firstHex(t["--pos-total-fg"] ?? t["--pos-accent"]), firstHex(t["--pos-total-bg"]))).toBeGreaterThanOrEqual(4.5);
       // Status sukses (kembalian) tetap terbaca di permukaan

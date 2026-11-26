@@ -169,6 +169,12 @@
   .pos-v6-sidebar[data-mode="compact"] .pos-v6-sidebar-brand { padding: 14px 8px; }
   .pos-v6-sidebar[data-mode="compact"] .pos-v6-sidebar-brand img { width: 60px !important; }
   .pos-v6-nav-group + .pos-v6-nav-group { border-top: 1px solid var(--pos-chrome-line); padding-top: 10px; }
+  /* Lembar Lainnya: pasangan latar+teks chrome yang konsisten di semua tema (menang atas aturan sheet-content globals.css). */
+  [data-cashier-theme-scope][data-slot="sheet-content"].pos-v6-more-sheet {
+    background: var(--pos-chrome-bg) !important;
+    border-color: var(--pos-chrome-line) !important;
+    color: var(--pos-chrome-fg) !important;
+  }
   .pos-v6-more-group + .pos-v6-more-group { border-top: 1px solid var(--pos-chrome-line); padding-top: 12px; }
   .pos-v6-more-group-title {
     padding: 0 10px 6px;

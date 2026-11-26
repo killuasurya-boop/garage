@@ -47,7 +47,7 @@ export function useScreenInfo() {
 
 export function screenCheck(info: { width: number; height: number; fullscreen: boolean }): { state: QcState; detail: string } {
   if (!info.width) return { state: "unknown", detail: "Memeriksa layar…" };
-  const layout = info.width >= 1280 ? "sidebar + katalog + keranjang" : info.width >= 768 ? "tablet (menu lewat tombol Menu Kasir)" : "HP (keranjang di laci bawah)";
+  const layout = info.width >= 1280 ? "sidebar + katalog + keranjang" : info.width >= 768 ? "tablet (menu lewat tombol Menu)" : "HP (keranjang di laci bawah)";
   const tips: string[] = [];
   if (!info.fullscreen) tips.push("belum layar penuh");
   if (info.height < 640) tips.push("tinggi layar sempit — perkecil ukuran teks di Theme Studio");
@@ -91,6 +91,8 @@ export function PosV6ConnectionChip({ onOpen, count = 0 }: { onOpen: () => void;
   const health = useServerHealth();
   const bad = !health.online || health.ok === false;
   const text = !health.online ? "Offline" : health.ok === false ? "Server gagal" : "Online";
+  // Angka di chip = pesanan QR menunggu + tiket Bar/Dapur aktif; jelaskan lewat aria-label/title.
+  const countNote = count > 0 ? ` · ${count} pesanan QR/tiket perlu dicek` : "";
   return (
     <button
       type="button"
@@ -99,8 +101,8 @@ export function PosV6ConnectionChip({ onOpen, count = 0 }: { onOpen: () => void;
       data-tone={bad ? "danger" : undefined}
       data-testid="pos-qc-open"
       onClick={onOpen}
-      aria-label={`Buka QC Kasir — ${text}`}
-      title={bad ? "Koneksi/server bermasalah — pembayaran bisa gagal" : "Online · server terhubung"}
+      aria-label={`Buka QC Kasir — ${text}${countNote}`}
+      title={`${bad ? "Koneksi/server bermasalah — pembayaran bisa gagal" : "Online · server terhubung"}${countNote}`}
     >
       {bad ? <WifiOff className="size-3.5" aria-hidden /> : <Wifi className="size-3.5" aria-hidden />}
       <span className={`hidden ${bad ? "xl:inline" : "2xl:inline"}`}>{text}</span>

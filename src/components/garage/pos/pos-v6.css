@@ -80,6 +80,7 @@
   .pos-v6-tb-btn:active { transform: scale(0.97); }
   .pos-v6-tb-btn:disabled { opacity: 0.55; cursor: not-allowed; }
   .pos-v6-tb-btn:focus-visible,
+  .pos-v6-shift:focus-visible,
   .pos-v6-nav-item:focus-visible,
   .pos-v6-sidebar-toggle:focus-visible,
   .pos-v6-cat:focus-visible,
@@ -122,7 +123,18 @@
   .pos-v6-tb-statuschip { min-height: 40px; font-size: calc(13px * var(--pos-fs, 1)); }
   .pos-v6-tb-statuschip .pos-v6-tb-count { margin-left: 2px; }
   .pos-v6-txn { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; color: var(--pos-chrome-fg); font-weight: 700; }
-  .garage-shell .cashier-pos-surface .pos-v6-topbar { flex-wrap: nowrap; }
+  /* Satu baris mulai 1024 px; di bawahnya boleh membungkus sebagai jaring pengaman saat semua chip muncul. */
+  .garage-shell .cashier-pos-surface .pos-v6-topbar { flex-wrap: wrap; }
+  .garage-shell .cashier-pos-surface .pos-v6-actions { flex-wrap: wrap; row-gap: 6px; }
+  .pos-v6-status { flex: 0 1 auto; }
+  @media (min-width: 1024px) {
+    .garage-shell .cashier-pos-surface .pos-v6-topbar { flex-wrap: nowrap; }
+    .garage-shell .cashier-pos-surface .pos-v6-actions { flex-wrap: nowrap; }
+  }
+  /* Tablet: chip lebih rapat supaya QR + Tagih + Chat + Menu + profil muat satu baris. */
+  @media (max-width: 1279px) {
+    .garage-shell .cashier-pos-surface .pos-v6-tb-btn { padding: 0 9px; }
+  }
   .pos-v6-tb-chip-dot { width: 8px; height: 8px; border-radius: 999px; background: #22c55e; }
   .pos-v6-profile {
     display: inline-flex;
@@ -136,6 +148,18 @@
     color: var(--pos-chrome-fg);
     cursor: pointer;
   }
+  .pos-v6-profile { position: relative; }
+  .pos-v6-profile-shift {
+    position: absolute;
+    left: 28px;
+    bottom: 2px;
+    width: 12px;
+    height: 12px;
+    border-radius: 999px;
+    border: 2px solid var(--pos-chrome-line);
+    background: #8b8b93;
+  }
+  .pos-v6-profile-shift[data-open="true"] { background: #22c55e; }
   .pos-v6-avatar {
     display: grid;
     place-items: center;
@@ -178,8 +202,6 @@
     padding: 0 10px 6px;
     font-size: calc(11px * var(--pos-fs, 1));
     font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
     color: var(--pos-chrome-muted);
   }
   .garage-shell .cashier-pos-surface .pos-v6-nav-item,
@@ -979,9 +1001,9 @@
 
 /* ------------------------------------------------------------------ HP: topbar satu baris (ikon saja) */
 @media (max-width: 639px) {
-  .garage-shell .cashier-pos-surface .pos-v6-topbar { flex-wrap: nowrap; padding: 8px 10px; gap: 8px; }
+  .garage-shell .cashier-pos-surface .pos-v6-topbar { flex-wrap: wrap; padding: 8px 10px; gap: 8px; }
   .garage-shell .cashier-pos-surface .pos-v6-topbar .pos-v6-brand img { width: 92px !important; }
-  .garage-shell .cashier-pos-surface .pos-v6-actions { flex-wrap: nowrap; gap: 6px; }
+  .garage-shell .cashier-pos-surface .pos-v6-actions { flex-wrap: wrap; gap: 6px; }
   .garage-shell .cashier-pos-surface .pos-v6-tb-btn { min-height: 40px; min-width: 40px; padding: 0 9px; justify-content: center; }
   .garage-shell .cashier-pos-surface .pos-v6-tb-btn > span:not(.pos-v6-tb-count) { display: none; }
   .garage-shell .cashier-pos-surface .pos-v6-tb-btn .pos-v6-tb-count { position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; line-height: 18px; font-size: calc(10px * var(--pos-fs, 1)); }

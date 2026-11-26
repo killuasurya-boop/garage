@@ -46,7 +46,7 @@ test("POS nav 1366: sidebar tanpa scroll, 9 menu + Lainnya, grup Lainnya, topbar
   // Grup Mitra hanya muncul bila Partner Hub aktif (mati di seed E2E).
   await expect(sheet.getByRole("heading", { name: "Mitra" })).toHaveCount(0);
   await sheet.getByRole("button", { name: /Petty cash/ }).click();
-  await expect(page.getByRole("dialog").filter({ hasText: /Petty cash/i }).first()).toBeVisible();
+  await expect(page.getByTestId("pos-module-sheet")).toBeVisible();
   await page.keyboard.press("Escape");
 
   const tb = await page.locator(".pos-v6-topbar").first().boundingBox();

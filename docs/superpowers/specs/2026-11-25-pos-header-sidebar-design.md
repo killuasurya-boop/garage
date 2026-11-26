@@ -21,7 +21,7 @@ V6 · Point of Sale System" + badge V6 (generik), chip statis "Gudang Auto", tom
 (bentrok dengan Keluar=logout).
 
 ## Tujuan
-- Sidebar muat 768 px tanpa scroll; 8 menu kerja + "Lainnya". Lebar penuh 248 → 208 px; mode ikon 80 px tetap.
+- Sidebar muat 768 px tanpa scroll; 9 menu kerja + "Lainnya". Lebar penuh 248 → 208 px; mode ikon 80 px tetap.
 - Topbar 1 baris ±56 px di ≥1024 px; ±50 px lebih ruang vertikal untuk katalog/keranjang.
 - Info penting terlihat & bisa diklik: status shift, koneksi, pesanan QR baru, tagihan belum bayar, chat tamu.
 - Tampak rapi/premium khas Garage: logo utuh, satu set ikon unik per menu, label kalimat biasa, tanpa teks generik.
@@ -60,14 +60,14 @@ Kanan (urut): chip koneksi (Online/Offline → QC, testId `pos-qc-open` pindah k
 bila N>0 → F2), chip "Tagih N" Belum Bayar (hanya bila N>0, amber/merah sesuai umur → F6), Chat tamu (ikon+badge;
 label hanya bila ada pesan), lonceng notifikasi (kasir), status suara (ikon), layar penuh (ikon Maximize, aria
 "Layar penuh"/"Keluar layar penuh", tanpa teks "Keluar"), profil ▾ (Absen, Fee saya, Menu kasir, Theme Studio,
-Pengaturan, Keluar). Dihapus: chip "Gudang Auto", tombol Absen terpisah (ada di profil), tombol Shift ganda di xl.
+Pengaturan, Keluar). Dihapus: chip "Gudang Auto", tombol Shift ganda di xl. Absen tetap tombol ikon terpisah (keputusan Owner 3, juga ada di profil).
 <1280: tombol "Menu" (lembar menu kasir yang sudah ada) tetap; <640 tetap pola ikon satu baris yang sudah ada.
 
 ## Data & teknis
 - Satu sumber daftar menu: `src/lib/pos-nav.ts` (fungsi murni `posNavModel(ctx)` → `{ primary[], more: groups[] }`
   dengan id, label, ikon-key, shortcut, badge, tone, visible) dipakai sidebar, lembar Lainnya, dan dicek tes;
   handler tetap di `pos-view.tsx` (map id → handler), sesuai aturan POS V6 (tanpa logika transaksi kedua).
-- Komponen baru kecil `pos/pos-v6-more-sheet.tsx`; `PosV6Brand` tanpa judul generik; ikon unik dari lucide.
+- Komponen baru kecil `pos/pos-v6-nav.tsx` (lembar Lainnya + daftar menu bersama); `PosV6Brand` tanpa judul generik; ikon unik dari lucide.
 - Warna hanya token `--pos-*` (tes penjaga warna: file baru 0 kelas hex).
 
 ## Keputusan Owner (hasil cek pembangun, 25 Nov 2026)
@@ -77,6 +77,11 @@ Pengaturan, Keluar). Dihapus: chip "Gudang Auto", tombol Absen terpisah (ada di 
 2. **Owner & Manajer memakai topbar ringkas yang sama** + tombol Menu (daftar sama); khusus mereka (non-kiosk)
    "Kembali ke dashboard" tetap tombol di topbar.
 3. **Absen tetap tombol ikon (sidik jari) di topbar** (aturan NAV_ACTION_AUDIT §1.3 dipatuhi); tidak pindah ke profil.
+4. **Catatan pembangun, menunggu persetujuan Owner (menyimpang dari butir 1):** item "Menu Kasir" di profil SELALU membuka
+   lembar Menu (di semua lebar), bukan Lainnya di ≥1280, karena lembar Menu memuat `navModules` (NAV_ACTION_AUDIT §1.4).
+5. **Perbaikan setelah review akhir (26 Nov 2026):** tombol Menu tampil di semua lebar termasuk HP (aturan 2 klik); di
+   bawah 1280 jam kecil, lencana Suara, dan layar penuh pindah ke Menu/profil; di bawah 1024 topbar boleh membungkus
+   saat semua chip muncul; status shift tetap tampil (titik; di HP titik di avatar).
 
 ## Diputuskan pembangun (dicek Owner saat membaca)
 - Badge tombol Menu (<1280) = jumlah tiket Bar & Dapur aktif + perhatian mitra (yang tidak punya chip sendiri);

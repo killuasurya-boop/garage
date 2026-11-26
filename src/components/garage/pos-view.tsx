@@ -5046,10 +5046,7 @@ export function PosView({
         onOpenChange={setMoreOpen}
         theme={cashierTheme}
         groups={navModel.more}
-        onSelect={(id) => {
-          setMoreOpen(false);
-          runPosNav(id);
-        }}
+        onSelect={(id) => runPosNav(id)}
         themeSwatches={<PosV6ThemeSwatches value={cashierTheme} onChange={onCashierThemeChange} onOpenStudio={() => setThemeStudioOpen(true)} />}
       />
       <PosV6ThemeCustomStyle />
@@ -5814,29 +5811,34 @@ export function PosView({
 
       {/* POS V6 topbar (papan 02): brand · status shift · jam · ringkasan · aksi · profil.
           Nominal kas/omzet TIDAK ditampilkan ke kasir (kebijakan blind count). */}
-      <div className="pos-v6-topbar garage-animate-in flex shrink-0 flex-nowrap items-center gap-x-3 gap-y-2 rounded-2xl px-3 py-2 md:px-4">
+      <div className="pos-v6-topbar garage-animate-in flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl px-3 py-2 md:px-4 lg:flex-nowrap">
         <PosV6Brand theme={cashierTheme} hideLogoAtXl={isCashierKiosk} />
         <h1 className="sr-only">
           POS kasir {GARAGE_BUSINESS_NAME} — {me.shift} — {me.device}
         </h1>
-        <div className="pos-v6-status hidden min-w-0 items-center gap-3 lg:flex">
-          <PosV6Divider />
+        {/* Status shift selalu tampak (titik di topbar ≥ sm, titik di avatar di HP); jam & jumlah transaksi hanya ≥ lg. */}
+        <div className="pos-v6-status hidden min-w-0 shrink items-center gap-3 sm:flex">
+          <span className="hidden lg:block">
+            <PosV6Divider />
+          </span>
           <PosV6ShiftChip open={shiftOpen} cashier={me.user.name} onClick={() => runPosNav("shift")} />
           <span className="hidden items-center gap-3 2xl:flex">
             <PosV6Divider />
             <PosV6Clock />
           </span>
-          <PosV6Divider />
-          <span className="pos-v6-txn 2xl:hidden" title={`${receiptHistory.length} transaksi shift`} aria-label={`${receiptHistory.length} transaksi shift`}>
-            <ReceiptText className="size-4 shrink-0" aria-hidden />
-            <span className="font-mono text-sm tabular-nums">{receiptHistory.length}</span>
-          </span>
-          <span className="hidden items-center gap-3 2xl:flex">
-            <PosV6Kpi icon={ReceiptText} label="Transaksi shift" value={receiptHistory.length} />
+          <span className="hidden items-center gap-3 lg:flex">
+            <PosV6Divider />
+            <span className="pos-v6-txn 2xl:hidden" title={`${receiptHistory.length} transaksi shift`} aria-label={`${receiptHistory.length} transaksi shift`}>
+              <ReceiptText className="size-4 shrink-0" aria-hidden />
+              <span className="font-mono text-sm tabular-nums">{receiptHistory.length}</span>
+            </span>
+            <span className="hidden items-center gap-3 2xl:flex">
+              <PosV6Kpi icon={ReceiptText} label="Transaksi shift" value={receiptHistory.length} />
+            </span>
           </span>
         </div>
-        <div className="pos-v6-actions ml-auto flex flex-nowrap items-center justify-end gap-1.5">
-          <span className="hidden sm:inline-flex 2xl:hidden">
+        <div className="pos-v6-actions ml-auto flex flex-wrap items-center justify-end gap-1.5 lg:flex-nowrap">
+          <span className="hidden xl:inline-flex 2xl:hidden">
             <PosV6Clock compact />
           </span>
           <PosV6ConnectionChip onOpen={() => setQcOpen(true)} count={waitingCustomerOrderCount + kitchenTickets.length} />
@@ -5864,11 +5866,15 @@ export function PosView({
               ariaLabel={`Belum bayar: ${pendingSummary.counts.all}${pendingSummary.counts.overdue > 0 ? `, ${pendingSummary.counts.overdue} lewat tempo` : ""}. Buka Belum Bayar`}
             />
           )}
-          <PosV6TopbarButton icon={Headset} label="Chat tamu" short={chatUnread ? "Chat" : undefined} onClick={() => setChatOpen(true)} ariaLabel="Chat tamu" tone="warn" count={chatUnread} className={chatUnread ? "" : "hidden md:inline-flex"} />
+          <PosV6TopbarButton icon={Headset} label="Chat tamu" short={chatUnread ? "Chat" : undefined} shortFrom="xl" onClick={() => setChatOpen(true)} ariaLabel="Chat tamu" tone="warn" count={chatUnread} className={chatUnread ? "" : "hidden md:inline-flex"} />
           <span className="pos-v6-tb-slot flex items-center gap-1.5">
             {/* Kasir di mode POS penuh tidak punya header global → lonceng di sini. */}
             {me.role === "Kasir" ? <StaffNotificationCenter newOrderSound={settings.newOrderSound} /> : null}
-            <span className="hidden md:inline-flex">
+            {/* Ikon saja di 1280–1535 px; berlabel di 2xl. Di bawah 1280 lewat Menu → Pengumuman suara. */}
+            <span className="hidden xl:inline-flex 2xl:hidden">
+              <VoiceStatusBadge compact onOpen={() => setVoiceDialogOpen(true)} />
+            </span>
+            <span className="hidden 2xl:inline-flex">
               <VoiceStatusBadge onOpen={() => setVoiceDialogOpen(true)} />
             </span>
           </span>
@@ -5884,7 +5890,7 @@ export function PosView({
             ariaLabel={isFullscreen ? "Keluar layar penuh" : "Layar penuh"}
             testId="pos-fullscreen"
             iconOnly
-            className="hidden sm:inline-flex"
+            className="hidden xl:inline-flex"
           />
           {!isCashierKiosk && (
             <PosV6TopbarButton icon={ArrowLeft} label="Kembali" onClick={() => void exitPosToDashboard()} ariaLabel="Kembali ke dashboard" />
@@ -5893,11 +5899,12 @@ export function PosView({
             icon={Menu}
             label="Menu"
             short="Menu"
+            shortFrom="xl"
             onClick={() => setCashierMenuOpen(true)}
             ariaLabel="Buka menu kasir"
             testId="pos-menu-open"
             count={kitchenTickets.length + partnerAttention}
-            className={`hidden sm:inline-flex ${isCashierKiosk ? "xl:hidden" : ""}`}
+            className={isCashierKiosk ? "xl:hidden" : ""}
           />
           {shiftOpen && (
             <PosV6TopbarButton
@@ -5916,10 +5923,12 @@ export function PosView({
             initials={profileInitials}
             device={me.device}
             shiftLabel={shiftOpen ? (/aktif/i.test(me.shift) ? me.shift : `Shift aktif · ${me.shift}`) : "Belum ada shift aktif"}
+            shiftOpen={shiftOpen}
             theme={cashierTheme}
             actions={[
               { key: "menu", label: "Menu Kasir", icon: Menu, onSelect: () => setCashierMenuOpen(true) },
               ...(canAccessModule(me.role, "absensi-v2") ? [{ key: "absen", label: "Absen Kehadiran", icon: Fingerprint, onSelect: () => window.location.assign("/absen") }] : []),
+              { key: "fullscreen", label: isFullscreen ? "Keluar layar penuh" : "Layar penuh", icon: isFullscreen ? Minimize2 : Maximize2, onSelect: () => void (isFullscreen ? releasePosFullscreenGuard({ exitFullscreen: true }) : requestPosFullscreen()) },
               { key: "fee", label: "Fee Saya", icon: Wallet, onSelect: () => onOpenEarnings() },
               { key: "shift", label: shiftOpen ? "Shift Aktif / Tutup Shift" : "Mulai Shift", icon: shiftOpen ? ShieldCheck : ShieldAlert, onSelect: prepareShiftDialog },
               { key: "studio", label: "Theme Studio", icon: Palette, onSelect: () => setThemeStudioOpen(true) },

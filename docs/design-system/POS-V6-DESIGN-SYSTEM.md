@@ -82,7 +82,7 @@ Hati di kartu = favorit perangkat ini (sudah sering ditap), bukan klaim terlaris
 - Kurangi gerakan: preferensi POS (`data-pos-reduced-motion`) + `prefers-reduced-motion` perangkat.
 
 ### Sidebar & gerak (Owner, Nov 2026)
-- Tombol ciut/lebar di kepala sidebar (shortcut `[`), lebar 248 ↔ 80 px beranimasi 220 ms; mode ciut = ikon modul 48 px + badge + tooltip.
+- Tombol ciut/lebar di kepala sidebar (shortcut `[`), lebar 208 ↔ 80 px beranimasi 220 ms; mode ciut = ikon modul 48 px + badge + tooltip.
 - Garis merah tepi sidebar selalu menyala (background-position 5,5 dtk + napas opacity) — deviasi atas permintaan Owner; mati saat
   "Kurangi gerakan" / `prefers-reduced-motion`. Ikon modul: hover terangkat + kilau merah, aktif = denyut merah pelan, badge = pop.
 - Layar penuh: tombol tetap di topbar, "Layar penuh otomatis" (Theme Studio, default nyala: sentuhan pertama), baris "Cek layar" di QC Kasir.
@@ -91,7 +91,7 @@ Hati di kartu = favorit perangkat ini (sudah sering ditap), bukan klaim terlaris
 
 | Lebar | Tata letak |
 |---|---|
-| ≥ 1280 (xl) | sidebar tetap (248 px atau 80 px ikon) + katalog + keranjang 372 px (420 px ≥ 1500) |
+| ≥ 1280 (xl) | sidebar tetap (208 px atau 80 px ikon) + katalog + keranjang 372 px (420 px ≥ 1500) |
 | 768–1279 | tanpa sidebar (menu lewat tombol Menu Kasir), katalog + keranjang kanan |
 | < 768 | topbar ringkas (aksi sekunder di Menu Kasir), kategori geser, grid 2 kolom, bar total bawah + laci keranjang |
 

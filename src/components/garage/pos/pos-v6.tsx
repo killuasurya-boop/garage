@@ -82,7 +82,7 @@ export function PosV6ShiftChip({ open, cashier, onClick }: { open: boolean; cash
   return (
     <button
       type="button"
-      className="pos-v6-shift flex min-h-10 min-w-0 items-center gap-2 rounded-lg px-1.5"
+      className="pos-v6-shift flex min-h-10 min-w-10 max-w-full items-center justify-center gap-2 rounded-lg px-1.5 lg:min-w-0 lg:justify-start"
       data-open={open}
       data-testid="pos-topbar-shift"
       onClick={onClick}
@@ -90,8 +90,8 @@ export function PosV6ShiftChip({ open, cashier, onClick }: { open: boolean; cash
       title={`${label} · Kasir: ${cashier}`}
     >
       <span className="pos-v6-shift-dot size-2.5 shrink-0 rounded-full" aria-hidden />
-      <span className="min-w-0 text-left leading-tight">
-        <span className="block whitespace-nowrap text-sm font-bold">{label}</span>
+      <span className="hidden min-w-0 text-left leading-tight lg:block">
+        <span className="block truncate whitespace-nowrap text-sm font-bold">{label}</span>
         <span className="hidden max-w-[140px] truncate text-[11px] opacity-80 xl:block">Kasir: {cashier}</span>
       </span>
     </button>
@@ -343,11 +343,14 @@ export function PosV6TopbarButton({
   spin,
   testId,
   iconOnly,
+  shortFrom,
 }: {
   icon: IconType;
   label: string;
   /** Label pendek di layar sempit; kosong = hanya ikon. */
   short?: string;
+  /** "xl" = label pendek baru tampil mulai 1280 px (di bawahnya ikon + angka saja, hemat lebar topbar). */
+  shortFrom?: "xl";
   onClick: () => void;
   tone?: "accent" | "good" | "warn" | "danger";
   count?: number;
@@ -375,7 +378,7 @@ export function PosV6TopbarButton({
     >
       <Icon className={`size-4 shrink-0 ${spin ? "animate-spin" : ""}`} aria-hidden />
       {iconOnly ? null : <span className="hidden 2xl:inline">{label}</span>}
-      {short && !iconOnly ? <span className="2xl:hidden">{short}</span> : null}
+      {short && !iconOnly ? <span className={shortFrom === "xl" ? "hidden xl:inline 2xl:hidden" : "2xl:hidden"}>{short}</span> : null}
       {count ? <span className="pos-v6-tb-count">{count > 99 ? "99+" : count}</span> : null}
     </button>
   );
@@ -393,6 +396,7 @@ export function PosV6Profile({
   initials,
   device,
   shiftLabel,
+  shiftOpen,
   actions,
   theme,
 }: {
@@ -401,16 +405,19 @@ export function PosV6Profile({
   initials: string;
   device: string;
   shiftLabel: string;
+  /** Titik status shift di avatar (HP < 640 px, tempat chip shift topbar disembunyikan). */
+  shiftOpen?: boolean;
   actions: PosV6ProfileAction[];
   theme: CashierThemeMode;
 }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button type="button" className="pos-v6-profile" aria-label={`Profil ${name} (${role}) — buka menu akun`}>
+        <button type="button" className="pos-v6-profile" aria-label={`Profil ${name} (${role}) — ${shiftLabel} — buka menu akun`}>
           <span className="pos-v6-avatar" aria-hidden>
             {initials}
           </span>
+          {shiftOpen === undefined ? null : <span className="pos-v6-profile-shift sm:hidden" data-open={shiftOpen} aria-hidden />}
           <span className="hidden min-w-0 text-left leading-tight xl:block">
             <span className="block max-w-[132px] truncate text-sm font-bold">{name}</span>
             <span className="block truncate text-[11px] opacity-80">{role}</span>

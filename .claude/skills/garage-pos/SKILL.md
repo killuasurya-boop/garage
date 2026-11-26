@@ -138,8 +138,15 @@ description: Aturan WAJIB modul POS Garage OS: kasir, keranjang, order/invoice a
   menambah `onClick` menu baru di JSX.
 - Menu baru = tambah ke `posNavModel` (+ ikon unik di `POS_NAV_ICONS` + kasus di `runPosNav` + tes `pos-nav.test.ts`).
   Tombol F (F1, F2, F3, F4, F6, F8, F9) dan `[` tidak berubah.
-- Topbar satu baris ≤ 64 px: chip shift, chip QR/Tagih (hanya bila > 0), chip koneksi (buka QC), layar penuh,
-  Menu (<1280 px; Owner/Manajer selalu), Absen (ikon sidik jari selalu tampak), profil. Tanpa omzet/kas (blind count).
+- Topbar satu baris ≤ 64 px (1024–1920): chip shift (titik saja 640–1023; di HP < 640 titik ada di avatar profil), chip
+  QR/Tagih (hanya bila > 0), chip koneksi (buka QC), Chat, lonceng, Absen (ikon sidik jari, tampil ≥ 640 px; di HP lewat
+  menu profil), Menu (tampil di SEMUA lebar; di kiosk Kasir disembunyikan ≥ 1280 karena sidebar; Owner/Manajer selalu),
+  profil. Tanpa omzet/kas (blind count).
+- Prioritas saat sempit (urutan disembunyikan dulu): jam kecil & lencana Suara (< 1280; Suara ada di Menu → Pengumuman
+  suara), Layar penuh (< 1280; ada di menu profil), label chip (< 1536), teks "Menu"/"Chat" (< 1280). Tidak pernah
+  disembunyikan: status shift, koneksi/QC, QR & Tagih bila > 0, Absen (≥ 640), Menu, profil. < 1024 px topbar boleh
+  membungkus ke baris kedua saat semua chip muncul (jaring pengaman; tidak boleh overflow horizontal). Dijaga
+  `e2e/pos-topbar-busy.spec.ts` (390/768/1024/1279/1366, Kasir & Owner, nama panjang).
 - Label kalimat biasa, bukan HURUF BESAR; nama menu panjang turun baris di sidebar (tidak elipsis); target klik ≥ 40 px.
 - Di bawah 1280 px sidebar hanya disembunyikan CSS (masih di DOM): tes E2E pakai locator `visible`.
 

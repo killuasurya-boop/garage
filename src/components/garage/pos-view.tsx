@@ -2222,6 +2222,11 @@ export function PosView({
   }
   function selectMenuNav(id: PosNavId) {
     setCashierMenuOpen(false);
+    if (id === "kasir") {
+      // Tunggu lembar tertutup agar Radix tidak mengembalikan fokus ke tombol pemicu.
+      window.setTimeout(() => runPosNav(id), 0);
+      return;
+    }
     runPosNav(id);
   }
   // Pengingat: satu bunyi bila ada tagihan yang BARU lewat 30 mnt (sekali per tagihan).
@@ -4939,8 +4944,8 @@ export function PosView({
           className="garage-scroll garage-side-panel garage-pos-nav-sheet pos-v6-more-sheet w-[min(90vw,340px)] border-[var(--pos-chrome-line)] bg-[var(--pos-chrome-bg)] p-4 text-[var(--pos-chrome-fg)]"
         >
           <SheetHeader className="text-left">
-            <SheetTitle>Menu Kasir</SheetTitle>
-            <SheetDescription>
+            <SheetTitle className="text-[var(--pos-chrome-fg)]">Menu Kasir</SheetTitle>
+            <SheetDescription className="text-[var(--pos-chrome-muted)]">
               {GARAGE_BUSINESS_NAME} - {me.shift} - {me.device}
             </SheetDescription>
           </SheetHeader>
@@ -5913,10 +5918,7 @@ export function PosView({
             shiftLabel={shiftOpen ? (/aktif/i.test(me.shift) ? me.shift : `Shift aktif · ${me.shift}`) : "Belum ada shift aktif"}
             theme={cashierTheme}
             actions={[
-              { key: "menu", label: "Menu Kasir", icon: Menu, onSelect: () => {
-                if (isCashierKiosk && window.matchMedia("(min-width: 1280px)").matches) setMoreOpen(true);
-                else setCashierMenuOpen(true);
-              } },
+              { key: "menu", label: "Menu Kasir", icon: Menu, onSelect: () => setCashierMenuOpen(true) },
               ...(canAccessModule(me.role, "absensi-v2") ? [{ key: "absen", label: "Absen Kehadiran", icon: Fingerprint, onSelect: () => window.location.assign("/absen") }] : []),
               { key: "fee", label: "Fee Saya", icon: Wallet, onSelect: () => onOpenEarnings() },
               { key: "shift", label: shiftOpen ? "Shift Aktif / Tutup Shift" : "Mulai Shift", icon: shiftOpen ? ShieldCheck : ShieldAlert, onSelect: prepareShiftDialog },

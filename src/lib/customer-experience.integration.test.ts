@@ -40,7 +40,7 @@ afterAll(async () => {
 });
 
 describe("CX Engine V4", () => {
-  it("guest: promo umum tanpa kode, tanpa data CRM", async () => {
+  it("guest: tanpa penawaran voucher (voucher dimatikan Owner 25 Nov 2026), tanpa data CRM", async () => {
     const db = t.getDb();
     await db.insert(t.schema.vouchers).values([
       { code: "MEMBER-NOV", title: "Promo member November", type: "percent", value: 15, audience: "member", status: "active", endsAt: new Date(Date.now() + 5 * 86_400_000) },
@@ -50,12 +50,12 @@ describe("CX Engine V4", () => {
     const context = await getInvoiceMemberContext(TOKEN, null);
     expect(context?.viewer).toBe("guest");
     expect(context?.member).toBeNull();
-    expect(context?.offers.map((offer) => offer.title)).toEqual(["Promo member November"]);
-    expect(context?.offers[0].code).toBeNull();
+    // Voucher "active" lama di DB tetap tidak ditawarkan (voucher-policy.ts).
+    expect(context?.offers).toEqual([]);
     expect(await getInvoiceMemberContext("token-tidak-ada-123456", null)).toBeNull();
   });
 
-  it("daftar member: welcome voucher nyata, izin promosi terpisah, invoice TIDAK ditautkan", async () => {
+  it("daftar member: TANPA voucher daftar, izin promosi terpisah, invoice TIDAK ditautkan", async () => {
     const { registerMember } = await import("@/lib/member-service");
     const { getInvoiceMemberContext, recordMarketingConsent, getMarketingConsent } = await import("@/lib/customer-experience-service");
     const result = await registerMember({ name: "Andi Pratama", phone: "081299990001", password: "123456" });
@@ -69,8 +69,11 @@ describe("CX Engine V4", () => {
     expect(context?.viewer).toBe("member");
     expect(context?.member?.name).toBe("Andi Pratama");
     expect(context?.invoiceLinked).toBe(false);
-    const welcome = context?.offers.find((offer) => offer.kind === "welcome");
-    expect(welcome?.code).toMatch(/^WELCOME-/);
+    // Owner 25 Nov 2026: pendaftaran tidak menerbitkan voucher WELCOME-, penawaran voucher kosong.
+    expect(context?.offers).toEqual([]);
+    const { like } = await import("drizzle-orm");
+    expect(await t.getDb().select().from(t.schema.vouchers).where(like(t.schema.vouchers.code, "WELCOME-%"))).toHaveLength(0);
+    expect(context?.benefits.map((benefit: { key: string }) => benefit.key)).not.toContain("welcome");
     expect(context?.marketingConsent?.granted).toBe(true);
 
     // opt-out = baris baru (riwayat tetap)

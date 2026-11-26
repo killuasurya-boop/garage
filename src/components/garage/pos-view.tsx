@@ -1028,7 +1028,6 @@ export function PosView({
   const [memberQrOpen, setMemberQrOpen] = useState(false);
   const [memberQrBusy, setMemberQrBusy] = useState(false);
   const [memberQrError, setMemberQrError] = useState<string | null>(null);
-  const [posVoucherBusy, setPosVoucherBusy] = useState(false);
   const previousCustomerOrderIdsRef = useRef<Set<string>>(new Set());
   const customerOrdersPrimedRef = useRef(false);
   const qrNotificationAudioContextRef = useRef<AudioContext | null>(null);
@@ -1789,41 +1788,6 @@ export function PosView({
       );
     } finally {
       setMemberCreatePending(false);
-    }
-  }
-
-  async function validatePosVoucher() {
-    const code = posVoucherCode.trim();
-    if (!code) {
-      setPosVoucherResult({
-        valid: false,
-        code: "",
-        title: null,
-        discount: 0,
-        message: "Masukkan kode voucher.",
-      });
-      return;
-    }
-
-    setPosVoucherBusy(true);
-    try {
-      const result = await garageApi.post<VoucherValidation>("/api/vouchers/validate", {
-        code,
-        subtotal,
-        customerMode: posCustomerMode === "member" ? "member" : "guest",
-        customerId: posCustomerMode === "member" ? selectedMemberId ?? undefined : undefined,
-      });
-      setPosVoucherResult(result);
-    } catch (error) {
-      setPosVoucherResult({
-        valid: false,
-        code,
-        title: null,
-        discount: 0,
-        message: error instanceof Error ? error.message : "Voucher tidak valid.",
-      });
-    } finally {
-      setPosVoucherBusy(false);
     }
   }
 
@@ -9218,7 +9182,7 @@ export function PosView({
                   </div>
                 ) : (
                   <p className="mt-1.5 text-[11px] text-[#8f8f99]">
-                    Voucher &amp; diskon diatur saat tekan Bayar.
+                    Diskon kasir diatur saat tekan Bayar.
                   </p>
                 )}
               </div>
@@ -9362,43 +9326,7 @@ export function PosView({
                               totalDue={totalDue}
                             />
 
-                            {/* Voucher + Diskon Kasir + Split bill — dipindah dari
-                                keranjang ke sini supaya keranjang fokus ke item. */}
-                            <div className="pos-voucher-box rounded-md border border-[#34343c] bg-[#15151b] p-3">
-                              <p className="garage-mono mb-2 text-[10px] uppercase tracking-wide text-[#b8b8bf]">
-                                Kode voucher
-                              </p>
-                              <div className="flex gap-2">
-                                <Input
-                                  value={posVoucherCode}
-                                  onChange={(event) => {
-                                    setPosVoucherCode(event.target.value.toUpperCase());
-                                    setPosVoucherResult(null);
-                                  }}
-                                  placeholder="Kode voucher"
-                                  className="h-10 border-[#34343c] bg-white/[0.06] text-sm"
-                                />
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  className="garage-press h-10 shrink-0 border-[#4a4a54] px-4 text-sm"
-                                  disabled={posVoucherBusy || !subtotal}
-                                  onClick={() => void validatePosVoucher()}
-                                >
-                                  {posVoucherBusy ? "Cek..." : "Cek"}
-                                </Button>
-                              </div>
-                              {posVoucherResult ? (
-                                <p
-                                  className={`mt-1.5 text-[11px] ${
-                                    posVoucherResult.valid ? "text-[#86efac]" : "text-[#ffc2c8]"
-                                  }`}
-                                >
-                                  {posVoucherResult.message}
-                                </p>
-                              ) : null}
-                            </div>
-
+                            {/* Kotak kode voucher dihapus: voucher dimatikan Owner 25 Nov 2026 (voucher-policy.ts). */}
                             <div
                               className={`flex items-center justify-between gap-2 rounded-md border p-3 ${
                                 manualDiscountAwaitingApproval

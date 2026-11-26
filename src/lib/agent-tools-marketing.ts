@@ -8,6 +8,7 @@ import { z } from "zod";
 
 import { AgentToolError, rupiah, type AgentTool } from "@/lib/agent-tool-core";
 import type { GarageSession } from "@/lib/server-auth";
+import { VOUCHER_RETIRED_CODE, VOUCHER_RETIRED_MESSAGE, VOUCHERS_RETIRED } from "@/lib/voucher-policy";
 
 function assertOwner(session: GarageSession) {
   if (session.profile.role !== "Owner") throw new AgentToolError("FORBIDDEN", "Hanya Owner.", 403);
@@ -65,13 +66,15 @@ export const marketingTools: AgentTool[] = [
   {
     name: "ubah_status_promo",
     title: "Aktifkan / jeda promo",
-    description: "Ubah status promo/voucher: active (bisa dipakai pelanggan), paused, draft, expired. Promo aktif memengaruhi harga yang dibayar pelanggan.",
+    description: "Ubah status promo/voucher: paused, draft, expired. Mengaktifkan (active) DITOLAK: semua voucher dimatikan Owner 25 Nov 2026.",
     write: true,
     domain: "marketing",
     risk: "R2",
     permission: "marketing:write",
     input: z.object({ promoId: z.string().min(1).max(80), status: z.enum(["active", "draft", "paused", "expired"]) }),
     async run(_session, args) {
+      // Voucher dimatikan Owner 25 Nov 2026: agen hanya boleh menjeda/mengakhiri, tidak mengaktifkan.
+      if (VOUCHERS_RETIRED && args.status === "active") throw new AgentToolError(VOUCHER_RETIRED_CODE, VOUCHER_RETIRED_MESSAGE, 410);
       const { updateMarketingPromoStatus } = await import("@/lib/garage-marketing-service");
       const updated = await updateMarketingPromoStatus(String(args.promoId), String(args.status));
       if (!updated) throw new AgentToolError("NOT_FOUND", "Promo tidak ditemukan.", 404);

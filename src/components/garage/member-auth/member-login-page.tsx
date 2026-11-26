@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { ArrowLeft, ArrowRight, BadgeCheck, BarChart3, Check, ChevronLeft, ChevronRight, Coins, Eye, EyeOff, Gift, LockKeyhole, Mail, Phone, TicketPercent, User } from "lucide-react";
+import { ArrowLeft, ArrowRight, BadgeCheck, BarChart3, Check, ChevronLeft, ChevronRight, Coins, Eye, EyeOff, Gift, LockKeyhole, Mail, Phone, User } from "lucide-react";
 
 import { memberLevelRules } from "@/lib/member-types";
 
@@ -385,8 +385,8 @@ export function MemberLoginPage({
               <span><strong>Poin</strong><span>Setiap Order</span></span>
             </li>
             <li className="gm6-benefit">
-              <span className="gm6-benefit-icon"><TicketPercent size={20} aria-hidden="true" /></span>
-              <span><strong>Voucher</strong><span>&amp; Promo Member</span></span>
+              <span className="gm6-benefit-icon"><Gift size={20} aria-hidden="true" /></span>
+              <span><strong>Tukar Poin</strong><span>Potong Tagihan</span></span>
             </li>
             <li className="gm6-benefit">
               <span className="gm6-benefit-icon"><BarChart3 size={20} aria-hidden="true" /></span>
@@ -419,7 +419,7 @@ export function MemberLoginPage({
               </div>
               <span className="gm6-tier-pill">{registered.tier} Member</span>
               <ul className="mx-auto mt-5 grid max-w-xs gap-2.5 text-left text-[15px] text-[#e8e8ea]">
-                {["Poin setiap transaksi", "Akses voucher & promo member", "Tersambung ke kasir otomatis"].map((item) => (
+                {["Poin setiap transaksi", "Tukar poin jadi potongan tagihan", "Tersambung ke kasir otomatis"].map((item) => (
                   <li key={item} className="flex items-center gap-3">
                     <span className="grid size-6 shrink-0 place-items-center rounded-full border border-[#ff2638] text-[#ff6b75]"><Check size={14} aria-hidden="true" /></span>
                     {item}
@@ -453,7 +453,7 @@ export function MemberLoginPage({
                   ? "Hampir selesai! Lengkapi data berikut untuk mengaktifkan membership Garage Coffee."
                   : isLogin
                     ? "Masuk dan nikmati pengalaman member Garage Coffee."
-                    : "Gratis. Langsung jadi member: poin tiap order, voucher, dan tersambung ke kasir."}
+                    : "Gratis. Langsung jadi member: poin tiap order, tukar poin jadi potongan, dan tersambung ke kasir."}
               </p>
 
               <div key={`${mode}-${step}-${shakeKey}`} className={`mt-7 grid gap-5 ${shakeKey ? "gm6-shake" : ""}`}>
@@ -697,7 +697,7 @@ export function MemberLoginPage({
         {/* Mobile: keuntungan di bawah form. */}
         <ul className="gm6-benefits lg:hidden" aria-label="Keuntungan member">
           <li className="gm6-benefit"><span className="gm6-benefit-icon"><Coins size={18} aria-hidden="true" /></span><span><strong>Poin</strong><span>Setiap Order</span></span></li>
-          <li className="gm6-benefit"><span className="gm6-benefit-icon"><TicketPercent size={18} aria-hidden="true" /></span><span><strong>Voucher</strong><span>&amp; Promo</span></span></li>
+          <li className="gm6-benefit"><span className="gm6-benefit-icon"><Gift size={18} aria-hidden="true" /></span><span><strong>Tukar Poin</strong><span>Potongan</span></span></li>
           <li className="gm6-benefit"><span className="gm6-benefit-icon"><BarChart3 size={18} aria-hidden="true" /></span><span><strong>Riwayat</strong><span>Transaksi</span></span></li>
         </ul>
       </div>

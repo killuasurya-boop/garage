@@ -25,7 +25,6 @@ import {
   Search,
   Send,
   ShoppingBag,
-  TicketPercent,
   User,
   MapPin,
 } from "lucide-react";
@@ -102,12 +101,11 @@ import type {
   MenuItem,
   OrderType,
   PublicOrderStatus,
-  VoucherValidation,
 } from "@/lib/garage-api-types";
 import { maxRedeemablePoints, type MemberLevel } from "@/lib/member-types";
 import { deliveryQuote } from "@/lib/garage-delivery-rules";
 import { DEFAULT_APP_SETTINGS, type AppSettings } from "@/lib/garage-app-settings-types";
-import { calculateOrderBilling, capVoucherDiscountBySettings, qrPromoDiscount } from "@/lib/garage-billing";
+import { calculateOrderBilling, qrPromoDiscount } from "@/lib/garage-billing";
 import { resolveOrderCampaign } from "@/lib/order-campaign";
 import { QRIS_IMAGE_SRC } from "@/lib/garage-qris";
 import { parseBankAccounts } from "@/lib/bank-accounts";
@@ -873,11 +871,8 @@ export function MemberOrderPage({
   // Mode waiter: nomor order terakhir yang terkirim ke kasir (panel sukses).
   const [staffSentOrderNo, setStaffSentOrderNo] = useState<string | null>(null);
   const [customerNote, setCustomerNote] = useState("");
-  const [voucherCode, setVoucherCode] = useState("");
-  const [voucherResult, setVoucherResult] = useState<VoucherValidation | null>(null);
   // Pakai poin member saat checkout (maks sesuai Pengaturan).
   const [usePoints, setUsePoints] = useState(false);
-  const [voucherBusy, setVoucherBusy] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<CustomerPaymentMethod>("Cash");
   // Pesan dari luar Garage (link tanpa meja): Take away atau Delivery.
   const [fulfillment, setFulfillment] = useState<"takeaway" | "delivery">("takeaway");
@@ -928,7 +923,6 @@ export function MemberOrderPage({
   const [helpMessage, setHelpMessage] = useState("");
   const [helpBusy, setHelpBusy] = useState<string | null>(null);
   // Field opsional checkout disembunyikan dulu agar tampilan minimalis.
-  const [showVoucherField, setShowVoucherField] = useState(false);
   const [showNoteField, setShowNoteField] = useState(false);
   const deferredQuery = useDeferredValue(query);
   const pendingStorageKey = `garage:eventCheckout:pending:${qrContext.outletId ?? "default"}`;
@@ -1192,10 +1186,9 @@ export function MemberOrderPage({
   const regularSubtotal = subtotal - packageSubtotal;
   const { service, tax, regularGrossTotal } = calculateOrderBilling({ regularSubtotal, packageSubtotal }, billingSettings);
   const roundingAdjustment = regularGrossTotal - (regularSubtotal + service + tax);
+  // Promo QR & voucher dimatikan Owner 25 Nov 2026 (voucher-policy.ts): qrPromoDiscount selalu 0, tanpa kode voucher.
   const promoDiscount = qrPromoDiscount(regularSubtotal, billingSettings);
-  const voucherDiscount = voucherResult?.valid
-    ? capVoucherDiscountBySettings(voucherResult.discount, regularSubtotal, billingSettings)
-    : 0;
+  const voucherDiscount = 0;
   const discount = Math.min(regularGrossTotal, promoDiscount);
   // ---------------------------------------------------------------------------
   // Pilih meja (PDF owner, Okt 2026): dine-in pelanggan wajib memilih/konfirmasi
@@ -1452,7 +1445,7 @@ export function MemberOrderPage({
   const deliveryAddressMissing = isDelivery && deliveryAddress.trim().length < 10;
   const deliveryBelowMin =
     isDelivery && billingSettings.deliveryMinSpend > 0 && subtotal < billingSettings.deliveryMinSpend;
-  const discountLabel = mode === "member" ? "Voucher member" : "Promo QR";
+  const discountLabel = "Promo QR";
   const loginHref = `/member-login?next=${encodeURIComponent(returnPath)}`;
   const guestNameMissing = !staffOrder && mode === "guest" && !guestName.trim();
   const showGuestNameError = guestNameMissing && guestNameTouched;
@@ -1613,40 +1606,6 @@ export function MemberOrderPage({
     void refreshOrderingStatus();
   }
 
-  async function checkVoucher() {
-    const code = voucherCode.trim();
-    if (!code) {
-      setVoucherResult({
-        valid: false,
-        code: "",
-        title: null,
-        discount: 0,
-        message: "Masukkan kode voucher.",
-      });
-      return;
-    }
-
-    setVoucherBusy(true);
-    try {
-      const result = await postJson<VoucherValidation>("/api/vouchers/validate", {
-        code,
-        subtotal: regularSubtotal,
-        customerMode: mode,
-      });
-      setVoucherResult(result);
-    } catch (error) {
-      setVoucherResult({
-        valid: false,
-        code,
-        title: null,
-        discount: 0,
-        message: error instanceof Error ? error.message : "Voucher gagal dicek.",
-      });
-    } finally {
-      setVoucherBusy(false);
-    }
-  }
-
   function adoptCustomerOrder(result: CustomerOrderCreateResponse, submitted?: FrozenEventSubmission) {
     const cartUnchanged = !submitted || submitted.cartSignature === JSON.stringify(cart) || !cartLines.length;
     if (cartUnchanged) {
@@ -1759,7 +1718,6 @@ export function MemberOrderPage({
         customerNote: customerNote.trim() || undefined,
         source: qrContext.source,
         campaign: qrContext.campaign,
-        voucherCode: voucherCode.trim() || undefined,
         pointsToRedeem: pointsUsed > 0 ? pointsUsed : undefined,
         paymentMethod,
         paymentProvider: paymentProviderValue || undefined,
@@ -2055,9 +2013,6 @@ export function MemberOrderPage({
         />
       ) : null}
       {discount > 0 ? <BillLine label={discountLabel} value={`- ${rupiah.format(discount)}`} /> : null}
-      {voucherDiscount > 0 ? (
-        <BillLine label="Voucher tambahan" value={`- ${rupiah.format(voucherDiscount)}`} />
-      ) : null}
       {pointsDiscount > 0 ? (
         <BillLine label={`Poin member (${pointsUsed} poin)`} value={`- ${rupiah.format(pointsDiscount)}`} />
       ) : null}
@@ -2364,15 +2319,6 @@ export function MemberOrderPage({
         )}
 
         <div className="mt-3 flex flex-wrap gap-2">
-          {!showVoucherField && !voucherResult ? (
-            <button
-              type="button"
-              onClick={() => setShowVoucherField(true)}
-              className="garage-press inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border border-garage-line-2 px-3 text-sm font-semibold text-white transition-colors hover:bg-garage-bg-3"
-            >
-              <TicketPercent className="size-4 text-garage-amber" /> Kode promo
-            </button>
-          ) : null}
           {!showNoteField && !customerNote ? (
             <button
               type="button"
@@ -2384,40 +2330,6 @@ export function MemberOrderPage({
           ) : null}
         </div>
 
-        {showVoucherField || voucherResult ? (
-          <div className="mt-3">
-            <label htmlFor="order-voucher" className="text-sm font-bold text-garage-dim">
-              Kode voucher / promo
-            </label>
-            <div className="mt-1.5 flex gap-2">
-              <input
-                id="order-voucher"
-                value={voucherCode}
-                onChange={(event) => {
-                  setVoucherCode(event.target.value);
-                  setVoucherResult(null);
-                }}
-                className={`${inputClass} min-w-0 flex-1 border-garage-line uppercase placeholder:normal-case`}
-                placeholder="Masukkan kode"
-                autoComplete="off"
-              />
-              <button
-                type="button"
-                className="garage-press h-11 shrink-0 cursor-pointer rounded-md border border-garage-line-2 px-4 text-sm font-bold text-white transition-colors hover:bg-garage-bg-3 disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={voucherBusy || !subtotal}
-                onClick={() => void checkVoucher()}
-              >
-                {voucherBusy ? "Cek…" : "Pakai"}
-              </button>
-            </div>
-            {voucherResult ? (
-              <p className={`mt-2 text-sm ${voucherResult.valid ? "text-[#bbf7d0]" : "text-[#ffb3b3]"}`}>
-                {voucherResult.message}
-                {voucherResult.valid ? ` Diskon ${rupiah.format(voucherResult.discount)}.` : ""}
-              </p>
-            ) : null}
-          </div>
-        ) : null}
 
         {showNoteField || customerNote ? (
           <label className="mt-3 grid gap-1.5">
@@ -2665,15 +2577,6 @@ export function MemberOrderPage({
         {eventContext ? <div className="my-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-garage-amber/35 bg-garage-bg-2 px-4 py-2.5"><div className="min-w-0"><div className="flex flex-wrap items-center gap-x-3 gap-y-1"><p className="text-sm font-semibold text-garage-amber">{eventContext.preview ? "Preview internal" : eventTimeUnavailable ? "Periode event selesai" : "Spesial event"}</p><p className="break-words text-base font-bold text-white">{eventContext.title}</p></div><p className="mt-1 text-sm leading-5 text-garage-dim">{eventContext.preview ? "Tinjau tampilan. Pengiriman order dinonaktifkan." : eventTimeUnavailable ? "Muat ulang untuk melihat menu dan harga yang berlaku saat ini." : mainEventMenu ? "Paket pilihan dan menu satuan, satu keranjang." : "Harga khusus event sesuai periode yang berlaku."}</p></div>{eventTimeUnavailable && mainEventMenu ? <button type="button" disabled={Boolean(uncertainSubmission)} onClick={() => window.location.reload()} className="min-h-11 shrink-0 rounded-md border border-garage-line-2 px-4 text-sm font-bold text-white hover:bg-garage-bg-3 disabled:opacity-40">Muat ulang menu</button> : !mainEventMenu ? <Link href="/order" className="inline-flex min-h-11 shrink-0 items-center rounded-md border border-garage-line-2 px-4 text-sm font-bold text-white hover:bg-garage-bg-3">Menu utama</Link> : null}</div> : null}
         {uncertainSubmission ? <div className="mb-3">{recoveryPanel}</div> : null}
 
-        {!voucherResult?.valid && qrContext.campaign === "landing_menu" ? (
-          <div className="mt-4 flex items-center gap-3 rounded-md border border-garage-amber/40 bg-garage-amber/10 px-3.5 py-3">
-            <TicketPercent className="size-5 shrink-0 text-garage-amber" aria-hidden />
-            <p className="min-w-0 text-sm text-garage-dim">
-              <strong className="text-white">Welcome QR — diskon Rp 5.000</strong> otomatis terpakai untuk
-              transaksi pertama.
-            </p>
-          </div>
-        ) : null}
 
         <div className="mt-3 grid gap-6 lg:grid-cols-[208px_minmax(0,1fr)_300px] lg:items-start xl:grid-cols-[236px_minmax(0,1fr)_340px]">
           <aside className="gm5-side-scroll hidden lg:sticky lg:top-3 lg:block lg:max-h-[calc(100svh-24px)] lg:overflow-y-auto lg:overscroll-contain lg:pb-2" aria-label="Panel navigasi">

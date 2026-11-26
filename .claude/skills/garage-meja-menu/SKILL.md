@@ -44,3 +44,6 @@ description: Aturan WAJIB meja (nomor, status, warna, hold, join code, pindah me
 - Menu V5 customer extras (5 Nov 2026): table pick in `waiter_list` = info only (`table-info-v5.tsx`, GET only, never holds/occupies);
   Signature = product tag "Signature", Unggulan = `featured` (never the same badge); AYA 3D = lazy `three` (`aya-stage-3d.tsx`, official
   V5 layers, 2D fallback); AYA chat stays rule-based (no AI key in frontend). Details: skill `garage-menu-v5`.
+
+- Tanpa voucher & tanpa Promo QR (Owner 25 Nov 2026): `/order` tidak punya tombol "Kode promo"/isian voucher dan tidak ada
+  banner "Welcome QR"; diskon otomatis Promo QR = 0 (`qrPromoDiscount`, `voucher-policy.ts`). Poin member tetap bisa dipakai.

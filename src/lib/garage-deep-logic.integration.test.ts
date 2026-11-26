@@ -259,11 +259,15 @@ describe("Void order member → poin & voucher ditarik", () => {
         paymentMethod: "Cash",
         cashReceived: 500_000,
         customerId: cust.id,
-        voucherCode: "AUDIT5K",
         items: [{ itemId: "itm-food", variantId: "reg", qty: 5 }],
       },
       session(),
     );
+    // Voucher dimatikan Owner 25 Nov 2026 → order baru tidak bisa memakai voucher. Simulasikan order LAMA yang sempat
+    // memakai voucher (redemption + kuota terpakai) agar jalur void tetap mengembalikan kuota & membalik riwayat.
+    const [saleOrder] = await d.select().from(t.schema.orders).where(eq(t.schema.orders.orderNo, res.orderNo));
+    await d.insert(t.schema.voucherRedemptions).values({ voucherId: voucher.id, orderId: saleOrder.id, customerId: cust.id, discount: 5_000 });
+    await d.update(t.schema.vouchers).set({ usedCount: 1 }).where(eq(t.schema.vouchers.id, voucher.id));
     const [afterSale] = await d.select().from(t.schema.customers).where(eq(t.schema.customers.id, cust.id));
     expect(afterSale.points).toBeGreaterThan(0);
     expect(afterSale.visits).toBe(1);
@@ -276,6 +280,8 @@ describe("Void order member → poin & voucher ditarik", () => {
     expect(afterVoid.visits).toBe(0);
     const [restoredVoucher] = await d.select().from(t.schema.vouchers).where(eq(t.schema.vouchers.id, voucher.id));
     expect(restoredVoucher.usedCount).toBe(0);
+    const [redemption] = await d.select().from(t.schema.voucherRedemptions).where(eq(t.schema.voucherRedemptions.orderId, saleOrder.id));
+    expect(redemption.status).toBe("reversed");
   });
 });
 

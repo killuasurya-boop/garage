@@ -87,56 +87,65 @@ afterAll(async () => {
   await teardownGarageTestDb(t);
 });
 
-describe("Voucher — aturan validasi", () => {
-  it("guest tidak boleh pakai voucher (khusus member)", async () => {
-    const res = await validateVoucher({ code: "HEMAT5K", subtotal: 20_000, customerMode: "guest" });
-    expect(res.valid).toBe(false);
-    expect(res.message).toMatch(/member/i);
-  });
-
-  it("member + voucher aktif → valid, diskon 5.000", async () => {
-    const res = await validateVoucher({ code: "HEMAT5K", subtotal: 20_000, customerMode: "member" });
-    expect(res.valid).toBe(true);
-    expect(res.discount).toBe(5_000);
-  });
-
-  it("tolak bila belanja di bawah minimal", async () => {
-    const res = await validateVoucher({ code: "MIN100K", subtotal: 20_000, customerMode: "member" });
-    expect(res.valid).toBe(false);
-    expect(res.message).toMatch(/minimal/i);
-  });
-
-  it("kode tidak dikenal → invalid", async () => {
-    const res = await validateVoucher({ code: "NGAWUR", subtotal: 20_000, customerMode: "member" });
-    expect(res.valid).toBe(false);
+// Owner 25 Nov 2026: SEMUA voucher dimatikan (src/lib/voucher-policy.ts). Voucher yang masih "active" di DB
+// (mis. data lama sebelum migrasi 0213) tetap ditolak — tidak ada diskon, tidak ada redemption, kuota tidak berubah.
+describe("Voucher dimatikan — validasi selalu ditolak", () => {
+  it("guest & member, voucher aktif atau tidak, semua ditolak dengan pesan jelas", async () => {
+    for (const input of [
+      { code: "HEMAT5K", subtotal: 20_000, customerMode: "guest" },
+      { code: "HEMAT5K", subtotal: 20_000, customerMode: "member" },
+      { code: "MIN100K", subtotal: 200_000, customerMode: "member" },
+      { code: "NGAWUR", subtotal: 20_000, customerMode: "member" },
+    ]) {
+      const res = await validateVoucher(input);
+      expect(res).toMatchObject({ valid: false, discount: 0 });
+      expect(res.message).toMatch(/tidak berlaku/i);
+    }
   });
 });
 
-describe("Voucher — penukaran via order kasir (member)", () => {
-  it("voucher member: total berkurang & usedCount bertambah", async () => {
-    const res = await createOrder(
-      {
-        orderType: "takeaway",
-        paymentMethod: "Cash",
-        cashReceived: 100_000,
-        customerId: memberId,
-        voucherCode: "HEMAT5K",
-        items: [{ itemId: "itm-coffee", variantId: "reg", qty: 1 }],
-      },
-      kasirSession(),
-    );
-
-    // subtotal 20.000; ada diskon voucher 5.000 → total < subtotal+service+tax.
-    expect(res.discount).toBeGreaterThanOrEqual(5_000);
-    expect(res.subtotal).toBe(20_000);
+describe("Voucher dimatikan — order kasir & penerbitan", () => {
+  it("order kasir bervoucher ditolak; kuota & riwayat voucher tidak berubah", async () => {
+    await expect(
+      createOrder(
+        {
+          orderType: "takeaway",
+          paymentMethod: "Cash",
+          cashReceived: 100_000,
+          customerId: memberId,
+          voucherCode: "HEMAT5K",
+          items: [{ itemId: "itm-coffee", variantId: "reg", qty: 1 }],
+        },
+        kasirSession(),
+      ),
+    ).rejects.toThrow(/tidak berlaku/i);
 
     const d = t.getDb();
     const { eq } = await import("drizzle-orm");
-    const [voucher] = await d
-      .select()
-      .from(t.schema.vouchers)
-      .where(eq(t.schema.vouchers.code, "HEMAT5K"))
-      .limit(1);
-    expect(voucher.usedCount).toBe(1);
+    const [voucher] = await d.select().from(t.schema.vouchers).where(eq(t.schema.vouchers.code, "HEMAT5K")).limit(1);
+    expect(voucher.usedCount).toBe(0);
+    expect(await d.select().from(t.schema.voucherRedemptions)).toHaveLength(0);
+  });
+
+  it("voucher baru, voucher CRM, dan promo Marketing tidak bisa diterbitkan/diaktifkan lagi", async () => {
+    const svc = await import("@/lib/garage-service");
+    const marketing = await import("@/lib/garage-marketing-service");
+    await expect(
+      svc.createVoucher({ code: "BARU10", title: "Baru", type: "fixed", value: 10_000 } as never, kasirSession()),
+    ).rejects.toMatchObject({ code: "VOUCHER_RETIRED", status: 410 });
+    await expect(
+      svc.issuePersonalVoucherForCrm({ customerId: memberId, type: "fixed", value: 10_000 }),
+    ).rejects.toMatchObject({ code: "VOUCHER_RETIRED" });
+    await expect(marketing.createMarketingPromo({ code: "PROMO1", title: "Promo", type: "fixed", value: 5_000 } as never)).rejects.toMatchObject({
+      code: "VOUCHER_RETIRED",
+    });
+
+    const d = t.getDb();
+    const { eq } = await import("drizzle-orm");
+    const [hemat] = await d.select().from(t.schema.vouchers).where(eq(t.schema.vouchers.code, "HEMAT5K")).limit(1);
+    // Menjeda boleh, mengaktifkan lagi tidak.
+    expect(await marketing.updateMarketingPromoStatus(hemat.id, "paused")).toMatchObject({ status: "paused" });
+    await expect(marketing.updateMarketingPromoStatus(hemat.id, "active")).rejects.toMatchObject({ code: "VOUCHER_RETIRED" });
+    expect(await d.select().from(t.schema.vouchers).where(eq(t.schema.vouchers.code, "BARU10"))).toHaveLength(0);
   });
 });

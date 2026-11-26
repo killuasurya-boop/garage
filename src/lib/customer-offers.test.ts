@@ -10,7 +10,6 @@ import {
   tierShowcase,
   verifiedTierBenefits,
   voucherEffectiveStatus,
-  WELCOME_VOUCHER,
   type VoucherLike,
 } from "@/lib/customer-offers";
 
@@ -58,30 +57,19 @@ describe("getEligibleCustomerOffers", () => {
     voucher({ id: "theirs", code: "PERSONAL-X", customerId: "c2" }),
   ];
 
-  it("guest: hanya promo umum, tanpa kode, tanpa voucher pribadi siapa pun", () => {
-    const offers = getEligibleCustomerOffers({ viewer: { kind: "guest" }, vouchers: list, now });
-    expect(offers.map((o) => o.id)).toEqual(["general"]);
-    expect(offers[0].code).toBeNull();
-  });
-
-  it("member: voucher miliknya + umum; tidak bocor milik orang lain; yang sudah dipakai disaring", () => {
-    const offers = getEligibleCustomerOffers({ viewer: { kind: "member", customerId: "c1", tier: "Silver" }, vouchers: list, now });
-    expect(offers.map((o) => o.id)).toEqual(["mine", "general"]);
-    expect(offers[0]).toMatchObject({ kind: "welcome", code: "WELCOME-ABC", expiringSoon: true });
-    const afterUse = getEligibleCustomerOffers({
-      viewer: { kind: "member", customerId: "c1", tier: "Silver" },
-      vouchers: list,
-      redeemedVoucherIds: ["mine"],
-      now,
-    });
-    expect(afterUse.map((o) => o.id)).toEqual(["general"]);
+  // Owner 25 Nov 2026: semua voucher dimatikan (voucher-policy.ts) — tidak ada penawaran voucher untuk siapa pun.
+  it("voucher dimatikan: guest & member tidak mendapat penawaran voucher apa pun", () => {
+    expect(getEligibleCustomerOffers({ viewer: { kind: "guest" }, vouchers: list, now })).toEqual([]);
+    expect(getEligibleCustomerOffers({ viewer: { kind: "member", customerId: "c1", tier: "Silver" }, vouchers: list, now })).toEqual([]);
   });
 });
 
 describe("benefit terverifikasi", () => {
   it("memakai aturan poin dari Pengaturan, bukan perk yang belum ada", () => {
-    const silver = verifiedTierBenefits("Silver", rules, { includeWelcome: true });
-    expect(silver.map((b) => b.key)).toEqual(["points", "redeem", "member-promo", "welcome"]);
+    const silver = verifiedTierBenefits("Silver", rules);
+    // Tanpa "Voucher & promo member" dan "Welcome reward" (voucher dimatikan Owner 25 Nov 2026).
+    expect(silver.map((b) => b.key)).toEqual(["points", "redeem"]);
+    expect(JSON.stringify(silver)).not.toMatch(/voucher|welcome/i);
     expect(silver[0].detail).toContain("Rp100.000 = 50 poin");
     expect(silver[1].detail).toContain("1 poin = Rp100");
     const gold = verifiedTierBenefits("Gold", rules);
@@ -93,16 +81,13 @@ describe("benefit terverifikasi", () => {
 
   it("poin & tukar poin tidak dijanjikan bila dimatikan", () => {
     const off = verifiedTierBenefits("Silver", { ...rules, pointsPerThousand: 0, redeemMaxPct: 0 });
-    expect(off.map((b) => b.key)).toEqual(["member-promo"]);
+    expect(off).toEqual([]);
   });
 
-  it("welcome voucher sama dengan yang diterbitkan registerMember", () => {
+  it("pendaftaran member tidak lagi menerbitkan voucher (Owner 25 Nov 2026)", () => {
     const source = readFileSync(path.join(process.cwd(), "src/lib/member-service.ts"), "utf8");
-    const block = source.slice(source.indexOf("async function issueWelcomeVoucher"), source.indexOf("function upgradeMessage"));
-    expect(block).toContain(`value: ${WELCOME_VOUCHER.percent},`);
-    expect(block).toContain(`maxDiscount: ${WELCOME_VOUCHER.maxDiscount.toLocaleString("en-US").replace(/,/g, "_")},`);
-    expect(block).toContain(`${WELCOME_VOUCHER.days} * 24 * 60 * 60 * 1000`);
-    expect(block).toContain("usageLimit: 1");
+    expect(source).not.toContain("issueWelcomeVoucher");
+    expect(source).not.toMatch(/insert\(vouchers\)/);
   });
 });
 

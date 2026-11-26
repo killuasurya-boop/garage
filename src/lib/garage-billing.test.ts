@@ -58,16 +58,12 @@ describe("applyRoundingMode", () => {
   });
 });
 
-describe("qrPromoDiscount (promo otomatis order QR dari Pengaturan)", () => {
-  it("default 10% maks Rp25.000 (sama dengan perilaku lama)", () => {
-    expect(qrPromoDiscount(100_000, DEFAULT_APP_SETTINGS)).toBe(10_000);
-    expect(qrPromoDiscount(400_000, DEFAULT_APP_SETTINGS)).toBe(25_000);
-  });
-  it("0% = tanpa promo", () => {
-    expect(qrPromoDiscount(100_000, { qrPromoPct: 0, qrPromoMaxAmount: 25_000 })).toBe(0);
-  });
-  it("persen & batas bisa diatur owner", () => {
-    expect(qrPromoDiscount(100_000, { qrPromoPct: 5, qrPromoMaxAmount: 3_000 })).toBe(3_000);
+describe("qrPromoDiscount (Promo QR dimatikan Owner 25 Nov 2026)", () => {
+  it("selalu 0 — termasuk bila Pengaturan lama masih 10% maks Rp25.000", () => {
+    expect(DEFAULT_APP_SETTINGS.qrPromoPct).toBe(0);
+    expect(qrPromoDiscount(100_000, DEFAULT_APP_SETTINGS)).toBe(0);
+    expect(qrPromoDiscount(100_000, { qrPromoPct: 10, qrPromoMaxAmount: 25_000 })).toBe(0);
+    expect(qrPromoDiscount(400_000, { qrPromoPct: 5, qrPromoMaxAmount: 3_000 })).toBe(0);
   });
 });
 

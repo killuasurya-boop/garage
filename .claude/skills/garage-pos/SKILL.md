@@ -144,3 +144,7 @@ description: Aturan WAJIB modul POS Garage OS: kasir, keranjang, order/invoice a
   Order item DTOs carry `package` (`orderItemPackage`, never HPP); receipts/invoice/POS group by it (`groupOrderLines`).
   Bundle photo = `event_menu_entries.image_url` (migration 0149), fallback collage of component photos.
 - Release and rollback checklist: `docs/event-menu-release.md`. Production deployment requires separate owner approval and verified backup.
+
+- Tanpa voucher & tanpa Promo QR (Owner 25 Nov 2026, `src/lib/voucher-policy.ts`): POS tidak punya kotak kode voucher; order
+  bervoucher (klien lama/antrean offline) ditolak server dengan pesan jelas. Potongan yang tersisa: diskon kasir manual
+  (+ approval) dan tukar poin member. `qrPromoDiscount` selalu 0; isian Promo QR & cap voucher dihapus dari Pengaturan.

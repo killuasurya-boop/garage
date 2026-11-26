@@ -271,7 +271,7 @@ function CrmProgramView() {
   ];
   const marginRows = [
     { scenario: "Normal", spend: "Rp100.000", reward: "100 poin", cost: "Belum jadi biaya" },
-    { scenario: "Redeem", spend: "Rp100.000", reward: "Voucher Rp10.000", cost: "10% gross discount" },
+    { scenario: "Redeem", spend: "Rp100.000", reward: "Tukar 100 poin = potongan Rp10.000", cost: "10% gross discount" },
     { scenario: "Healthy cap", spend: "Rp100.000", reward: "Budget Rp2.000-Rp5.000", cost: "2%-5% omzet member" },
   ];
 
@@ -304,7 +304,7 @@ function CrmProgramView() {
         <div className="rounded-lg border border-[#34343c] bg-[#111116] p-4">
           <h3 className="text-base font-bold text-white">Desain Tier</h3>
           <div className="mt-3 grid gap-2">
-            <TierProgramRow tier="Silver" target="Daftar member" earn="1x point" benefits="Welcome reward, promo umum, stamp mission" />
+            <TierProgramRow tier="Silver" target="Daftar member" earn="1x point" benefits="Poin 1x, tukar poin jadi potongan, stamp mission" />
             <TierProgramRow tier="Gold" target={`Mulai ${currency.format(GOLD_ANNUAL_SPEND)}/tahun`} earn="1.2x point" benefits="Birthday reward, priority promo, early access seasonal drink" />
             <TierProgramRow tier="Platinum" target={`Mulai ${currency.format(PLATINUM_ANNUAL_SPEND)}/tahun`} earn="1.6x point" benefits="Free monthly drink, VIP menu, exclusive event, faster redeem" />
           </div>
@@ -346,7 +346,7 @@ function CrmProgramView() {
           title="SOP Member"
           items={[
             "Kasir wajib tawarkan daftar member sebelum pembayaran.",
-            "Welcome reward: free espresso shot, topping, atau diskon 10% sekali pakai.",
+            "Tanpa voucher (Owner 25 Nov 2026): potongan hanya lewat tukar poin member atau diskon kasir berizin.",
             "Stamp mission: beli 5 kopi susu gratis 1, datang 10x bonus dessert.",
             "Poin punya masa evaluasi tahunan; reward tidak boleh tanpa expiry.",
           ]}

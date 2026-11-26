@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 
-import { and, desc, eq, gte, ilike, inArray, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, or, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
@@ -10,8 +10,6 @@ import {
   orders,
   orderItems,
   pointRedemptions,
-  voucherRedemptions,
-  vouchers,
 } from "@/db/schema";
 import { hashPassword, verifyPassword } from "@/lib/member-auth";
 import { customerHasHistory } from "@/lib/member-otp-rules";
@@ -144,39 +142,6 @@ export async function getMemberProfile(customerId: string) {
   return memberResponseData({ ...customer, annualSpend });
 }
 
-async function issueWelcomeVoucher(customer: typeof customers.$inferSelect, db = getDb()) {
-  const code = `WELCOME-${customer.referralCode ?? customer.phone.replace(/\D/g, "").slice(-6)}`;
-  const endsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-  const [voucher] = await db
-    .insert(vouchers)
-    .values({
-      code,
-      customerId: customer.id,
-      title: `Welcome Reward 10% untuk ${customer.name}`,
-      type: "percent",
-      value: 10,
-      minSpend: 0,
-      maxDiscount: 25_000,
-      audience: "all",
-      status: "active",
-      startsAt: new Date(),
-      endsAt,
-      usageLimit: 1,
-    })
-    .onConflictDoUpdate({
-      target: vouchers.code,
-      set: {
-        title: `Welcome Reward 10% untuk ${customer.name}`,
-        status: "active",
-        endsAt,
-        updatedAt: new Date(),
-      },
-    })
-    .returning();
-
-  return voucher;
-}
-
 function upgradeMessage(beforeLevel: string, afterLevel: string) {
   if (memberLevelRank(afterLevel) <= memberLevelRank(beforeLevel)) {
     return null;
@@ -287,7 +252,7 @@ export async function registerMember(input: RegisterMemberInput) {
         })
         .returning();
 
-  const welcomeVoucher = await issueWelcomeVoucher(customer, db);
+  // Tanpa voucher daftar (Owner 25 Nov 2026): semua voucher & Promo QR dimatikan, poin member tetap.
 
   if (referredByCode) {
     await db.insert(memberTransactions).values({
@@ -321,13 +286,6 @@ export async function registerMember(input: RegisterMemberInput) {
       account,
       customer,
       member: memberResponseData(customer),
-      welcomeVoucher: {
-        code: welcomeVoucher.code,
-        title: welcomeVoucher.title,
-        discount: `${welcomeVoucher.value}%`,
-        maxDiscount: welcomeVoucher.maxDiscount,
-        validUntil: welcomeVoucher.endsAt?.toISOString() ?? null,
-      },
     },
     error: null,
   };
@@ -375,28 +333,6 @@ export async function getMemberHistory(customerId: string) {
 
 export async function getMemberWallet(customerId: string) {
   const db = getDb();
-  const now = new Date();
-  const voucherRows = await db
-    .select()
-    .from(vouchers)
-    .where(
-      and(
-        eq(vouchers.status, "active"),
-        or(eq(vouchers.customerId, customerId), eq(vouchers.audience, "all")),
-      ),
-    )
-    .orderBy(desc(vouchers.createdAt))
-    .limit(30);
-
-  const voucherIds = voucherRows.map((voucher) => voucher.id);
-  const redemptions = voucherIds.length
-    ? await db
-        .select()
-        .from(voucherRedemptions)
-        .where(and(eq(voucherRedemptions.customerId, customerId), inArray(voucherRedemptions.voucherId, voucherIds)))
-    : [];
-  const redeemed = new Set(redemptions.map((row) => row.voucherId).filter(Boolean));
-
   const [coffeeMilkMission] = await db
     .select({
       qty: sql<number>`coalesce(sum(${orderItems.qty}), 0)`.mapWith(Number),
@@ -419,29 +355,8 @@ export async function getMemberWallet(customerId: string) {
   const visits = Number(visitProgress[0]?.visits ?? 0);
 
   return {
-    vouchers: voucherRows.map((voucher) => {
-      const expired = Boolean(voucher.endsAt && voucher.endsAt < now);
-      const quotaUsed = voucher.usageLimit != null && voucher.usedCount >= voucher.usageLimit;
-      return {
-        id: voucher.id,
-        code: voucher.code,
-        title: voucher.title,
-        type: voucher.type,
-        value: voucher.value,
-        maxDiscount: voucher.maxDiscount,
-        minSpend: voucher.minSpend,
-        endsAt: voucher.endsAt?.toISOString() ?? null,
-        audience: voucher.audience,
-        status: expired || quotaUsed || redeemed.has(voucher.id) ? "unavailable" : "active",
-        note: redeemed.has(voucher.id)
-          ? "Sudah dipakai"
-          : expired
-            ? "Sudah expired"
-            : quotaUsed
-              ? "Kuota habis"
-              : "Siap dipakai",
-      };
-    }),
+    // Voucher dimatikan Owner 25 Nov 2026: dompet voucher selalu kosong (field dipertahankan untuk klien lama).
+    vouchers: [] as never[],
     missions: [
       {
         key: "kopi-susu-5",

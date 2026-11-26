@@ -25,7 +25,7 @@ Setiap kasir memakai akun sendiri. Semua transaksi tercatat atas nama akun yang 
 Transaksi hanya bisa dilakukan setelah shift dibuka. Satu kasir = satu shift terbuka.
 
 1. Di layar POS tekan Buka Shift.
-2. Hitung uang di laci, lalu isi Modal Awal (Rp50.000–Rp500.000, kelipatan Rp50.000).
+2. Hitung uang di laci, lalu isi Modal Awal sesuai uang yang ada (boleh pecahan, mis. Rp55.200).
    - Tips: Sistem menampilkan sisa uang laci yang ditinggal shift sebelumnya. Pastikan jumlah fisiknya sama.
 3. Buka "Hitung pecahan modal awal" lalu isi jumlah lembar/keping per pecahan (Rp100.000 … Rp100 koin, koin Rp1.000 terpisah). Totalnya harus sama dengan modal awal — tercatat di laporan pertanggungjawaban.
 4. Pilih Shift 1 atau Shift 2. Shift ke-3 dan seterusnya dalam satu hari butuh PIN Manajer/Owner.
@@ -56,11 +56,11 @@ Transaksi hanya bisa dilakukan setelah shift dibuka. Satu kasir = satu shift ter
 5. Chit Dapur/Bar tercetak otomatis setelah pesanan dibayar (bila diaktifkan Owner).
 6. Kategori Lainnya: Minuman Botol (Mineral) dan Rokok diserahkan langsung oleh kasir — tidak membuat tiket Bar/Dapur. Rokok tidak tampil di menu digital pelanggan.
 
-## 5. Member, voucher & diskon
+## 5. Member, poin & diskon
 
 1. Cari member dengan nomor HP, atau daftarkan member baru dari kasir. Nomor wajib WhatsApp aktif (08xx).
 2. Cek WA member: saat member dipilih, tekan Cek WA (WhatsApp terbuka), minta pelanggan membalas, lalu tekan Tandai WA aktif.
-3. Voucher: masukkan kode lalu cek. Voucher pribadi hanya bisa dipakai pemiliknya, dan kuota voucher dibatasi.
+3. Voucher dan Promo QR sudah tidak berlaku (Owner 25 Nov 2026). Potongan hanya lewat tukar poin member atau diskon kasir berizin.
 4. Poin: tekan Scan QR member, lalu pindai QR di kartu/aplikasi member (kamera atau scanner). Setelah terverifikasi, isi jumlah poin yang dipakai. Potongan muncul di ringkasan bayar.
    - **Penting:** Poin tidak bisa dipakai hanya dengan nomor HP. QR harus milik member yang dipilih.
 5. Diskon manual hanya untuk member. Di atas batas yang ditentukan Owner, tekan Minta Persetujuan lalu Manajer/Owner memasukkan PIN di tablet kasir.
@@ -82,7 +82,7 @@ Transaksi hanya bisa dilakukan setelah shift dibuka. Satu kasir = satu shift ter
    - Tips: Setelah lunas, layar selesai menampilkan KEMBALIAN besar — hitung kembalian di depan pelanggan sebelum laci ditutup.
 3. Lihat hasil penjualan shift Anda: menu Laporan Shift → kartu Penjualan shift saya (Cash / QRIS / Transfer dan Dine-in kasir / Menu digital / Take away / Delivery). Kas laci tetap dihitung saat tutup shift.
 4. Bayar nanti (simpan tagihan): di langkah 4 tekan Bayar nanti. Wajib pilih meja (dine-in) atau isi nama pelanggan (take away). Pesanan langsung masuk Bar/Dapur, tagihan tetap terbuka.
-   - Tips: Saat pelanggan selesai, buka Pesanan Pelanggan / detail meja lalu tekan Final Bayar — pilih Cash/QRIS/Transfer, kembalian tampil di sana. Voucher, poin & diskon dipakai saat Final Bayar.
+   - Tips: Saat pelanggan selesai, buka Pesanan Pelanggan / detail meja lalu tekan Final Bayar — pilih Cash/QRIS/Transfer, kembalian tampil di sana. Poin & diskon kasir dipakai saat Final Bayar.
 5. QRIS: tunjukkan QR resmi Garage, tunggu notifikasi berhasil di aplikasi bank, baru tekan Lunas.
 6. Split bayar: satu tagihan dibayar dengan beberapa metode (mis. sebagian tunai, sisanya QRIS).
 7. Split bill: satu meja dipisah jadi beberapa tagihan per orang.
@@ -115,7 +115,7 @@ Penutupan memakai blind count: kasir menghitung uang tanpa melihat angka sistem.
 1. Pastikan semua pesanan sudah dibayar atau diserahkan ke shift berikutnya.
 2. Tekan Tutup Shift, lalu hitung uang laci per pecahan (Rp100.000, Rp50.000, … koin). Total terhitung otomatis.
 3. Isi total QRIS dari aplikasi BNI (mutasi hari ini) untuk dicocokkan.
-4. Pilih uang yang ditinggal di laci untuk shift berikutnya. Sisanya disetor ke Owner.
+4. Pilih uang yang ditinggal di laci untuk shift berikutnya. Sisanya disetor ke Rekening Jago/BNI lewat Kas Keluar → Setoran, lalu Owner/Manajer mengonfirmasi bukti setor.
 5. Centang checklist penutupan, tulis catatan bila ada kejadian.
 6. Konfirmasi. Bila selisih besar, sistem meminta PIN Manajer/Owner sebagai saksi.
    - **Penting:** Jangan menghitung ulang untuk "mencari" angka sistem. Hitung jujur, selisih akan diperiksa Manajer.

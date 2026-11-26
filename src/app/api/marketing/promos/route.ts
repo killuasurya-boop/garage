@@ -1,11 +1,12 @@
 import { z } from "zod";
 
-import { ok, readJson } from "@/lib/api-response";
+import { fail, ok, readJson } from "@/lib/api-response";
 import {
   createMarketingPromo,
   listMarketingPromos,
 } from "@/lib/garage-marketing-service";
 import { requirePermission } from "@/lib/server-auth";
+import { VOUCHER_RETIRED_CODE, VOUCHER_RETIRED_MESSAGE, VOUCHERS_RETIRED } from "@/lib/voucher-policy";
 
 export const runtime = "nodejs";
 
@@ -46,6 +47,8 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const session = await requirePermission("marketing:write");
   if (session.response) return session.response;
+  // Voucher dimatikan Owner 25 Nov 2026 (src/lib/voucher-policy.ts).
+  if (VOUCHERS_RETIRED) return fail(410, VOUCHER_RETIRED_CODE, VOUCHER_RETIRED_MESSAGE);
 
   const body = await readJson(request, createSchema);
   if (body.error) return body.error;

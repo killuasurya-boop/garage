@@ -135,19 +135,6 @@ type PointRedemption = {
   createdAt: string;
 };
 
-type WalletVoucher = {
-  id: string;
-  code: string;
-  title: string;
-  type: string;
-  value: number;
-  maxDiscount: number | null;
-  minSpend: number;
-  endsAt: string | null;
-  status: string;
-  note: string;
-};
-
 type WalletMission = {
   key: string;
   title: string;
@@ -214,7 +201,7 @@ function ReferralPanel({
     const url = typeof window !== "undefined" ? window.location.origin : "";
     const message = [
       `Halo! Pakai kode referral GARAGE aku: ${trimmed}`,
-      `Daftar member di GARAGE Coffee — dapat welcome reward, point setiap order, dan bonus referral 30 poin untuk kita berdua.`,
+      `Daftar member di GARAGE Coffee — dapat poin setiap order (bisa ditukar jadi potongan) dan bonus referral 30 poin untuk kita berdua.`,
       url ? `Daftar: ${url}/member-login?mode=register&ref=${encodeURIComponent(trimmed)}` : null,
     ]
       .filter(Boolean)
@@ -294,7 +281,6 @@ export function MemberDashboard() {
   const [needsPin, setNeedsPin] = useState(false);
   const [transactions, setTransactions] = useState<MemberTransaction[]>([]);
   const [redemptions, setRedemptions] = useState<PointRedemption[]>([]);
-  const [walletVouchers, setWalletVouchers] = useState<WalletVoucher[]>([]);
   const [walletMissions, setWalletMissions] = useState<WalletMission[]>([]);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
@@ -324,12 +310,11 @@ export function MemberDashboard() {
         transactions: MemberTransaction[];
         redemptions: PointRedemption[];
       }>("/api/member/history");
-      const wallet = await getJson<{ vouchers: WalletVoucher[]; missions: WalletMission[] }>("/api/member/wallet");
+      const wallet = await getJson<{ missions: WalletMission[] }>("/api/member/wallet");
       setMember(profile.member);
       setForm(profileFormFrom(profile.member));
       setTransactions(history.transactions);
       setRedemptions(history.redemptions);
-      setWalletVouchers(wallet.vouchers);
       setWalletMissions(wallet.missions);
       setMessage("");
     } catch {
@@ -975,36 +960,7 @@ export function MemberDashboard() {
 
         <MemberAnalytics transactions={transactions} redemptions={redemptions} />
 
-        <section className="garage-panel mt-6 min-w-0 p-5 sm:p-7">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <p className="garage-mono">Wallet</p>
-              <h2 className="garage-display text-4xl">Voucher Aktif</h2>
-            </div>
-            <p className="garage-mono">{walletVouchers.filter((voucher) => voucher.status === "active").length} siap pakai</p>
-          </div>
-          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {walletVouchers.length ? (
-              walletVouchers.map((voucher) => (
-                <div key={voucher.id} className="border border-white/10 bg-white/[0.035] p-4">
-                  <p className="garage-mono">{voucher.status === "active" ? "Aktif" : "Tidak tersedia"}</p>
-                  <p className="mt-2 text-lg font-semibold text-white">{voucher.title}</p>
-                  <p className="mt-2 font-mono text-xl font-bold text-[#ffd79a]">{voucher.code}</p>
-                  <p className="mt-2 text-sm text-[#d0d0d6]">
-                    {voucher.type === "percent" ? `${voucher.value}%` : rupiah.format(voucher.value)}
-                    {voucher.maxDiscount ? ` maks ${rupiah.format(voucher.maxDiscount)}` : ""}
-                  </p>
-                  <p className="mt-1 text-xs text-[#9696a1]">
-                    {voucher.endsAt ? `Berlaku sampai ${new Date(voucher.endsAt).toLocaleDateString("id-ID")}` : "Tanpa expiry"}
-                  </p>
-                  <p className="mt-3 text-xs text-[#b8b8bf]">{voucher.note}</p>
-                </div>
-              ))
-            ) : (
-              <p className="text-sm text-[#9696a1]">Belum ada voucher aktif.</p>
-            )}
-          </div>
-        </section>
+        {/* Dompet voucher dihapus: voucher dimatikan Owner 25 Nov 2026 (voucher-policy.ts). */}
 
         <section className="garage-panel mt-6 min-w-0 p-5 sm:p-7">
           <div>

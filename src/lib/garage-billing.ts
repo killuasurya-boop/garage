@@ -1,4 +1,5 @@
 import type { AppSettings } from "@/lib/garage-app-settings-types";
+import { QR_PROMO_RETIRED } from "@/lib/voucher-policy";
 
 // =============================================================================
 // Logika tagihan POS murni (tanpa DB) — diekstrak dari garage-service agar bisa
@@ -63,11 +64,15 @@ export function calculateOrderBilling(
   };
 }
 
-/** Promo otomatis order QR/online dari Pengaturan (qrPromoPct, maks qrPromoMaxAmount). */
+/**
+ * Promo otomatis order QR/online dari Pengaturan (qrPromoPct, maks qrPromoMaxAmount).
+ * DIMATIKAN Owner 25 Nov 2026 (`QR_PROMO_RETIRED`, voucher-policy.ts): selalu 0 walau Pengaturan lama masih 10%.
+ */
 export function qrPromoDiscount(
   subtotal: number,
   settings: Pick<AppSettings, "qrPromoPct" | "qrPromoMaxAmount">,
 ) {
+  if (QR_PROMO_RETIRED) return 0;
   const pct = Math.max(0, Number(settings.qrPromoPct) || 0);
   if (pct <= 0 || subtotal <= 0) return 0;
   const cap = Math.max(0, Number(settings.qrPromoMaxAmount) || 0);

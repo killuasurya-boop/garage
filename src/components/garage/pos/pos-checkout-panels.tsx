@@ -1230,7 +1230,7 @@ export function OpenBillSavedPanel({
       </div>
       <p className="rounded-md border border-[#4a4a54] bg-white/[0.04] p-3 text-sm leading-relaxed" style={{ color: "var(--pos-text-2, #e5e2dc)" }}>
         Pesanan sudah masuk Bar/Dapur. Saat pelanggan selesai, buka menu <b>Belum Bayar</b> (F6) lalu tekan <b>Ambil uang</b> /{" "}
-        <b>Final Bayar</b> untuk memilih Cash/QRIS/Transfer — kembalian tampil di sana. Voucher, poin, dan diskon dipakai saat Final Bayar.
+        <b>Final Bayar</b> untuk memilih Cash/QRIS/Transfer — kembalian tampil di sana. Poin dan diskon kasir dipakai saat Final Bayar.
       </p>
       <div className="flex flex-col gap-2 sm:flex-row">
         <Button type="button" variant="outline" className="garage-press h-11 flex-1" disabled={printing} onClick={onPrint}>

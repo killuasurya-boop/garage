@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { POS_NAV_ICONS } from "@/components/garage/pos/pos-v6-nav";
 import { allNavIds, posNavModel, type PosNavContext, type PosNavItem } from "./pos-nav";
 
 const base: PosNavContext = {
@@ -92,5 +93,16 @@ describe("posNavModel", () => {
     expect(t("catatan-kejadian")).toBe("pos-menu-incident");
     expect(t("pesanan-mitra")).toBe("pos-menu-partners");
     expect(t("penjualan-mitra")).toBe("pos-menu-partner-sales");
+  });
+});
+
+describe("POS_NAV_ICONS", () => {
+  it("setiap icon key model punya ikon, semua unik, plus 'more'", () => {
+    const m = build();
+    const keys = [...m.primary, ...m.more.flatMap((g) => g.items)].map((i) => i.icon);
+    for (const k of keys) expect(POS_NAV_ICONS[k], k).toBeDefined();
+    expect(POS_NAV_ICONS.more).toBeDefined();
+    const all = [...new Set(keys), "more"].map((k) => POS_NAV_ICONS[k]);
+    expect(new Set(all).size).toBe(all.length);
   });
 });

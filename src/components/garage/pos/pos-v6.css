@@ -120,7 +120,7 @@
   }
   .pos-v6-tb-statuschip { min-height: 40px; font-size: calc(13px * var(--pos-fs, 1)); }
   .pos-v6-tb-statuschip .pos-v6-tb-count { margin-left: 2px; }
-  .pos-v6-tb-statuschip[data-bad="true"] { border-color: #e5484d; }
+  .pos-v6-txn { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; color: var(--pos-chrome-fg); font-weight: 700; }
   .garage-shell .cashier-pos-surface .pos-v6-topbar { flex-wrap: nowrap; }
   .pos-v6-tb-chip-dot { width: 8px; height: 8px; border-radius: 999px; background: #22c55e; }
   .pos-v6-profile {

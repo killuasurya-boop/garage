@@ -6070,7 +6070,13 @@ export function PosView({
           <span className="hidden items-center gap-3 2xl:flex">
             <PosV6Divider />
             <PosV6Clock />
-            <PosV6Divider />
+          </span>
+          <PosV6Divider />
+          <span className="pos-v6-txn 2xl:hidden" title={`${receiptHistory.length} transaksi shift`} aria-label={`${receiptHistory.length} transaksi shift`}>
+            <ReceiptText className="size-4 shrink-0" aria-hidden />
+            <span className="font-mono text-sm tabular-nums">{receiptHistory.length}</span>
+          </span>
+          <span className="hidden items-center gap-3 2xl:flex">
             <PosV6Kpi icon={ReceiptText} label="Transaksi shift" value={receiptHistory.length} />
           </span>
         </div>

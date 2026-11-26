@@ -99,7 +99,7 @@ export function PosV6ConnectionChip({ onOpen, count = 0 }: { onOpen: () => void;
       data-tone={bad ? "danger" : undefined}
       data-testid="pos-qc-open"
       onClick={onOpen}
-      aria-label="Buka QC Kasir (status koneksi, printer, antrean)"
+      aria-label={`Buka QC Kasir — ${text}`}
       title={bad ? "Koneksi/server bermasalah — pembayaran bisa gagal" : "Online · server terhubung"}
     >
       {bad ? <WifiOff className="size-3.5" aria-hidden /> : <Wifi className="size-3.5" aria-hidden />}

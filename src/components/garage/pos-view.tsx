@@ -8,7 +8,6 @@ import {
   PosV6Clock,
   PosV6Divider,
   PosV6Kpi,
-  PosV6NavGroup,
   PosV6NavItem,
   PosV6Profile,
   PosV6ProductCard,
@@ -19,6 +18,8 @@ import {
   type PosV6CardBadge,
 } from "@/components/garage/pos/pos-v6";
 import { isSignature, isUnggulan } from "@/components/garage/order/v5/menu-v5-model";
+import { POS_NAV_ICONS, PosV6MoreSheet, PosV6NavList } from "@/components/garage/pos/pos-v6-nav";
+import { posNavModel, type PosNavId } from "@/lib/pos-nav";
 import { PosV6ThemeCustomStyle } from "@/components/garage/pos/pos-v6-theme-custom-style";
 import { PosV6ConnectionChip, PosV6QcPanel } from "@/components/garage/pos/pos-v6-qc";
 import {
@@ -86,7 +87,6 @@ HandCoins,
 Maximize2,
 Minimize2,
 X,
-Handshake,
 Keyboard,
 } from "lucide-react";
 import dynamic from "next/dynamic";
@@ -2157,6 +2157,72 @@ export function PosView({
     };
   }, [posVisible, loadPendingBills, customerOrders]);
   const pendingSummary = useMemo(() => pendingBillsView(pendingOrders, pendingClock), [pendingOrders, pendingClock]);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const navModel = useMemo(
+    () =>
+      posNavModel({
+        shiftOpen,
+        waitingQr: waitingCustomerOrderCount,
+        pendingAll: pendingSummary.counts.all,
+        pendingOverdue: pendingSummary.counts.overdue,
+        receiptCount: receiptHistory.length,
+        kitchenTickets: kitchenTickets.length,
+        soldOut: soldOutIds.size,
+        partnerHubEnabled: Boolean(settings.partnerHubEnabled),
+        partnerAttention,
+        canQuickCount,
+        canManagePosSettings,
+        refreshing: cashierRefreshing,
+      }),
+    [
+      shiftOpen, waitingCustomerOrderCount, pendingSummary.counts.all, pendingSummary.counts.overdue, receiptHistory.length,
+      kitchenTickets.length, soldOutIds.size, settings.partnerHubEnabled, partnerAttention, canQuickCount, canManagePosSettings,
+      cashierRefreshing,
+    ],
+  );
+  // Satu pintu aksi menu POS (sidebar, lembar Lainnya, topbar). Handler sama persis dengan menu lama.
+  function runPosNav(id: PosNavId) {
+    switch (id) {
+      case "kasir": return focusPosSearch();
+      case "pesanan-qr": return openQrWork("incoming");
+      case "meja": return openQrWork("table_map");
+      case "belum-bayar": return openPendingBills();
+      case "riwayat-struk": return setReceiptHistoryOpen(true);
+      case "produksi":
+        setKitchenPanelOpen(true);
+        void loadKitchenTickets();
+        return;
+      case "stok-habis": return setSoldOutDialogOpen(true);
+      case "shift": return prepareShiftDialog();
+      case "kas": return openExpenseDialog();
+      case "laporan-shift-saya": return setCashierToolOpen("reports");
+      case "riwayat-penjualan": return openModulePath("/sales-history");
+      case "riwayat-laporan-shift": return openModulePath("/shift");
+      case "petty-cash": return openModulePath("/shift?tab=petty");
+      case "catatan-kejadian": return openModulePath("/shift?tab=incident");
+      case "pesanan-mitra": return openModulePath("/partners?tab=orders", "Pesanan Mitra");
+      case "penjualan-mitra": return openModulePath("/partners?tab=finance", "Penjualan & Setoran Mitra");
+      case "kontak-member": return setCashierToolOpen("contacts");
+      case "daftar-member":
+        setMemberRegMsg(null);
+        setMemberRegOpen(true);
+        return;
+      case "qc-kasir": return setQcOpen(true);
+      case "stok-opname": return openQuickCount();
+      case "pengumuman-suara":
+        voice.unlock();
+        setVoiceDialogOpen(true);
+        return;
+      case "mode-tampilan": return; // dirender sebagai swatch tema, tanpa aksi
+      case "theme-studio": return setThemeStudioOpen(true);
+      case "pengaturan-pos": return setCashierToolOpen("settings");
+      case "muat-ulang": return void refreshCashierData();
+      default: {
+        const unreachable: never = id;
+        return unreachable;
+      }
+    }
+  }
   // Pengingat: satu bunyi bila ada tagihan yang BARU lewat 30 mnt (sekali per tagihan).
   const pendingAlertedRef = useRef<Set<string> | null>(null);
   useEffect(() => {
@@ -4848,7 +4914,7 @@ export function PosView({
       data-pos-reduced-motion={cashierPosSettings.reducedMotion ? "on" : undefined}
       onClickCapture={interceptNewTabLinks}
       className={`cashier-pos-surface relative flex h-full min-h-0 flex-col gap-2 pb-0 ${
-        isCashierKiosk ? `pos-v6-main-shift ${cashierPosSettings.sidebarMode === "compact" ? "xl:pl-[92px]" : "xl:pl-[260px]"}` : ""
+        isCashierKiosk ? `pos-v6-main-shift ${cashierPosSettings.sidebarMode === "compact" ? "xl:pl-[92px]" : "xl:pl-[220px]"}` : ""
       }`}
     >
       <PosChatInbox
@@ -5192,6 +5258,7 @@ export function PosView({
           aria-label="Navigasi kasir"
         >
           <div className="pos-v6-sidebar-brand">
+            <PosV6Brand theme={cashierTheme} compact={cashierPosSettings.sidebarMode === "compact" ? "icon" : true} />
             <button
               type="button"
               className="pos-v6-sidebar-toggle"
@@ -5203,140 +5270,13 @@ export function PosView({
             >
               {cashierPosSettings.sidebarMode === "compact" ? <PanelLeftOpen className="size-4" aria-hidden /> : <PanelLeftClose className="size-4" aria-hidden />}
             </button>
-            <PosV6Brand theme={cashierTheme} compact={cashierPosSettings.sidebarMode === "compact" ? "icon" : true} />
-            {cashierPosSettings.sidebarMode === "compact" ? null : (
-              <p className="pos-v6-sidebar-caption">
-                POS V6 · {me.device}
-              </p>
-            )}
           </div>
-          <nav className="flex flex-1 flex-col gap-3 px-2.5 pb-3">
-            <PosV6NavGroup>
-              <PosV6NavItem icon={ShoppingCart} label="Kasir" shortcut="F1" active onClick={focusPosSearch} />
-              <PosV6NavItem
-                icon={ClipboardList}
-                label="Pesanan QR"
-                shortcut="F2"
-                count={waitingCustomerOrderCount}
-                onClick={() => openQrWork("incoming")}
-              />
-              <PosV6NavItem
-                icon={HandCoins}
-                label="Belum Bayar"
-                shortcut="F6"
-                testId="pos-pending-open"
-                count={pendingSummary.counts.all}
-                onClick={openPendingBills}
-              />
-              <PosV6NavItem icon={LayoutGrid} label="Meja" shortcut="F3" onClick={() => openQrWork("table_map")} />
-              <PosV6NavItem
-                icon={History}
-                label="Riwayat Struk"
-                shortcut="F4"
-                count={receiptHistory.length}
-                onClick={() => setReceiptHistoryOpen(true)}
-              />
-              <PosV6NavItem icon={BarChart3} label="Laporan Shift" onClick={() => setCashierToolOpen("reports")} />
-            </PosV6NavGroup>
-            <PosV6NavGroup label="Operasional">
-              <PosV6NavItem
-                icon={ClipboardCheck}
-                label="QC Kasir"
-                count={waitingCustomerOrderCount + kitchenTickets.length}
-                onClick={() => setQcOpen(true)}
-                testId="pos-qc-open"
-              />
-              <PosV6NavItem
-                icon={UtensilsCrossed}
-                label="Produksi Bar & Dapur"
-                count={kitchenTickets.length}
-                dot={kitchenTickets.length ? "good" : undefined}
-                onClick={() => {
-                  setKitchenPanelOpen(true);
-                  void loadKitchenTickets();
-                }}
-              />
-              <PosV6NavItem
-                icon={shiftOpen ? ShieldCheck : ShieldAlert}
-                label={shiftOpen ? "Shift Aktif / Tutup" : "Mulai Shift"}
-                dot={shiftOpen ? "good" : "danger"}
-                onClick={prepareShiftDialog}
-              />
-              <PosV6NavItem icon={Banknote} label="Kas Keluar / Masuk" onClick={() => openExpenseDialog()} />
-              <PosV6NavItem
-                icon={Ban}
-                label="Atur Stok Habis"
-                count={soldOutIds.size}
-                dot={soldOutIds.size ? "danger" : undefined}
-                onClick={() => setSoldOutDialogOpen(true)}
-              />
-              {canQuickCount ? <PosV6NavItem icon={ClipboardCheck} label="Stok Opname Gudang" onClick={() => openQuickCount()} /> : null}
-            </PosV6NavGroup>
-            <PosV6NavGroup label="Pelanggan">
-              <PosV6NavItem icon={Users} label="Kontak / Member" onClick={() => setCashierToolOpen("contacts")} />
-              <PosV6NavItem
-                icon={UserPlus}
-                label="Daftar Member"
-                onClick={() => {
-                  setMemberRegMsg(null);
-                  setMemberRegOpen(true);
-                }}
-              />
-            </PosV6NavGroup>
-            <PosV6NavGroup label="Riwayat & Kas">
-              <PosV6NavItem icon={ReceiptText} label="Riwayat Penjualan" onClick={() => openModulePath("/sales-history")} />
-              <PosV6NavItem icon={FileText} label="Riwayat & Laporan Shift" onClick={() => openModulePath("/shift")} />
-              <PosV6NavItem icon={Wallet} label="Petty Cash" testId="pos-menu-petty" onClick={() => openModulePath("/shift?tab=petty")} />
-              <PosV6NavItem icon={ClipboardList} label="Catatan Kejadian" testId="pos-menu-incident" onClick={() => openModulePath("/shift?tab=incident")} />
-              {settings.partnerHubEnabled ? (
-                <PosV6NavItem icon={Handshake} label="Pesanan Mitra" testId="pos-menu-partners" count={partnerAttention} dot={partnerAttention ? "danger" : undefined} onClick={() => openModulePath("/partners?tab=orders", "Pesanan Mitra")} />
-              ) : null}
-              {settings.partnerHubEnabled ? (
-                <PosV6NavItem icon={HandCoins} label="Penjualan Mitra Hari Ini" testId="pos-menu-partner-sales" onClick={() => openModulePath("/partners?tab=finance", "Penjualan & Setoran Mitra")} />
-              ) : null}
-            </PosV6NavGroup>
-            <PosV6NavGroup label="Lainnya">
-              <PosV6NavItem
-                icon={Mic}
-                label="Pengumuman Suara"
-                onClick={() => {
-                  voice.unlock();
-                  setVoiceDialogOpen(true);
-                }}
-              />
-              <PosV6NavItem icon={Wallet} label="Fee Saya" onClick={onOpenEarnings} />
-              <PosV6NavItem icon={Palette} label="Theme Studio" onClick={() => setThemeStudioOpen(true)} />
-              {canManagePosSettings ? <PosV6NavItem icon={Settings} label="Pengaturan POS" onClick={() => setCashierToolOpen("settings")} /> : null}
-              <PosV6NavItem
-                icon={RefreshCw}
-                label={cashierRefreshing ? "Memuat..." : "Muat Ulang POS"}
-                disabled={cashierRefreshing}
-                onClick={() => void refreshCashierData()}
-              />
-            </PosV6NavGroup>
-          </nav>
-          <div className="pos-v6-sidebar-foot">
-            <PosV6ThemeSwatches
-              value={cashierTheme}
-              onChange={onCashierThemeChange}
-              onOpenStudio={() => setThemeStudioOpen(true)}
-              compact={cashierPosSettings.sidebarMode === "compact"}
-            />
-            <div className="mt-2 grid gap-0.5">
-              <PosV6NavItem
-                icon={cashierPosSettings.sidebarMode === "compact" ? PanelLeftOpen : PanelLeftClose}
-                label={cashierPosSettings.sidebarMode === "compact" ? "Perlebar sidebar" : "Ringkas sidebar"}
-                onClick={toggleSidebarMode}
-              />
-              <PosV6NavItem
-                icon={LogOut}
-                label={signOutPending ? "Keluar..." : "Keluar"}
-                tone="danger"
-                disabled={signOutPending}
-                onClick={() => void signOutFromPos()}
-              />
+          <nav className="flex flex-1 flex-col gap-1 px-2.5 pb-3">
+            <PosV6NavList items={navModel.primary} onSelect={runPosNav} activeId="kasir" />
+            <div className="pos-v6-nav-group">
+              <PosV6NavItem icon={POS_NAV_ICONS.more} label="Lainnya" count={navModel.moreAttention} testId="pos-more-open" onClick={() => setMoreOpen(true)} />
             </div>
-          </div>
+          </nav>
         </aside>
       ) : null}
       {isCashierKiosk ? (
@@ -5345,6 +5285,17 @@ export function PosView({
         <span className="pos-v6-sidebar-glow" data-mode={cashierPosSettings.sidebarMode} aria-hidden />
       ) : null}
 
+      <PosV6MoreSheet
+        open={moreOpen}
+        onOpenChange={setMoreOpen}
+        theme={cashierTheme}
+        groups={navModel.more}
+        onSelect={(id) => {
+          setMoreOpen(false);
+          runPosNav(id);
+        }}
+        themeSwatches={<PosV6ThemeSwatches value={cashierTheme} onChange={onCashierThemeChange} onOpenStudio={() => setThemeStudioOpen(true)} />}
+      />
       <PosV6ThemeCustomStyle />
       <PosV6QcPanel
         open={qcOpen}
